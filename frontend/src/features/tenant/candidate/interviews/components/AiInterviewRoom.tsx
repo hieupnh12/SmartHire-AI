@@ -280,7 +280,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
             <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />
           )}
 
-          {data.conversational && (inProgress || !!data.completedAt) && (
+          {data.conversational && inProgress && (
             <ConversationRoom
               id={id}
               active={!!inProgress}

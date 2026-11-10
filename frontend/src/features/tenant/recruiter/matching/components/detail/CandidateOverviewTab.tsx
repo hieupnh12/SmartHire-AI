@@ -7,16 +7,13 @@ import {
   CircleAlert,
   Code2,
   FileSearch,
+  Layers,
   Lightbulb,
   Sparkles,
   Target,
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { matchingApi } from "@/api/tenant/matchingApi";
-import { getApiErrorMessage } from "@/lib/axios";
-import type { RankingRow, RankingSources, Selection } from "../../types/ranking";
+import type { RankingRow, RankingSources } from "../../types/ranking";
 import { labels, scoreText } from "../rankingUi";
-import { RankingSelect } from "../RankingSelect";
 
 const card = "rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900";
 
@@ -356,79 +353,91 @@ function Timeline({ row }: { row: RankingRow }) {
   );
 }
 
-function SourceSelector({
-  applicationId,
-  tenantKey,
-  data,
-}: {
-  applicationId: number;
-  tenantKey: string;
-  data: RankingSources;
-}) {
-  const client = useQueryClient();
-  const [selection, setSelection] = useState<Selection>(data.selected);
-  const mutation = useMutation({
-    mutationFn: () => matchingApi.selectSources(applicationId, selection),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["rankings"] });
-      await client.invalidateQueries({ queryKey: ["ranking-sources", tenantKey, applicationId] });
+function SourceSelector({ data }: { data: RankingSources }) {
+  const activeCv = data.cvs?.find((c) => c.id === data.selected?.cvId) ?? data.cvs?.[0];
+  const activeSubmission = data.submissions?.find((s) => s.id === data.selected?.submissionId) ?? data.submissions?.[0];
+  const activeInterview = data.aiInterviews?.find((i) => i.id === data.selected?.aiInterviewId) ?? data.aiInterviews?.[0];
+
+  const sources = [
+    {
+      label: "Hồ sơ CV",
+      active: activeCv,
+      fallbackName: "Chưa có CV đính kèm",
+      icon: FileSearch,
     },
-  });
-  const fields = [
-    { key: "cvId" as const, label: "CV", options: data.cvs ?? [] },
-    { key: "submissionId" as const, label: "Assessment", options: data.submissions ?? [] },
-    { key: "aiInterviewId" as const, label: "AI Interview", options: data.aiInterviews ?? [] },
+    {
+      label: "Bài kiểm tra (Assessment)",
+      active: activeSubmission,
+      fallbackName: "Chưa có bài kiểm tra",
+      icon: Code2,
+    },
+    {
+      label: "Phỏng vấn AI (Interview)",
+      active: activeInterview,
+      fallbackName: "Chưa thực hiện phỏng vấn",
+      icon: Sparkles,
+    },
   ];
 
   return (
     <section className={card} aria-labelledby="source-title">
-      <h3 id="source-title" className="text-base font-bold text-slate-900 dark:text-white">
-        Nguồn dữ liệu xếp hạng
-      </h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-        Chọn nguồn chính thức khi ứng viên có nhiều lần đánh giá.
-      </p>
-      <div className="mt-4 space-y-3">
-        {fields.map((field) => (
-          <div key={field.key} className="space-y-1.5">
-            <span className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-              {field.label}
-            </span>
-            <RankingSelect
-              ariaLabel={`Nguồn ${field.label}`}
-              value={selection[field.key] === null ? "" : String(selection[field.key])}
-              placeholder={field.options.length > 1 ? "Chọn nguồn" : "Chưa có nguồn"}
-              options={[
-                { value: "", label: field.options.length > 1 ? "Chưa chọn nguồn" : "Chưa có nguồn" },
-                ...field.options.map((option) => ({
-                  value: String(option.id),
-                  label: option.label,
-                  description: option.status,
-                })),
-              ]}
-              onChange={(value) =>
-                setSelection((current) => ({
-                  ...current,
-                  [field.key]: value ? Number(value) : null,
-                }))
-              }
-            />
-          </div>
-        ))}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="source-title" className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+            <Layers className="size-4.5 text-brand-primary" aria-hidden="true" />
+            Nguồn dữ liệu đánh giá
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Hệ thống tự động sử dụng kết quả mới nhất để xếp hạng ứng viên.
+          </p>
+        </div>
       </div>
-      {mutation.isError && (
-        <p role="alert" className="mt-2 text-xs text-rose-600">
-          {getApiErrorMessage(mutation.error)}
-        </p>
-      )}
-      <button
-        type="button"
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        className="mt-4 w-full rounded-xl bg-brand-primary py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-primary-hover disabled:opacity-50 transition-colors"
-      >
-        {mutation.isPending ? "Đang lưu…" : "Lưu nguồn và tính lại"}
-      </button>
+
+      <div className="mt-4 space-y-3">
+        {sources.map((item) => {
+          const Icon = item.icon;
+          const isLinked = !!item.active;
+          return (
+            <div
+              key={item.label}
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`grid size-8 shrink-0 place-items-center rounded-lg ${
+                    isLinked
+                      ? "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20"
+                      : "bg-slate-200/60 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                  }`}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {item.label}
+                  </span>
+                  <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {item.active ? item.active.label : item.fallbackName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 text-right">
+                {isLinked ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <Check className="size-3" />
+                    {labels[item.active?.status ?? ""] ?? item.active?.status ?? "Tự động kết nối"}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    Chưa có
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -515,13 +524,7 @@ export function CandidateOverviewTab({
         <aside className="space-y-6 lg:col-span-4">
           <InsightPanel row={row} />
           <Timeline row={row} />
-          {sourcesData && (
-            <SourceSelector
-              applicationId={row.applicationId}
-              tenantKey={tenantKey}
-              data={sourcesData}
-            />
-          )}
+          {sourcesData && <SourceSelector data={sourcesData} />}
         </aside>
       </div>
     </div>

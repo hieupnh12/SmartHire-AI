@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, CheckCircle2, Compass, HeartHandshake, Lightbulb, Target, AlertTriangle, RefreshCw } from "lucide-react";
+import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, CheckCircle2, AlertTriangle, RefreshCw, Zap, RotateCcw } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ux/Button";
@@ -45,6 +45,15 @@ function cleanStreamingText(raw: string): string {
   return cleaned || raw.trimStart();
 }
 
+function prepareTextForSpeech(raw: string): string {
+  const cleaned = cleanStreamingText(raw);
+  return cleaned
+    .replace(/[*_#`~]/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, reportJson, status, onActivity }: {
   id: number; active: boolean; disabled: boolean; voiceEnabled: boolean; recordingEnabled: boolean;
   reportJson?: string | null; status?: string;
@@ -73,6 +82,30 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
       return true;
     }
   });
+
+  const [speechEngine, setSpeechEngine] = useState<"browser" | "cloud">(() => {
+    try {
+      const saved = localStorage.getItem("smarthire_ai_speech_engine");
+      return saved === "cloud" || saved === "browser" ? saved : "browser";
+    } catch {
+      return "browser";
+    }
+  });
+
+  // Pre-fetch browser voices when Web Speech API is ready
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    const loadVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
 
   const pendingRequest = useRef<{ requestId: string; content: string } | null>(null);
   const abort = useRef<AbortController | null>(null); const bottom = useRef<HTMLDivElement | null>(null);
@@ -204,48 +237,129 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     }
   }
 
-  async function play(message: ConversationMessage) {
+  function playViaBrowser(message: ConversationMessage, request: number): boolean {
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      return false;
+    }
+    window.speechSynthesis.cancel();
+    const langCode = session.data?.language === "Vietnamese" ? "vi" : session.data?.language === "Japanese" ? "ja" : "en";
+    const fullLang = session.data?.language === "Vietnamese" ? "vi-VN" : session.data?.language === "Japanese" ? "ja-JP" : "en-US";
+    const voices = window.speechSynthesis.getVoices?.() ?? [];
+    const matchedVoice = voices.find(v => {
+      const vLang = v.lang.toLowerCase().replace("_", "-");
+      return vLang.startsWith(langCode) || vLang.includes(langCode);
+    });
+
+    const cleanContent = prepareTextForSpeech(message.content);
+    if (!cleanContent) return false;
+
+    const utterance = new SpeechSynthesisUtterance(cleanContent);
+    utterance.lang = fullLang;
+    if (matchedVoice) utterance.voice = matchedVoice;
+    utterance.rate = session.data?.language === "Vietnamese" ? 0.95 : 1.0;
+
+    utterance.onend = () => {
+      if (request === playbackRequest.current) {
+        setSpeaking(null);
+        setBrowserSpeech(false);
+      }
+    };
+    utterance.onerror = event => {
+      if (request !== playbackRequest.current) return;
+      setSpeaking(null);
+      setBrowserSpeech(false);
+      if (event.error === "not-allowed") {
+        const resumeOnInteraction = () => {
+          window.removeEventListener("click", resumeOnInteraction);
+          window.removeEventListener("keydown", resumeOnInteraction);
+          if (active && autoPlayVoice) {
+            void play(message);
+          }
+        };
+        window.addEventListener("click", resumeOnInteraction, { once: true });
+        window.addEventListener("keydown", resumeOnInteraction, { once: true });
+      } else if (event.error !== "canceled" && event.error !== "interrupted") {
+        setError("Không phát được giọng đọc. Bạn có thể thử lại hoặc nhập câu trả lời.");
+      }
+    };
+    setBrowserSpeech(true);
+    window.speechSynthesis.speak(utterance);
+    return true;
+  }
+
+  async function playViaCloud(message: ConversationMessage, request: number) {
+    let blob = audioBlobCache.current.get(message.id);
+    if (!blob) {
+      blob = message.role === "ASSISTANT"
+        ? await interviewConversationApi.speech(id, message.id)
+        : await interviewConversationApi.recording(id, message.id);
+      if (blob) {
+        audioBlobCache.current.set(message.id, blob);
+      }
+    }
+    if (request !== playbackRequest.current || !blob) return;
+    const url = URL.createObjectURL(blob);
+    audioUrl.current = url;
+    const player = new Audio(url);
+    audio.current = player;
+    player.onended = () => {
+      if (request === playbackRequest.current) {
+        setSpeaking(null);
+        URL.revokeObjectURL(url);
+        audioUrl.current = null;
+      }
+    };
+    player.onerror = () => {
+      if (request === playbackRequest.current) {
+        setSpeaking(null);
+        setError("Không phát được bản ghi âm thanh. Vui lòng thử lại.");
+      }
+    };
+    await player.play();
+  }
+
+  async function play(message: ConversationMessage, forceEngine?: "browser" | "cloud") {
     if (speaking === message.id) {
       stopPlayback();
       return;
     }
     const request = ++playbackRequest.current;
     audio.current?.pause();
-    if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+    if (audioUrl.current) {
+      URL.revokeObjectURL(audioUrl.current);
+      audioUrl.current = null;
+    }
     window.speechSynthesis?.cancel();
     setSpeaking(message.id);
     setError(null);
     setBrowserSpeech(false);
 
-    try {
-      let blob = audioBlobCache.current.get(message.id);
-      if (!blob) {
-        blob = message.role === "ASSISTANT"
-          ? await interviewConversationApi.speech(id, message.id)
-          : await interviewConversationApi.recording(id, message.id);
-        if (blob) {
-          audioBlobCache.current.set(message.id, blob);
+    const engine = forceEngine || speechEngine;
+
+    // Candidate's own recorded answer (USER role) is always played from audio blob
+    if (message.role === "USER") {
+      try {
+        await playViaCloud(message, request);
+      } catch (failure) {
+        if (request === playbackRequest.current) {
+          setError(getApiErrorMessage(failure));
+          setSpeaking(null);
         }
       }
-      if (request !== playbackRequest.current || !blob) return;
-      const url = URL.createObjectURL(blob);
-      audioUrl.current = url;
-      const player = new Audio(url);
-      audio.current = player;
-      player.onended = () => {
-        if (request === playbackRequest.current) {
-          setSpeaking(null);
-          URL.revokeObjectURL(url);
-          audioUrl.current = null;
-        }
-      };
-      player.onerror = () => {
-        if (request === playbackRequest.current) {
-          setSpeaking(null);
-          setError("Không phát được bản ghi âm thanh. Vui lòng thử lại.");
-        }
-      };
-      await player.play();
+      return;
+    }
+
+    // ASSISTANT role (AI question / greeting):
+    // 1. If engine is "browser", run Web Speech API immediately (< 50ms, zero network delay)
+    if (engine === "browser") {
+      const started = playViaBrowser(message, request);
+      if (started) return;
+      // Fall through to cloud if browser speech is unavailable
+    }
+
+    // 2. Play via Cloud TTS (Gemini via backend)
+    try {
+      await playViaCloud(message, request);
     } catch (failure) {
       if (request !== playbackRequest.current) return;
       if (failure instanceof Error && failure.name === "NotAllowedError") {
@@ -261,33 +375,9 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
         window.addEventListener("keydown", resumeOnInteraction, { once: true });
         return;
       }
-      if (active && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {
-        const langCode = session.data?.language === "Vietnamese" ? "vi" : session.data?.language === "Japanese" ? "ja" : "en";
-        const fullLang = session.data?.language === "Vietnamese" ? "vi-VN" : session.data?.language === "Japanese" ? "ja-JP" : "en-US";
-        const voices = window.speechSynthesis.getVoices?.() ?? [];
-        const matchedVoice = voices.find(v => v.lang.toLowerCase().replace("_", "-").startsWith(langCode));
-
-        const cleanContent = cleanStreamingText(message.content);
-        const utterance = new SpeechSynthesisUtterance(cleanContent || message.content);
-        utterance.lang = fullLang;
-        if (matchedVoice) utterance.voice = matchedVoice;
-        utterance.onend = () => {
-          if (request === playbackRequest.current) {
-            setSpeaking(null);
-            setBrowserSpeech(false);
-          }
-        };
-        utterance.onerror = event => {
-          if (request !== playbackRequest.current) return;
-          setSpeaking(null);
-          setBrowserSpeech(false);
-          if (event.error !== "canceled" && event.error !== "interrupted") {
-            setError("Không phát được giọng đọc. Bạn có thể thử lại hoặc nhập câu trả lời.");
-          }
-        };
-        setBrowserSpeech(true);
-        window.speechSynthesis.speak(utterance);
-      } else {
+      // If cloud fails, fallback to browser speech
+      const fallbackSuccess = playViaBrowser(message, request);
+      if (!fallbackSuccess) {
         setError(getApiErrorMessage(failure));
         setSpeaking(null);
       }
@@ -321,6 +411,10 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     );
   }
 
+  if (!active) {
+    return null;
+  }
+
   return (
     <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-6 shadow-[var(--shadow-card)]" aria-label="Phòng phỏng vấn AI">
       {/* Top Header Bar */}
@@ -332,7 +426,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
           <div>
             <h2 className="text-sm font-semibold text-[var(--color-on-surface)]">SmartHire AI Interviewer</h2>
             <p className="text-xs text-[var(--color-on-surface-variant)]">
-              {active ? "Phòng phỏng vấn thoại thông minh 1-1" : "Nhận xét & Lời khuyên sau phỏng vấn"}
+              Phòng phỏng vấn thoại thông minh 1-1
             </p>
           </div>
         </div>
@@ -354,6 +448,41 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
             </button>
           )}
 
+          {voiceEnabled && active && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = speechEngine === "browser" ? "cloud" : "browser";
+                setSpeechEngine(next);
+                try { localStorage.setItem("smarthire_ai_speech_engine", next); } catch {}
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors cursor-pointer ${
+                speechEngine === "browser"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  : "border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+              }`}
+              title="Chuyển đổi phương thức đọc câu hỏi: Giọng siêu tốc (Trình duyệt) hoặc Giọng AI Studio (Cloud)"
+            >
+              <Zap className="size-3.5" aria-hidden="true" />
+              <span>{speechEngine === "browser" ? "Đọc siêu tốc (Trình duyệt)" : "Đọc AI Cloud (Gemini)"}</span>
+            </button>
+          )}
+
+          {active && session.data?.messages.some(m => m.role === "ASSISTANT") && (
+            <button
+              type="button"
+              onClick={() => {
+                const lastMsg = [...(session.data?.messages ?? [])].reverse().find(m => m.role === "ASSISTANT");
+                if (lastMsg) void play(lastMsg);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)] transition-colors cursor-pointer"
+              title="Phát lại âm thanh câu hỏi hiện tại"
+            >
+              <RotateCcw className="size-3" aria-hidden="true" />
+              <span>Nghe lại</span>
+            </button>
+          )}
+
           {speaking !== null && (
             <button
               type="button"
@@ -366,22 +495,14 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
             </button>
           )}
 
-          {active ? (
-            <span className="rounded-full bg-[var(--color-surface-container)] px-3 py-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
-              {session.data?.language ?? "Vietnamese"}
-            </span>
-          ) : (
-            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
-              <CheckCircle2 className="size-3.5 text-emerald-600" />
-              Đã hoàn thành phỏng vấn
-            </span>
-          )}
+          <span className="rounded-full bg-[var(--color-surface-container)] px-3 py-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
+            {session.data?.language ?? "Vietnamese"}
+          </span>
         </div>
       </div>
 
-      {/* ACTIVE MODE: VOICE-FIRST INTERVIEW CALL STAGE (NO TEXT BUBBLES) */}
-      {active ? (
-        <div className="space-y-6">
+      {/* VOICE-FIRST INTERVIEW CALL STAGE (NO TEXT BUBBLES) */}
+      <div className="space-y-6">
           <div className="flex flex-col items-center justify-center rounded-3xl border border-[var(--color-border-default)] bg-gradient-to-b from-[var(--color-surface-card)] via-[var(--color-surface-container-lowest)] to-[var(--color-surface-container-low)] p-8 sm:p-12 text-center shadow-sm">
             {/* Visualizer Halo & Animated Waveform */}
             <div className="relative mb-6 flex items-center justify-center">
@@ -570,36 +691,25 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
             </form>
           )}
         </div>
-      ) : (
-        /* COMPLETED MODE: CANDIDATE POST-INTERVIEW ADVICE ONLY (NO CHAT BUBBLES, NO TURN COUNTS) */
-        <PostInterviewAdviceView
-          reportJson={reportJson}
-          status={status}
-          language={session.data?.language}
-          onRefresh={() => void session.refetch()}
-        />
-      )}
 
       {/* System Status Indicators (Only displayed when active) */}
-      {active && (
-        <p role="status" aria-live="polite" className="text-sm text-[var(--color-on-surface-variant)]">
-          {send.isPending
-            ? "AI đang phản hồi…"
-            : voice.status === "recording"
-            ? "Đang ghi âm trực tiếp. Hãy nói rõ ràng câu trả lời của bạn."
-            : voice.status === "transcribing"
-            ? "Đang chuyển giọng nói thành văn bản…"
-            : voice.status === "connecting"
-            ? "Đang kết nối micro…"
-            : session.data?.dialogueComplete
-            ? "Hội thoại đã đủ lượt. Bấm Kết thúc để gửi toàn phiên đánh giá."
-            : "Điểm và nhận xét được tổng hợp sau khi kết thúc phiên."}
-        </p>
-      )}
+      <p role="status" aria-live="polite" className="text-sm text-[var(--color-on-surface-variant)]">
+        {send.isPending
+          ? "AI đang phản hồi…"
+          : voice.status === "recording"
+          ? "Đang ghi âm trực tiếp. Hãy nói rõ ràng câu trả lời của bạn."
+          : voice.status === "transcribing"
+          ? "Đang chuyển giọng nói thành văn bản…"
+          : voice.status === "connecting"
+          ? "Đang kết nối micro…"
+          : session.data?.dialogueComplete
+          ? "Hội thoại đã đủ lượt. Bấm Kết thúc để gửi toàn phiên đánh giá."
+          : "Điểm và nhận xét được tổng hợp sau khi kết thúc phiên."}
+      </p>
 
-      {browserSpeech && (
+      {browserSpeech && speechEngine === "cloud" && (
         <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
-          Đang dùng giọng đọc của trình duyệt vì dịch vụ âm thanh tạm thời không khả dụng.
+          Đang dùng giọng đọc của trình duyệt vì dịch vụ âm thanh đám mây tạm thời không khả dụng.
         </p>
       )}
 
@@ -613,236 +723,5 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
         <Button onClick={() => upload.mutate(pendingRecording)}>Thử lưu lại bản ghi</Button>
       )}
     </section>
-  );
-}
-
-type ParsedReport = {
-  summary?: string;
-  strengths?: string;
-  weaknesses?: string;
-  advice?: string;
-  overallScore?: number;
-  communicationCriteria?: Record<string, number>;
-  criteriaEvidence?: Record<string, { messageId: number; quote: string }[]>;
-};
-
-function parseReport(raw?: string | null): ParsedReport | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as ParsedReport;
-  } catch {
-    return null;
-  }
-}
-
-function PostInterviewAdviceView({
-  reportJson,
-  status,
-  onRefresh,
-}: {
-  reportJson?: string | null;
-  status?: string;
-  language?: string;
-  onRefresh?: () => void;
-}) {
-  const report = parseReport(reportJson);
-  const hasAiFeedback = !!(report?.summary || report?.strengths || report?.weaknesses || report?.advice);
-  const isScoring = status === "SCORING" || (!hasAiFeedback && status !== "ERROR");
-  const isError = status === "ERROR";
-
-  return (
-    <div className="space-y-6 pt-1">
-      {/* 1. Header Advice Banner */}
-      <div className="rounded-2xl border border-blue-200/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-blue-50/90 p-5 sm:p-6 text-slate-800 shadow-xs">
-        <div className="flex items-start gap-4">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md">
-            <Sparkles className="size-6" aria-hidden="true" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                Nhận xét & Lời khuyên phát triển từ AI
-              </h3>
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                <Bot className="size-3 text-blue-600" />
-                SmartHire AI Insights
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Dựa trên nội dung các câu hỏi và câu trả lời trong buổi phỏng vấn trực tiếp, hệ thống AI đã phân tích chi tiết để đúc kết nhận xét khách quan và lời khuyên giúp bạn sửa chữa, hoàn thiện kỹ năng chuyên môn.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Main Feedback Content */}
-      {hasAiFeedback ? (
-        <div className="space-y-5">
-          {/* A. LỜI KHUYÊN SỬA CHỮA & ĐỊNH HƯỚNG CẢI THIỆN (Actionable Advice - Highest Priority) */}
-          <div className="rounded-2xl border-2 border-amber-200/90 bg-amber-50/60 p-5 sm:p-6 shadow-xs space-y-3.5">
-            <div className="flex items-center gap-2.5 text-amber-950">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-200/80 text-amber-800 shadow-xs">
-                <Lightbulb className="size-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h4 className="text-sm sm:text-base font-bold text-amber-950">
-                  Lời khuyên sửa chữa & Hoàn thiện câu trả lời
-                </h4>
-                <p className="text-xs text-amber-800/80">
-                  Đúc kết từ những thiếu sót trong các câu trả lời thực tế của bạn trong cuộc hội thoại
-                </p>
-              </div>
-            </div>
-
-            {/* Advice & Weaknesses blocks */}
-            {report.advice ? (
-              <div className="space-y-3">
-                <div className="rounded-xl bg-white/90 border border-amber-200 p-4">
-                  <span className="block text-xs font-bold text-amber-950 mb-1.5 uppercase tracking-wide">
-                    Hướng dẫn cải thiện câu trả lời:
-                  </span>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 font-medium">
-                    {report.advice}
-                  </p>
-                </div>
-                {report.weaknesses && (
-                  <div className="rounded-xl bg-amber-100/60 border border-amber-200/80 p-3.5">
-                    <span className="block text-xs font-bold text-amber-900 mb-1">
-                      Điểm còn thiếu sót trong các câu trả lời:
-                    </span>
-                    <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-amber-900/90">
-                      {report.weaknesses}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-xl bg-white/90 border border-amber-200 p-4">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 font-medium">
-                  {report.weaknesses || "Hãy tiếp tục trau dồi các kiến thức chuyên môn cốt lõi và rèn luyện cách diễn đạt câu trả lời đi thẳng vào giải pháp kỹ thuật cụ thể."}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* B. ĐIỂM MẠNH & TỔNG QUAN NĂNG LỰC */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Điểm mạnh */}
-            <div className="rounded-2xl border-2 border-emerald-200/90 bg-emerald-50/60 p-5 shadow-xs space-y-2.5">
-              <div className="flex items-center gap-2 text-emerald-950">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emerald-200/80 text-emerald-800">
-                  <CheckCircle2 className="size-4" aria-hidden="true" />
-                </div>
-                <h4 className="text-sm font-bold text-emerald-950">Điểm mạnh được ghi nhận</h4>
-              </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-emerald-900/95 font-medium">
-                {report.strengths || "Thể hiện tinh thần hợp tác tốt, phản hồi tự tin và nắm được các khái niệm cơ bản liên quan đến vị trí ứng tuyển."}
-              </p>
-            </div>
-
-            {/* Tổng quan */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-2.5">
-              <div className="flex items-center gap-2 text-slate-900">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                  <Compass className="size-4" aria-hidden="true" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-900">Tổng quan buổi phỏng vấn</h4>
-              </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                {report.summary || "Buổi phỏng vấn đã được ghi nhận đầy đủ các câu hỏi và câu trả lời."}
-              </p>
-            </div>
-          </div>
-
-          {/* C. TIÊU CHÍ NĂNG LỰC CÙNG DẪN CHỨNG TRÍCH XUẤT */}
-          {report.communicationCriteria && Object.keys(report.communicationCriteria).length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Target className="size-4 text-blue-600" />
-                  Đánh giá chi tiết 4 tiêu chí năng lực
-                </h4>
-                <span className="text-xs text-slate-500">Thang điểm 100</span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {Object.entries(report.communicationCriteria).map(([criterion, score]) => {
-                  const label = {
-                    TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn",
-                    PROBLEM_SOLVING: "Giải quyết vấn đề",
-                    REASONING: "Tư duy & Lập luận",
-                    COMMUNICATION: "Kỹ năng giao tiếp",
-                  }[criterion] ?? criterion;
-                  const evidences = report.criteriaEvidence?.[criterion] ?? [];
-
-                  return (
-                    <div key={criterion} className="rounded-xl bg-slate-50/80 border border-slate-200/80 p-3.5 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800">{label}</span>
-                        <span className={`rounded-md px-2 py-0.5 font-bold text-xs ${score >= 70 ? "bg-emerald-100 text-emerald-800" : score >= 50 ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-700"}`}>
-                          {score}/100
-                        </span>
-                      </div>
-                      {/* Evidence quote if present */}
-                      {evidences.length > 0 && (
-                        <div className="rounded-lg bg-white border border-slate-200/70 p-2 text-[11px] text-slate-600 leading-snug">
-                          <span className="font-semibold text-slate-700 block mb-0.5">Dẫn chứng từ câu trả lời:</span>
-                          <span className="italic">“{evidences[0].quote}”</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : isScoring ? (
-        /* Processing state when scoring is active */
-        <div className="rounded-2xl border border-blue-200/80 bg-blue-50/40 p-6 sm:p-8 text-center space-y-3">
-          <div className="inline-flex size-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md animate-pulse">
-            <Bot className="size-6" />
-          </div>
-          <h4 className="text-base font-bold text-slate-900">
-            AI đang phân tích cuộc hội thoại phỏng vấn của bạn...
-          </h4>
-          <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
-            Hệ thống đang đối chiếu từng câu trả lời trong buổi trao đổi với yêu cầu chuyên môn để đúc kết nhận xét và xây dựng lời khuyên sửa chữa chi tiết.
-          </p>
-          {onRefresh && (
-            <div className="pt-2">
-              <Button variant="secondary" onClick={onRefresh} className="text-xs gap-1.5">
-                <RefreshCw className="size-3.5" />
-                Kiểm tra kết quả ngay
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : isError ? (
-        /* Error state */
-        <div className="rounded-2xl border border-amber-200/90 bg-amber-50/50 p-5 sm:p-6 text-slate-800 space-y-3">
-          <div className="flex items-center gap-2.5 text-amber-900 font-bold text-sm">
-            <AlertTriangle className="size-5 text-amber-600 shrink-0" />
-            <span>Chưa hoàn tất chấm điểm tự động</span>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Toàn bộ câu trả lời của bạn đã được niêm phong an toàn. Quá trình kết nối AI để tạo nhận xét đang gặp gián đoạn tạm thời. Nhà tuyển dụng có thể kích hoạt chấm lại để hệ thống gửi lời khuyên đến bạn.
-          </p>
-          {onRefresh && (
-            <Button variant="secondary" onClick={onRefresh} className="text-xs gap-1.5">
-              <RefreshCw className="size-3.5" />
-              Thử tải lại kết quả
-            </Button>
-          )}
-        </div>
-      ) : null}
-
-      {/* Encouragement Sign-off */}
-      <div className="rounded-2xl border border-[var(--color-border-subtle)] bg-slate-50/60 p-4 text-center">
-        <p className="text-xs sm:text-sm text-slate-600 flex items-center justify-center gap-2 font-medium">
-          <HeartHandshake className="size-4.5 text-rose-500" aria-hidden="true" />
-          <span>SmartHire AI chúc bạn tự tin và đạt kết quả xuất sắc trên hành trình sự nghiệp!</span>
-        </p>
-      </div>
-    </div>
   );
 }
