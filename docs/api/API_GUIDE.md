@@ -191,7 +191,7 @@ API quản trị master yêu cầu `Authorization: Bearer <master-token>` với 
 Response chỉ chứa metadata (và `activationUrl` một lần khi vừa cấp phát/retry) và không chứa credential kết nối.
 `POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail` cho tenant `FAILED`, `PROVISIONING` bị gián đoạn hoặc `PENDING_PAYMENT`.
 Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
-Trạng thái vòng đời gồm `PENDING_PAYMENT` → `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Hỗ trợ xoá mềm (`PATCH /master/tenants/{id}/soft-delete`), khôi phục (`PATCH /master/tenants/{id}/restore`) và xoá cứng (`DELETE /master/tenants/{id}?hard=true` — đóng Hikari pool + `DROP DATABASE` + `DROP USER`).
+Trạng thái vòng đời gồm `PENDING_PAYMENT` → `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Hỗ trợ xoá mềm (`PATCH /master/tenants/{id}/soft-delete`) và khôi phục (`PATCH /master/tenants/{id}/restore`).
 Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).
 
 ## Ngân hàng câu hỏi chung

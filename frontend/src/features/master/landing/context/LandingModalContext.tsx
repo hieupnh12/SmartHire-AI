@@ -3,23 +3,29 @@ import React, { createContext, useContext, useState } from "react";
 interface LandingModalContextType {
   showDemoModal: boolean;
   showWorkspaceModal: boolean;
+  showOrderLookupModal: boolean;
   selectedTier: string;
   requestType: "DEMO" | "CONTRACT_QUOTE";
   openDemoModal: (tierName?: string, type?: "DEMO" | "CONTRACT_QUOTE") => void;
   closeDemoModal: () => void;
   openWorkspaceModal: () => void;
   closeWorkspaceModal: () => void;
+  openOrderLookupModal: () => void;
+  closeOrderLookupModal: () => void;
 }
 
 const defaultContextValue: LandingModalContextType = {
   showDemoModal: false,
   showWorkspaceModal: false,
+  showOrderLookupModal: false,
   selectedTier: "Gói Doanh Nghiệp (Enterprise)",
   requestType: "DEMO",
   openDemoModal: () => {},
   closeDemoModal: () => {},
   openWorkspaceModal: () => {},
   closeWorkspaceModal: () => {},
+  openOrderLookupModal: () => {},
+  closeOrderLookupModal: () => {},
 };
 
 const LandingModalContext = createContext<LandingModalContextType>(defaultContextValue);
@@ -27,6 +33,7 @@ const LandingModalContext = createContext<LandingModalContextType>(defaultContex
 export function LandingModalProvider({ children }: { children: React.ReactNode }) {
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [showOrderLookupModal, setShowOrderLookupModal] = useState(false);
   const [selectedTier, setSelectedTier] = useState<string>("Gói Doanh Nghiệp (Enterprise)");
   const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">("DEMO");
 
@@ -53,17 +60,28 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
     setShowWorkspaceModal(false);
   };
 
+  const openOrderLookupModal = () => {
+    setShowOrderLookupModal(true);
+  };
+
+  const closeOrderLookupModal = () => {
+    setShowOrderLookupModal(false);
+  };
+
   return (
     <LandingModalContext.Provider
       value={{
         showDemoModal,
         showWorkspaceModal,
+        showOrderLookupModal,
         selectedTier,
         requestType,
         openDemoModal,
         closeDemoModal,
         openWorkspaceModal,
         closeWorkspaceModal,
+        openOrderLookupModal,
+        closeOrderLookupModal,
       }}
     >
       {children}

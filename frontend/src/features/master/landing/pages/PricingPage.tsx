@@ -308,9 +308,9 @@ export function PricingPage() {
 
           <div className="space-y-4 text-xs sm:text-sm">
             <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-              <h4 className="font-bold text-slate-900 mb-2">SmartHire-AI có xuất hóa đơn giá trị gia tăng (VAT) không?</h4>
+              <h4 className="font-bold text-slate-900 mb-2">SmartHire-AI có xuất hóa đơn cho doanh nghiệp không?</h4>
               <p className="text-slate-600 leading-relaxed">
-                Có. Toàn bộ các gói cước và hợp đồng dịch vụ của SmartHire-AI đều được xuất hóa đơn điện tử VAT hợp pháp theo quy định của Tổng cục Thuế Việt Nam ngay sau khi thanh toán thành công.
+                Có. Toàn bộ các gói cước và hợp đồng dịch vụ của SmartHire-AI đều được phát hành hóa đơn điện tử và chứng từ thanh toán đầy đủ theo thông tin pháp nhân doanh nghiệp ngay sau khi thanh toán thành công.
               </p>
             </div>
 

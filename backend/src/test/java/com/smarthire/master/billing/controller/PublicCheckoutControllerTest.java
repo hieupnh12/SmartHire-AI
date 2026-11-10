@@ -6,6 +6,7 @@ import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.master.billing.dto.CheckoutRequest;
 import com.smarthire.master.billing.dto.CheckoutResponse;
+import com.smarthire.master.billing.dto.PublicOrderLookupResponse;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.subscription.dto.SubscriptionPlanResponse;
 import com.smarthire.master.subscription.mapper.SubscriptionPlanMapper;
@@ -197,5 +198,52 @@ class PublicCheckoutControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].code").value("STARTER"))
                 .andExpect(jsonPath("$.data[0].priceYearly").value(12000000));
+    }
+
+    @Test
+    void lookupOrders_ByEmail_ReturnsOrderList() throws Exception {
+        PublicOrderLookupResponse order = PublicOrderLookupResponse.builder()
+                .invoiceId(101L)
+                .invoiceNumber("INV-202609-0001")
+                .planName("Gói Chuyên Nghiệp")
+                .planCode("PROFESSIONAL")
+                .subdomain("techcorp")
+                .workspaceName("Tech Corp")
+                .adminEmail("nguyenvana@techcorp.vn")
+                .amountVnd(new java.math.BigDecimal("36000000"))
+                .currency("VND")
+                .status("PENDING")
+                .canPay(true)
+                .build();
+
+        when(billingService.lookupOrders("nguyenvana@techcorp.vn")).thenReturn(List.of(order));
+
+        mockMvc.perform(get("/api/v1/public/checkout/orders")
+                        .param("email", "nguyenvana@techcorp.vn"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].invoiceNumber").value("INV-202609-0001"))
+                .andExpect(jsonPath("$.data[0].canPay").value(true));
+    }
+
+    @Test
+    void getCheckoutOrder_ReturnsFullDetails() throws Exception {
+        CheckoutResponse order = CheckoutResponse.builder()
+                .invoiceId(101L)
+                .invoiceNumber("INV-202609-0001")
+                .planName("Gói Chuyên Nghiệp")
+                .planCode("PROFESSIONAL")
+                .subdomain("techcorp")
+                .amountVnd(new java.math.BigDecimal("36000000"))
+                .status("PENDING")
+                .transferSyntax("SH INV-202609-0001")
+                .build();
+
+        when(billingService.getCheckoutOrder(101L)).thenReturn(order);
+
+        mockMvc.perform(get("/api/v1/public/checkout/order/101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.invoiceNumber").value("INV-202609-0001"));
     }
 }

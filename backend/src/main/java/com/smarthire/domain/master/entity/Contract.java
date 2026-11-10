@@ -114,15 +114,7 @@ public class Contract {
     @Column(name = "party_b_bank_account")
     String partyBBankAccount;
 
-    // --- THUẾ & GIÁ TRỊ THANH TOÁN THEO LUẬT VIỆT NAM ---
-    @Builder.Default
-    @Column(name = "tax_rate", nullable = false)
-    BigDecimal taxRate = BigDecimal.valueOf(10.00);
-
-    @Builder.Default
-    @Column(name = "tax_amount", nullable = false)
-    BigDecimal taxAmount = BigDecimal.ZERO;
-
+    // --- GIÁ TRỊ THANH TOÁN ---
     @Builder.Default
     @Column(name = "total_amount", nullable = false)
     BigDecimal totalAmount = BigDecimal.ZERO;

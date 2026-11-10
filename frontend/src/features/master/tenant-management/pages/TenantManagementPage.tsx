@@ -54,19 +54,6 @@ export function TenantManagementPage() {
     }
   };
 
-  const deleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(`Bạn có chắc muốn XOÁ CỨNG (Hard Delete) tenant ${tenant.code} và DROP DATABASE? Hành động này dùng cho dữ liệu test và KHÔNG THỂ PHỤC HỒI.`)) {
-      return;
-    }
-    try {
-      await masterAdminApi.deleteTenant(tenant.id, true);
-      setTenants((items: TenantInfo[]) => items.filter((item) => item.id !== tenant.id));
-      triggerNotification(`Đã xoá cứng tenant ${tenant.code} và database thành công.`);
-    } catch (error) {
-      toast.danger("Lỗi khi xoá cứng tenant.");
-    }
-  };
-
   return (
     <TenantManagementHub
       activeTab={currentTab(location.pathname)}
@@ -79,7 +66,6 @@ export function TenantManagementPage() {
       onToggleStatus={toggleStatus}
       onSoftDeleteTenant={softDeleteTenant}
       onRestoreTenant={restoreTenant}
-      onDeleteTenant={deleteTenant}
       onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
     />
   );

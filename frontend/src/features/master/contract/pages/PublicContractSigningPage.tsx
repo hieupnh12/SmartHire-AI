@@ -59,6 +59,12 @@ export function PublicContractSigningPage() {
       setContract(updated);
       if (updated.status === "SIGNED") {
         setSyncNotice("Hợp đồng đã được ký số thành công trên Dropbox Sign! Chứng thư Audit Trail và mã băm SHA-256 đã được cập nhật.");
+      } else if (updated.status === "REJECTED") {
+        setSyncNotice("Hợp đồng đã bị đại diện Bên B từ chối ký trên Dropbox Sign. Giao dịch tạm giữ đã được hủy.");
+      } else if (updated.status === "TERMINATED") {
+        setSyncNotice("Yêu cầu ký hợp đồng trên Dropbox Sign đã bị hủy (TERMINATED).");
+      } else if (updated.status === "EXPIRED") {
+        setSyncNotice("Hợp đồng điện tử này đã hết hạn hiệu lực ký.");
       } else {
         setSyncNotice("Đã kiểm tra từ Dropbox Sign: Hợp đồng đang chờ đại diện Bên B hoàn tất ký kết qua email.");
       }
@@ -105,6 +111,10 @@ export function PublicContractSigningPage() {
   if (!contract) return null;
 
   const isSigned = contract.status === "SIGNED";
+  const isRejected = contract.status === "REJECTED";
+  const isTerminated = contract.status === "TERMINATED";
+  const isExpired = contract.status === "EXPIRED";
+  const isClosedWithoutSignature = isRejected || isTerminated || isExpired;
   const pdfDownloadUrl = token ? contractApi.getPublicPdfUrl(token) : "#";
 
   return (
@@ -122,10 +132,20 @@ export function PublicContractSigningPage() {
                 className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                   isSigned
                     ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : isClosedWithoutSignature
+                    ? "bg-rose-100 text-rose-800 border border-rose-300"
                     : "bg-amber-100 text-amber-800 border border-amber-300"
                 }`}
               >
-                {isSigned ? "ĐÃ KÝ SỐ HỢP LỆ (AUDIT TRAIL)" : "CHỜ ĐỐI TÁC KÝ QUA DROPBOX SIGN"}
+                {isSigned
+                  ? "ĐÃ KÝ SỐ HỢP LỆ (AUDIT TRAIL)"
+                  : isRejected
+                  ? "ĐỐI TÁC ĐÃ TỪ CHỐI KÝ"
+                  : isTerminated
+                  ? "ĐÃ HỦY YÊU CẦU KÝ"
+                  : isExpired
+                  ? "ĐÃ HẾT HẠN KÝ"
+                  : "CHỜ ĐỐI TÁC KÝ QUA DROPBOX SIGN"}
               </span>
               {contract.esignTestMode && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 border border-sky-300">
@@ -156,7 +176,7 @@ export function PublicContractSigningPage() {
             <span>In Văn Bản</span>
           </button>
 
-          {!isSigned && (
+          {!isSigned && !isClosedWithoutSignature && (
             <button
               onClick={handleSyncDropboxSign}
               disabled={syncing}
@@ -178,10 +198,28 @@ export function PublicContractSigningPage() {
               <span>
                 {isSigned
                   ? "Văn bản đã được ký số hợp pháp trên nền tảng Dropbox Sign (HelloSign)"
+                  : isRejected
+                  ? "Hợp đồng đã bị từ chối ký trên Dropbox Sign"
+                  : isTerminated
+                  ? "Yêu cầu ký hợp đồng trên Dropbox Sign đã bị hủy"
+                  : isExpired
+                  ? "Hợp đồng điện tử đã hết hạn hiệu lực ký"
                   : "Hướng dẫn ký số hợp pháp qua Dropbox Sign (Remote Email Signing)"}
               </span>
             </div>
-            {!isSigned ? (
+            {isSigned ? (
+              <p className="text-emerald-800 leading-relaxed">
+                Hợp đồng này đã được ký điện tử thành công và niêm phong mật mã học kèm trang <strong>Dropbox Sign Audit Trail</strong>. Mọi hành vi chỉnh sửa nội dung sau khi ký đều làm thay đổi mã băm SHA-256.
+              </p>
+            ) : isClosedWithoutSignature ? (
+              <p className="text-rose-700 leading-relaxed">
+                {isRejected
+                  ? "Đại diện Bên B đã chọn từ chối ký hợp đồng này trên Dropbox Sign. Hồ sơ giao dịch và tên miền phụ tạm giữ đã được hủy theo quy trình."
+                  : isTerminated
+                  ? "Yêu cầu ký số trên Dropbox Sign cho hợp đồng này đã bị hủy. Vui lòng liên hệ SmartHire-AI nếu cần lập hợp đồng mới."
+                  : "Liên kết ký số của hợp đồng này đã hết hạn hiệu lực. Vui lòng liên hệ SmartHire-AI để được cấp hợp đồng mới."}
+              </p>
+            ) : (
               <p className="text-slate-600 leading-relaxed">
                 Để đảm bảo giá trị pháp lý và toàn vẹn dữ liệu theo Luật Giao dịch điện tử 20/2023/QH15, yêu cầu ký số kèm văn bản PDF đã được{" "}
                 <strong>Dropbox Sign</strong> gửi trực tiếp tới hộp thư đại diện Bên B:{" "}
@@ -189,10 +227,6 @@ export function PublicContractSigningPage() {
                   {contract.partyBEmail || "email đại diện Bên B"}
                 </span>
                 . Vui lòng mở email từ <strong>Dropbox Sign (noreply@mail.hellosign.com)</strong> và nhấn <strong>"Review &amp; Sign"</strong> để ký kết.
-              </p>
-            ) : (
-              <p className="text-emerald-800 leading-relaxed">
-                Hợp đồng này đã được ký điện tử thành công và niêm phong mật mã học kèm trang <strong>Dropbox Sign Audit Trail</strong>. Mọi hành vi chỉnh sửa nội dung sau khi ký đều làm thay đổi mã băm SHA-256.
               </p>
             )}
 
@@ -394,25 +428,15 @@ export function PublicContractSigningPage() {
                   <span>• Phí bản quyền phần mềm và hạ tầng:</span>
                   <span className="font-mono font-bold">{contract.contractValue.toLocaleString("vi-VN")} VND</span>
                 </div>
-                <div className="flex justify-between text-slate-600 gap-4">
-                  <span>• Thuế giá trị gia tăng (GTGT):</span>
-                  {(contract.taxRate ?? 0) === 0 ? (
-                    <span className="text-right font-medium text-slate-700">
-                      Không chịu thuế GTGT (Theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với phần mềm và dịch vụ phần mềm)
-                    </span>
-                  ) : (
-                    <span className="font-mono">
-                      VAT {contract.taxRate}%: {(contract.taxAmount || 0).toLocaleString("vi-VN")} VND
-                    </span>
-                  )}
-                </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
                   <span>• Tổng giá trị thanh toán:</span>
                   <span className="font-mono text-emerald-600">{(contract.totalAmount || contract.contractValue).toLocaleString("vi-VN")} VND</span>
                 </div>
-                <div className="text-[11px] text-slate-500 italic pt-1">
-                  (Bằng chữ: {contract.amountInWords || "Không chịu thuế giá trị gia tăng"})
-                </div>
+                {contract.amountInWords && (
+                  <div className="text-[11px] text-slate-500 italic pt-1">
+                    (Bằng chữ: {contract.amountInWords})
+                  </div>
+                )}
               </div>
               <p>2.2. <strong>Phương thức và Thời hạn thanh toán:</strong></p>
               <p>
@@ -484,7 +508,15 @@ export function PublicContractSigningPage() {
           <div className="space-y-2 flex flex-col items-center">
             <span className="font-bold uppercase text-slate-900">ĐẠI DIỆN BÊN B</span>
             <span className="text-[11px] text-slate-500 italic">
-              {isSigned ? "(Đã hoàn tất ký số qua Dropbox Sign)" : "(Chờ ký qua email Dropbox Sign)"}
+              {isSigned
+                ? "(Đã hoàn tất ký số qua Dropbox Sign)"
+                : isRejected
+                ? "(Đã từ chối ký qua Dropbox Sign)"
+                : isTerminated
+                ? "(Đã hủy yêu cầu ký)"
+                : isExpired
+                ? "(Đã hết hạn ký)"
+                : "(Chờ ký qua email Dropbox Sign)"}
             </span>
             <div className="h-32 flex flex-col items-center justify-center">
               {isSigned ? (
@@ -498,6 +530,22 @@ export function PublicContractSigningPage() {
                   </div>
                   {contract.externalSignatureRequestId && (
                     <div className="text-[8px] text-slate-500 font-mono truncate">
+                      ReqID: {contract.externalSignatureRequestId}
+                    </div>
+                  )}
+                </div>
+              ) : isClosedWithoutSignature ? (
+                <div className="p-3 bg-rose-50/90 rounded-xl border border-rose-300 text-center w-full max-w-[260px] space-y-1">
+                  <AlertCircle className="w-5 h-5 text-rose-600 mx-auto mb-1" />
+                  <div className="text-[10px] font-bold text-rose-900">
+                    {isRejected
+                      ? "ĐÃ TỪ CHỐI KÝ (REJECTED)"
+                      : isTerminated
+                      ? "ĐÃ HỦY YÊU CẦU KÝ (TERMINATED)"
+                      : "ĐÃ HẾT HẠN KÝ (EXPIRED)"}
+                  </div>
+                  {contract.externalSignatureRequestId && (
+                    <div className="text-[8px] text-rose-700 font-mono truncate">
                       ReqID: {contract.externalSignatureRequestId}
                     </div>
                   )}

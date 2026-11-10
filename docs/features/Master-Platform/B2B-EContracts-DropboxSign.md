@@ -18,7 +18,7 @@ Quản lý toàn bộ vòng đời hợp đồng kinh tế B2B (`contracts`, `co
 
 ### 1. Khởi tạo & Xuất Bản in PDF Hợp đồng Pháp lý Việt Nam
 1. Workspace Admin tạo hợp đồng mới (`POST /api/v1/master/contracts`) từ trang Quản lý Hợp đồng hoặc từ luồng B2B Deal Wizard.
-2. Hệ thống tự động lấy thông tin pháp nhân Bên A (SmartHire) từ `system_settings`, điền thông tin pháp nhân Bên B (Khách hàng: Tên công ty, Mã số thuế, Địa chỉ, Người đại diện, Chức vụ), tính giá trị trước thuế (`contract_value`), thuế GTGT (`tax_rate = 10%`), tổng giá trị thanh toán (`total_amount`) bằng **VNĐ (`VND`)** và tự động đọc số tiền bằng chữ tiếng Việt (`amount_in_words`).
+2. Hệ thống tự động lấy thông tin pháp nhân Bên A (SmartHire) từ `system_settings`, điền thông tin pháp nhân Bên B (Khách hàng: Tên công ty, Mã số thuế, Địa chỉ, Người đại diện, Chức vụ), gán giá trị hợp đồng (`contract_value`) và tổng giá trị thanh toán (`total_amount`) bằng **VNĐ (`VND`)** đồng thời tự động đọc số tiền bằng chữ tiếng Việt (`amount_in_words`).
 3. Hệ thống render file PDF hợp đồng kinh tế chuẩn thể thức văn bản Việt Nam (Quốc hiệu, Tiêu ngữ, các điều khoản dịch vụ SaaS & SLA) qua `ContractPdfGeneratorService`.
 
 ### 2. Gửi Yêu cầu Ký số qua Dropbox Sign API v3 (`DROPBOX_SIGN`)
@@ -26,14 +26,19 @@ Quản lý toàn bộ vòng đời hợp đồng kinh tế B2B (`contracts`, `co
 2. Hệ thống lưu `external_signature_request_id`, `esign_details_url`, `esign_provider = 'DROPBOX_SIGN'` và chuyển trạng thái hợp đồng sang `PENDING_SIGNATURE`.
 3. Dropbox Sign gửi email mời ký trực tiếp tới từng người ký.
 
-### 3. Nhận Webhook Ký số & Lưu trữ PDF + SHA-256 Checksum
-1. Khi từng bên ký hoặc khi tất cả các bên hoàn tất ký, Dropbox Sign gửi multipart/JSON callback tới `POST /api/v1/master/contracts/webhooks/dropbox-sign`.
+### 3. Nhận Webhook / Đồng bộ Trạng thái Ký số, Từ chối & Hủy
+1. Khi từng bên ký, từ chối, hủy hoặc hoàn tất ký, Dropbox Sign gửi multipart/JSON callback tới `POST /api/v1/public/contracts/webhook/dropbox-sign` (hoặc Admin/Đối tác bấm đồng bộ `sync-esign`).
 2. Hệ thống xác thực chữ ký HMAC-SHA256 của sự kiện bằng `DROPBOX_SIGN_API_KEY`, luôn trả chuỗi `"Hello API Event Received"` theo đúng đặc tả Dropbox Sign.
 3. Với sự kiện `signature_request_signed`: cập nhật trạng thái từng người ký trong `contract_signatures` sang `SIGNED` kèm `signed_at`.
 4. Với sự kiện `signature_request_all_signed`:
    - Tải mảng byte của file PDF hợp đồng đã ký kèm trang **Audit Trail** từ Dropbox Sign (`GET /v3/signature_request/files/{signature_request_id}?file_type=pdf`).
    - Lưu trực tiếp vào cột `contracts.signed_pdf_bytes` (`BYTEA`), tính mã băm **SHA-256** lưu vào `contracts.document_checksum` và chuyển `contracts.status = 'SIGNED'`.
-   - Nếu hợp đồng chưa có hoá đơn đi kèm, hệ thống tự động phát hành hoá đơn tài chính (`invoices`) để khách hàng thanh toán và kích hoạt dịch vụ.
+   - Hệ thống tự động phát hành hoá đơn tài chính (`invoices`) để khách hàng thanh toán và kích hoạt dịch vụ.
+5. Với sự kiện `signature_request_declined` (`is_declined = true`):
+   - Chuyển `contracts.status = 'REJECTED'`, `contract_signatures` đang `PENDING` → `REJECTED`, `tenant_subscriptions` đang `PENDING` → `CANCELED`, `consultation_requests` (nếu có) → `REJECTED`.
+   - Nếu tenant chưa cấp phát DB (`PENDING_PAYMENT` / `FAILED`), chuyển `tenants.status = 'CANCELLED'`, đánh dấu `is_deleted = true`, đồng thời đổi tên giải phóng `subdomain`, `code` (`released_<id>_...`) và `db_name` (`smarthire_tenant_released_<id>_...`).
+6. Với sự kiện `signature_request_canceled` (`is_canceled = true`):
+   - Chuyển `contracts.status = 'TERMINATED'`, đóng `contract_signatures` (`PENDING` → `REJECTED`) và `tenant_subscriptions` (`PENDING` → `CANCELED`), giải phóng subdomain/code/dbName cho tenant chưa cấp phát (`CANCELLED` + `is_deleted = true`), và hoàn trả trạng thái lead `PROVISIONED` → `CONTACTED` (nếu có).
 
 ### 4. Tải lên Hợp đồng Đóng dấu Mộc đỏ (`UPLOAD_SIGNED_PDF`)
 - Đối với doanh nghiệp nhà nước hoặc tập đoàn yêu cầu ký giấy đóng dấu mộc đỏ, Admin có thể tải bản scan PDF đã ký lên hệ thống (`POST /api/v1/master/contracts/{id}/upload-signed-pdf`). Hệ thống lưu `signed_pdf_bytes`, tính `document_checksum` SHA-256 và chuyển trạng thái sang `SIGNED`.
@@ -41,7 +46,7 @@ Quản lý toàn bộ vòng đời hợp đồng kinh tế B2B (`contracts`, `co
 ## Business Rules
 
 - Mọi hợp đồng B2B đều lưu giá trị theo đơn vị **VNĐ (`VND`)**, chu kỳ 1 năm (`start_date` → `end_date`).
-- Hợp đồng đã ở trạng thái `SIGNED` bị khoá chỉnh sửa; mọi bản tải về (`GET /api/v1/master/contracts/{id}/pdf`) đều trả về đúng bản PDF đã ký (`signed_pdf_bytes`) khớp với mã băm `document_checksum` SHA-256.
+- Hợp đồng đã ở trạng thái `SIGNED`, `REJECTED` hoặc `TERMINATED` bị khoá gửi ký lại trên Dropbox Sign; mọi bản tải về (`GET /api/v1/master/contracts/{id}/pdf`) đều trả về bản PDF đã ký (`signed_pdf_bytes`) khớp với mã băm `document_checksum` SHA-256 (nếu đã ký) hoặc bản thảo PDF hiện hành.
 - Việc ký xong hợp đồng (`SIGNED`) đảm bảo cơ sở pháp lý và phát hành hoá đơn; việc cấp phát MySQL Database và kích hoạt gói thuê bao (`ACTIVE`) chỉ diễn ra khi hoá đơn được xác nhận thanh toán (`PAID`) theo đúng quy tắc quản trị rủi ro B2B.
 
 ## API liên quan
@@ -54,8 +59,9 @@ Quản lý toàn bộ vòng đời hợp đồng kinh tế B2B (`contracts`, `co
 | POST | `/api/v1/master/contracts/{id}/sync-esign` | WORKSPACE_ADMIN | Đồng bộ thủ công trạng thái ký & file PDF từ Dropbox Sign |
 | POST | `/api/v1/master/contracts/{id}/upload-signed-pdf` | WORKSPACE_ADMIN | Tải lên file PDF hợp đồng đã ký đóng dấu mộc đỏ |
 | GET | `/api/v1/master/contracts/{id}/pdf` | WORKSPACE_ADMIN | Tải file PDF hợp đồng (bản nháp hoặc bản đã ký kèm Audit Trail) |
-| POST | `/api/v1/master/contracts/webhooks/dropbox-sign` | Public (HMAC) | Webhook nhận sự kiện ký số từ Dropbox Sign |
-| GET | `/api/v1/master/contracts/public/{token}` | Public (Token) | Xem thông tin hợp đồng qua liên kết bảo mật |
+| POST | `/api/v1/public/contracts/webhook/dropbox-sign` | Public (HMAC) | Webhook nhận sự kiện ký số / từ chối / hủy từ Dropbox Sign |
+| GET | `/api/v1/public/contracts/{token}` | Public (Token) | Xem thông tin hợp đồng qua liên kết bảo mật |
+| POST | `/api/v1/public/contracts/{token}/sync-esign` | Public (Token) | Đối tác tự đồng bộ trạng thái ký từ Dropbox Sign |
 
 ## Database liên quan
 

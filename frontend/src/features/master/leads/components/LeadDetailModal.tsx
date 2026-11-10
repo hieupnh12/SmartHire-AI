@@ -66,7 +66,7 @@ export function LeadDetailModal({
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <span className="text-slate-500 block text-[11px]">Email doanh nghiệp:</span>
+              <span className="text-slate-500 block text-[11px]">Email liên hệ:</span>
               <a href={`mailto:${selectedLead.workEmail}`} className="text-blue-600 font-mono hover:underline">
                 {selectedLead.workEmail}
               </a>

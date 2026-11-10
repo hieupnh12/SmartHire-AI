@@ -25,7 +25,6 @@ public class InvoiceResponse {
     private String planCode;
     private BigDecimal amount;
     private BigDecimal subtotal;
-    private BigDecimal taxRate;
     private String currency;
     private String status;
     private LocalDateTime dueDate;
@@ -60,7 +59,6 @@ public class InvoiceResponse {
                 .planCode(plan != null ? plan.getCode() : null)
                 .amount(invoice.getAmount())
                 .subtotal(invoice.getSubtotal())
-                .taxRate(invoice.getTaxRate())
                 .currency(invoice.getCurrency())
                 .status(invoice.getStatus())
                 .dueDate(invoice.getDueDate())

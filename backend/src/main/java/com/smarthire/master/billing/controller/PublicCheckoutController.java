@@ -4,6 +4,8 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.master.billing.dto.CheckoutRequest;
 import com.smarthire.master.billing.dto.CheckoutResponse;
+import com.smarthire.master.billing.dto.InvoiceStatusResponse;
+import com.smarthire.master.billing.dto.PublicOrderLookupResponse;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.billing.util.VnPayUtil;
 import com.smarthire.master.subscription.dto.SubscriptionPlanResponse;
@@ -15,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -53,8 +56,32 @@ public class PublicCheckoutController {
 
     @GetMapping("/status/{invoiceId}")
     @Operation(summary = "Check Invoice Payment Status", description = "Returns payment and workspace provisioning status for a given invoice (used for real-time frontend polling).")
-    public ResponseEntity<ApiResponse<com.smarthire.master.billing.dto.InvoiceStatusResponse>> checkInvoiceStatus(@PathVariable Long invoiceId) {
-        com.smarthire.master.billing.dto.InvoiceStatusResponse status = billingService.getPublicInvoiceStatus(invoiceId);
+    public ResponseEntity<ApiResponse<InvoiceStatusResponse>> checkInvoiceStatus(@PathVariable Long invoiceId) {
+        InvoiceStatusResponse status = billingService.getPublicInvoiceStatus(invoiceId);
         return ResponseEntity.ok(ApiResponse.ok("Trạng thái hóa đơn", status));
+    }
+
+    @GetMapping("/orders")
+    @Operation(summary = "Lookup Orders by Email or Order Code", description = "Searches for invoices and orders by admin email, invoice number or subdomain.")
+    public ResponseEntity<ApiResponse<List<PublicOrderLookupResponse>>> lookupOrders(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String query) {
+        String effectiveQuery = StringUtils.hasText(query) ? query : email;
+        List<PublicOrderLookupResponse> orders = billingService.lookupOrders(effectiveQuery);
+        return ResponseEntity.ok(ApiResponse.ok("Danh sách đơn hàng", orders));
+    }
+
+    @GetMapping("/order/{invoiceId}")
+    @Operation(summary = "Get Full Order Details for Checkout", description = "Returns full checkout response including VietQR and bank transfer info for an existing order.")
+    public ResponseEntity<ApiResponse<CheckoutResponse>> getCheckoutOrder(@PathVariable Long invoiceId) {
+        CheckoutResponse response = billingService.getCheckoutOrder(invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Thông tin đơn hàng", response));
+    }
+
+    @GetMapping("/order-by-number/{invoiceNumber}")
+    @Operation(summary = "Get Full Order Details by Invoice Number", description = "Returns full checkout response including VietQR and bank transfer info for an existing order by its invoice number.")
+    public ResponseEntity<ApiResponse<CheckoutResponse>> getCheckoutOrderByInvoiceNumber(@PathVariable String invoiceNumber) {
+        CheckoutResponse response = billingService.getCheckoutOrderByInvoiceNumber(invoiceNumber);
+        return ResponseEntity.ok(ApiResponse.ok("Thông tin đơn hàng", response));
     }
 }

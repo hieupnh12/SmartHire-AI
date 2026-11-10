@@ -254,25 +254,6 @@ interface DemoRequestForm {
   notes: string;
 }
 
-const BLOCKED_PERSONAL_DOMAINS = [
-  "gmail.com",
-  "yahoo.com",
-  "hotmail.com",
-  "outlook.com",
-  "live.com",
-  "icloud.com",
-  "mail.com",
-  "zoho.com",
-  "proton.me",
-  "protonmail.com",
-  "yandex.com",
-];
-
-const isPersonalEmail = (email: string) => {
-  const domain = email.trim().toLowerCase().split("@")[1];
-  return domain ? BLOCKED_PERSONAL_DOMAINS.includes(domain) : false;
-};
-
 /* ─────────────────────────────────────────────
    Page component
 ───────────────────────────────────────────── */
@@ -308,14 +289,6 @@ export function DemoRequestPage() {
   const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
-
-    if (isPersonalEmail(formData.workEmail)) {
-      setSubmitError(
-        "Vui lòng sử dụng Email Doanh nghiệp (domain công ty riêng, ví dụ: name@company.com) để được xếp lịch thẩm định & demo 1:1 nhanh nhất."
-      );
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       await consultationApi.submit({
@@ -516,26 +489,18 @@ export function DemoRequestPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Email Doanh Nghiệp <span className="text-red-500">*</span>
+                    Email Liên Hệ <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
                     required
-                    placeholder="name@company.com"
+                    placeholder="name@company.com hoặc name@gmail.com"
                     value={formData.workEmail}
                     onChange={(e) =>
                       setFormData({ ...formData, workEmail: e.target.value })
                     }
-                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:outline-none transition-colors ${isPersonalEmail(formData.workEmail)
-                        ? "border-amber-500 focus:border-amber-500 focus:ring-amber-100"
-                        : "border-slate-300 focus:border-blue-500 focus:ring-blue-100"
-                      }`}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
-                  {isPersonalEmail(formData.workEmail) && (
-                    <span className="text-[11px] text-amber-600 mt-1 block">
-                      * Yêu cầu email tên miền công ty (không dùng @gmail/@yahoo)
-                    </span>
-                  )}
                 </div>
 
                 <div>
