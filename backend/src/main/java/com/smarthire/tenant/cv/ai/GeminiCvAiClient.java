@@ -34,10 +34,10 @@ public class GeminiCvAiClient implements CvAiClient {
             If the CV has no information about a requirement, use MISSING or UNKNOWN — never guess.
             MATCH only when the CV clearly supports the requirement. PARTIAL when related but incomplete.
             Evidence must be a short quote or paraphrase from the CV text. Empty arrays mean not found.
-            Write verdict, explanation, and evidence sentences in Vietnamese. Keep skill names and direct CV quotes unchanged.
+            Write verdict (3-5 insightful sentences for the recruiter), explanation (citing concrete projects, companies, or roles from the CV), and missing/partial notes in Vietnamese. Keep skill names and direct CV quotes unchanged.
+            In verdict, summarize education background, practical vs academic experience duration, key tech stack fit, and realistic seniority level (e.g., Fresher/Junior vs Middle/Senior).
             Do not write English sentences such as "No X experience found in the CV."
             Dates must be YYYY-MM. Do not output an overall score; the backend computes the score.
-            Verdict is 2-4 sentences for the recruiter.
             """;
 
     private final HeuristicCvAiClient fallback;
@@ -233,6 +233,8 @@ public class GeminiCvAiClient implements CvAiClient {
                         target.modelName(),
                         apiKey,
                         target.endpointUrl(),
+                        target.temperature(),
+                        target.maxTokens(),
                         system,
                         promptText);
             } catch (BusinessException ex) {
@@ -272,8 +274,11 @@ public class GeminiCvAiClient implements CvAiClient {
             String model,
             String apiKey,
             String endpoint,
+            java.math.BigDecimal temperature,
+            Integer maxTokens,
             String system,
             String promptText) throws Exception {
+        int effectiveMaxTokens = maxTokens != null && maxTokens > 0 ? Math.max(4096, maxTokens) : 4096;
         String text;
         String rawResponse = null;
         long startNs = System.nanoTime();
@@ -296,20 +301,17 @@ public class GeminiCvAiClient implements CvAiClient {
                 };
                 String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
 
-                String body = """
-                        {
-                          "model": %s,
-                          "messages": [
-                            {"role": "system", "content": %s},
-                            {"role": "user", "content": %s}
-                          ],
-                          "response_format": {"type": "json_object"}
-                        }
-                        """.formatted(
-                                mapper.writeValueAsString(model),
-                                mapper.writeValueAsString(system),
-                                mapper.writeValueAsString(promptText)
-                        );
+                var requestBody = mapper.createObjectNode();
+                requestBody.put("model", model);
+                var messages = requestBody.putArray("messages");
+                messages.addObject().put("role", "system").put("content", system == null ? "" : system);
+                messages.addObject().put("role", "user").put("content", promptText == null ? "" : promptText);
+                requestBody.putObject("response_format").put("type", "json_object");
+                if (temperature != null) {
+                    requestBody.put("temperature", temperature);
+                }
+                requestBody.put("max_tokens", effectiveMaxTokens);
+                String body = mapper.writeValueAsString(requestBody);
 
                 rawResponse = http.post()
                         .uri(url)
@@ -322,13 +324,20 @@ public class GeminiCvAiClient implements CvAiClient {
                 text = readOpenAiText(rawResponse);
             } else {
                 String instruction = system == null ? "" : system.trim();
-                String body = instruction.isEmpty()
-                        ? """
-                        {"contents":[{"parts":[{"text":%s}]}],"generationConfig":{"responseMimeType":"application/json"}}
-                        """.formatted(mapper.writeValueAsString(promptText))
-                        : """
-                        {"system_instruction":{"parts":[{"text":%s}]},"contents":[{"parts":[{"text":%s}]}],"generationConfig":{"responseMimeType":"application/json"}}
-                        """.formatted(mapper.writeValueAsString(instruction), mapper.writeValueAsString(promptText));
+                var requestBody = mapper.createObjectNode();
+                if (!instruction.isEmpty()) {
+                    requestBody.putObject("system_instruction")
+                            .putArray("parts").addObject().put("text", instruction);
+                }
+                requestBody.putArray("contents")
+                        .addObject().putArray("parts").addObject().put("text", promptText == null ? "" : promptText);
+                var generationConfig = requestBody.putObject("generationConfig");
+                generationConfig.put("responseMimeType", "application/json");
+                if (temperature != null) {
+                    generationConfig.put("temperature", temperature);
+                }
+                generationConfig.put("maxOutputTokens", effectiveMaxTokens);
+                String body = mapper.writeValueAsString(requestBody);
                 rawResponse = http.post()
                         .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
                                 model, apiKey.trim())
