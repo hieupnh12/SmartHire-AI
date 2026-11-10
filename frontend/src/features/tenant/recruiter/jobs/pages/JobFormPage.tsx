@@ -61,7 +61,7 @@ const GATE_WEIGHT_HELP = {
   cv: "Điểm sàng lọc CV mới nhất của hồ sơ (0–100), tính theo các trọng số CV ở trên.",
   aiInterview: "Điểm tổng của lượt phỏng vấn AI gần nhất đã chấm xong (0–100). Lượt đang làm hoặc bị lỗi chưa được tính.",
   assessment: "Điểm bài kiểm tra gần nhất đã chấm xong, quy về thang 100: điểm đạt được ÷ tổng điểm tối đa của đề × 100. Ví dụ đạt 30/40 điểm → 75.",
-  threshold: "Điểm vòng gửi xe = điểm CV × trọng số CV + điểm phỏng vấn AI × trọng số PV + điểm bài kiểm tra × trọng số BKT, tất cả ÷ 100. Hồ sơ chỉ đạt khi đã có đủ điểm của mọi vòng có trọng số > 0 và tổng ≥ ngưỡng. Vòng nào đặt trọng số 0 thì không cần chờ.",
+  threshold: "Điểm tổng hợp = điểm CV × trọng số CV + điểm phỏng vấn AI × trọng số PV + điểm bài kiểm tra × trọng số BKT, tất cả ÷ 100. Hồ sơ chỉ đạt khi đã có đủ điểm của mọi vòng có trọng số > 0 và tổng ≥ ngưỡng. Vòng nào đặt trọng số 0 thì không cần chờ.",
 };
 const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại học", "Thạc sĩ", "Tiến sĩ"];
 const EMPLOYMENT_TYPES = [
@@ -327,7 +327,7 @@ export function JobFormPage() {
     { step: 0, key: "headcount", message: "Số lượng cần tuyển tối thiểu là 1.", invalid: !(Number(form.headcount) >= 1) },
     { step: 1, key: "salary", message: "Lương tối thiểu không được lớn hơn lương tối đa.", invalid: salaryInvalid },
     { step: 3, key: "cv", message: "Trọng số sàng lọc CV phải tổng đúng 100%.", invalid: cvTotal !== 100 },
-    { step: 3, key: "gate", message: "Trọng số vòng gửi xe phải tổng đúng 100%.", invalid: gateTotal !== 100 },
+    { step: 3, key: "gate", message: "Trọng số đánh giá tổng hợp phải tổng đúng 100%.", invalid: gateTotal !== 100 },
   ];
   const publishIssues: Issue[] = [
     ...draftIssues,
@@ -664,7 +664,7 @@ export function JobFormPage() {
                 </FieldGroup>
 
                 <FieldGroup
-                  title="Trọng số vòng gửi xe"
+                  title="Trọng số đánh giá tổng hợp"
                   description="Tổng hợp điểm CV, phỏng vấn AI và bài kiểm tra. Độc lập với trọng số CV."
                   aside={<TotalBadge total={gateTotal} />}
                 >
@@ -676,7 +676,7 @@ export function JobFormPage() {
                   <TotalMeter total={gateTotal} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WeightField
-                      label="Ngưỡng đạt vòng gửi xe"
+                      label="Ngưỡng đạt tổng hợp"
                       help={GATE_WEIGHT_HELP.threshold}
                       suffix="/100"
                       value={gate.passThreshold}
@@ -771,7 +771,7 @@ const CHECK_LABEL: Record<string, string> = {
   headcount: "Số lượng cần tuyển",
   salary: "Khoảng lương hợp lệ",
   cv: "Trọng số CV đủ 100%",
-  gate: "Trọng số vòng gửi xe đủ 100%",
+  gate: "Trọng số tổng hợp đủ 100%",
   deadline: "Hạn nhận hồ sơ trong tương lai",
   description: "Mô tả công việc",
   skills: "Ít nhất 1 kỹ năng",
@@ -935,7 +935,7 @@ function ReviewStep({ form, onEdit }: { form: JobUpsertRequest; onEdit: (step: n
           {mode.label}
         </p>
         <p className="mt-0.5 text-sm text-[var(--color-on-surface-variant)]">
-          {mode.description} Ngưỡng CV {form.cvScreening?.passThreshold ?? INITIAL_CV.passThreshold}/100 · Ngưỡng vòng gửi xe {form.gateScreening?.passThreshold ?? INITIAL_GATE.passThreshold}/100.
+          {mode.description} Ngưỡng CV {form.cvScreening?.passThreshold ?? INITIAL_CV.passThreshold}/100 · Ngưỡng tổng hợp {form.gateScreening?.passThreshold ?? INITIAL_GATE.passThreshold}/100.
         </p>
       </ReviewSection>
     </div>
