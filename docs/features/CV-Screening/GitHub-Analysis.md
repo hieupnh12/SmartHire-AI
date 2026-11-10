@@ -31,7 +31,7 @@ Sau khi chấm CV theo JD, đọc repository GitHub **công khai** mà ứng vi�
 - Đổi `app.github.strategy-version` hoặc prompt/model trong fingerprint thì không dùng cache cũ.
 - Giới hạn mặc định: 2 repository, 8 file, 12 KB/file, 48 KB tổng, 60.000 ký tự prompt, timeout 12 giây, retry GitHub 2 lần, listener `1-2`.
 - Token GitHub tuỳ chọn (`GITHUB_TOKEN`) chỉ để tăng rate limit. Không nhận token của ứng viên.
-- Task model `GITHUB_ANALYSIS` dùng cấu hình Admin nếu có; không có thì dùng chuỗi model của `CV_PARSING`. Prompt sàng CV không đổi.
+- Task model `GITHUB_ANALYSIS` được quản trị tại `/admin/system/ai-config` (nhóm Sàng lọc CV & Matching); nếu chưa lưu bản ghi riêng trong `ai_model_configs` thì dùng key `GEMINI` ACTIVE mặc định với chuỗi `gemini-2.5-flash` → `gemini-3.5-flash-lite` (hoặc kế thừa `MATCHING`/`CV_PARSING`), đồng thời tự làm sạch model Gemini 1.5/2.0 đã ngừng hỗ trợ. Prompt sàng CV không đổi.
 
 ## API liên quan
 

@@ -19,7 +19,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 3. Chuẩn hóa skill bằng taxonomy (`SkillScoringService`).
 4. Tính Jaccard trên tập skill đã normalize.
 5. Backend tính weighted score từ taxonomy, Jaccard, kinh nghiệm, học vấn và nhận xét kỹ năng của Gemini.
-6. Gemini đọc breakdown đó và quyết định đạt hay không, kèm hai lời khuyên tách nhau: `advice` cho recruiter (hỏi gì tiếp, có nên cho qua hay không) và `candidateAdvice` cho ứng viên (cách bổ sung CV để rút kinh nghiệm). Công thức đã trượt (dưới ngưỡng hoặc thiếu kỹ năng bắt buộc) thì Gemini không được cho qua. Không có API key hoặc lỗi model thì quyết định giữ nguyên kết quả công thức và không có lời khuyên AI.
+6. Gemini đọc breakdown đó kèm tóm tắt `candidateProfile` (học vấn, kinh nghiệm, dự án, chứng chỉ), `jobContext` (chức danh, số năm yêu cầu, JD) và `initialCvVerdict`, rồi đánh giá thực chất năng lực, điểm mạnh (`strengths`), rủi ro/điểm cần kiểm chứng (`risks`), câu hỏi phỏng vấn (`interviewQuestions`) và quyết định đạt hay không, kèm hai lời khuyên tách nhau: `advice` cho recruiter (khuyến nghị hành động, hỏi gì tiếp, có nên cho qua hay không) và `candidateAdvice` cho ứng viên (cách bổ sung CV để rút kinh nghiệm). Công thức đã trượt (dưới ngưỡng hoặc thiếu kỹ năng bắt buộc) thì Gemini không được cho qua. Không có API key hoặc lỗi model thì quyết định giữ nguyên kết quả công thức và không có lời khuyên AI.
 
 ## Business Rules
 
