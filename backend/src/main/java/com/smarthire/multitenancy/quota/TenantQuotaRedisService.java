@@ -710,7 +710,7 @@ public class TenantQuotaRedisService {
     private static SubscriptionPlan defaultStarterPlan() {
         return SubscriptionPlan.builder()
                 .code("STARTER")
-                .name("Gói Khởi Đầu (Starter)")
+                .name("Gói Khởi Đầu")
                 .description("Dành cho doanh nghiệp nhỏ và công ty khởi nghiệp có nhu cầu tự động hóa bước đầu.")
                 .priceYearly(BigDecimal.valueOf(12_000_000))
                 .maxJobs(5)

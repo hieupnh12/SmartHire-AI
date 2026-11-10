@@ -53,6 +53,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
+import { SubscriptionBillingPage } from "@/features/tenant/admin/billing/pages/SubscriptionBillingPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
@@ -291,6 +292,7 @@ export function AppRouter() {
           <Route path="recruiter-assignments" element={<AssignmentsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="billing" element={<SubscriptionBillingPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>

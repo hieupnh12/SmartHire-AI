@@ -3,16 +3,23 @@ package com.smarthire.master.billing.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.config.VnPayProperties;
 import com.smarthire.domain.master.entity.Invoice;
+import com.smarthire.domain.master.entity.InvoiceLineItem;
 import com.smarthire.domain.master.entity.PaymentTransaction;
+import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
+import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
 import com.smarthire.domain.master.repository.PaymentTransactionRepository;
+import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
+import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
 import com.smarthire.master.billing.dto.*;
 import com.smarthire.master.billing.util.VnPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +46,15 @@ public class VnPayService {
     private final TenantInfoRepository tenantRepository;
     private final MasterBillingService masterBillingService;
     private final PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired(required = false)
+    private InvoiceLineItemRepository invoiceLineItemRepository;
+
+    @Autowired(required = false)
+    private TenantSubscriptionRepository subscriptionRepository;
+
+    @Autowired(required = false)
+    private SubscriptionPlanRepository planRepository;
 
     @Transactional(transactionManager = "masterTransactionManager")
     public VnPayPaymentResponse createPaymentUrl(VnPayCreatePaymentRequest request, HttpServletRequest httpRequest) {
@@ -259,6 +275,9 @@ public class VnPayService {
                 .build();
         paymentTransactionRepository.save(returnTxn);
 
+        String paymentPurpose = resolvePaymentPurpose(invoice);
+        String planName = resolvePlanName(invoice);
+
         if ("00".equals(responseCode)) {
             // Idempotent auto-activation if IPN hasn't finished yet
             if (!"PAID".equalsIgnoreCase(invoice.getStatus())) {
@@ -279,6 +298,8 @@ public class VnPayService {
                     .transactionNo(transactionNo)
                     .bankCode(bankCode)
                     .payDate(payDate)
+                    .paymentPurpose(paymentPurpose)
+                    .planName(planName)
                     .build();
         } else {
             String errorMsg = mapVnPayResponseCode(responseCode);
@@ -292,8 +313,43 @@ public class VnPayService {
                     .amountVnd(invoice.getAmount())
                     .transactionNo(transactionNo)
                     .bankCode(bankCode)
+                    .paymentPurpose(paymentPurpose)
+                    .planName(planName)
                     .build();
         }
+    }
+
+    private String resolvePaymentPurpose(Invoice invoice) {
+        if (invoiceLineItemRepository == null || invoice == null || invoice.getId() == null) {
+            return "ONBOARDING";
+        }
+        List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+        if (items != null) {
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_UPGRADE".equalsIgnoreCase(i.getItemType()))) {
+                return "UPGRADE";
+            }
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(i.getItemType()))) {
+                return "RENEWAL";
+            }
+        }
+        return "ONBOARDING";
+    }
+
+    private String resolvePlanName(Invoice invoice) {
+        if (invoice == null || invoice.getSubscriptionId() == null || subscriptionRepository == null) {
+            return null;
+        }
+        TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+        if (sub == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sub.getPlanNameSnapshot())) {
+            return sub.getPlanNameSnapshot();
+        }
+        if (sub.getPlanId() != null && planRepository != null) {
+            return planRepository.findById(sub.getPlanId()).map(SubscriptionPlan::getName).orElse(null);
+        }
+        return null;
     }
 
     private String mapVnPayResponseCode(String responseCode) {

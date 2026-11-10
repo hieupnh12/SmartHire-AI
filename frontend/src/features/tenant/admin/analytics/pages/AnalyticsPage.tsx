@@ -1,8 +1,10 @@
 import { useState, useMemo, type ComponentType } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   Activity,
   ArrowDownRight,
+  ArrowRight,
   ArrowUpRight,
   Award,
   BriefcaseBusiness,
@@ -11,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  CreditCard,
   Gauge,
   LayoutGrid,
   List,
@@ -32,6 +35,13 @@ import { jobApi } from "@/api/tenant/jobApi";
 import { recruiterAnalyticsApi } from "@/api/tenant/recruiterAnalyticsApi";
 import { usersApi } from "@/api/tenant/usersApi";
 import { companyApi } from "@/api/tenant/companyApi";
+import { getApiErrorMessage } from "@/lib/axios";
+import { toast } from "@/stores/toastStore";
+import {
+  formatPlanDisplayName,
+  formatSubscriptionStatusLabel,
+  translatePlanFeatureLabel,
+} from "@/features/tenant/admin/billing/utils/billingLabels";
 
 type AnalyticsTab = "overview" | "pipeline" | "talent" | "team" | "usage";
 type TimeRange = "30_DAYS" | "CURRENT_QUARTER" | "12_MONTHS";
@@ -1870,9 +1880,7 @@ function formatSecondsToHoursLabel(seconds: number): string {
 }
 
 function UsagePanel() {
-  const [selectedTargetPlan, setSelectedTargetPlan] = useState<string>("");
-  const [changingPlan, setChangingPlan] = useState(false);
-  const [changeNotice, setChangeNotice] = useState<string | null>(null);
+  const [cancelingDowngrade, setCancelingDowngrade] = useState(false);
 
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
@@ -1881,42 +1889,16 @@ function UsagePanel() {
 
   const sub = subQuery.data?.data;
 
-  const previewQuery = useQuery({
-    queryKey: ["tenant-subscription-change-preview", selectedTargetPlan],
-    queryFn: () => companyApi.previewSubscriptionChange(selectedTargetPlan),
-    enabled: Boolean(selectedTargetPlan && selectedTargetPlan !== sub?.planCode),
-  });
-
-  const preview = previewQuery.data?.data;
-
-  const handleConfirmPlanChange = async () => {
-    if (!selectedTargetPlan) return;
-    setChangingPlan(true);
-    setChangeNotice(null);
-    try {
-      await companyApi.changeSubscriptionPlan(selectedTargetPlan);
-      await subQuery.refetch();
-      setSelectedTargetPlan("");
-      setChangeNotice(
-        preview?.changeType === "UPGRADE"
-          ? "Đã nâng cấp gói cước thành công (áp dụng ngay kèm khấu trừ Proration những ngày chưa dùng)!"
-          : "Đã lên lịch hạ cấp gói cước vào cuối chu kỳ hiện tại để bảo toàn các vị trí tuyển dụng đang mở!"
-      );
-    } catch (err: any) {
-      setChangeNotice(err?.response?.data?.message || "Không thể thực hiện thay đổi gói cước.");
-    } finally {
-      setChangingPlan(false);
-    }
-  };
-
   const handleCancelDowngrade = async () => {
-    setChangingPlan(true);
+    setCancelingDowngrade(true);
     try {
       await companyApi.cancelScheduledDowngrade();
       await subQuery.refetch();
-      setChangeNotice("Đã hủy lịch hạ cấp gói cuối chu kỳ.");
+      toast.success("Đã hủy lịch hạ cấp gói cuối chu kỳ.");
+    } catch (err) {
+      toast.error("Không thể hủy lịch hạ cấp", getApiErrorMessage(err));
     } finally {
-      setChangingPlan(false);
+      setCancelingDowngrade(false);
     }
   };
 
@@ -1940,7 +1922,7 @@ function UsagePanel() {
     ? [
         {
           id: "jobs",
-          label: "Vị trí tuyển dụng đang mở (Active Jobs)",
+          label: "Vị trí tuyển dụng đang mở",
           usedLabel: `${sub.usedJobs.toLocaleString("vi-VN")}`,
           maxLabel: sub.maxJobs < 0 ? "Không giới hạn" : `${sub.maxJobs.toLocaleString("vi-VN")} vị trí`,
           pct: sub.jobsUsagePercent,
@@ -1950,7 +1932,7 @@ function UsagePanel() {
         },
         {
           id: "cv",
-          label: "AI CV Parsing & Screening (theo tháng)",
+          label: "Lọc & phân tích CV bằng AI (theo tháng)",
           usedLabel: `${sub.usedCvParses.toLocaleString("vi-VN")}`,
           maxLabel: sub.maxCvParses < 0 ? "Không giới hạn" : `${sub.maxCvParses.toLocaleString("vi-VN")} CV/tháng`,
           pct: sub.cvParsesUsagePercent,
@@ -1960,7 +1942,7 @@ function UsagePanel() {
         },
         {
           id: "ai_voice",
-          label: "Thời lượng Phỏng vấn AI Voice (theo tháng)",
+          label: "Thời lượng phỏng vấn AI bằng giọng nói (theo tháng)",
           usedLabel: formatSecondsToHoursLabel(sub.usedAiInterviewSeconds),
           maxLabel:
             sub.maxAiInterviewHours < 0
@@ -1975,7 +1957,7 @@ function UsagePanel() {
         },
         {
           id: "proctoring",
-          label: "Giám sát thi & chống gian lận Proctoring (theo tháng)",
+          label: "Giám sát thi & chống gian lận tự động (theo tháng)",
           usedLabel: formatSecondsToHoursLabel(sub.usedProctoringSeconds),
           maxLabel:
             sub.maxProctoringHours < 0
@@ -1990,7 +1972,7 @@ function UsagePanel() {
         },
         {
           id: "storage",
-          label: "Dung lượng lưu trữ hồ sơ & Audio/Video",
+          label: "Dung lượng lưu trữ hồ sơ & video",
           usedLabel: formatQuotaBytes(sub.usedStorageBytes),
           maxLabel:
             sub.maxStorageGb < 0
@@ -2008,16 +1990,15 @@ function UsagePanel() {
 
   return (
     <div className="space-y-6">
-      {/* Lifecycle & Scheduled Downgrade Banners */}
       {sub?.subscriptionStatus === "PAST_DUE" && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
-          <strong>Thuê bao quá hạn thanh toán (PAST_DUE — Đang trong thời gian ân hạn):</strong> Quyền lợi tuyển dụng của doanh nghiệp vẫn được duy trì tạm thời{sub.gracePeriodEndsAt ? ` đến ${new Date(sub.gracePeriodEndsAt).toLocaleDateString("vi-VN")}` : ""}. Vui lòng hoàn tất thanh toán hóa đơn gia hạn để tránh bị tạm khóa (`SUSPENDED`).
+          <strong>Thuê bao quá hạn thanh toán (Đang trong thời gian ân hạn):</strong> Quyền lợi tuyển dụng của doanh nghiệp vẫn được duy trì tạm thời{sub.gracePeriodEndsAt ? ` đến ${new Date(sub.gracePeriodEndsAt).toLocaleDateString("vi-VN")}` : ""}. Vui lòng hoàn tất thanh toán hóa đơn gia hạn để tránh bị tạm khóa.
         </div>
       )}
 
       {sub?.subscriptionStatus === "SUSPENDED" && (
         <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-xs text-red-900">
-          <strong>Thuê bao đang tạm khóa (SUSPENDED):</strong> Thời gian ân hạn đã kết thúc. Quyền tạo mới vị trí tuyển dụng, lọc CV bằng AI và phỏng vấn AI tạm thời bị khóa cho tới khi gia hạn.
+          <strong>Thuê bao đang tạm khóa:</strong> Thời gian ân hạn đã kết thúc. Quyền tạo mới vị trí tuyển dụng, lọc CV bằng AI và phỏng vấn AI tạm thời bị khóa cho tới khi gia hạn.
         </div>
       )}
 
@@ -2025,25 +2006,16 @@ function UsagePanel() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900">
           <span>
             <strong>Đã lên lịch hạ cấp cuối kỳ:</strong> Gói dịch vụ sẽ tự động chuyển sang{" "}
-            <strong>{sub.nextPlanName} ({sub.nextPlanCode})</strong> khi kết thúc chu kỳ hiện tại
+            <strong>{formatPlanDisplayName(sub.nextPlanName)}</strong> khi kết thúc chu kỳ hiện tại
             {sub.endsAt ? ` (${new Date(sub.endsAt).toLocaleDateString("vi-VN")})` : ""}. Trong thời gian còn lại, hạn mức gói hiện tại vẫn được giữ nguyên 100%.
           </span>
           <button
             type="button"
-            disabled={changingPlan}
+            disabled={cancelingDowngrade}
             onClick={handleCancelDowngrade}
             className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 border border-blue-300 hover:bg-blue-100 cursor-pointer"
           >
-            Hủy lịch hạ cấp
-          </button>
-        </div>
-      )}
-
-      {changeNotice && (
-        <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-xs font-medium text-teal-900 flex items-center justify-between">
-          <span>{changeNotice}</span>
-          <button type="button" onClick={() => setChangeNotice(null)} className="text-teal-700 hover:text-teal-900">
-            <X className="size-4" />
+            {cancelingDowngrade ? "Đang hủy..." : "Hủy lịch hạ cấp"}
           </button>
         </div>
       )}
@@ -2058,13 +2030,13 @@ function UsagePanel() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                    Hạn mức gói {sub?.planName ?? "Starter"}
+                    Hạn mức gói {formatPlanDisplayName(sub?.planName)}
                   </h2>
                   <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-700 border border-teal-200">
-                    {sub?.planCode ?? "STARTER"} · v{sub?.planVersion ?? 1}
+                    Phiên bản {sub?.planVersion ?? 1}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                    {sub?.subscriptionStatus ?? "ACTIVE"} (Snapshot bảo lưu)
+                    {formatSubscriptionStatusLabel(sub?.subscriptionStatus)}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
@@ -2117,7 +2089,7 @@ function UsagePanel() {
                         </span>
                       ) : item.unlimited ? (
                         <span className="rounded-md bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">
-                          Unlimited
+                          Không giới hạn
                         </span>
                       ) : null}
                       <strong className="text-teal-700 dark:text-teal-400">
@@ -2141,7 +2113,7 @@ function UsagePanel() {
           <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm bg-gradient-to-br from-teal-50/50 via-surface-card to-surface-card">
             <Activity className="size-6 text-teal-600" />
             <p className="mt-4 text-sm font-medium text-[var(--color-text-secondary)]">
-              Giá hợp đồng bảo lưu (Snapshot Price)
+              Giá hợp đồng bảo lưu
             </p>
             <p className="mt-1 font-display text-3xl font-bold text-[var(--color-text-primary)]">
               {(sub?.priceYearly ?? 0).toLocaleString("vi-VN")} ₫
@@ -2149,101 +2121,40 @@ function UsagePanel() {
             </p>
             {sub?.proratedCreditAmount != null && sub.proratedCreditAmount > 0 && (
               <p className="mt-1 text-xs font-semibold text-teal-700">
-                Đã khấu trừ Proration từ gói cũ: -{sub.proratedCreditAmount.toLocaleString("vi-VN")} ₫
+                Đã khấu trừ số dư gói cũ: -{sub.proratedCreditAmount.toLocaleString("vi-VN")} ₫
               </p>
             )}
             <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              {sub?.description || "Gói dịch vụ SaaS Multi-Tenant đang áp dụng cho toàn bộ thành viên trong workspace."}
+              {sub?.description || "Gói dịch vụ đang áp dụng cho toàn bộ thành viên trong doanh nghiệp."}
             </p>
 
-            {/* Upgrade / Downgrade Proration Calculator */}
-            <div className="mt-5 border-t border-[var(--color-border-default)] pt-4 space-y-3">
+            <div className="mt-5 border-t border-[var(--color-border-default)] pt-4 space-y-2.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                Nâng cấp / Hạ cấp gói cước (Proration)
+                Nâng cấp, Gia hạn &amp; Hóa đơn
               </p>
-              <select
-                value={selectedTargetPlan}
-                onChange={(e) => setSelectedTargetPlan(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)]"
+              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                Xem đầy đủ gói dịch vụ hiện có, gia hạn thêm năm bản quyền và thanh toán trực tuyến qua VietQR / VNPay / PayPal.
+              </p>
+              <Link
+                to="/internal/admin/billing"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-teal-700"
               >
-                <option value="">-- Chọn gói muốn chuyển đổi --</option>
-                {["STARTER", "PROFESSIONAL", "ENTERPRISE"]
-                  .filter((code) => code !== sub?.planCode)
-                  .map((code) => (
-                    <option key={code} value={code}>
-                      Chuyển sang gói {code}
-                    </option>
-                  ))}
-              </select>
-
-              {preview && (
-                <div className="rounded-xl border border-teal-200 bg-white p-3.5 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">
-                      {preview.changeType === "UPGRADE" ? "Nâng cấp giữa kỳ (Proration)" : "Hạ cấp cuối chu kỳ"}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-bold",
-                        preview.changeType === "UPGRADE"
-                          ? "bg-teal-100 text-teal-800"
-                          : "bg-amber-100 text-amber-800"
-                      )}
-                    >
-                      {preview.effectiveTiming === "IMMEDIATE" ? "Hiệu lực ngay" : "Hiệu lực cuối kỳ"}
-                    </span>
-                  </div>
-                  <div className="space-y-1 border-t border-slate-100 pt-2 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Giá gói {preview.targetPlanName}:</span>
-                      <strong>{preview.targetPriceYearly.toLocaleString("vi-VN")} ₫</strong>
-                    </div>
-                    {preview.changeType === "UPGRADE" && (
-                      <>
-                        <div className="flex justify-between text-teal-700">
-                          <span>Khấu trừ {preview.remainingDays}/{preview.totalCycleDays} ngày dư gói cũ:</span>
-                          <strong>-{preview.proratedCreditAmount.toLocaleString("vi-VN")} ₫</strong>
-                        </div>
-                        <div className="flex justify-between border-t border-slate-100 pt-1 text-slate-900 font-bold">
-                          <span>Số tiền cần thanh toán:</span>
-                          <span className="text-teal-700">{preview.netAmountDue.toLocaleString("vi-VN")} ₫</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  {preview.warnings && preview.warnings.length > 0 && (
-                    <div className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
-                      {preview.warnings[0]}
-                    </div>
-                  )}
-                  {preview.allowed && (
-                    <button
-                      type="button"
-                      disabled={changingPlan}
-                      onClick={handleConfirmPlanChange}
-                      className="w-full rounded-lg bg-teal-600 py-2 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
-                    >
-                      {changingPlan
-                        ? "Đang xử lý..."
-                        : preview.changeType === "UPGRADE"
-                        ? "Xác nhận Nâng cấp ngay"
-                        : "Lên lịch Hạ cấp cuối chu kỳ"}
-                    </button>
-                  )}
-                </div>
-              )}
+                <CreditCard className="size-4" />
+                <span>Quản lý gói, Gia hạn &amp; Hóa đơn</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
             </div>
 
             {sub?.features && sub.features.length > 0 && (
               <div className="mt-4 border-t border-[var(--color-border-default)] pt-4 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                  Quyền lợi trong gói (Snapshot)
+                  Quyền lợi trong gói
                 </p>
                 <ul className="space-y-1.5 text-xs text-[var(--color-text-primary)]">
                   {sub.features.map((feat, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle2 className="size-3.5 text-teal-600 shrink-0 mt-0.5" />
-                      <span>{feat}</span>
+                      <span>{translatePlanFeatureLabel(feat)}</span>
                     </li>
                   ))}
                 </ul>

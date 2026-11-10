@@ -22,4 +22,6 @@ public class PayPalVerifyReturnResponse {
     private String contactEmail;
     private BigDecimal amountVnd;
     private String transactionNo;
+    private String paymentPurpose;
+    private String planName;
 }
