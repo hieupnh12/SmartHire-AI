@@ -3,7 +3,7 @@
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
 **Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 19
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V28`
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V36`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -30,7 +30,7 @@ tới database MySQL riêng của họ.
 | `db_username` | VARCHAR(128) | | Có | NULL | Tài khoản MySQL của tenant |
 | `db_password` | VARCHAR(1024) | | Có | NULL | **Đã mã hoá** bằng `TENANT_CREDENTIALS_KEY`; gắn `@JsonIgnore` |
 | `managed_database` | BOOLEAN | | Không | FALSE | `TRUE` nếu database do nền tảng tự cấp phát |
-| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Trạng thái vận hành (`PENDING_PAYMENT`, `PROVISIONING`, `ACTIVE`, `SUSPENDED`, `FAILED`) |
+| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Trạng thái vận hành (`PENDING_PAYMENT`, `PROVISIONING`, `ACTIVE`, `SUSPENDED`, `FAILED`, `CANCELLED`) |
 | `logo_url` | VARCHAR(512) | | Có | NULL | Logo công ty |
 | `website` | VARCHAR(255) | | Có | NULL | Website công ty |
 | `address` | VARCHAR(512) | | Có | NULL | Địa chỉ văn phòng |
@@ -41,7 +41,7 @@ tới database MySQL riêng của họ.
 | `contact_name` | VARCHAR(255) | | Có | NULL | Người liên hệ chính |
 | `contact_email` | VARCHAR(255) | | Có | NULL | Email liên hệ quản trị |
 | `contact_phone` | VARCHAR(32) | | Có | NULL | Điện thoại liên hệ |
-| `billing_email` | VARCHAR(255) | | Có | NULL | Email nhận hoá đơn VAT |
+| `billing_email` | VARCHAR(255) | | Có | NULL | Email nhận hoá đơn |
 | `tax_code` | VARCHAR(50) | | Có | NULL | Mã số thuế doanh nghiệp |
 | `company_legal_name` | VARCHAR(255) | | Có | NULL | Tên pháp nhân trên đăng ký kinh doanh |
 | `billing_address` | VARCHAR(512) | | Có | NULL | Địa chỉ xuất hoá đơn tài chính |
@@ -128,7 +128,7 @@ Entity `TenantSubscription`. Ghi nhận hợp đồng thuê bao của từng Ten
 
 ## 4. `invoices` — Hoá đơn tài chính
 
-Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp lý phục vụ xuất hóa đơn VAT và đối soát thanh toán.
+Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp lý phục vụ xuất hóa đơn doanh nghiệp và đối soát thanh toán.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
@@ -138,8 +138,7 @@ Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp l
 | `subscription_id` | BIGINT | FK → `tenant_subscriptions.id` | Có | NULL | Gói thuê bao liên quan (SET NULL khi xoá) |
 | `contract_id` | BIGINT | FK → `contracts.id` | Có | NULL | Hợp đồng B2B liên quan (V23, SET NULL khi xoá) |
 | `amount` | DECIMAL(15,2) | | Không | — | Tổng số tiền thanh toán (VNĐ) |
-| `subtotal` | DECIMAL(15,2) | | Có | NULL | Số tiền trước thuế (VNĐ) |
-| `tax_rate` | DECIMAL(5,2) | | Có | 0.00 | Tỷ lệ thuế VAT (%) |
+| `subtotal` | DECIMAL(15,2) | | Có | NULL | Số tiền gốc / tạm tính (VNĐ) |
 | `currency` | VARCHAR(8) | | Không | `'VND'` | Đơn vị tiền tệ (mặc định VNĐ từ V23) |
 | `status` | VARCHAR(32) | IDX | Không | `'PENDING'` | Trạng thái (`PENDING`, `PAID`, `OVERDUE`, `CANCELLED`) |
 | `due_date` | TIMESTAMP | | Có | NULL | Hạn thanh toán |
@@ -222,7 +221,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `plan_id` | BIGINT | FK → `subscription_plans.id` | Có | NULL | Gói áp dụng trong hợp đồng |
 | `consultation_request_id` | BIGINT | FK → `consultation_requests.id` | Có | NULL | Lead nguồn nếu ký từ yêu cầu tư vấn |
 | `title` | VARCHAR(255) | | Không | — | Tiêu đề hợp đồng |
-| `contract_value` | DECIMAL(15,2) | | Không | 0.00 | Giá trị trước thuế (VNĐ) |
+| `contract_value` | DECIMAL(15,2) | | Không | 0.00 | Giá trị hợp đồng (VNĐ) |
 | `currency` | VARCHAR(10) | | Không | `'VND'` | Đơn vị tiền tệ (mặc định VNĐ từ V23) |
 | `start_date` | DATE | | Không | — | Ngày bắt đầu hiệu lực |
 | `end_date` | DATE | | Không | — | Ngày kết thúc hiệu lực |
@@ -244,9 +243,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `party_b_phone` | VARCHAR(50) | | Có | NULL | Điện thoại liên hệ Bên B |
 | `party_b_email` | VARCHAR(255) | | Có | NULL | Email Bên B |
 | `party_b_bank_account`| VARCHAR(100) | | Có | NULL | Tài khoản ngân hàng Bên B |
-| `tax_rate` | DECIMAL(5,2) | | Không | 10.00 | Thuế suất VAT (%) |
-| `tax_amount` | DECIMAL(15,2) | | Không | 0.00 | Tiền thuế VAT (VNĐ) |
-| `total_amount` | DECIMAL(15,2) | | Không | 0.00 | Tổng tiền thanh toán sau thuế (VNĐ) |
+| `total_amount` | DECIMAL(15,2) | | Không | 0.00 | Tổng tiền thanh toán (VNĐ) |
 | `amount_in_words` | VARCHAR(512) | | Có | NULL | Số tiền bằng chữ tiếng Việt |
 | `signing_token` | VARCHAR(128) | UQ | Có | NULL | Token bảo mật ký hợp đồng online |
 | `token_expires_at` | TIMESTAMP | | Có | NULL | Thời hạn của token ký |
@@ -257,7 +254,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `esign_details_url` | VARCHAR(512) | | Có | NULL | URL chi tiết hợp đồng trên Dropbox Sign (V26) |
 | `esign_test_mode` | BOOLEAN | | Không | TRUE | Cờ chế độ thử nghiệm Sandbox Dropbox Sign (V26) |
 | `signed_pdf_bytes` | BYTEA | | Có | NULL | Nội dung file PDF hợp đồng đã ký kèm trang Audit Trail (V26) |
-| `status` | VARCHAR(32) | IDX | Không | `'DRAFT'` | Trạng thái (`DRAFT`, `PENDING_SIGNATURE`, `SIGNED`, `EXPIRED`, `TERMINATED`) |
+| `status` | VARCHAR(32) | IDX | Không | `'DRAFT'` | Trạng thái (`DRAFT`, `PENDING_SIGNATURE`, `SIGNED`, `REJECTED`, `EXPIRED`, `TERMINATED`) |
 | `sign_method` | VARCHAR(32) | | Có | NULL | Phương thức ký (`DROPBOX_SIGN`, `UPLOAD_SIGNED_PDF`) |
 | `signed_at` | TIMESTAMP | | Có | NULL | Thời điểm hoàn tất ký |
 | `signed_document_url` | VARCHAR(512) | | Có | NULL | Đường dẫn file PDF hợp đồng đã ký |

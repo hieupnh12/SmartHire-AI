@@ -6,11 +6,11 @@
 
 ## Mục đích chức năng
 
-Dùng PostgreSQL (`smarthire_master`) cho dữ liệu nền tảng và một database MySQL riêng (`smarthire_tenant_<code>`) cho mỗi doanh nghiệp. Các database tenant có thể nằm trên cùng MySQL server hoặc trên nhiều server; một tenant không cần một VPS riêng. Hỗ trợ cả luồng cấp phát tức thì (Direct Onboarding / Self-serve) và luồng khởi tạo chờ thanh toán (Deferred Provisioning `PENDING_PAYMENT`) cho giao dịch thương mại B2B Deal Wizard, cũng như quản lý vòng đời Xoá mềm (Soft Delete), Khôi phục (Restore) và Xoá cứng (Hard Delete / Drop DB).
+Dùng PostgreSQL (`smarthire_master`) cho dữ liệu nền tảng và một database MySQL riêng (`smarthire_tenant_<code>`) cho mỗi doanh nghiệp. Các database tenant có thể nằm trên cùng MySQL server hoặc trên nhiều server; một tenant không cần một VPS riêng. Hỗ trợ cả luồng cấp phát tức thì (Direct Onboarding / Self-serve) và luồng khởi tạo chờ thanh toán (Deferred Provisioning `PENDING_PAYMENT`) cho giao dịch thương mại B2B Deal Wizard, cũng như quản lý vòng đời Xoá mềm (Soft Delete) và Khôi phục (Restore).
 
 ## Actor
 
-- Workspace Admin đăng ký, tạo B2B Deal, retry, khóa/mở, xóa mềm/khôi phục và xóa cứng doanh nghiệp.
+- Workspace Admin đăng ký, tạo B2B Deal, retry, khóa/mở và xóa mềm/khôi phục doanh nghiệp.
 - Admin doanh nghiệp nhận email lời mời kích hoạt một lần (**Invite & Claim Account**), tự đặt mật khẩu riêng và đăng nhập.
 - Worker RabbitMQ và cổng thanh toán (SePay / VNPay / PayPal / Duyệt thủ công) kích hoạt cấp phát ngầm khi thanh toán hoàn tất.
 
@@ -34,11 +34,10 @@ Dùng PostgreSQL (`smarthire_master`) cho dữ liệu nền tảng và một dat
    - Cấp phát MySQL Database riêng + chạy Flyway migration + tạo lời mời `TENANT_ADMIN`.
    - Chuyển `tenants.status` sang `ACTIVE` và gửi email kích hoạt tài khoản cho khách hàng.
 
-### C. Luồng Retry, Vận hành & Xoá (Soft Delete / Restore / Hard Delete)
+### C. Luồng Retry, Vận hành & Xoá mềm (Soft Delete / Restore)
 1. Retry qua `POST /api/v1/master/tenants/{id}/retry`; PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời. Nếu admin chưa kích hoạt, retry làm mới token lời mời và gửi lại link kích hoạt.
 2. Xoá mềm qua `PATCH /api/v1/master/tenants/{id}/soft-delete`: đánh dấu `is_deleted = true`, `deleted_at = now()`, chuyển trạng thái sang `SUSPENDED` và đóng Hikari connection pool trong bộ nhớ nhưng **giữ nguyên** MySQL Database vật lý và toàn bộ lịch sử hoá đơn/hợp đồng để bảo toàn đối soát kế toán.
 3. Khôi phục qua `PATCH /api/v1/master/tenants/{id}/restore`: gỡ cờ `is_deleted = false` và mở lại trạng thái `ACTIVE`.
-4. Xoá cứng (`DELETE /api/v1/master/tenants/{id}?hard=true`): dành cho dọn dẹp tenant test/provisioning lỗi — đóng pool, thực thi `DROP DATABASE IF EXISTS` + `DROP USER IF EXISTS` trên MySQL và xoá sạch dữ liệu liên quan trong Master DB.
 
 Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đoạn, Workspace Admin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
 
@@ -79,7 +78,6 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 | PATCH | `/api/v1/master/tenants/{id}/status?status=ACTIVE\|SUSPENDED` | WORKSPACE_ADMIN |
 | PATCH | `/api/v1/master/tenants/{id}/soft-delete` | WORKSPACE_ADMIN |
 | PATCH | `/api/v1/master/tenants/{id}/restore` | WORKSPACE_ADMIN |
-| DELETE | `/api/v1/master/tenants/{id}?hard=true` | WORKSPACE_ADMIN |
 | PUT | `/api/v1/master/tenants/{id}/quotas` | WORKSPACE_ADMIN (Override hạn mức trực tiếp vào snapshot gói đang ACTIVE) |
 | POST | `/api/v1/master/tenants/{id}/impersonate` | WORKSPACE_ADMIN (Ghi `platform_audit_logs` + phát hành token 15 phút) |
 | GET | `/api/v1/master/tenants/check/{codeOrSubdomain}` | Public, trả boolean |

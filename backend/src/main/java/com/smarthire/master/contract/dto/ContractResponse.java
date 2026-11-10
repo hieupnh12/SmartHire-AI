@@ -55,9 +55,7 @@ public class ContractResponse {
     private String partyBEmail;
     private String partyBBankAccount;
 
-    // Tax & Totals
-    private BigDecimal taxRate;
-    private BigDecimal taxAmount;
+    // Totals
     private BigDecimal totalAmount;
     private String amountInWords;
 
@@ -115,8 +113,6 @@ public class ContractResponse {
                 .partyBPhone(contract.getPartyBPhone())
                 .partyBEmail(contract.getPartyBEmail())
                 .partyBBankAccount(contract.getPartyBBankAccount())
-                .taxRate(contract.getTaxRate())
-                .taxAmount(contract.getTaxAmount())
                 .totalAmount(contract.getTotalAmount())
                 .amountInWords(contract.getAmountInWords())
                 .signingToken(contract.getSigningToken())

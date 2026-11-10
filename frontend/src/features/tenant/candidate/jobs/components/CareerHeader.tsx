@@ -23,6 +23,7 @@ import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { MobileAppHeaderButton, MobileAppSyncModal } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
 
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
 
@@ -160,6 +161,12 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
 
         <div className="ml-auto flex items-center gap-2">
           {!token && <LanguageSwitcher variant="icon" />}
+          <MobileAppHeaderButton
+            tenantName={tenantName}
+            tenantCode={tenantCode}
+            logoUrl={logoUrl}
+            primaryColor={primaryColor}
+          />
           {token ? <>
             <div className="relative hidden sm:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false); }}>
               <button type="button" aria-label={unreadCount ? `Thông báo, ${unreadCount} chưa đọc` : "Thông báo"} aria-expanded={notificationsOpen} aria-haspopup="dialog" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); setActiveMenu(null); }} className="relative grid size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30"><Bell className="size-5" aria-hidden="true" />{Boolean(unreadCount) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
@@ -180,7 +187,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
           <button type="button" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Đóng menu" : "Mở menu"} onClick={() => setMobileOpen((value) => !value)} className="grid size-11 place-items-center rounded-full text-slate-700 hover:bg-slate-100 lg:hidden">{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
         </div>
       </div>
-      {mobileOpen && <MobileMenu menus={menus} loggedIn={Boolean(token)} onNavigate={() => setMobileOpen(false)} />}
+      {mobileOpen && <MobileMenu menus={menus} loggedIn={Boolean(token)} tenantName={tenantName} tenantCode={tenantCode} onNavigate={() => setMobileOpen(false)} />}
     </header>
   );
 }
@@ -299,6 +306,35 @@ function LanguageSection() {
   return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Languages className="size-5 text-slate-400" aria-hidden="true" />{t("common.language")}</h2><div role="radiogroup" aria-label={t("common.language")} className="ml-8 flex flex-wrap gap-2 px-3 py-1">{locales.map((value) => { const selected = value === locale; return <button key={value} type="button" role="radio" aria-checked={selected} onClick={() => setLocale(value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 ${selected ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]"}`}>{selected && <Check className="size-4" aria-hidden="true" />}{localeLabels[value]}</button>; })}</div></section>;
 }
 
-function MobileMenu({ menus, loggedIn, onNavigate }: { menus: Menus; loggedIn: boolean; onNavigate: () => void }) {
-  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}{item.requiresAuth && !loggedIn && <LoginBadge />}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
+function MobileMenu({ menus, loggedIn, tenantName, tenantCode, onNavigate }: { menus: Menus; loggedIn: boolean; tenantName: string; tenantCode: string; onNavigate: () => void }) {
+  const [appModalOpen, setAppModalOpen] = useState(false);
+  return (
+    <>
+      <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">
+        <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">📱</span>
+            <div>
+              <p className="text-xs font-bold text-slate-800">Tải / Mở App {tenantName}</p>
+              <p className="text-[11px] text-slate-500">Đăng nhập nhanh & phỏng vấn AI</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAppModalOpen(true)}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700"
+          >
+            Mã QR
+          </button>
+        </div>
+        {(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}{item.requiresAuth && !loggedIn && <LoginBadge />}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}
+      </nav>
+      <MobileAppSyncModal
+        isOpen={appModalOpen}
+        onClose={() => setAppModalOpen(false)}
+        tenantCode={tenantCode}
+        tenantName={tenantName}
+      />
+    </>
+  );
 }

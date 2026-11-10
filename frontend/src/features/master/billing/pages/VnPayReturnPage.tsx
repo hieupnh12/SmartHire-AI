@@ -48,7 +48,7 @@ export function VnPayReturnPage() {
   }, [searchParams]);
 
   const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const baseDomain = isLocalhost ? "localhost:5173" : "smarthire.ai";
+  const baseDomain = isLocalhost ? "localhost:5173" : "smarthire.top";
   const protocol = isLocalhost ? "http" : "https";
   
   const workspaceUrl = result?.subdomain

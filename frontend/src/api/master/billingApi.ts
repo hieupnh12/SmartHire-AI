@@ -22,7 +22,6 @@ export interface InvoiceItem {
   planCode?: string;
   amount: number;
   subtotal?: number;
-  taxRate?: number;
   currency: string;
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
   dueDate?: string;
@@ -48,7 +47,6 @@ export interface CreateInvoicePayload {
   planId?: number;
   amount: number;
   subtotal?: number;
-  taxRate?: number;
   currency?: string;
   dueDate?: string;
   billingPeriodStart?: string;

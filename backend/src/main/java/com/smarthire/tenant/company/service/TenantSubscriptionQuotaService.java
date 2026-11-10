@@ -373,7 +373,6 @@ public class TenantSubscriptionQuotaService {
                     .subscriptionId(upgradedSub.getId())
                     .amount(preview.getNetAmountDue())
                     .subtotal(preview.getTargetPriceYearly())
-                    .taxRate(BigDecimal.ZERO)
                     .currency("VND")
                     .status("PENDING")
                     .dueDate(now.plusDays(7))
