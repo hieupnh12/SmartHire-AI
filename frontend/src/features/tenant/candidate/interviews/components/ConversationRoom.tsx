@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, CheckCircle2, AlertTriangle, RefreshCw, Zap, RotateCcw } from "lucide-react";
+import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, Zap, RotateCcw } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ux/Button";
@@ -54,7 +54,7 @@ function prepareTextForSpeech(raw: string): string {
     .trim();
 }
 
-export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, reportJson, status, onActivity }: {
+export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, reportJson: _reportJson, status: _status, onActivity }: {
   id: number; active: boolean; disabled: boolean; voiceEnabled: boolean; recordingEnabled: boolean;
   reportJson?: string | null; status?: string;
   onActivity: (busy: boolean, dirty: boolean) => void;

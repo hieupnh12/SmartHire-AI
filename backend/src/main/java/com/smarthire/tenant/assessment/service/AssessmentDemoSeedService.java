@@ -40,10 +40,37 @@ public class AssessmentDemoSeedService {
 
     @Transactional
     public JobTest ensurePublishedDemo(Job job) {
-        return tests.findByJob_IdAndStatusOrderByIdDesc(job.getId(), TestStatus.PUBLISHED).stream()
-                .filter(test -> DEMO_TITLE.equals(test.getTitle()))
+        JobTest test = tests.findByJob_IdAndStatusOrderByIdDesc(job.getId(), TestStatus.PUBLISHED).stream()
+                .filter(t -> DEMO_TITLE.equals(t.getTitle()))
                 .findFirst()
                 .orElseGet(() -> createDemo(job));
+        if (!test.isAutoGradingEnabled()) {
+            test.setAutoGradingEnabled(true);
+            test = tests.save(test);
+        }
+        updateDemoCodingStarter(test);
+        return test;
+    }
+
+    private void updateDemoCodingStarter(JobTest test) {
+        if (test == null || test.getId() == null) return;
+        try {
+            var list = codingProblems.findByTest_Id(test.getId());
+            for (CodingProblem problem : list) {
+                ObjectNode starter = json.createObjectNode();
+                starter.put("python", "def solve(n):\n    # Code mẫu: tính tổng các số từ 1 đến n\n    return n * (n + 1) // 2\n");
+                starter.put("javascript", "function solve(n) {\n  // Code mẫu: tính tổng các số từ 1 đến n\n  return (n * (n + 1)) / 2;\n}\n");
+                starter.put("java", "public class Solution {\n    // Code mẫu: tính tổng các số từ 1 đến n\n    public static int solve(int n) {\n        return n * (n + 1) / 2;\n    }\n}\n");
+                problem.setStarterCodeJson(starter);
+
+                ObjectNode harness = json.createObjectNode();
+                harness.put("python", "{{SOURCE}}\nprint(solve(int(input().strip())))\n");
+                harness.put("javascript", "{{SOURCE}}\nconst fs=require('fs'); const n=Number(fs.readFileSync(0,'utf8').trim()); console.log(solve(n));\n");
+                harness.put("java", "import java.util.Scanner;\n{{SOURCE}}\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        System.out.println(Solution.solve(n));\n    }\n}\n");
+                problem.setHarnessJson(harness);
+                codingProblems.save(problem);
+            }
+        } catch (Exception ignored) {}
     }
 
     private JobTest createDemo(Job job) {
@@ -55,6 +82,7 @@ public class AssessmentDemoSeedService {
         test.setObjectiveDurationMinutes(20);
         test.setPassingScore(new BigDecimal("50.00"));
         test.setStatus(TestStatus.PUBLISHED);
+        test.setAutoGradingEnabled(true);
         test.setCreatedBy(job.getCreatedBy());
         test = tests.save(test);
 
@@ -82,11 +110,13 @@ public class AssessmentDemoSeedService {
                 "Viết hàm `solve(n)` trả về tổng các số từ 1 đến n (n ≥ 1).", 30, 2);
         coding = questions.save(coding);
         ObjectNode starter = json.createObjectNode();
-        starter.put("python", "def solve(n):\n    # TODO: return sum 1..n\n    return 0\n");
-        starter.put("javascript", "function solve(n) {\n  // TODO: return sum 1..n\n  return 0;\n}\n");
+        starter.put("python", "def solve(n):\n    # Code mẫu: tính tổng các số từ 1 đến n\n    return n * (n + 1) // 2\n");
+        starter.put("javascript", "function solve(n) {\n  // Code mẫu: tính tổng các số từ 1 đến n\n  return (n * (n + 1)) / 2;\n}\n");
+        starter.put("java", "public class Solution {\n    // Code mẫu: tính tổng các số từ 1 đến n\n    public static int solve(int n) {\n        return n * (n + 1) / 2;\n    }\n}\n");
         ObjectNode harness = json.createObjectNode();
         harness.put("python", "{{SOURCE}}\nprint(solve(int(input().strip())))\n");
         harness.put("javascript", "{{SOURCE}}\nconst fs=require('fs'); const n=Number(fs.readFileSync(0,'utf8').trim()); console.log(solve(n));\n");
+        harness.put("java", "import java.util.Scanner;\n{{SOURCE}}\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        System.out.println(Solution.solve(n));\n    }\n}\n");
         CodingProblem problem = CodingProblem.builder()
                 .test(test)
                 .question(coding)

@@ -120,10 +120,8 @@ public class MasterContractService {
         String contractNumber = generateContractNumber();
         String currency = StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND";
         BigDecimal value = request.getContractValue() != null ? request.getContractValue() : BigDecimal.ZERO;
-        BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : BigDecimal.ZERO;
-        BigDecimal taxAmount = value.multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-        BigDecimal totalAmount = value.add(taxAmount);
-        String amountInWords = convertMoneyToVietnameseWords(totalAmount, currency, taxRate);
+        BigDecimal totalAmount = value;
+        String amountInWords = convertMoneyToVietnameseWords(totalAmount, currency);
 
         String signingToken = java.util.UUID.randomUUID().toString().replace("-", "");
 
@@ -157,9 +155,7 @@ public class MasterContractService {
                 .partyBPhone(StringUtils.hasText(request.getPartyBPhone()) ? request.getPartyBPhone().trim() : null)
                 .partyBEmail(StringUtils.hasText(request.getPartyBEmail()) ? request.getPartyBEmail().trim().toLowerCase() : null)
                 .partyBBankAccount(StringUtils.hasText(request.getPartyBBankAccount()) ? request.getPartyBBankAccount().trim() : null)
-                // Tax & Totals
-                .taxRate(taxRate)
-                .taxAmount(taxAmount)
+                // Totals (Dịch vụ phần mềm không chịu thuế GTGT)
                 .totalAmount(totalAmount)
                 .amountInWords(amountInWords)
                 .signingToken(signingToken)
@@ -229,12 +225,9 @@ public class MasterContractService {
         if (request.getTenantPhone() != null) contract.setPartyBPhone(request.getTenantPhone());
         if (request.getTotalValue() != null) {
             contract.setContractValue(request.getTotalValue());
-            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.ZERO;
-            BigDecimal taxAmount = request.getTotalValue().multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-            BigDecimal totalAmount = request.getTotalValue().add(taxAmount);
-            contract.setTaxAmount(taxAmount);
+            BigDecimal totalAmount = request.getTotalValue();
             contract.setTotalAmount(totalAmount);
-            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency(), taxRate));
+            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency()));
         }
         if (request.getCurrency() != null) contract.setCurrency(request.getCurrency());
         if (request.getPaymentTerms() != null) contract.setTermsAndConditions(request.getPaymentTerms());
@@ -763,7 +756,7 @@ public class MasterContractService {
         return "CTR-" + datePart + "-" + System.currentTimeMillis() % 10000;
     }
 
-    private String convertMoneyToVietnameseWords(BigDecimal amount, String currency, BigDecimal taxRate) {
+    private String convertMoneyToVietnameseWords(BigDecimal amount, String currency) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return "Không đồng";
         }
@@ -771,10 +764,7 @@ public class MasterContractService {
         if ("USD".equalsIgnoreCase(currency)) {
             return longVal + " Đô la Mỹ (quy đổi theo tỷ giá Vietcombank tại thời điểm thanh toán)";
         }
-        if (taxRate == null || taxRate.compareTo(BigDecimal.ZERO) == 0) {
-            return String.format("%,d Đồng (Dịch vụ phần mềm không chịu thuế GTGT)", longVal);
-        }
-        return String.format("%,d Đồng (đã bao gồm thuế GTGT)", longVal);
+        return String.format("%,d Đồng (Dịch vụ phần mềm không chịu thuế GTGT)", longVal);
     }
 
     private ContractResponse enrichContractResponse(Contract contract, Map<Long, TenantInfo> tenantMap, Map<Long, SubscriptionPlan> planMap) {

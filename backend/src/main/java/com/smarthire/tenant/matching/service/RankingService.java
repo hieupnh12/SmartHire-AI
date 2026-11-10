@@ -334,7 +334,7 @@ public class RankingService {
         }
         states.putIfAbsent("skills", "NEEDS_REVIEW");
         if (config.requiredExperienceMonths() == 0 && config.weights().experience() > 0) states.put("experience", "NEEDS_REVIEW");
-        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? data.assessmentPercent(submission) : null;
+        BigDecimal testScore = submission != null && submission.getStatus().isFinished() ? data.assessmentPercent(submission) : null;
         BigDecimal interviewScore = aiInterview != null && INTERVIEW_SCORED.contains(aiInterview.getStatus()) ? aiInterview.getOverallScore() : null;
         addScore(scores, states, "assessment", testScore,
                 submission == null ? "MISSING" : "PROCESSING");

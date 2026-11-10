@@ -19,8 +19,10 @@ const fmtTime = (value: string) => new Date(value).toLocaleTimeString("vi-VN", {
 
 export function HumanInterviewCard({ row, busy, onConfirm, onReschedule, onDownload }: Props) {
   const start = new Date(row.start);
+  const end = new Date(row.end);
   const upcoming = start.getTime() > Date.now();
-  const durationMinutes = Math.round((new Date(row.end).getTime() - start.getTime()) / 60000);
+  const isActive = end.getTime() > Date.now();
+  const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
   const inactive = row.status === "CANCELLED" || row.status === "DONE";
 
   return (
@@ -50,13 +52,14 @@ export function HumanInterviewCard({ row, busy, onConfirm, onReschedule, onDownl
           <dd className="min-w-0 break-words">
             {row.mode === "ONLINE"
               ? (() => {
-                  const href = humanInterviewJoinHref(row);
-                  if (!href) return "Trực tuyến — link sẽ được gửi sau";
-                  if (isSmartHireMeeting(row)) {
-                    return <Link className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" to={href}>Vào phòng họp SmartHire<Video className="size-3.5" aria-hidden="true" /></Link>;
-                  }
-                  return <a className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" href={href} target="_blank" rel="noreferrer">Tham gia phỏng vấn trực tuyến<ExternalLink className="size-3.5" aria-hidden="true" /></a>;
-                })()
+                const href = humanInterviewJoinHref(row);
+                if (!href) return "Trực tuyến — link sẽ được gửi sau";
+                if (!isActive) return "Trực tuyến — buổi phỏng vấn đã kết thúc";
+                if (isSmartHireMeeting(row)) {
+                  return <Link className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" to={href}>Vào phòng họp SmartHire<Video className="size-3.5" aria-hidden="true" /></Link>;
+                }
+                return <a className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" href={href} target="_blank" rel="noreferrer">Tham gia phỏng vấn trực tuyến<ExternalLink className="size-3.5" aria-hidden="true" /></a>;
+              })()
               : row.location || "Địa điểm sẽ được thông báo sau"}
           </dd>
         </div>

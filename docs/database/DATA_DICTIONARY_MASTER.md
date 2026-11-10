@@ -138,8 +138,7 @@ Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp l
 | `subscription_id` | BIGINT | FK → `tenant_subscriptions.id` | Có | NULL | Gói thuê bao liên quan (SET NULL khi xoá) |
 | `contract_id` | BIGINT | FK → `contracts.id` | Có | NULL | Hợp đồng B2B liên quan (V23, SET NULL khi xoá) |
 | `amount` | DECIMAL(15,2) | | Không | — | Tổng số tiền thanh toán (VNĐ) |
-| `subtotal` | DECIMAL(15,2) | | Có | NULL | Số tiền trước thuế (VNĐ) |
-| `tax_rate` | DECIMAL(5,2) | | Có | 0.00 | Tỷ lệ thuế VAT (%) |
+| `subtotal` | DECIMAL(15,2) | | Có | NULL | Số tiền thanh toán (VNĐ; V36 bỏ `tax_rate`, `tax_amount` do DV phần mềm không chịu thuế GTGT) |
 | `currency` | VARCHAR(8) | | Không | `'VND'` | Đơn vị tiền tệ (mặc định VNĐ từ V23) |
 | `status` | VARCHAR(32) | IDX | Không | `'PENDING'` | Trạng thái (`PENDING`, `PAID`, `OVERDUE`, `CANCELLED`) |
 | `due_date` | TIMESTAMP | | Có | NULL | Hạn thanh toán |
@@ -244,9 +243,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `party_b_phone` | VARCHAR(50) | | Có | NULL | Điện thoại liên hệ Bên B |
 | `party_b_email` | VARCHAR(255) | | Có | NULL | Email Bên B |
 | `party_b_bank_account`| VARCHAR(100) | | Có | NULL | Tài khoản ngân hàng Bên B |
-| `tax_rate` | DECIMAL(5,2) | | Không | 10.00 | Thuế suất VAT (%) |
-| `tax_amount` | DECIMAL(15,2) | | Không | 0.00 | Tiền thuế VAT (VNĐ) |
-| `total_amount` | DECIMAL(15,2) | | Không | 0.00 | Tổng tiền thanh toán sau thuế (VNĐ) |
+| `total_amount` | DECIMAL(15,2) | | Không | 0.00 | Tổng tiền thanh toán hợp đồng (VNĐ, V12; V36 bỏ `tax_rate`, `tax_amount` do DV phần mềm không chịu thuế GTGT) |
 | `amount_in_words` | VARCHAR(512) | | Có | NULL | Số tiền bằng chữ tiếng Việt |
 | `signing_token` | VARCHAR(128) | UQ | Có | NULL | Token bảo mật ký hợp đồng online |
 | `token_expires_at` | TIMESTAMP | | Có | NULL | Thời hạn của token ký |

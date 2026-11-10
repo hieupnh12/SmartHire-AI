@@ -149,8 +149,38 @@ public class ApplicantService {
         this.aiInterviews = aiInterviews;
     }
 
+    private com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute;
+
+    @Autowired(required = false)
+    public void setRankingRecompute(com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute) {
+        this.rankingRecompute = rankingRecompute;
+    }
+
     public Map<String, String> health() {
         return Map.of("module", "applicant", "status", "ready");
+    }
+
+    /** Optional in unit tests; notifies job staff on web + Gmail. */
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
+
+    @Autowired(required = false)
+    public void setStaffNotifications(com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications) {
+        this.staffNotifications = staffNotifications;
+    }
+
+    /** Optional in unit tests; notifies candidate on web + Gmail for stage progression. */
+    private com.smarthire.tenant.notification.service.CandidateNotificationService candidateNotifications;
+
+    @Autowired(required = false)
+    public void setCandidateNotifications(com.smarthire.tenant.notification.service.CandidateNotificationService candidateNotifications) {
+        this.candidateNotifications = candidateNotifications;
+    }
+
+    private void notifyStaff(Application application, String type, String title, String body) {
+        if (staffNotifications == null) return;
+        Job job = application.getJob();
+        staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.APPLICATION,
+                type, title, body, "/recruiter/jobs/" + job.getId() + "/applicants");
     }
 
     @Transactional
@@ -183,6 +213,8 @@ public class ApplicantService {
                 closures.onReopened(current);
                 attachCv(cvId, job, current, actor);
                 record(current, ApplicationStatus.NEW, "Re-applied");
+                notifyStaff(current, "STAFF_NEW_APPLICATION", "Ứng viên mới ứng tuyển",
+                        actor.getFullName() + " vừa ứng tuyển lại vị trí " + job.getTitle() + ".");
                 return mapper.summary(current, false);
             }
             if (current.getStatus() == ApplicationStatus.REJECTED || current.getStatus() == ApplicationStatus.FAILED) {
@@ -202,6 +234,8 @@ public class ApplicantService {
         applications.save(application);
         attachCv(cvId, job, application, actor);
         record(application, ApplicationStatus.NEW, "Applied");
+        notifyStaff(application, "STAFF_NEW_APPLICATION", "Ứng viên mới ứng tuyển",
+                actor.getFullName() + " vừa nộp hồ sơ vào vị trí " + job.getTitle() + ".");
         return mapper.summary(application, false);
     }
 
@@ -367,9 +401,12 @@ public class ApplicantService {
         if (next == ApplicationStatus.REJECTED) {
             application.setRejectReason(blankToNull(note));
         }
+        ApplicationStatus oldStatus = application.getStatus();
         record(application, next, note);
         if (ApplicationClosureService.closed(next)) {
             closures.onClosed(application, "Nhà tuyển dụng đã quyết định không tiếp tục với hồ sơ này.");
+        } else if (candidateNotifications != null) {
+            candidateNotifications.notifyStageChanged(application, oldStatus, next, note);
         }
         return toDetail(application);
     }
@@ -415,7 +452,33 @@ public class ApplicantService {
         application.setWithdrawnAt(Instant.now());
         application.setWithdrawReason(blankToNull(reason));
         record(application, ApplicationStatus.WITHDRAWN, "Withdrawn by candidate");
+        notifyStaff(application, "STAFF_APPLICATION_WITHDRAWN", "Ứng viên rút hồ sơ",
+                actor.getFullName() + " đã rút hồ sơ khỏi vị trí " + application.getJob().getTitle()
+                        + (application.getWithdrawReason() == null ? "." : ". Lý do: " + application.getWithdrawReason()));
         closures.onClosed(application, null);
+        return toDetail(application);
+    }
+
+    /** Candidate answers an OFFER: accept hires immediately, decline closes the application as withdrawn. */
+    @Transactional
+    public ApplicationDetail respondToOffer(long id, boolean accept, String reason) {
+        if (!access.candidate()) {
+            throw new BusinessException("Only the candidate can respond to an offer", HttpStatus.FORBIDDEN,
+                    "APPLICATION_FORBIDDEN");
+        }
+        Application application = load(id);
+        application = applications.findByIdForUpdate(application.getId()).orElseThrow();
+        if (application.getStatus() != ApplicationStatus.OFFER || application.getArchivedAt() != null) {
+            throw new BusinessException("Application has no open offer", HttpStatus.CONFLICT, "APPLICATION_NO_OFFER");
+        }
+        if (accept) {
+            record(application, ApplicationStatus.HIRED, noteOr(reason, "Candidate accepted the offer"));
+        } else {
+            application.setWithdrawnAt(Instant.now());
+            application.setWithdrawReason(blankToValue(reason, "Declined offer"));
+            record(application, ApplicationStatus.WITHDRAWN, noteOr(reason, "Candidate declined the offer"));
+            closures.onClosed(application, null);
+        }
         return toDetail(application);
     }
 
@@ -469,6 +532,9 @@ public class ApplicantService {
             record(application, ApplicationStatus.ASSESSMENT, "CV passed screening; opened the assessment round", null);
             attachAssessmentStage(application);
             inviteAssessmentAndAiInterview(application);
+            if (candidateNotifications != null) {
+                candidateNotifications.notifyCvPassed(application, "Hồ sơ đạt tiêu chuẩn sơ loại CV");
+            }
         } else {
             rejectAtCvRound(application, "CV did not pass screening", null);
         }
@@ -494,6 +560,9 @@ public class ApplicantService {
             record(application, ApplicationStatus.ASSESSMENT, noteOr(note, "Recruiter passed CV screening"));
             attachAssessmentStage(application);
             inviteAssessmentAndAiInterview(application);
+            if (candidateNotifications != null) {
+                candidateNotifications.notifyCvPassed(application, note);
+            }
         } else {
             application.setCvScreeningStatus(CvScreeningStatus.FAILED);
             rejectAtCvRound(application, noteOr(note, "Recruiter marked CV screening as not passed"), actorIdOrNull());
@@ -530,6 +599,8 @@ public class ApplicantService {
         Application application = applications.findByIdForUpdate(applicationId).orElse(null);
         if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null)
             return;
+        if (rankingRecompute != null)
+            rankingRecompute.request(application.getJob().getId());
         if (application.getStatus() != ApplicationStatus.ASSESSMENT
                 && application.getStatus() != ApplicationStatus.INTERVIEW) {
             gateScreening.recalculate(application);
@@ -570,7 +641,7 @@ public class ApplicantService {
         Submission latest = assessmentSubmissions.findById(ids.getFirst()).orElse(null);
         if (latest == null || latest.getScore() == null)
             return null;
-        if (latest.getStatus() != TestSubmissionStatus.GRADED && latest.getStatus() != TestSubmissionStatus.EXPIRED)
+        if (!latest.getStatus().isFinished() && latest.getStatus() != TestSubmissionStatus.EXPIRED)
             return null;
         return latest;
     }

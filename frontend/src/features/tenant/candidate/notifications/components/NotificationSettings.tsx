@@ -6,12 +6,18 @@ import { Button } from "@/components/ux/Button";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
 import { notificationCategories } from "../constants/notificationCategories";
 
 const queryKey = ["notifications", "preferences"] as const;
 type Channel = "webEnabled" | "emailEnabled";
 
-export function NotificationSettings() {
+type Props = {
+  categories?: typeof notificationCategories;
+  noteText?: string;
+};
+
+export function NotificationSettings({ categories = notificationCategories, noteText }: Props) {
   const client = useQueryClient();
   const preferences = useQuery({ queryKey, queryFn: notificationApi.preferences });
   const save = useMutation({
@@ -22,8 +28,14 @@ export function NotificationSettings() {
       client.setQueryData(queryKey, next);
       return { previous };
     },
-    onError: (_error, _next, context) => client.setQueryData(queryKey, context?.previous),
-    onSuccess: (data) => client.setQueryData(queryKey, data),
+    onError: (error, _next, context) => {
+      client.setQueryData(queryKey, context?.previous);
+      toast.error(getApiErrorMessage(error));
+    },
+    onSuccess: (data) => {
+      client.setQueryData(queryKey, data);
+      toast.success("Đã lưu cài đặt thông báo");
+    },
   });
 
   const toggle = (row: NotificationPreference, channel: Channel) => {
@@ -35,14 +47,13 @@ export function NotificationSettings() {
   if (preferences.isError) return <div role="alert" className="space-y-3 rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]"><p>{getApiErrorMessage(preferences.error)}</p><Button variant="secondary" onClick={() => void preferences.refetch()}>Thử lại</Button></div>;
 
   return <div className="space-y-4">
-    {save.isError && <p role="alert" className="rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]">{getApiErrorMessage(save.error)}</p>}
     <div className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)]">
       <div className="hidden grid-cols-[1fr_120px_120px] items-center gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)] sm:grid">
         <span>Loại thông báo</span>
         <span className="flex items-center justify-center gap-1.5"><Bell className="size-4" aria-hidden="true" />Trên web</span>
         <span className="flex items-center justify-center gap-1.5"><Mail className="size-4" aria-hidden="true" />Qua Gmail</span>
       </div>
-      {notificationCategories.map((category) => {
+      {categories.map((category) => {
         const row = preferences.data.find((item) => item.category === category.key) ?? { category: category.key, webEnabled: true, emailEnabled: true };
         const Icon = category.icon;
         return <div key={category.key} className="grid gap-4 border-b border-[var(--color-border-default)] px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_120px_120px] sm:items-center">
@@ -55,7 +66,9 @@ export function NotificationSettings() {
         </div>;
       })}
     </div>
-    <p className="text-xs text-[var(--color-on-surface-variant)]">Thay đổi được lưu ngay. Tắt cả hai kênh, bạn vẫn xem được tiến trình trong mục Đơn đã ứng tuyển và Lịch của tôi.</p>
+    <p className="text-xs text-[var(--color-on-surface-variant)]">
+      {noteText || "Thay đổi được lưu ngay. Tắt cả hai kênh, bạn vẫn xem được tiến trình trong mục Đơn đã ứng tuyển và Lịch của tôi."}
+    </p>
   </div>;
 }
 

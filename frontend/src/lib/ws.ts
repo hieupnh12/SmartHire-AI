@@ -1,45 +1,50 @@
-/**
- * WebSocket client scaffold for SCHED-02.
- * Connect after JWT auth: ws://host/ws + STOMP/native protocol as BE implements.
- */
-export type NotificationMessage = {
-  type: string;
-  title: string;
-  body?: string;
-  payload?: unknown;
-};
+const RECONNECT_MS = 5_000;
 
-type Handlers = {
-  onMessage?: (msg: NotificationMessage) => void;
-  onOpen?: () => void;
-  onClose?: () => void;
-};
+type NotificationChannel = { token: string; socket: WebSocket | null; listeners: Set<() => void>; retry: number | undefined };
+let channel: NotificationChannel | null = null;
 
-export function createNotificationSocket(
-  token: string,
-  handlers: Handlers = {},
-): WebSocket | null {
-  const wsBase =
-    import.meta.env.VITE_WS_BASE_URL ??
-    (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1")
-      .replace(/\/api\/v1\/?$/, "")
-      .replace(/^http/, "ws");
-
+function openChannel(target: NotificationChannel) {
+  const wsBase = import.meta.env.VITE_WS_BASE_URL ??
+    (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/api\/v1\/?$/, "").replace(/^http/, "ws");
   try {
-    const ws = new WebSocket(`${wsBase}/ws/notifications?token=${encodeURIComponent(token)}`);
-    ws.onopen = () => handlers.onOpen?.();
-    ws.onclose = () => handlers.onClose?.();
-    ws.onmessage = (ev) => {
+    const ws = new WebSocket(`${wsBase}/ws/notifications?token=${encodeURIComponent(target.token)}`);
+    ws.onmessage = (event) => {
       try {
-        handlers.onMessage?.(JSON.parse(ev.data as string) as NotificationMessage);
-      } catch {
-        // ignore non-JSON
-      }
+        if ((JSON.parse(event.data as string) as { type?: string }).type === "notifications.changed") target.listeners.forEach((listener) => listener());
+      } catch { /* Ignore malformed messages. */ }
     };
-    return ws;
+    ws.onclose = () => {
+      if (channel !== target) return;
+      target.socket = null;
+      target.retry = window.setTimeout(() => { if (channel === target) openChannel(target); }, RECONNECT_MS);
+    };
+    target.socket = ws;
   } catch {
-    return null;
+    target.socket = null;
   }
+}
+
+function closeChannel() {
+  if (!channel) return;
+  const current = channel;
+  channel = null;
+  window.clearTimeout(current.retry);
+  current.socket?.close();
+}
+
+/** SCHED-02: one shared /ws/notifications socket per tab; the server only signals that the inbox changed. */
+export function subscribeNotifications(token: string, onChange: () => void): () => void {
+  if (channel && channel.token !== token) closeChannel();
+  if (!channel) {
+    channel = { token, socket: null, listeners: new Set(), retry: undefined };
+    openChannel(channel);
+  }
+  const current = channel;
+  current.listeners.add(onChange);
+  return () => {
+    current.listeners.delete(onChange);
+    if (channel === current && current.listeners.size === 0) closeChannel();
+  };
 }
 
 export type RankingUpdatedMessage = { type: "ranking.updated"; jobId: number; rankingVersion: string; occurredAt: string };

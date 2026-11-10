@@ -27,10 +27,6 @@ public class Invoice {
     BigDecimal amount;
     BigDecimal subtotal;
 
-    @Builder.Default
-    @Column(name = "tax_rate")
-    BigDecimal taxRate = BigDecimal.ZERO;
-
     @Builder.Default String currency = "VND";
     @Builder.Default String status = "PENDING";
 

@@ -556,6 +556,13 @@ export function AiQuestionGeneratorPage() {
         selectedCount={selectedCount}
         isSaving={save.isPending}
         onSave={() => save.mutate()}
+        drafts={drafts}
+        filteredDrafts={filteredDrafts}
+        selected={selected}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        toggleSelectAll={toggleSelectAll}
+        clearAllDrafts={clearAllDrafts}
       />
 
       {/* Tầng 3: Không gian Split Studio 2 Cột Toàn Màn Hình */}
@@ -598,10 +605,6 @@ export function AiQuestionGeneratorPage() {
             selected={selected}
             selectedCount={selectedCount}
             batchCount={batchCount}
-            typeFilter={typeFilter}
-            setTypeFilter={setTypeFilter}
-            toggleSelectAll={toggleSelectAll}
-            clearAllDrafts={clearAllDrafts}
             coding={coding}
             count={count}
             skill={skill}

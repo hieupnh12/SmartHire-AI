@@ -78,6 +78,13 @@ public class CvPipelineService {
         this.github = github;
     }
 
+    private com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRankingRecompute(com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute) {
+        this.rankingRecompute = rankingRecompute;
+    }
+
     /** Used when RabbitMQ is down so recruiters can still screen a CV locally. */
     @Transactional
     public void processInline(long cvId) {
@@ -208,6 +215,8 @@ public class CvPipelineService {
             applicants.advanceFromCvScreening(cv, score);
             if (cv.getApplication() != null) {
                 gateScreening.recalculate(cv.getApplication());
+                if (rankingRecompute != null)
+                    rankingRecompute.request(cv.getJob().getId());
             }
             if (enqueue)
                 afterCommit(() -> publishGithub(cvId));

@@ -30,7 +30,7 @@ export function CreateContractPage() {
   const [contractPartyBEmail, setContractPartyBEmail] = useState("");
   const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState("");
   const [contractValue, setContractValue] = useState(36000000);
-  const [contractTaxRate, setContractTaxRate] = useState(0);
+  const contractTaxRate = 0;
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
@@ -358,16 +358,10 @@ export function CreateContractPage() {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Thuế Suất GTGT (VAT)</label>
-                <select
-                  value={contractTaxRate}
-                  onChange={(e) => setContractTaxRate(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-bold text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
-                >
-                  <option value={0}>Không chịu thuế GTGT (Khoản 21 Điều 4 TT 219/2013/TT-BTC)</option>
-                  <option value={8}>VAT 8% (Dịch vụ kèm theo nếu có)</option>
-                  <option value={10}>VAT 10% (Dịch vụ khác)</option>
-                </select>
+                <label className="block font-semibold text-slate-700 mb-1.5">Thuế GTGT (VAT)</label>
+                <div className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-100 font-medium text-slate-600 text-sm">
+                  Không chịu thuế GTGT (Khoản 21 Điều 4 TT 219/2013)
+                </div>
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1.5">Loại Tiền Tệ</label>
@@ -383,17 +377,15 @@ export function CreateContractPage() {
 
             <div className="p-4 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-sm">
               <div>
-                <span className="text-slate-500">Thuế GTGT: </span>
-                <span className="font-mono font-semibold text-slate-800">
-                  {contractTaxRate === 0
-                    ? "Không chịu thuế GTGT (Dịch vụ phần mềm)"
-                    : `${((contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫ (${contractTaxRate}%)`}
+                <span className="text-slate-500">Quy định thuế: </span>
+                <span className="font-semibold text-slate-800">
+                  Dịch vụ phần mềm không chịu thuế GTGT
                 </span>
               </div>
               <div>
                 <span className="font-bold text-slate-900">Tổng tiền thanh toán: </span>
                 <span className="font-mono font-bold text-emerald-600 text-lg ml-2">
-                  {(contractValue + (contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫
+                  {contractValue.toLocaleString("vi-VN")} ₫
                 </span>
               </div>
             </div>

@@ -360,7 +360,9 @@ export function SchedulesPage() {
               <ul className="divide-y divide-[var(--color-border-default)]">
                 {dayInterviews.map((item) => {
                   const startTime = new Date(item.startsAt).toLocaleTimeString("vi-VN", timeFormat);
-                  const endTime = new Date(new Date(item.startsAt).getTime() + item.durationMinutes * 60000).toLocaleTimeString("vi-VN", timeFormat);
+                  const itemEndMs = new Date(item.startsAt).getTime() + item.durationMinutes * 60000;
+                  const endTime = new Date(itemEndMs).toLocaleTimeString("vi-VN", timeFormat);
+                  const isItemExpired = itemEndMs < Date.now();
                   const meta = roundMeta[item.round];
                   const initials = item.candidateName.split(" ").filter(Boolean).slice(-2).map((p) => p[0]).join("").toUpperCase();
                   const busy = cancel.isPending || complete.isPending;
@@ -407,7 +409,7 @@ export function SchedulesPage() {
                         <span className={cn("rounded px-1.5 text-[10px] font-medium", meta?.chip)}>{meta?.label || item.round}</span>
                       </div>
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        {item.mode === "ONLINE" && (item.locationOrLink.includes("/meet/human/") || item.locationOrLink.startsWith("http")) && (
+                        {item.mode === "ONLINE" && !isItemExpired && (item.locationOrLink.includes("/meet/human/") || item.locationOrLink.startsWith("http")) && (
                             <>
                             {item.locationOrLink.includes("/meet/human/") ? (
                               <Link to={`/meet/human/${item.id}`} className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">

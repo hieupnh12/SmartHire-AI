@@ -23,7 +23,7 @@ public final class HumanInterviewGate {
     public static boolean assessmentPassed(List<Submission> submissions) {
         if (submissions == null) return false;
         for (Submission submission : submissions) {
-            if (submission.getStatus() != TestSubmissionStatus.GRADED || submission.getScore() == null) continue;
+            if (!submission.getStatus().isFinished() || submission.getScore() == null) continue;
             var threshold = submission.getTest() == null ? null : submission.getTest().getPassingScore();
             if (threshold == null || submission.getScore().compareTo(threshold) >= 0) return true;
         }

@@ -175,15 +175,11 @@ public class ContractPdfGeneratorService {
 
             String currency = safe(contract.getCurrency(), "VND");
             BigDecimal value = contract.getContractValue() != null ? contract.getContractValue() : BigDecimal.ZERO;
-            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.ZERO;
-            BigDecimal taxAmount = contract.getTaxAmount() != null ? contract.getTaxAmount() : BigDecimal.ZERO;
             BigDecimal totalAmount = contract.getTotalAmount() != null && contract.getTotalAmount().compareTo(BigDecimal.ZERO) > 0
                     ? contract.getTotalAmount()
-                    : value.add(taxAmount);
+                    : value;
 
-            String vatDescription = taxRate.compareTo(BigDecimal.ZERO) == 0
-                    ? "Không chịu thuế GTGT (theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với dịch vụ phần mềm)."
-                    : formatMoney(taxAmount, currency) + " (VAT " + taxRate + "%).";
+            String vatDescription = "Không chịu thuế GTGT (theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với dịch vụ phần mềm).";
 
             Paragraph art2Body1 = new Paragraph("2.1. Chi phí bản quyền dịch vụ: " + formatMoney(value, currency) + ".", fontBody);
             Paragraph art2Body2 = new Paragraph("2.2. Thuế GTGT: " + vatDescription, fontBody);

@@ -1,6 +1,6 @@
-import { Bell, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, CheckCheck, ChevronRight, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { Button } from "@/components/ux/Button";
@@ -9,6 +9,9 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
+import { notificationApi } from "@/api/tenant/notificationApi";
+import type { Notification } from "@/api/types/notification";
+import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
 import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
@@ -18,6 +21,7 @@ import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 import { useNotifications } from "@/hooks/useNotifications";
+import { Skeleton } from "@/components/ux/Skeleton";
 
 type NavItem = {
   to: string;
@@ -47,7 +51,9 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const logout = useAuthStore((s) => s.logout);
   const openShortcuts = useUiStore((s) => s.openShortcuts);
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const queryClient = useQueryClient();
   const [isAdminNotificationsOpen, setIsAdminNotificationsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [openAdminGroup, setOpenAdminGroup] = useState<string | null>(null);
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
@@ -55,6 +61,14 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const isRecruiterWorkspace = basePath === "/recruiter";
   const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
+  const markRead = useMutation({
+    mutationFn: (id: number | string) => notificationApi.markRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const markAllRead = useMutation({
+    mutationFn: () => notificationApi.markAllRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
   const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
   const isRecruiterQuestionBank = isRecruiterWorkspace && /^\/recruiter\/question-bank(?:\/|$)/.test(location.pathname);
   const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
@@ -408,16 +422,53 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               </Button>
             </Tooltip>
             {useWorkspaceHeader && showRecruiterNotifications && (
-              <Tooltip content={t("nav.notifications")} side="bottom">
-                <NavLink
-                  to={isRecruiterWorkspace ? "/recruiter/notifications" : `${basePath}/notifications`}
-                  className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                  aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
-                >
-                  <Bell className="size-[18px]" aria-hidden="true" />
-                  {unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
-                </NavLink>
-              </Tooltip>
+              <div
+                className="relative"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false);
+                }}
+              >
+                <Tooltip content={t("nav.notifications")} side="bottom" disabled={notificationsOpen}>
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsOpen((v) => !v)}
+                    className={cn(
+                      "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
+                      notificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
+                    )}
+                    aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
+                    aria-haspopup="dialog"
+                    aria-expanded={notificationsOpen}
+                  >
+                    <Bell className="size-5" aria-hidden="true" />
+                    {unreadCount > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold leading-5 text-white shadow-sm"
+                        aria-hidden="true"
+                      >
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
+
+                {notificationsOpen && (
+                  <NotificationPreviewDialog
+                    items={inbox.data ?? []}
+                    loading={inbox.isPending}
+                    unreadCount={unreadCount}
+                    targetPath={isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications"}
+                    onClose={() => setNotificationsOpen(false)}
+                    onMarkAllRead={() => markAllRead.mutate()}
+                    onOpen={(item) => {
+                      if (!item.readAt) markRead.mutate(item.id);
+                      setNotificationsOpen(false);
+                      const target = notificationPath(item.payloadJson) ?? (isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications");
+                      navigate(target);
+                    }}
+                  />
+                )}
+              </div>
             )}
             {user && !useWorkspaceHeader && (
               <span
@@ -429,7 +480,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               </span>
             )}
             {useWorkspaceHeader ? (
-              <HeaderActionsMenu userInitial={userInitial} userName={user?.fullName} loadingUser={!!accessToken && !user && profileQuery.isPending} onLogout={handleLogout} />
+              <HeaderActionsMenu
+                userInitial={userInitial}
+                userName={user?.fullName}
+                loadingUser={!!accessToken && !user && profileQuery.isPending}
+                notificationsPath={isRecruiterWorkspace ? "/recruiter/notifications?tab=settings" : "/notifications?tab=settings"}
+                onLogout={handleLogout}
+              />
             ) : (
               <div className="flex items-center gap-1">
                 <LanguageSwitcher />
@@ -493,4 +550,141 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
       </main>
     </div>
   );
+}
+
+function NotificationPreviewDialog({
+  items,
+  loading,
+  unreadCount,
+  targetPath,
+  onClose,
+  onOpen,
+  onMarkAllRead,
+}: {
+  items: Notification[];
+  loading: boolean;
+  unreadCount: number;
+  targetPath: string;
+  onClose: () => void;
+  onOpen: (item: Notification) => void;
+  onMarkAllRead: () => void;
+}) {
+  const recent = items.slice(0, 5);
+  return (
+    <div
+      role="dialog"
+      aria-label="Thông báo gần đây"
+      className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(400px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]"
+    >
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div>
+          <h2 className="font-semibold text-slate-900">Thông báo</h2>
+          <p className="mt-0.5 text-xs">
+            {unreadCount > 0 ? (
+              <span className="font-bold text-[var(--color-error)]">{unreadCount} thông báo chưa đọc</span>
+            ) : (
+              <span className="text-slate-500">Bạn đã xem hết thông báo mới</span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
+              title="Đánh dấu tất cả đã đọc"
+            >
+              <CheckCheck className="size-3.5" aria-hidden="true" />
+              Đọc tất cả
+            </button>
+          )}
+          <span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+            <Bell className="size-4" aria-hidden="true" />
+          </span>
+        </div>
+      </div>
+
+      <div className="max-h-[min(60vh,420px)] overflow-y-auto">
+        {loading && (
+          <div className="space-y-3 p-4" role="status" aria-busy="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="flex gap-3">
+                <Skeleton className="mt-2 size-2 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
+              </div>
+            ))}
+            <span className="sr-only">Đang tải thông báo…</span>
+          </div>
+        )}
+        {!loading && recent.length === 0 && (
+          <div className="px-5 py-10 text-center">
+            <Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p>
+            <p className="mt-1 text-xs text-slate-500">Các thông báo mới về ứng viên và tuyển dụng sẽ xuất hiện tại đây.</p>
+          </div>
+        )}
+        {recent.map((item) => {
+          const unread = !item.readAt;
+          let jobTitle: string | null = null;
+          try {
+            const p = JSON.parse(item.payloadJson ?? "{}");
+            if (typeof p === "object" && p && typeof p.jobTitle === "string") jobTitle = p.jobTitle;
+          } catch {
+            // ignore
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpen(item)}
+              className={cn(
+                "relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30",
+                unread ? "bg-red-50/40" : "bg-white",
+              )}
+            >
+              <div className="flex gap-3">
+                {unread && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-error)]" aria-hidden="true" />}
+                <div className="min-w-0 flex-1">
+                  {jobTitle && (
+                    <span className="mb-1 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                      {jobTitle}
+                    </span>
+                  )}
+                  <h3 className={cn("line-clamp-1 text-sm leading-5", unread ? "font-bold text-[var(--color-error)]" : "font-semibold text-slate-800")}>
+                    {unread && <span className="sr-only">Chưa đọc: </span>}
+                    {item.title}
+                  </h3>
+                  {item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}
+                  <time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>
+                    {formatPreviewTime(item.createdAt)}
+                  </time>
+                </div>
+                <ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="border-t border-slate-100 p-3">
+        <Link
+          to={targetPath}
+          onClick={onClose}
+          className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
+        >
+          Xem tất cả thông báo
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function formatPreviewTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 }

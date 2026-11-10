@@ -396,15 +396,9 @@ export function PublicContractSigningPage() {
                 </div>
                 <div className="flex justify-between text-slate-600 gap-4">
                   <span>• Thuế giá trị gia tăng (GTGT):</span>
-                  {(contract.taxRate ?? 0) === 0 ? (
-                    <span className="text-right font-medium text-slate-700">
-                      Không chịu thuế GTGT (Theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với phần mềm và dịch vụ phần mềm)
-                    </span>
-                  ) : (
-                    <span className="font-mono">
-                      VAT {contract.taxRate}%: {(contract.taxAmount || 0).toLocaleString("vi-VN")} VND
-                    </span>
-                  )}
+                  <span className="text-right font-medium text-slate-700">
+                    Không chịu thuế GTGT (Theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với phần mềm và dịch vụ phần mềm)
+                  </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
                   <span>• Tổng giá trị thanh toán:</span>

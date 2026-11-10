@@ -305,7 +305,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
 | `TestOrigin` | `tests.origin` | `AUTHORED` (người soạn), `GENERATED` (hệ thống bốc từ ngân hàng). Không thay `TestStatus` |
-| `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
+| `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `PENDING`, `GRADING`, `COMPLETED`, `GRADED`, `FAILED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, `PARTIAL`, `FAILED`, `ERROR` |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
@@ -1379,6 +1379,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V32 | `V32__ai_model_fallback_chain.sql` | Bổ sung cột `fallback_chain` JSONB nullable vào `ai_model_configs` hỗ trợ chuỗi fallback dự phòng đa cấp (cascade routing waterfall) và tích hợp cơ chế Redis 429 cooldown TTL |
 | V33 | `V33__ai_model_registry_enhancement.sql` | Nâng cấp `ai_model_pricings` thành Danh mục Model AI chuẩn hóa: thêm `display_name`, `context_window`, `supports_json`; seed các model Groq, OpenRouter, Gemini Lite, Cursor |
 | V34 | `V34__interview_speech_ai_tasks.sql` | Seed `ai_model_configs` cho `INTERVIEW_STT` (`gemini-3.1-flash-lite`) và `INTERVIEW_TTS` (`gemini-3.8-flash-tts`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
+| V35 | `V35__question_gen_ai_task.sql` | Cấu hình nhiệm vụ AI sinh câu hỏi kỹ thuật |
+| V36 | `V36__remove_tax_columns.sql` | Xóa 2 cột `tax_rate`, `tax_amount` trong bảng `contracts` (dịch vụ phần mềm không chịu thuế GTGT theo Thông tư 219/2013/TT-BTC) |
 
 ### 10.3 Lịch sử migration — Tenant
 

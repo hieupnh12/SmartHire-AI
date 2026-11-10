@@ -445,7 +445,7 @@ function SourceSelector({ data }: { data: RankingSources }) {
 export function CandidateOverviewTab({
   row,
   sourcesData,
-  tenantKey,
+  tenantKey: _tenantKey,
 }: {
   row: RankingRow;
   sourcesData?: RankingSources;

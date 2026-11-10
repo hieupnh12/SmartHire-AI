@@ -315,7 +315,7 @@ export function ContractsPage() {
                         {(c.totalAmount || c.contractValue).toLocaleString("vi-VN")} ₫
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        Gốc: {c.contractValue.toLocaleString("vi-VN")} ₫ + VAT {c.taxRate || 10}%
+                        Dịch vụ phần mềm không chịu thuế GTGT
                       </div>
                     </td>
 

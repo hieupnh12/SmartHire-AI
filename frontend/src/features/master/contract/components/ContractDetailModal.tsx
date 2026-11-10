@@ -148,16 +148,8 @@ export function ContractDetailModal({
                 <span className="font-bold text-slate-900">{selectedContract.contractValue.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div>
-                <span className="text-slate-500 block">
-                  {(selectedContract.taxRate ?? 0) === 0
-                    ? "Thuế GTGT (Không chịu thuế):"
-                    : `Thuế VAT (${selectedContract.taxRate}%):`}
-                </span>
-                <span className="font-bold text-slate-700">
-                  {(selectedContract.taxRate ?? 0) === 0
-                    ? "0 ₫ (TT 219/2013/TT-BTC)"
-                    : `${(selectedContract.taxAmount || 0).toLocaleString("vi-VN")} ₫`}
-                </span>
+                <span className="text-slate-500 block">Thuế GTGT:</span>
+                <span className="font-bold text-slate-700">Không chịu thuế (TT 219/2013)</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Tổng thanh toán:</span>
