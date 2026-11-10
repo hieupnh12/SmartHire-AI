@@ -232,11 +232,7 @@ public class MasterBillingService {
 
         if ("PAID".equals(nextStatus)) {
             invoice.setPaidAt(request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now());
-            if (invoice.getSubscriptionId() != null) {
-                subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
-                    activatePaidSubscription(sub);
-                });
-            }
+            applyPaidSubscriptionForInvoice(invoice);
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 pendingTenant.setStatus("PROVISIONING");
@@ -248,6 +244,9 @@ public class MasterBillingService {
                         pendingTenant.getId(),
                         invoice.getSubscriptionId()
                 ));
+            } else if (pendingTenant != null && "SUSPENDED".equalsIgnoreCase(pendingTenant.getStatus())) {
+                pendingTenant.setStatus("ACTIVE");
+                tenantRepository.save(pendingTenant);
             }
         }
 
@@ -498,9 +497,7 @@ public class MasterBillingService {
         }
         Invoice saved = invoiceRepository.save(invoice);
 
-        if (saved.getSubscriptionId() != null) {
-            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(this::activatePaidSubscription);
-        }
+        applyPaidSubscriptionForInvoice(saved);
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
         if (tenant != null && quotaRedisService != null) {
@@ -517,11 +514,64 @@ public class MasterBillingService {
                     tenant.getId(),
                     saved.getSubscriptionId()
             ));
+        } else if (tenant != null && "SUSPENDED".equalsIgnoreCase(tenant.getStatus())) {
+            tenant.setStatus("ACTIVE");
+            tenantRepository.save(tenant);
         }
         return saved;
     }
 
-    private void activatePaidSubscription(TenantSubscription sub) {
+    private void applyPaidSubscriptionForInvoice(Invoice invoice) {
+        if (invoice == null || invoice.getSubscriptionId() == null) {
+            return;
+        }
+        TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+        if (sub == null) {
+            return;
+        }
+        List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+        boolean isRenewal = items != null && items.stream()
+                .anyMatch(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()));
+        if (isRenewal && !"PENDING".equalsIgnoreCase(sub.getStatus())) {
+            int years = items.stream()
+                    .filter(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                    .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                    .findFirst()
+                    .orElse(1);
+            renewExistingSubscription(sub, years);
+            return;
+        }
+        int fallbackYears = items == null ? 1 : items.stream()
+                .filter(item -> "SUBSCRIPTION".equalsIgnoreCase(item.getItemType())
+                        || "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                .findFirst()
+                .orElse(1);
+        activatePaidSubscription(sub, fallbackYears);
+    }
+
+    private void renewExistingSubscription(TenantSubscription sub, int years) {
+        if (sub == null) {
+            return;
+        }
+        if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
+            planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        boolean hadRemainingTerm = sub.getEndsAt() != null && sub.getEndsAt().isAfter(now);
+        LocalDateTime baseEnd = hadRemainingTerm ? sub.getEndsAt() : now;
+        if (!hadRemainingTerm || sub.getStartsAt() == null) {
+            sub.setStartsAt(now);
+        }
+        sub.setEndsAt(baseEnd.plusYears(Math.max(1, years)));
+        sub.setStatus("ACTIVE");
+        sub.setGracePeriodEndsAt(null);
+        sub.setCanceledAt(null);
+        sub.setCancelReason(null);
+        subscriptionRepository.save(sub);
+    }
+
+    private void activatePaidSubscription(TenantSubscription sub, int fallbackYears) {
         if (sub == null) {
             return;
         }
@@ -549,9 +599,10 @@ public class MasterBillingService {
                 }
             }
         }
-        long years = (sub.getStartsAt() != null && sub.getEndsAt() != null)
+        long calculatedYears = (sub.getStartsAt() != null && sub.getEndsAt() != null)
                 ? Math.max(1L, Math.round(java.time.temporal.ChronoUnit.DAYS.between(sub.getStartsAt(), sub.getEndsAt()) / 365.0))
                 : 1L;
+        long years = Math.max(calculatedYears, Math.max(1L, fallbackYears));
         sub.setStartsAt(now);
         sub.setEndsAt(now.plusYears(years));
         sub.setStatus("ACTIVE");
@@ -637,6 +688,10 @@ public class MasterBillingService {
     }
 
     public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        return toCheckoutResponse(invoice, tenant, plan);
+    }
+
+    public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
         BigDecimal amountVnd = invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO;
         String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
         String accountNumber = "07744348801";

@@ -56,7 +56,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 
 Job cũ / payload không gửi config: snapshot công thức trước đây 40/8/12/0/15/25, ngưỡng 60 (education = 0 nên điểm cũ không đổi).
 
-### Gate Screening (vòng gửi xe) — độc lập
+### Gate Screening (đánh giá tổng hợp) — độc lập
 
 Sau khi có CV Score, AI Interview Score, Assessment Score:
 

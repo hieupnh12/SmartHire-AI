@@ -2,6 +2,7 @@ import {
   Building2,
   BriefcaseBusiness,
   ChartNoAxesCombined,
+  CreditCard,
   FileClock,
   GitBranch,
   House,
@@ -16,6 +17,7 @@ import {
 export const adminNav = [
   { to: "", labelKey: "nav.overview", descriptionKey: "nav.overviewDescription", icon: House },
   { to: "/company", labelKey: "nav.company", icon: Building2, groupId: "company", groupLabelKey: "nav.adminCompany", groupDescriptionKey: "nav.adminCompanyDescription", groupIcon: Building2 },
+  { to: "/billing", labelKey: "nav.billing", icon: CreditCard, groupId: "company", groupLabelKey: "nav.adminCompany", groupDescriptionKey: "nav.adminCompanyDescription", groupIcon: Building2 },
   { to: "/landing-page", labelKey: "nav.landingPage", icon: LayoutTemplate, groupId: "company", groupLabelKey: "nav.adminCompany", groupDescriptionKey: "nav.adminCompanyDescription", groupIcon: Building2 },
   { to: "/users", labelKey: "nav.users", icon: Users, groupId: "people", groupLabelKey: "nav.adminPeople", groupDescriptionKey: "nav.adminPeopleDescription", groupIcon: Users },
   { to: "/roles", labelKey: "nav.rolesPermissions", icon: ShieldCheck, groupId: "people", groupLabelKey: "nav.adminPeople", groupDescriptionKey: "nav.adminPeopleDescription", groupIcon: Users },

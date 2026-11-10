@@ -94,7 +94,7 @@ export function ApplicantRounds({
       {gate && (
         <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 py-3">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="font-semibold">Vòng gửi xe</p>
+            <p className="font-semibold">Đánh giá tổng hợp</p>
             <p className="font-mono text-xl">{scoreText(gate.score)}</p>
           </div>
           <p className={`mt-1 ${muted}`}>

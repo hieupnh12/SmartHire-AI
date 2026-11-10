@@ -151,7 +151,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const submitAdminSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("admin-search")?.toString().trim().toLocaleLowerCase() ?? "";
-    if (/doanh nghiệp|company|hồ sơ/.test(query)) navigate(`${basePath}/company`);
+    if (/gói|thanh toán|hóa đơn|gia hạn|billing|plan|invoice|subscription/.test(query)) navigate(`${basePath}/billing`);
+    else if (/doanh nghiệp|company|hồ sơ/.test(query)) navigate(`${basePath}/company`);
     else if (/người dùng|thành viên|user|member/.test(query)) navigate(`${basePath}/users`);
     else if (/phân quyền|roles|permission/.test(query)) navigate(`${basePath}/roles`);
     else if (/hệ thống|system|health/.test(query)) navigate(`${basePath}/system`);

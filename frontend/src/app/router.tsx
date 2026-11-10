@@ -53,6 +53,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
+import { SubscriptionBillingPage } from "@/features/tenant/admin/billing/pages/SubscriptionBillingPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
@@ -77,6 +78,7 @@ import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailP
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
+import { RankingCandidateDetailPage } from "@/features/tenant/recruiter/matching/pages/RankingCandidateDetailPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
@@ -223,6 +225,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
             <Route path="jobs/:id/rank" element={<RankingPage />} />
+            <Route path="jobs/:id/rank/:applicationId" element={<RankingCandidateDetailPage />} />
             <Route path="rank" element={<Navigate to="/recruiter" replace />} />
             <Route path="matching" element={<Navigate to="/recruiter" replace />} />
           </Route>
@@ -289,6 +292,7 @@ export function AppRouter() {
           <Route path="recruiter-assignments" element={<AssignmentsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="billing" element={<SubscriptionBillingPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>

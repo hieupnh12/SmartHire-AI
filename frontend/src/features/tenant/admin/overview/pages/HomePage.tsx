@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarClock, Settings, ShieldCheck, UserPlus, UserRoundCog, Users } from "lucide-react";
+import { ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarClock, CreditCard, Settings, ShieldCheck, UserPlus, UserRoundCog, Users, Zap } from "lucide-react";
 import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
 import { companyApi } from "@/api/tenant/companyApi";
@@ -8,13 +8,19 @@ import { usersApi } from "@/api/tenant/usersApi";
 import type { CompanyProfile } from "@/features/tenant/admin/company/types";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { StatusPill } from "@/components/ux/StatusPill";
 import { getApiErrorMessage } from "@/lib/axios";
+import {
+  formatPlanDisplayName,
+  formatSubscriptionStatusLabel,
+} from "@/features/tenant/admin/billing/utils/billingLabels";
 
 const shortcuts: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
   { to: "/recruiter", label: "Workspace tuyển dụng", icon: BriefcaseBusiness },
   { to: "/internal/admin/users", label: "Người dùng", icon: Users },
   { to: "/internal/admin/roles", label: "Phân quyền", icon: ShieldCheck },
   { to: "/internal/admin/recruiter-assignments", label: "Quản lý công việc", icon: UserRoundCog },
+  { to: "/internal/admin/billing", label: "Gói & Hóa đơn", icon: CreditCard },
   { to: "/internal/admin/system", label: "Hệ thống", icon: Settings },
 ];
 
@@ -87,12 +93,18 @@ export function HomePage() {
     queryKey: ["tenant", "company", "profile"],
     queryFn: () => companyApi.getProfile(),
   });
+  const subscription = useQuery({
+    queryKey: ["tenant-subscription-quota"],
+    queryFn: () => companyApi.getSubscription(),
+  });
 
   const summaryData = summary.data?.data;
   const memberCount = (members.data?.data ?? []).filter(
     (row) => row.role !== "CANDIDATE" && row.workspace !== "CANDIDATE",
   ).length;
   const profile = company.data?.data;
+  const sub = subscription.data?.data;
+  const pendingInvoiceCount = (sub?.invoices ?? []).filter((inv) => inv.status === "PENDING").length;
   const gaps = profile ? profileGaps(profile) : [];
   const summaryError = summary.isError ? getApiErrorMessage(summary.error) : null;
   const membersError = members.isError ? getApiErrorMessage(members.error) : null;
@@ -224,7 +236,55 @@ export function HomePage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Subscription & Billing Snapshot Card */}
+      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3.5">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-brand-primary">
+            <Zap className="size-5" aria-hidden="true" />
+          </span>
+          {subscription.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+          ) : sub ? (
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
+                  Gói dịch vụ: {formatPlanDisplayName(sub.planName)}
+                </h2>
+                <StatusPill
+                  status={sub.subscriptionStatus}
+                  label={formatSubscriptionStatusLabel(sub.subscriptionStatus)}
+                />
+                {pendingInvoiceCount > 0 && (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                    {pendingInvoiceCount} hóa đơn chờ thanh toán
+                  </span>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-[var(--color-text-secondary)]">
+                {sub.hasExplicitSubscription && sub.endsAt
+                  ? `Còn ${sub.daysRemaining} ngày (hết hạn ${new Date(sub.endsAt).toLocaleDateString("vi-VN")}) · ${Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫/năm`
+                  : `Đang áp dụng gói mặc định (${Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫/năm) · Có thể nâng cấp hoặc gia hạn bất kỳ lúc nào`}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Theo dõi gói dịch vụ, hạn mức sử dụng và lịch sử thanh toán của doanh nghiệp.
+            </p>
+          )}
+        </div>
+        <Link
+          to="/internal/admin/billing"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-4 text-sm font-semibold text-brand-primary transition-colors hover:bg-[var(--color-primary-subtle)]"
+        >
+          <span>Quản lý gói &amp; Gia hạn</span>
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {shortcuts.map((item) => {
           const Icon = item.icon;
           return (
