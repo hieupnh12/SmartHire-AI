@@ -7,7 +7,8 @@ export const assessmentMuted = "text-sm text-[var(--color-on-surface-variant)]";
 export const assessmentLink = "inline-flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] focus-visible:outline focus-visible:outline-2";
 export const assessmentStatus: Record<string, string> = {
   DRAFT: "Bản nháp", PUBLISHED: "Đã xuất bản", ARCHIVED: "Lưu trữ", NOT_STARTED: "Chưa bắt đầu",
-  IN_PROGRESS: "Đang làm", SUBMITTED: "Đang chấm", GRADED: "Đã chấm", EXPIRED: "Hết thời gian",
+  IN_PROGRESS: "Đang làm bài", SUBMITTED: "Đã nộp bài", PENDING: "Đang chờ chấm", GRADING: "Đang chấm điểm",
+  COMPLETED: "Đã chấm xong", GRADED: "Đã chấm xong", FAILED: "Chấm thất bại", EXPIRED: "Hết thời gian",
 };
 export function AssessmentError({ error, retry }: { error: unknown; retry?: () => void }) {
   if (!error) return null;

@@ -1,6 +1,7 @@
 package com.smarthire.messaging;
 
 import com.smarthire.tenant.assessment.service.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -9,6 +10,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+@Slf4j
 @Component
 public class AssessmentGradeWorker {
     public static final String ESSAY_QUEUE = "assessment.essay.grade";
@@ -26,20 +28,23 @@ public class AssessmentGradeWorker {
     // Coding queue is already declared by RabbitMqConfig.
     @TransactionalEventListener
     public void publish(AssessmentGradeEvent event) {
+        log.info("Enqueuing assessment grading tasks for submission {} in tenant {}", event.submissionId(), event.tenant());
         try {
             for (String queue : new String[]{ESSAY_QUEUE, codeQueue}) rabbit.convertAndSend(queue, event.submissionId(), message -> {
                 message.getMessageProperties().setHeader("X-Tenant-ID", event.tenant()); return message;
             });
         } catch (org.springframework.amqp.AmqpException unavailable) {
-            // Answers are durable; staff can request a grading retry after broker recovery.
+            log.warn("RabbitMQ unavailable when enqueuing grading for submission {}: {}", event.submissionId(), unavailable.getMessage());
         }
     }
     @RabbitListener(queues = ESSAY_QUEUE, concurrency = "3-10")
     public void essay(long id, @Header(name = "X-Tenant-ID", required = false) String tenant) {
+        log.info("Received essay grading task for submission {} (tenant: {})", id, tenant);
         executor.execute(tenant, () -> grading.suggest(id, "ESSAY"));
     }
     @RabbitListener(queues = "${app.rabbitmq.queues.assessment-code-grade}", concurrency = "3-10")
     public void code(long id, @Header(name = "X-Tenant-ID", required = false) String tenant) {
+        log.info("Received code grading task for submission {} (tenant: {})", id, tenant);
         executor.execute(tenant, () -> grading.suggest(id, "CODING"));
     }
 }

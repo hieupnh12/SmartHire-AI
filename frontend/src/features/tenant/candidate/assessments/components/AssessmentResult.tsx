@@ -39,12 +39,16 @@ function formatWhen(value: string | null | undefined) {
 }
 
 export function AssessmentResult({ submission, back, onRetake, retaking }: Props) {
-  const pending = submission.score === null;
+  const isFailed = submission.status === "FAILED";
+  const isGrading = submission.status === "GRADING";
+  const isSubmittedOrPending = submission.status === "SUBMITTED" || submission.status === "PENDING";
+  const pending = submission.score === null || isGrading || isSubmittedOrPending;
   const expired = submission.status === "EXPIRED";
   const demo = isDemoAssessmentTitle(submission.title);
-  const passed = submission.passed === true;
-  const failed = submission.passed === false;
-  const ResultIcon = pending ? Clock : failed ? CircleAlert : CheckCircle2;
+  const isCompleted = submission.status === "COMPLETED" || submission.status === "GRADED";
+  const passed = isCompleted && submission.passed === true;
+  const failed = isCompleted && submission.passed === false;
+  const ResultIcon = isFailed ? CircleAlert : pending ? Clock : failed ? CircleAlert : CheckCircle2;
   const scorePct =
     !pending && submission.totalPoints > 0
       ? Math.round(((submission.score ?? 0) / submission.totalPoints) * 100)
@@ -67,22 +71,45 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
         (item.answer.evaluation || item.answer.score !== undefined || item.answer.suggestedScore !== undefined)
     );
 
-  const headline = expired ? "Đã hết thời gian làm bài" : "Bài làm đã được ghi nhận";
-  const detail = pending
-    ? "Câu trả lời đã được lưu. Điểm chính thức sẽ cập nhật sau khi nhà tuyển dụng hoàn tất chấm."
-    : passed
-      ? "Bạn đã hoàn tất bài kiểm tra và đạt ngưỡng yêu cầu của đề."
-      : failed
-        ? "Bạn đã hoàn tất bài kiểm tra. Điểm hiện chưa đạt ngưỡng yêu cầu của đề."
-        : "Bạn đã hoàn tất bài kiểm tra. Dưới đây là tóm tắt kết quả.";
+  const headline = isFailed
+    ? "Chấm bài không thành công"
+    : expired
+      ? "Đã hết thời gian làm bài"
+      : isGrading
+        ? "Hệ thống đang chấm bài của bạn"
+        : isSubmittedOrPending
+          ? "Đã nộp bài — Đang chờ chấm"
+          : isCompleted
+            ? "Bài làm đã được chấm điểm"
+            : "Bài làm đã được ghi nhận";
 
-  const verdictLabel = pending
-    ? "Chờ chấm điểm"
-    : submission.passed === null
-      ? "Đã chấm điểm"
-      : passed
-        ? "Đạt yêu cầu"
-        : "Chưa đạt yêu cầu";
+  const detail = isFailed
+    ? "Hệ thống gặp sự cố khi tự động chấm điểm. Nhà tuyển dụng đã nhận được bài và sẽ kiểm tra, cập nhật điểm cho bạn."
+    : isGrading
+      ? "Hệ thống đang chạy test case và đánh giá mã nguồn bằng AI. Kết quả sẽ tự động hiển thị trong giây lát..."
+      : isSubmittedOrPending
+        ? "Bài nộp đã được tiếp nhận an toàn và đưa vào hàng đợi chấm bài bất đồng bộ."
+        : pending
+          ? "Câu trả lời đã được lưu. Điểm chính thức sẽ cập nhật sau khi nhà tuyển dụng hoàn tất chấm."
+          : passed
+            ? "Bạn đã hoàn tất bài kiểm tra và đạt ngưỡng yêu cầu của đề."
+            : failed
+              ? "Bạn đã hoàn tất bài kiểm tra. Điểm hiện chưa đạt ngưỡng yêu cầu của đề."
+              : "Bạn đã hoàn tất bài kiểm tra. Dưới đây là tóm tắt kết quả.";
+
+  const verdictLabel = isFailed
+    ? "Chấm thất bại"
+    : isGrading
+      ? "Đang chấm điểm"
+      : isSubmittedOrPending
+        ? "Đang chờ chấm"
+        : pending
+          ? "Chờ chấm điểm"
+          : submission.passed === null
+            ? "Đã chấm điểm"
+            : passed
+              ? "Đạt yêu cầu"
+              : "Chưa đạt yêu cầu";
 
   /** Score panel color follows % (red → amber → yellow → green). Verdict chip still uses pass/fail. */
   const scoreTone = (() => {
@@ -200,13 +227,17 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                 </p>
                 {pending ? (
                   <div className="mt-2 flex items-center gap-3">
-                    <span className="grid size-11 place-items-center rounded-xl bg-white text-[var(--color-primary)] ring-1 ring-[var(--color-border-default)]">
-                      <Clock className="size-5" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <p className="text-2xl font-semibold tracking-tight">Đang chấm</p>
-                      <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có điểm chính thức</p>
-                    </div>
+                      <span className={`grid size-11 place-items-center rounded-xl bg-white text-[var(--color-primary)] ring-1 ring-[var(--color-border-default)] ${isGrading ? "animate-pulse ring-indigo-400" : ""}`}>
+                        <Clock className={`size-5 ${isGrading ? "animate-spin text-indigo-600" : ""}`} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="text-2xl font-semibold tracking-tight">
+                          {isFailed ? "Chấm thất bại" : isGrading ? "Đang chấm điểm…" : isSubmittedOrPending ? "Đang chờ chấm" : "Chờ kết quả"}
+                        </p>
+                        <p className="text-sm text-[var(--color-on-surface-variant)]">
+                          {isFailed ? "Cần nhà tuyển dụng hỗ trợ" : isGrading ? "Đang chạy test case và AI review..." : "Sẽ có điểm sau ít phút"}
+                        </p>
+                      </div>
                   </div>
                 ) : (
                   <div className="mt-2">
@@ -320,11 +351,8 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <span className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-surface-variant)]">
-                              Câu {question?.questionOrder ?? 1} · {isCoding ? "Lập trình" : isEssay ? "Tự luận" : "Đánh giá"}
+                              Câu {question?.questionOrder ?? 1} · {isCoding ? "Bài thi lập trình" : isEssay ? "Câu hỏi tự luận" : "Đánh giá trắc nghiệm"}
                             </span>
-                            <p className="mt-1 line-clamp-2 text-xs font-medium text-[var(--color-on-surface)]">
-                              {question?.coding?.title || question?.questionText}
-                            </p>
                           </div>
                           {(answer.score !== undefined || answer.suggestedScore !== undefined) && (
                             <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">

@@ -35,7 +35,8 @@ public class AssessmentInvitationService {
     private static final Logger log = LoggerFactory.getLogger(AssessmentInvitationService.class);
     private static final Set<ApplicationStatus> SENDABLE = Set.of(ApplicationStatus.INTERVIEW, ApplicationStatus.ASSESSMENT);
     private static final Set<TestSubmissionStatus> COMPLETED =
-            Set.of(TestSubmissionStatus.SUBMITTED, TestSubmissionStatus.GRADED, TestSubmissionStatus.EXPIRED);
+            Set.of(TestSubmissionStatus.SUBMITTED, TestSubmissionStatus.PENDING, TestSubmissionStatus.GRADING,
+                    TestSubmissionStatus.COMPLETED, TestSubmissionStatus.GRADED, TestSubmissionStatus.FAILED, TestSubmissionStatus.EXPIRED);
 
     private final JobTestRepository tests;
     private final ApplicationRepository applications;
