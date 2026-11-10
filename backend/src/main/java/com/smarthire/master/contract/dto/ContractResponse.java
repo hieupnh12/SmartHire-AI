@@ -55,11 +55,7 @@ public class ContractResponse {
     private String partyBEmail;
     private String partyBBankAccount;
 
-    // Tax & Totals (Dịch vụ phần mềm không chịu thuế GTGT)
-    @Builder.Default
-    private BigDecimal taxRate = BigDecimal.ZERO;
-    @Builder.Default
-    private BigDecimal taxAmount = BigDecimal.ZERO;
+    // Totals
     private BigDecimal totalAmount;
     private String amountInWords;
 
@@ -117,9 +113,7 @@ public class ContractResponse {
                 .partyBPhone(contract.getPartyBPhone())
                 .partyBEmail(contract.getPartyBEmail())
                 .partyBBankAccount(contract.getPartyBBankAccount())
-                .taxRate(BigDecimal.ZERO)
-                .taxAmount(BigDecimal.ZERO)
-                .totalAmount(contract.getTotalAmount() != null ? contract.getTotalAmount() : contract.getContractValue())
+                .totalAmount(contract.getTotalAmount())
                 .amountInWords(contract.getAmountInWords())
                 .signingToken(contract.getSigningToken())
                 .tokenExpiresAt(contract.getTokenExpiresAt())

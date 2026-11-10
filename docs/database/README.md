@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
 | Assessment ops hardening 2026-10-25 | Tenant V55: `coding_problems.verified_at` / `verified_language`; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) + UNIQUE `(purpose, reference_key)`. Không thêm bảng/entity mới |
@@ -49,7 +50,7 @@
 | Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V57 bổ sung `CompanyLocationDepartment` |
 | Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
 | Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 86 (34 master + 52 tenant); V9 redesign nằm ngoài pipeline |
+| Số file migration trong repo | 87 (35 master + 52 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
 | Cập nhật lần cuối | Tenant `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
@@ -358,7 +359,7 @@ erDiagram
         varchar subdomain UK
         varchar db_name UK
         varchar db_password "đã mã hoá"
-        varchar status "PENDING_PAYMENT / PROVISIONING / ACTIVE / SUSPENDED / FAILED"
+        varchar status "PENDING_PAYMENT / PROVISIONING / ACTIVE / SUSPENDED / FAILED / CANCELLED"
     }
     subscription_plans {
         bigint id PK
@@ -732,14 +733,14 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 
 | Entity | Mục đích | Thuộc tính then chốt | Vòng đời |
 |---|---|---|---|
-| `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified`, `is_deleted`, `deleted_at` | Tạo khi onboarding (`PENDING_PAYMENT` / `PROVISIONING`) → `ACTIVE` ↔ `SUSPENDED` → có thể xoá mềm / khôi phục / xoá cứng |
+| `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified`, `is_deleted`, `deleted_at` | Tạo khi onboarding (`PENDING_PAYMENT` / `PROVISIONING`) → `ACTIVE` ↔ `SUSPENDED` hoặc `CANCELLED` (khi quá hạn / hủy / từ chối hợp đồng, giải phóng subdomain) → có thể xoá mềm / khôi phục |
 | `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ (Tier 1 Catalog) | `version`, `parent_plan_id`, `is_custom`, `target_tenant_id`, `is_archived`, `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, hỗ trợ versioning/grandfathering & custom Enterprise (V27) |
 | `TenantSubscription` | Gói mà một tenant đang dùng kèm 11 cột snapshot hợp đồng (Tier 2 Instance) | `tenant_id`, `plan_id`, `plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`, `starts_at`, `ends_at`, `grace_period_ends_at`, `next_plan_id`, `prorated_credit_amount`, `upgraded_from_subscription_id` | `TRIAL` / `PENDING` → `ACTIVE` → `PAST_DUE` → `SUSPENDED` / `CANCELED` / `EXPIRED` |
-| `Invoice` | Hoá đơn tài chính phát sinh cho tenant | `invoice_number`, `tenant_id`, `subscription_id`, `contract_id`, `amount`, `subtotal`, `tax_rate`, `currency`, `payment_gateway`, `transaction_id`, `paid_at`, `terms_accepted`, `terms_version`, `terms_accepted_at` (V25) | `PENDING` → `PAID` / `OVERDUE` / `CANCELLED` |
+| `Invoice` | Hoá đơn tài chính phát sinh cho tenant | `invoice_number`, `tenant_id`, `subscription_id`, `contract_id`, `amount`, `subtotal`, `currency`, `payment_gateway`, `transaction_id`, `paid_at`, `terms_accepted`, `terms_version`, `terms_accepted_at` (V25) | `PENDING` → `PAID` / `OVERDUE` / `CANCELLED` |
 | `InvoiceLineItem` | Chi tiết dòng hàng hoá đơn (V10, V23) | `invoice_id`, `description`, `quantity`, `unit_price`, `total_price`, `item_type` (`BASE_PLAN`, `SUBSCRIPTION`, `EXTRA_QUOTA`, `ADDON`) | Tạo cùng hoá đơn, xoá theo hoá đơn (`ON DELETE CASCADE`) |
 | `PaymentTransaction` | Lịch sử đối soát giao dịch từ cổng thanh toán (VNPay, SePay VietQR, PayPal) (V21, V23) | `invoice_id`, `tenant_id`, `txn_ref`, `transaction_no`, `payment_gateway`, `amount`, `currency`, `response_code`, `transaction_status`, `raw_response` | `PENDING` → `SUCCESS` / `FAILED` |
-| `Contract` | Hợp đồng thương mại điện tử B2B tích hợp Dropbox Sign API v3 & SHA-256 checksum (V11, V12, V26) | `contract_number`, `tenant_id`, `plan_id`, `consultation_request_id`, thông tin pháp nhân Bên A/B, `total_amount`, `esign_provider`, `external_signature_request_id`, `signed_pdf_bytes`, `document_checksum`, `status` | `DRAFT` → `PENDING_SIGNATURE` → `SIGNED` / `EXPIRED` / `TERMINATED` |
-| `ContractSignature` | Chữ ký số của từng bên trên hợp đồng (V11, V26) | `contract_id`, `signer_name`, `signer_email`, `signer_title`, `external_signature_id`, `signed_at`, `client_ip`, `status` | `PENDING` → `SIGNED` / `DECLINED` |
+| `Contract` | Hợp đồng thương mại điện tử B2B tích hợp Dropbox Sign API v3 & SHA-256 checksum (V11, V12, V26) | `contract_number`, `tenant_id`, `plan_id`, `consultation_request_id`, thông tin pháp nhân Bên A/B, `total_amount`, `esign_provider`, `external_signature_request_id`, `signed_pdf_bytes`, `document_checksum`, `status` | `DRAFT` → `PENDING_SIGNATURE` → `SIGNED` / `REJECTED` / `EXPIRED` / `TERMINATED` |
+| `ContractSignature` | Chữ ký số của từng bên trên hợp đồng (V11, V26) | `contract_id`, `signer_name`, `signer_email`, `signer_title`, `external_signature_id`, `signed_at`, `client_ip`, `status` | `PENDING` → `SIGNED` / `REJECTED` / `DECLINED` |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
 | `PlatformUser` | Tài khoản quản trị nền tảng, tách hoàn toàn khỏi `users` của tenant | `email`, `password_hash`, `role` (mặc định `WORKSPACE_ADMIN`) | `ACTIVE` / khoá |
 | `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
@@ -1379,8 +1380,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V32 | `V32__ai_model_fallback_chain.sql` | Bổ sung cột `fallback_chain` JSONB nullable vào `ai_model_configs` hỗ trợ chuỗi fallback dự phòng đa cấp (cascade routing waterfall) và tích hợp cơ chế Redis 429 cooldown TTL |
 | V33 | `V33__ai_model_registry_enhancement.sql` | Nâng cấp `ai_model_pricings` thành Danh mục Model AI chuẩn hóa: thêm `display_name`, `context_window`, `supports_json`; seed các model Groq, OpenRouter, Gemini Lite, Cursor |
 | V34 | `V34__interview_speech_ai_tasks.sql` | Seed `ai_model_configs` cho `INTERVIEW_STT` (`gemini-3.1-flash-lite`) và `INTERVIEW_TTS` (`gemini-3.8-flash-tts`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
-| V35 | `V35__question_gen_ai_task.sql` | Cấu hình nhiệm vụ AI sinh câu hỏi kỹ thuật |
-| V36 | `V36__remove_tax_columns.sql` | Xóa 2 cột `tax_rate`, `tax_amount` trong bảng `contracts` (dịch vụ phần mềm không chịu thuế GTGT theo Thông tư 219/2013/TT-BTC) |
+| V35 | `V35__question_gen_ai_task.sql` | Seed `ai_model_configs` cho tác vụ `QUESTION_GEN` (`gemini-2.0-flash`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
+| V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
 
 ### 10.3 Lịch sử migration — Tenant
 

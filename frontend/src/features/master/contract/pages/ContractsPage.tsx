@@ -171,26 +171,32 @@ export function ContractsPage() {
         triggerNotification(`Đã gửi yêu cầu ký qua Dropbox Sign & sao chép link HĐ ${contract.contractNumber}!`);
       })
       .catch((err: any) => {
-        alert(`Lỗi gửi HĐ ${contract.contractNumber}: ${err.response?.data?.message || err.message}`);
+        toast.error(`Lỗi gửi HĐ ${contract.contractNumber}: ${err.response?.data?.message || err.message}`);
       });
   };
 
   const handleSyncEsign = (contract: ContractItem) => {
-    triggerNotification(`Đang đồng bộ trạng thái ký từ Dropbox Sign cho HĐ ${contract.contractNumber}...`);
+    toast.info(`Đang đồng bộ trạng thái ký từ Dropbox Sign cho HĐ ${contract.contractNumber}...`);
     contractApi.syncEsign(contract.id)
       .then((updated) => {
         setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === updated.id ? updated : c)));
         if (selectedContract && selectedContract.id === updated.id) {
           setSelectedContract(updated);
         }
-        triggerNotification(
-          updated.status === "SIGNED"
-            ? `HĐ ${updated.contractNumber} đã hoàn tất ký số trên Dropbox Sign!`
-            : `Đã đồng bộ Dropbox Sign: HĐ ${updated.contractNumber} đang chờ Bên B ký.`
-        );
+        if (updated.status === "SIGNED") {
+          toast.success(`HĐ ${updated.contractNumber} đã hoàn tất ký số trên Dropbox Sign!`);
+        } else if (updated.status === "REJECTED") {
+          toast.error(`HĐ ${updated.contractNumber} đã bị đối tác từ chối ký trên Dropbox Sign. Subdomain tạm đã được giải phóng.`);
+        } else if (updated.status === "TERMINATED") {
+          toast.warning(`Yêu cầu ký HĐ ${updated.contractNumber} đã bị hủy trên Dropbox Sign.`);
+        } else if (updated.status === "EXPIRED") {
+          toast.warning(`HĐ ${updated.contractNumber} đã hết hạn ký.`);
+        } else {
+          toast.info(`Đã đồng bộ Dropbox Sign: HĐ ${updated.contractNumber} đang chờ Bên B ký.`);
+        }
       })
       .catch((err: any) => {
-        alert(`Lỗi đồng bộ Dropbox Sign: ${err.response?.data?.message || err.message}`);
+        toast.error(`Lỗi đồng bộ Dropbox Sign: ${err.response?.data?.message || err.message}`);
       });
   };
 
@@ -314,9 +320,6 @@ export function ContractsPage() {
                       <div className="font-bold text-slate-900 font-mono">
                         {(c.totalAmount || c.contractValue).toLocaleString("vi-VN")} ₫
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        Dịch vụ phần mềm không chịu thuế GTGT
-                      </div>
                     </td>
 
                     {/* Period */}
@@ -351,7 +354,7 @@ export function ContractsPage() {
                     {/* Actions */}
                     <td className="px-5 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        {c.status !== "SIGNED" && (
+                        {!["SIGNED", "REJECTED", "TERMINATED"].includes(c.status) && (
                           <button
                             onClick={() => handleSendContract(c)}
                             title="Gửi yêu cầu ký qua Dropbox Sign"
@@ -362,7 +365,7 @@ export function ContractsPage() {
                           </button>
                         )}
 
-                        {c.status !== "SIGNED" && c.externalSignatureRequestId && (
+                        {!["SIGNED", "REJECTED", "TERMINATED"].includes(c.status) && c.externalSignatureRequestId && (
                           <button
                             onClick={() => handleSyncEsign(c)}
                             title="Đồng bộ trạng thái ký từ Dropbox Sign"

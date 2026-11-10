@@ -58,10 +58,6 @@ public class CreateContractRequest {
     private String partyBEmail;
     private String partyBBankAccount;
 
-    // --- THUẾ & GIÁ TRỊ THANH TOÁN (Dịch vụ phần mềm không chịu thuế GTGT) ---
-    @Builder.Default
-    private BigDecimal taxRate = BigDecimal.ZERO;
-
     private String termsAndConditions;
 
     private String notes;

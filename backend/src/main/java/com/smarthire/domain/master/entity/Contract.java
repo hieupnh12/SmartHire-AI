@@ -114,7 +114,7 @@ public class Contract {
     @Column(name = "party_b_bank_account")
     String partyBBankAccount;
 
-    // --- GIÁ TRỊ THANH TOÁN THEO LUẬT VIỆT NAM (DỊCH VỤ PHẦN MỀM KHÔNG CHỊU THUẾ GTGT) ---
+    // --- GIÁ TRỊ THANH TOÁN ---
     @Builder.Default
     @Column(name = "total_amount", nullable = false)
     BigDecimal totalAmount = BigDecimal.ZERO;

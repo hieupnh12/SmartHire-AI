@@ -16,7 +16,7 @@ Cung cấp luồng đăng ký và mua gói dịch vụ tự phục vụ (**Self-
 ## Luồng hoạt động
 
 1. Khách hàng truy cập trang Bảng giá trên Landing Page (`/`) và chọn gói tiêu chuẩn (`STARTER` hoặc `PRO`, chu kỳ 1 năm, đơn vị VNĐ), hệ thống điều hướng sang `/checkout?plan=<code>`.
-2. Khách hàng nhập thông tin định danh Workspace (`companyName`, `code`, `subdomain`), thông tin người đại diện (`adminName`, `adminEmail`, `phone`) và thông tin xuất hoá đơn thuế (`taxCode`, `companyLegalName`, `billingAddress`).
+2. Khách hàng nhập thông tin định danh Workspace (`companyName`, `code`, `subdomain`), thông tin người đại diện (`adminName`, `adminEmail`, `phone`) và thông tin xuất hoá đơn doanh nghiệp (`taxCode`, `companyLegalName`, `billingAddress`).
 3. Hệ thống kiểm tra tính khả dụng của `code` và `subdomain` theo thời gian thực (`GET /api/v1/master/tenants/check/{codeOrSubdomain}`).
 4. Khách hàng bắt buộc đọc và tích chọn ô xác nhận đồng thuận pháp lý (**Click-wrap Agreement**) đối với:
    - Điều khoản Dịch vụ SaaS (`TERMS_OF_SERVICE`)

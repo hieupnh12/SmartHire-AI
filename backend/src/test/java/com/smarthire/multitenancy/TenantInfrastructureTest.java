@@ -107,4 +107,18 @@ class TenantInfrastructureTest {
                 .containsEntry("X-Tenant-ID", "alpha");
     }
 
+    @Test void tenantResponseFallsBackToBillingAddressWhenAddressMissing() {
+        TenantInfo withBillingOnly = new TenantInfo();
+        withBillingOnly.setCode("beta");
+        withBillingOnly.setName("Beta Corp");
+        withBillingOnly.setBillingAddress("789 Nguyen Hue, Q1, TP.HCM");
+        assertThat(TenantResponse.from(withBillingOnly).address()).isEqualTo("789 Nguyen Hue, Q1, TP.HCM");
+
+        TenantInfo withExplicitAddress = new TenantInfo();
+        withExplicitAddress.setCode("gamma");
+        withExplicitAddress.setName("Gamma Corp");
+        withExplicitAddress.setAddress("123 Le Loi, Q1, TP.HCM");
+        withExplicitAddress.setBillingAddress("789 Nguyen Hue, Q1, TP.HCM");
+        assertThat(TenantResponse.from(withExplicitAddress).address()).isEqualTo("123 Le Loi, Q1, TP.HCM");
+    }
 }

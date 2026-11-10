@@ -153,9 +153,6 @@ export const masterAdminApi = {
     const res = await masterClient.get(`${API_BASE}/master/tenants/${id}`);
     return res.data.data;
   },
-  deleteTenant: async (id: number, hard: boolean = true): Promise<void> => {
-    await masterClient.delete(`${API_BASE}/master/tenants/${id}?hard=${hard}`);
-  },
   softDeleteTenant: async (id: number): Promise<TenantInfo> => {
     const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/soft-delete`);
     return res.data.data;

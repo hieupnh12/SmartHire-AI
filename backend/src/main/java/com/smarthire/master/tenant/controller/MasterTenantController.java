@@ -94,18 +94,4 @@ public class MasterTenantController {
         TenantResponse tenant = TenantResponse.from(masterTenantService.restoreTenant(id));
         return ResponseEntity.ok(ApiResponse.ok("Tenant restored successfully", tenant));
     }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Delete Tenant (Hard or Soft)", description = "Deletes tenant metadata and drops tenant database when hard=true (for test cleanup), or performs soft-delete when hard=false.")
-    public ResponseEntity<ApiResponse<Void>> deleteTenant(
-            @PathVariable Long id,
-            @RequestParam(defaultValue = "true") boolean hard) {
-        if (hard) {
-            masterTenantService.deleteTenant(id);
-            return ResponseEntity.ok(ApiResponse.ok("Tenant and database permanently deleted successfully", null));
-        } else {
-            masterTenantService.softDeleteTenant(id);
-            return ResponseEntity.ok(ApiResponse.ok("Tenant soft-deleted (archived) successfully", null));
-        }
-    }
 }

@@ -269,9 +269,6 @@ function InvoicesContent({
                       <div className="font-bold text-slate-900 text-sm">
                         {inv.amount.toLocaleString("vi-VN")} ₫
                       </div>
-                      {inv.taxRate !== undefined && inv.taxRate > 0 && (
-                        <div className="text-[10px] text-slate-400">VAT {inv.taxRate}%</div>
-                      )}
                     </td>
 
                     <td className="p-4 whitespace-nowrap">

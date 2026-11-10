@@ -23,7 +23,7 @@ public class CreateConsultationRequest {
     @Size(max = 255, message = "Chức vụ tối đa 255 ký tự")
     private String jobTitle;
 
-    @NotBlank(message = "Email công vụ không được để trống")
+    @NotBlank(message = "Email liên hệ không được để trống")
     @Email(message = "Email không đúng định dạng")
     @Size(max = 255, message = "Email tối đa 255 ký tự")
     private String workEmail;

@@ -20,4 +20,7 @@ public interface TenantInfoRepository extends JpaRepository<TenantInfo, Long> {
     boolean existsBySubdomain(String subdomain);
     long countByStatus(String status);
     List<TenantInfo> findByStatus(String status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM TenantInfo t WHERE LOWER(t.contactEmail) = LOWER(:email) OR LOWER(t.billingEmail) = LOWER(:email)")
+    List<TenantInfo> findByEmailIgnoreCase(@org.springframework.data.repository.query.Param("email") String email);
 }

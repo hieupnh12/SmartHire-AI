@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileSignature, Building2, ShieldCheck, CreditCard, Loader2, Plus } from "lucide-react";
+import { type TenantInfo } from "@/api/master/masterAdminApi";
 import { useTenants, useSubscriptions, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
@@ -30,7 +31,6 @@ export function CreateContractPage() {
   const [contractPartyBEmail, setContractPartyBEmail] = useState("");
   const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState("");
   const [contractValue, setContractValue] = useState(36000000);
-  const contractTaxRate = 0;
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
@@ -43,18 +43,56 @@ export function CreateContractPage() {
   
   const [creatingContract, setCreatingContract] = useState(false);
   const [loadingLead, setLoadingLead] = useState(false);
+  const initializedDefaultTenantRef = useRef(false);
+
+  const clearPartyBFields = () => {
+    setContractPartyBName("");
+    setContractPartyBAddress("");
+    setContractPartyBTaxCode("");
+    setContractPartyBRepresentative("");
+    setContractPartyBPhone("");
+    setContractPartyBEmail("");
+  };
+
+  const applyTenantPartyB = (selectedT: TenantInfo, overwrite: boolean) => {
+    const realName = selectedT.companyLegalName?.trim() || selectedT.name || "";
+    const realAddress = selectedT.address?.trim() || "";
+    const realTaxCode = selectedT.taxCode?.trim() || "";
+    const realRep = selectedT.contactName?.trim() || "";
+    const realPhone = selectedT.contactPhone?.trim() || "";
+    const realEmail = selectedT.billingEmail?.trim() || selectedT.contactEmail?.trim() || "";
+
+    if (overwrite) {
+      setContractPartyBName(realName);
+      setContractPartyBAddress(realAddress);
+      setContractPartyBTaxCode(realTaxCode);
+      setContractPartyBRepresentative(realRep);
+      setContractPartyBPhone(realPhone);
+      setContractPartyBEmail(realEmail);
+    } else {
+      setContractPartyBName((prev) => prev || realName);
+      setContractPartyBAddress((prev) => prev || realAddress);
+      setContractPartyBTaxCode((prev) => prev || realTaxCode);
+      setContractPartyBRepresentative((prev) => prev || realRep);
+      setContractPartyBPhone((prev) => prev || realPhone);
+      setContractPartyBEmail((prev) => prev || realEmail);
+    }
+  };
 
   useEffect(() => {
-    // Set default tenant/plan if none selected
-    if (tenants.length > 0 && contractTenantId === "" && !leadId) {
-      setContractTenantId(tenants[0].id);
+    // Set default tenant/plan once if none selected
+    if (!initializedDefaultTenantRef.current && tenants.length > 0 && contractTenantId === "" && !leadId) {
+      initializedDefaultTenantRef.current = true;
+      const firstTenant = tenants[0];
+      setContractTenantId(firstTenant.id);
+      applyTenantPartyB(firstTenant, true);
     }
     if (plans.length > 0 && contractPlanId === "") {
       const defaultPlan = plans[0];
       setContractPlanId(defaultPlan.id || "");
       setContractValue(defaultPlan.priceYearly || 36000000);
     }
-  }, [tenants, plans, contractTenantId, contractPlanId]);
+  }, [tenants, plans, contractTenantId, contractPlanId, leadId]);
 
   useEffect(() => {
     if (leadId) {
@@ -67,12 +105,13 @@ export function CreateContractPage() {
           setContractPartyBRepresentative(lead.contactName);
           if (lead.phoneNumber) setContractPartyBPhone(lead.phoneNumber);
           if (lead.notes) setContractNotes(lead.notes);
-          
+
           // Tự động match Tenant nếu đã cấp phát (dựa theo tên)
           if (tenants && tenants.length > 0) {
             const matched = tenants.find(t => t.name.toLowerCase() === lead.companyName.toLowerCase());
             if (matched) {
               setContractTenantId(matched.id);
+              applyTenantPartyB(matched, false);
             }
           }
         } catch (error) {
@@ -103,7 +142,6 @@ export function CreateContractPage() {
         partyBEmail: contractPartyBEmail,
         partyBBankAccount: contractPartyBBankAccount,
         contractValue,
-        taxRate: contractTaxRate,
         currency: contractCurrency,
         startDate: contractStartDate,
         endDate: contractEndDate,
@@ -115,7 +153,7 @@ export function CreateContractPage() {
       triggerNotification("Tạo hợp đồng B2B thành công!");
       navigate("/admin/contracts"); // go back to list
     } catch (err: any) {
-      alert("Đã xảy ra lỗi khi tạo hợp đồng.");
+      toast.error(err?.response?.data?.message || "Đã xảy ra lỗi khi tạo hợp đồng.");
     } finally {
       setCreatingContract(false);
     }
@@ -166,21 +204,21 @@ export function CreateContractPage() {
                     disabled={!!leadId}
                     value={contractTenantId}
                   onChange={(e) => {
-                    const tId = Number(e.target.value);
+                    const rawVal = e.target.value;
+                    if (!rawVal) {
+                      setContractTenantId("");
+                      if (!leadId) {
+                        clearPartyBFields();
+                      }
+                      return;
+                    }
+                    const tId = Number(rawVal);
                     setContractTenantId(tId);
                     const selectedT = tenants.find((t) => t.id === tId);
                     if (selectedT) {
                       // Nếu đi từ trang Lead (có leadId) thì ưu tiên giữ data của Lead, không ghi đè.
-                      // Chỉ ghi đè nếu các ô đang trống hoặc không có leadId.
-                      if (!leadId) {
-                        setContractPartyBName(selectedT.name);
-                        setContractPartyBAddress(`Trụ sở chính ${selectedT.name}`);
-                        setContractPartyBEmail(`admin@${selectedT.subdomain}.com`);
-                      } else {
-                        if (!contractPartyBName) setContractPartyBName(selectedT.name);
-                        if (!contractPartyBAddress) setContractPartyBAddress(`Trụ sở chính ${selectedT.name}`);
-                        if (!contractPartyBEmail) setContractPartyBEmail(`admin@${selectedT.subdomain}.com`);
-                      }
+                      // Chỉ điền bổ sung từ dữ liệu thật của Tenant, không tự bịa email/địa chỉ.
+                      applyTenantPartyB(selectedT, !leadId);
                     }
                   }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
@@ -321,7 +359,7 @@ export function CreateContractPage() {
                   required
                   value={contractPartyBEmail}
                   onChange={(e) => setContractPartyBEmail(e.target.value)}
-                  placeholder="ceo@company.com"
+                  placeholder="contact@company.com hoặc name@gmail.com"
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-indigo-700 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
@@ -338,16 +376,16 @@ export function CreateContractPage() {
             </div>
           </div>
 
-          {/* SECTION 3: FINANCIAL VALUE & VAT */}
+          {/* SECTION 3: FINANCIAL VALUE */}
           <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-200 space-y-4">
             <div className="font-bold text-slate-900 text-sm uppercase flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-emerald-600" />
-              <span>3. Giá Trị Hợp Đồng & Thuế VAT Theo Luật Việt Nam</span>
+              <span>3. Giá Trị Hợp Đồng & Thanh Toán</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Giá Trị Trước Thuế *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">Giá Trị Hợp Đồng *</label>
                 <input
                   type="number"
                   required
@@ -356,12 +394,6 @@ export function CreateContractPage() {
                   onChange={(e) => setContractValue(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
                 />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Thuế GTGT (VAT)</label>
-                <div className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-100 font-medium text-slate-600 text-sm">
-                  Không chịu thuế GTGT (Khoản 21 Điều 4 TT 219/2013)
-                </div>
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1.5">Loại Tiền Tệ</label>
@@ -376,14 +408,9 @@ export function CreateContractPage() {
             </div>
 
             <div className="p-4 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-sm">
+              <span className="text-slate-500">Hình thức thanh toán: <strong className="text-slate-700">Chuyển khoản B2B (100% giá trị hợp đồng)</strong></span>
               <div>
-                <span className="text-slate-500">Quy định thuế: </span>
-                <span className="font-semibold text-slate-800">
-                  Dịch vụ phần mềm không chịu thuế GTGT
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-900">Tổng tiền thanh toán: </span>
+                <span className="font-bold text-slate-900">Tổng giá trị hợp đồng: </span>
                 <span className="font-mono font-bold text-emerald-600 text-lg ml-2">
                   {contractValue.toLocaleString("vi-VN")} ₫
                 </span>
