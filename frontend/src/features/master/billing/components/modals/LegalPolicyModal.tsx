@@ -242,16 +242,16 @@ export function LegalPolicyModal({
               {/* 3. THANH TOÁN VÀ HÓA ĐƠN */}
               <div className="space-y-2 pt-2">
                 <h2 className="font-bold text-[15px] uppercase text-black">
-                  3. GIÁ CẢ, PHƯƠNG THỨC THANH TOÁN VÀ HÓA ĐƠN VAT
+                  3. GIÁ CẢ, PHƯƠNG THỨC THANH TOÁN VÀ HÓA ĐƠN
                 </h2>
                 <p className="text-justify indent-6">
-                  <strong>3.1. Phí dịch vụ:</strong> Phí dịch vụ được niêm yết bằng Việt Nam Đồng (VNĐ) và có thể bao gồm thuế Giá trị gia tăng (VAT) theo quy định hiện hành.
+                  <strong>3.1. Phí dịch vụ:</strong> Phí dịch vụ được niêm yết rõ ràng bằng Việt Nam Đồng (VNĐ) theo từng gói cước và thời hạn thuê bao đã chọn.
                 </p>
                 <p className="text-justify indent-6">
                   <strong>3.2. Phương thức thanh toán:</strong> Quý Khách có thể thanh toán trực tuyến qua Chuyển khoản VietQR tức thì, Thẻ thanh toán quốc tế (Visa/MasterCard) hoặc Cổng thanh toán trực tuyến được tích hợp.
                 </p>
                 <p className="text-justify indent-6">
-                  <strong>3.3. Hóa đơn điện tử:</strong> SmartHire phát hành hóa đơn giá trị gia tăng điện tử hợp lệ theo đúng thông tin doanh nghiệp, mã số thuế và địa chỉ do Quý Khách cung cấp trong vòng 03 ngày làm việc kể từ khi giao dịch hoàn tất.
+                  <strong>3.3. Hóa đơn điện tử:</strong> SmartHire phát hành hóa đơn điện tử theo đúng thông tin doanh nghiệp, mã số thuế và địa chỉ do Quý Khách cung cấp trong vòng 03 ngày làm việc kể từ khi giao dịch hoàn tất.
                 </p>
               </div>
 

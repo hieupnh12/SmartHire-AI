@@ -5,6 +5,7 @@ import { LandingHeader } from "./LandingHeader";
 import { LandingFooter } from "./LandingFooter";
 import { DemoModal } from "./modals/DemoModal";
 import { WorkspaceModal } from "./modals/WorkspaceModal";
+import { OrderLookupModal } from "./modals/OrderLookupModal";
 
 function ScrollToTopOnRoute() {
   const { pathname } = useLocation();
@@ -57,6 +58,7 @@ export function LandingLayout({ children }: { children?: React.ReactNode }) {
         {/* SHARED MODALS */}
         <DemoModal />
         <WorkspaceModal />
+        <OrderLookupModal />
       </div>
     </LandingModalProvider>
   );

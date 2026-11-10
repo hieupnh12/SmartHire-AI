@@ -12,7 +12,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 |---|---|---|---|
 | MASTER-01 | Tenant Onboarding, Deferred Provisioning & Lifecycle | [Tenant-Onboarding](Authentication/Tenant-Onboarding.md) | Done |
 | MASTER-02 | Two-Tier B2B Subscription Plans, V27 Snapshot & Quotas | [Subscription-Plans-Quotas](Master-Platform/Subscription-Plans-Quotas.md) | Done |
-| MASTER-03 | Billing, VAT Invoicing & Payment Gateways (SePay/VNPay/PayPal) | [Billing-Invoicing-Payment](Master-Platform/Billing-Invoicing-Payment.md) | Done |
+| MASTER-03 | Billing, B2B Invoicing & Payment Gateways (SePay/VNPay/PayPal) | [Billing-Invoicing-Payment](Master-Platform/Billing-Invoicing-Payment.md) | Done |
 | MASTER-04 | Self-serve Checkout & Click-wrap Legal Consent (NĐ 13/2023/NĐ-CP) | [Checkout-Clickwrap-Consent](Master-Platform/Checkout-Clickwrap-Consent.md) | Done |
 | MASTER-05 | B2B Electronic Contracts & Dropbox Sign API v3 Integration | [B2B-EContracts-DropboxSign](Master-Platform/B2B-EContracts-DropboxSign.md) | Done |
 | MASTER-06 | Enterprise Sales Leads & 4-Step B2B Deal Wizard | [Sales-Leads-B2B-Deal-Wizard](Master-Platform/Sales-Leads-B2B-Deal-Wizard.md) | Done |

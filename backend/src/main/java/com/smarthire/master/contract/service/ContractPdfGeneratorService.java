@@ -175,34 +175,27 @@ public class ContractPdfGeneratorService {
 
             String currency = safe(contract.getCurrency(), "VND");
             BigDecimal value = contract.getContractValue() != null ? contract.getContractValue() : BigDecimal.ZERO;
-            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.ZERO;
-            BigDecimal taxAmount = contract.getTaxAmount() != null ? contract.getTaxAmount() : BigDecimal.ZERO;
             BigDecimal totalAmount = contract.getTotalAmount() != null && contract.getTotalAmount().compareTo(BigDecimal.ZERO) > 0
                     ? contract.getTotalAmount()
-                    : value.add(taxAmount);
+                    : value;
 
-            String vatDescription = taxRate.compareTo(BigDecimal.ZERO) == 0
-                    ? "Không chịu thuế GTGT (theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với dịch vụ phần mềm)."
-                    : formatMoney(taxAmount, currency) + " (VAT " + taxRate + "%).";
+            String amountWordsSuffix = StringUtils.hasText(contract.getAmountInWords())
+                    ? " (Bằng chữ: " + contract.getAmountInWords().trim() + ")"
+                    : "";
 
-            Paragraph art2Body1 = new Paragraph("2.1. Chi phí bản quyền dịch vụ: " + formatMoney(value, currency) + ".", fontBody);
-            Paragraph art2Body2 = new Paragraph("2.2. Thuế GTGT: " + vatDescription, fontBody);
-            Paragraph art2Body3 = new Paragraph(
-                    "2.3. Tổng số tiền thanh toán: " + formatMoney(totalAmount, currency)
-                            + " (Bằng chữ: " + safe(contract.getAmountInWords(), "Không chịu thuế GTGT") + ").",
+            Paragraph art2Body1 = new Paragraph(
+                    "2.1. Tổng giá trị hợp đồng (Chi phí bản quyền dịch vụ): " + formatMoney(totalAmount, currency) + amountWordsSuffix + ".",
                     fontBodyBold);
-            Paragraph art2Body4 = new Paragraph(
-                    "2.4. Thời hạn thanh toán: Bên B thanh toán 100% giá trị hợp đồng bằng phương thức chuyển khoản vào tài khoản ngân hàng của Bên A trong vòng 05 (năm) ngày làm việc kể từ ngày hai bên hoàn tất ký số hợp đồng.",
+            Paragraph art2Body2 = new Paragraph(
+                    "2.2. Thời hạn thanh toán: Bên B thanh toán 100% giá trị hợp đồng bằng phương thức chuyển khoản vào tài khoản ngân hàng của Bên A trong vòng 05 (năm) ngày làm việc kể từ ngày hai bên hoàn tất ký số hợp đồng.",
                     fontBody);
-            Paragraph art2Body5 = new Paragraph(
-                    "2.5. Bên A kích hoạt quyền truy cập Workspace và bàn giao tài khoản Master Admin cho Bên B ngay sau khi nhận được thông báo ghi có từ ngân hàng.",
+            Paragraph art2Body3 = new Paragraph(
+                    "2.3. Bên A kích hoạt quyền truy cập Workspace và bàn giao tài khoản Master Admin cho Bên B ngay sau khi nhận được thông báo ghi có từ ngân hàng.",
                     fontBody);
-            art2Body5.setSpacingAfter(6f);
+            art2Body3.setSpacingAfter(6f);
             document.add(art2Body1);
             document.add(art2Body2);
             document.add(art2Body3);
-            document.add(art2Body4);
-            document.add(art2Body5);
 
             // 7. ĐIỀU 3: CAM KẾT MỨC DỊCH VỤ (SLA) & BẢO VỆ DỮ LIỆU CÁ NHÂN
             Paragraph art3 = new Paragraph("ĐIỀU 3: CAM KẾT MỨC DỊCH VỤ (SLA) & BẢO VỆ DỮ LIỆU CÁ NHÂN", fontSectionTitle);

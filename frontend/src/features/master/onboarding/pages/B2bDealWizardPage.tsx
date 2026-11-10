@@ -954,13 +954,13 @@ export function B2bDealWizardPageContent() {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => navigate(isQuote ? "/admin/consultations" : "/admin/tenants/directory")}
+              onClick={() => navigate(isQuote ? "/admin/leads" : "/admin/tenants/directory")}
               className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
             >
               {isQuote ? "Về Danh sách Yêu cầu Tư vấn (Leads)" : "Về Danh bạ Doanh nghiệp"}
             </button>
             <button
-              onClick={() => navigate(isQuote ? "/admin/plans" : (successData.closingMethod === "INVOICE" ? "/admin/invoices" : "/admin/contracts"))}
+              onClick={() => navigate(isQuote ? "/admin/subscriptions/plans" : (successData.closingMethod === "INVOICE" ? "/admin/invoices" : "/admin/contracts"))}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-md"
             >
               {isQuote ? "Xem Quản lý Gói cước" : (successData.closingMethod === "INVOICE" ? "Xem Hóa đơn vừa tạo" : "Xem Hợp đồng vừa tạo")}
@@ -1226,7 +1226,7 @@ export function B2bDealWizardPageContent() {
                   <div className="grid sm:grid-cols-2 gap-6 bg-slate-50 rounded-2xl p-5 border border-slate-200 animate-in fade-in">
                     <div className="sm:col-span-2">
                       <h3 className="font-bold text-slate-900 text-sm mb-4">
-                        {form.watch("closingMethod") === "INVOICE" ? "Thông tin Xuất Hóa Đơn VAT" : "Thông tin Pháp lý Hợp đồng (Bên B)"}
+                        {form.watch("closingMethod") === "INVOICE" ? "Thông tin Xuất Hóa Đơn B2B" : "Thông tin Pháp lý Hợp đồng (Bên B)"}
                       </h3>
                     </div>
 

@@ -11,6 +11,9 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantTheme } from "@/lib/tenantTheme";
+import { MobileAppSyncCard } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
   NEW: "Đã nộp", IN_REVIEW: "Đang xem xét", ASSESSMENT: "Bài đánh giá", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp",
   OFFER: "Đề nghị nhận việc", HIRED: "Đã tuyển", REJECTED: "Không phù hợp", FAILED: "Kết thúc quy trình", WITHDRAWN: "Đã rút",
@@ -24,6 +27,8 @@ const FILTERS: { value: "ALL" | ApplicationStatus; label: string }[] = [
 ];
 
 export function MyApplicationsPage() {
+  const tenantCode = getTenantIdFromWindow() || "acme";
+  const theme = getTenantTheme(tenantCode);
   const token = useAuthStore((state) => state.accessToken);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"ALL" | ApplicationStatus>("ALL");
@@ -54,6 +59,8 @@ export function MyApplicationsPage() {
           <div className="w-fit rounded-2xl border border-[var(--color-primary)]/15 bg-white/80 px-4 py-3 text-right"><strong className="block text-2xl text-[var(--color-primary)]">{activeRows.length}</strong><span className="text-xs text-[var(--color-on-surface-variant)]">đơn đang theo dõi</span></div>
         </div>
       </header>
+
+      <MobileAppSyncCard variant="compact" tenantName={theme.name} tenantCode={tenantCode} />
 
       {mine.isSuccess && activeRows.length > 0 && (
         <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-[var(--shadow-card)]">

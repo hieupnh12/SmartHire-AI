@@ -61,7 +61,7 @@ export function InvoiceDetailModal({
 
           {selectedInvoice.billingAddress && (
             <div className="flex justify-between pb-2 border-b border-slate-200/70">
-              <span className="text-slate-500">Địa Chỉ Thuế:</span>
+              <span className="text-slate-500">Địa Chỉ Xuất HĐ:</span>
               <span className="text-slate-800 text-right max-w-xs">{selectedInvoice.billingAddress}</span>
             </div>
           )}

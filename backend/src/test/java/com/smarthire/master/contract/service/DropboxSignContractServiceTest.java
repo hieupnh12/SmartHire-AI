@@ -2,8 +2,12 @@ package com.smarthire.master.contract.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.smarthire.domain.master.entity.ConsultationRequest;
 import com.smarthire.domain.master.entity.Contract;
 import com.smarthire.domain.master.entity.ContractSignature;
+import com.smarthire.domain.master.entity.TenantInfo;
+import com.smarthire.domain.master.entity.TenantSubscription;
 import com.smarthire.domain.master.repository.*;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.notification.messaging.MasterNotificationPublisher;
@@ -84,9 +88,7 @@ class DropboxSignContractServiceTest {
                 .contractNumber("CTR-202610-0010")
                 .title("Hợp đồng cung cấp dịch vụ nền tảng SmartHire-AI")
                 .contractValue(new BigDecimal("50000000"))
-                .taxRate(new BigDecimal("10"))
-                .taxAmount(new BigDecimal("5000000"))
-                .totalAmount(new BigDecimal("55000000"))
+                .totalAmount(new BigDecimal("50000000"))
                 .currency("VND")
                 .startDate(LocalDate.of(2026, 10, 1))
                 .endDate(LocalDate.of(2027, 10, 1))
@@ -141,7 +143,7 @@ class DropboxSignContractServiceTest {
                 .planId(2L)
                 .title("Hợp đồng B2B Enterprise")
                 .contractValue(new BigDecimal("100000000"))
-                .totalAmount(new BigDecimal("110000000"))
+                .totalAmount(new BigDecimal("100000000"))
                 .currency("VND")
                 .status("PENDING_SIGNATURE")
                 .externalSignatureRequestId("req_abc_999")
@@ -203,6 +205,279 @@ class DropboxSignContractServiceTest {
     }
 
     @Test
+    void handleDropboxSignWebhook_whenDeclined_marksRejectedCancelsSubAndReleasesTenantSubdomain() throws Exception {
+        String eventTime = "1728500456";
+        String eventType = "signature_request_declined";
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(TEST_API_KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String eventHash = HexFormat.of().formatHex(
+                mac.doFinal((eventTime + eventType).getBytes(StandardCharsets.UTF_8))
+        );
+
+        Contract contract = Contract.builder()
+                .id(41L)
+                .contractNumber("CTR-202611-0041")
+                .tenantId(10L)
+                .planId(2L)
+                .consultationRequestId(77L)
+                .title("Hợp đồng B2B Enterprise")
+                .contractValue(new BigDecimal("100000000"))
+                .totalAmount(new BigDecimal("100000000"))
+                .currency("VND")
+                .status("PENDING_SIGNATURE")
+                .externalSignatureRequestId("req_dec_001")
+                .partyBEmail("ceo@acme.vn")
+                .partyBName("Công ty CP Acme")
+                .build();
+
+        ContractSignature sig = ContractSignature.builder()
+                .id(101L)
+                .contractId(41L)
+                .signerName("Nguyễn Văn A")
+                .signerEmail("ceo@acme.vn")
+                .signerTitle("Giám Đốc")
+                .status("PENDING")
+                .externalSignatureId("sig_dec_001")
+                .build();
+
+        TenantSubscription pendingSub = TenantSubscription.builder()
+                .id(201L)
+                .tenantId(10L)
+                .planId(2L)
+                .status("PENDING")
+                .build();
+
+        TenantInfo pendingTenant = TenantInfo.builder()
+                .id(10L)
+                .code("acme")
+                .name("Công ty CP Acme")
+                .subdomain("acme")
+                .dbName("smarthire_tenant_acme")
+                .status("PENDING_PAYMENT")
+                .deleted(false)
+                .build();
+
+        ConsultationRequest lead = ConsultationRequest.builder()
+                .id(77L)
+                .companyName("Công ty CP Acme")
+                .status("PROVISIONED")
+                .build();
+
+        when(contractRepository.findByExternalSignatureRequestId("req_dec_001")).thenReturn(Optional.of(contract));
+        when(signatureRepository.findByContractIdAndStatus(41L, "PENDING")).thenReturn(Optional.of(sig));
+        when(subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(10L, "PENDING"))
+                .thenReturn(Optional.of(pendingSub));
+        when(tenantInfoRepository.findById(10L)).thenReturn(Optional.of(pendingTenant));
+        when(consultationRequestRepository.findById(77L)).thenReturn(Optional.of(lead));
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String webhookJson = """
+                {
+                  "event": {
+                    "event_type": "signature_request_declined",
+                    "event_time": "%s",
+                    "event_hash": "%s"
+                  },
+                  "signature_request": {
+                    "signature_request_id": "req_dec_001",
+                    "is_complete": false,
+                    "is_declined": true,
+                    "is_canceled": false,
+                    "signatures": [
+                      {
+                        "signature_id": "sig_dec_001",
+                        "signer_email_address": "ceo@acme.vn",
+                        "signer_name": "Nguyễn Văn A",
+                        "status_code": "declined"
+                      }
+                    ]
+                  }
+                }
+                """.formatted(eventTime, eventHash);
+
+        String response = masterContractService.handleDropboxSignWebhook(webhookJson, "203.0.113.20");
+
+        assertThat(response).isEqualTo("Hello API Event Received");
+        assertThat(contract.getStatus()).isEqualTo("REJECTED");
+        assertThat(sig.getStatus()).isEqualTo("REJECTED");
+        assertThat(pendingSub.getStatus()).isEqualTo("CANCELED");
+        assertThat(pendingSub.getCancelReason()).isEqualTo("CONTRACT_DECLINED_CTR-202611-0041");
+        assertThat(pendingTenant.getStatus()).isEqualTo("CANCELLED");
+        assertThat(pendingTenant.isDeleted()).isTrue();
+        assertThat(pendingTenant.getDeletedAt()).isNotNull();
+        assertThat(pendingTenant.getSubdomain()).isEqualTo("released_10_acme");
+        assertThat(pendingTenant.getCode()).isEqualTo("released_10_acme");
+        assertThat(pendingTenant.getDbName()).isEqualTo("smarthire_tenant_released_10_acme");
+        assertThat(lead.getStatus()).isEqualTo("REJECTED");
+        verify(tenantInfoRepository).save(pendingTenant);
+    }
+
+    @Test
+    void handleDropboxSignWebhook_whenDeclinedForActiveTenant_doesNotArchiveOrReleaseTenant() throws Exception {
+        String eventTime = "1728500457";
+        String eventType = "signature_request_declined";
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(TEST_API_KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String eventHash = HexFormat.of().formatHex(
+                mac.doFinal((eventTime + eventType).getBytes(StandardCharsets.UTF_8))
+        );
+
+        Contract contract = Contract.builder()
+                .id(42L)
+                .contractNumber("CTR-202611-0042")
+                .tenantId(11L)
+                .planId(2L)
+                .title("Hợp đồng gia hạn Enterprise")
+                .contractValue(new BigDecimal("100000000"))
+                .totalAmount(new BigDecimal("100000000"))
+                .currency("VND")
+                .status("PENDING_SIGNATURE")
+                .externalSignatureRequestId("req_dec_active_002")
+                .build();
+
+        TenantInfo activeTenant = TenantInfo.builder()
+                .id(11L)
+                .code("globex")
+                .name("Globex Corp")
+                .subdomain("globex")
+                .dbName("smarthire_tenant_globex")
+                .status("ACTIVE")
+                .deleted(false)
+                .build();
+
+        when(contractRepository.findByExternalSignatureRequestId("req_dec_active_002")).thenReturn(Optional.of(contract));
+        when(signatureRepository.findByContractIdAndStatus(42L, "PENDING")).thenReturn(Optional.empty());
+        when(subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(11L, "PENDING"))
+                .thenReturn(Optional.empty());
+        when(tenantInfoRepository.findById(11L)).thenReturn(Optional.of(activeTenant));
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String webhookJson = """
+                {
+                  "event": {
+                    "event_type": "signature_request_declined",
+                    "event_time": "%s",
+                    "event_hash": "%s"
+                  },
+                  "signature_request": {
+                    "signature_request_id": "req_dec_active_002",
+                    "is_complete": false,
+                    "is_declined": true,
+                    "is_canceled": false
+                  }
+                }
+                """.formatted(eventTime, eventHash);
+
+        masterContractService.handleDropboxSignWebhook(webhookJson, "203.0.113.21");
+
+        assertThat(contract.getStatus()).isEqualTo("REJECTED");
+        assertThat(activeTenant.getStatus()).isEqualTo("ACTIVE");
+        assertThat(activeTenant.isDeleted()).isFalse();
+        assertThat(activeTenant.getSubdomain()).isEqualTo("globex");
+        assertThat(activeTenant.getCode()).isEqualTo("globex");
+        assertThat(activeTenant.getDbName()).isEqualTo("smarthire_tenant_globex");
+        verify(tenantInfoRepository, never()).save(any(TenantInfo.class));
+    }
+
+    @Test
+    void syncDropboxSignStatus_whenCanceledOnDropboxSign_marksTerminatedAndReleasesPendingTenant() throws Exception {
+        Contract contract = Contract.builder()
+                .id(43L)
+                .contractNumber("CTR-202611-0043")
+                .tenantId(12L)
+                .planId(2L)
+                .consultationRequestId(78L)
+                .title("Hợp đồng B2B Tùy chỉnh")
+                .contractValue(new BigDecimal("80000000"))
+                .totalAmount(new BigDecimal("80000000"))
+                .currency("VND")
+                .status("PENDING_SIGNATURE")
+                .externalSignatureRequestId("req_can_003")
+                .build();
+
+        TenantSubscription pendingSub = TenantSubscription.builder()
+                .id(202L)
+                .tenantId(12L)
+                .planId(2L)
+                .status("PENDING")
+                .build();
+
+        TenantInfo pendingTenant = TenantInfo.builder()
+                .id(12L)
+                .code("beta")
+                .name("Beta JSC")
+                .subdomain("beta")
+                .dbName("smarthire_tenant_beta")
+                .status("PENDING_PAYMENT")
+                .deleted(false)
+                .build();
+
+        ConsultationRequest lead = ConsultationRequest.builder()
+                .id(78L)
+                .companyName("Beta JSC")
+                .status("PROVISIONED")
+                .build();
+
+        JsonNode sigReqNode = new ObjectMapper().readTree("""
+                {
+                  "signature_request_id": "req_can_003",
+                  "is_complete": false,
+                  "is_declined": false,
+                  "is_canceled": true,
+                  "signatures": [
+                    {
+                      "signature_id": "sig_can_003",
+                      "signer_email_address": "admin@beta.vn",
+                      "signer_name": "Lê Thị C",
+                      "status_code": "awaiting_signature"
+                    }
+                  ]
+                }
+                """);
+        DropboxSignClient.DropboxSignStatusResult parsedStatus = dropboxSignClient.parseSignatureRequestStatusNode(sigReqNode);
+        assertThat(parsedStatus.isCanceled()).isTrue();
+
+        when(contractRepository.findById(43L)).thenReturn(Optional.of(contract));
+        doReturn(parsedStatus).when(dropboxSignClient).getSignatureRequestStatus("req_can_003");
+        when(signatureRepository.findByContractIdAndStatus(43L, "PENDING")).thenReturn(Optional.empty());
+        when(subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(12L, "PENDING"))
+                .thenReturn(Optional.of(pendingSub));
+        when(tenantInfoRepository.findById(12L)).thenReturn(Optional.of(pendingTenant));
+        when(consultationRequestRepository.findById(78L)).thenReturn(Optional.of(lead));
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = masterContractService.syncDropboxSignStatus(43L, "127.0.0.1");
+
+        assertThat(result.getStatus()).isEqualTo("TERMINATED");
+        assertThat(pendingSub.getStatus()).isEqualTo("CANCELED");
+        assertThat(pendingSub.getCancelReason()).isEqualTo("CONTRACT_CANCELED_CTR-202611-0043");
+        assertThat(pendingTenant.getStatus()).isEqualTo("CANCELLED");
+        assertThat(pendingTenant.isDeleted()).isTrue();
+        assertThat(pendingTenant.getSubdomain()).isEqualTo("released_12_beta");
+        assertThat(pendingTenant.getCode()).isEqualTo("released_12_beta");
+        assertThat(pendingTenant.getDbName()).isEqualTo("smarthire_tenant_released_12_beta");
+        assertThat(lead.getStatus()).isEqualTo("CONTACTED");
+    }
+
+    @Test
+    void sendContract_whenRejectedOrTerminated_throwsBusinessException() {
+        Contract rejected = Contract.builder()
+                .id(44L)
+                .contractNumber("CTR-202611-0044")
+                .status("REJECTED")
+                .partyBEmail("test@acme.vn")
+                .build();
+
+        when(contractRepository.findById(44L)).thenReturn(Optional.of(rejected));
+
+        assertThatThrownBy(() -> masterContractService.sendContract(44L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("từ chối hoặc chấm dứt");
+    }
+
+    @Test
     void syncDropboxSignStatus_whenMissingExternalRequestId_throwsBusinessException() {
         Contract contract = Contract.builder()
                 .id(30L)
@@ -215,6 +490,33 @@ class DropboxSignContractServiceTest {
         assertThatThrownBy(() -> masterContractService.syncDropboxSignStatus(30L, "127.0.0.1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Dropbox Sign");
+    }
+
+    @Test
+    void createContract_setsTotalAmountEqualToContractValueWithoutTax() {
+        var req = com.smarthire.master.contract.dto.CreateContractRequest.builder()
+                .title("Hợp đồng B2B không tính thuế VAT")
+                .contractValue(new BigDecimal("36000000"))
+                .currency("VND")
+                .startDate(LocalDate.of(2026, 11, 1))
+                .endDate(LocalDate.of(2027, 11, 1))
+                .partyBName("Công ty TNHH Alpha")
+                .partyBTaxCode("0101234567")
+                .partyBEmail("alpha@example.com")
+                .build();
+
+        when(contractRepository.findByContractNumber(any())).thenReturn(Optional.empty());
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> {
+            Contract saved = inv.getArgument(0);
+            saved.setId(55L);
+            return saved;
+        });
+
+        var res = masterContractService.createContract(req);
+
+        assertThat(res.getContractValue()).isEqualByComparingTo("36000000");
+        assertThat(res.getTotalAmount()).isEqualByComparingTo("36000000");
+        assertThat(res.getAmountInWords()).contains("Đồng").doesNotContain("thuế").doesNotContain("GTGT").doesNotContain("VAT");
     }
 
     @Test
@@ -245,10 +547,8 @@ class DropboxSignContractServiceTest {
                 .contractNumber("CTR-SANDBOX-202610")
                 .title("Hợp đồng cung cấp dịch vụ nền tảng tuyển dụng SmartHire-AI")
                 .contractValue(new BigDecimal("120000000"))
-                .taxRate(new BigDecimal("10"))
-                .taxAmount(new BigDecimal("12000000"))
-                .totalAmount(new BigDecimal("132000000"))
-                .amountInWords("Một trăm ba mươi hai triệu đồng chẵn")
+                .totalAmount(new BigDecimal("120000000"))
+                .amountInWords("Một trăm hai mươi triệu đồng chẵn")
                 .currency("VND")
                 .startDate(LocalDate.of(2026, 10, 9))
                 .endDate(LocalDate.of(2027, 10, 9))

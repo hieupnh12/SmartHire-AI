@@ -17,10 +17,13 @@ public record TenantResponse(Long id, String code, String name, String subdomain
     }
 
     public static TenantResponse from(TenantInfo tenant, String activationUrl) {
+        String effectiveAddress = (tenant.getAddress() != null && !tenant.getAddress().isBlank())
+                ? tenant.getAddress()
+                : tenant.getBillingAddress();
         return new TenantResponse(tenant.getId(), tenant.getCode(), tenant.getName(), tenant.getSubdomain(),
                 tenant.getDbName(), tenant.getStatus(), tenant.getEnvironmentType(), tenant.getCreatedAt(),
                 tenant.getContactName(), tenant.getContactEmail(), tenant.getContactPhone(), tenant.getBillingEmail(),
-                tenant.getCompanyLegalName(), tenant.getTaxCode(), tenant.getAddress(), tenant.getWebsite(),
+                tenant.getCompanyLegalName(), tenant.getTaxCode(), effectiveAddress, tenant.getWebsite(),
                 tenant.getIndustry(), tenant.getCompanySize(), tenant.isManagedDatabase(),
                 tenant.isDeleted(), tenant.getDeletedAt(), activationUrl);
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import {
   CheckCircle2,
   Copy,
@@ -25,6 +25,8 @@ const CURRENT_POLICY_VERSION = "v2026.10";
 
 export function CheckoutPage() {
   const { planCode } = useParams<{ planCode: string }>();
+  const [searchParams] = useSearchParams();
+  const invoiceParam = searchParams.get("invoice") || searchParams.get("invoiceId") || searchParams.get("invoiceNumber");
   // Wizard Step: 1 = Đặt hàng, 2 = Thanh toán, 3 = Kích hoạt
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
@@ -40,8 +42,8 @@ export function CheckoutPage() {
   const [adminFullName, setAdminFullName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
-  // Invoice & VAT info
-  const [needVatInvoice, setNeedVatInvoice] = useState(false);
+  // B2B Invoice info
+  const [needCompanyInvoice, setNeedCompanyInvoice] = useState(false);
   const [companyLegalName, setCompanyLegalName] = useState("");
   const [taxCode, setTaxCode] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
@@ -88,6 +90,34 @@ export function CheckoutPage() {
 
     return () => clearInterval(pollInterval);
   }, [currentStep, orderResult?.invoiceId]);
+
+  // If invoiceId or invoice is provided in URL (e.g. from Order Lookup), load the pending order directly into Step 2
+  useEffect(() => {
+    if (!invoiceParam) return;
+    setLoading(true);
+    checkoutApi.getOrderDetails(invoiceParam)
+      .then((data) => {
+        if (data) {
+          setOrderResult(data);
+          if (data.planCode) {
+            setSelectedPlanCode(data.planCode.toUpperCase());
+          }
+          if (data.status === "PAID") {
+            setCurrentStep(3);
+          } else if (data.status === "CANCELLED") {
+            setCurrentStep(2);
+            setErrorMsg("Đơn hàng này đã quá hạn thanh toán 7 ngày và đã bị hủy. Tên miền phụ (subdomain) đã được giải phóng để người dùng khác có thể đăng ký.");
+          } else {
+            setCurrentStep(2);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load invoice order details", err);
+        setErrorMsg("Không tìm thấy thông tin đơn hàng này hoặc đơn hàng không tồn tại.");
+      })
+      .finally(() => setLoading(false));
+  }, [invoiceParam]);
 
   // Fetch public plans
   useEffect(() => {
@@ -222,9 +252,9 @@ export function CheckoutPage() {
         adminFullName: adminFullName.trim(),
         adminEmail: adminEmail.trim(),
         adminPhone: adminPhone.trim(),
-        taxCode: needVatInvoice ? taxCode.trim() : undefined,
-        companyLegalName: needVatInvoice ? companyLegalName.trim() : undefined,
-        billingAddress: needVatInvoice ? billingAddress.trim() : undefined,
+        taxCode: needCompanyInvoice ? taxCode.trim() : undefined,
+        companyLegalName: needCompanyInvoice ? companyLegalName.trim() : undefined,
+        billingAddress: needCompanyInvoice ? billingAddress.trim() : undefined,
         notes: notes.trim() || undefined,
         quantity: quantity,
         termsAccepted: isTermsAccepted,
@@ -591,17 +621,17 @@ export function CheckoutPage() {
                     />
                   </div>
                 </div>
-                {/* 3. THÔNG TIN XUẤT HÓA ĐƠN VAT */}
+                {/* 3. THÔNG TIN XUẤT HÓA ĐƠN DOANH NGHIỆP */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h2 className="text-base font-bold text-slate-900">Thông Tin Xuất Hóa Đơn VAT (Tùy chọn)</h2>
+                    <h2 className="text-base font-bold text-slate-900">Thông Tin Xuất Hóa Đơn Doanh Nghiệp (Tùy chọn)</h2>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={needVatInvoice}
+                        checked={needCompanyInvoice}
                         onChange={(e) => {
                           const checked = e.target.checked;
-                          setNeedVatInvoice(checked);
+                          setNeedCompanyInvoice(checked);
                           if (checked) {
                             if (!companyLegalName && workspaceName) setCompanyLegalName(workspaceName);
                           }
@@ -611,7 +641,7 @@ export function CheckoutPage() {
                       <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
-                  {needVatInvoice && (
+                  {needCompanyInvoice && (
                     <div className="space-y-4 pt-1 animate-fade-in">
                       <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1.5">
@@ -983,15 +1013,28 @@ export function CheckoutPage() {
           <div className="animate-fade-in max-w-5xl mx-auto">
             <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 p-6 sm:p-8 lg:p-10 shadow-sm">
               {/* Header: ← Thông tin thanh toán */}
-              <div className="mb-6">
+              <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => {
+                    if (invoiceParam) {
+                      window.location.href = "/pricing";
+                    } else {
+                      setCurrentStep(1);
+                    }
+                  }}
                   className="inline-flex items-center gap-2.5 text-lg sm:text-xl font-bold text-slate-900 hover:text-blue-600 transition-colors group"
                 >
                   <ArrowLeft className="w-5 h-5 text-slate-800 group-hover:-translate-x-0.5 transition-transform" />
-                  <span>Thông tin thanh toán</span>
+                  <span>{invoiceParam ? "Quay lại Bảng giá" : "Thông tin thanh toán"}</span>
                 </button>
+
+                {invoiceParam && (
+                  <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full font-medium inline-flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                    Đang thanh toán đơn hàng #{orderResult?.invoiceNumber}
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
@@ -1407,10 +1450,10 @@ export function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* Thông tin xuất hóa đơn (CHỈ HIỂN THỊ KHI NGƯỜI DÙNG CÓ YÊU CẦU XUẤT HÓA ĐƠN VAT) */}
-                  {needVatInvoice && (taxCode || companyLegalName || billingAddress) ? (
+                  {/* Thông tin xuất hóa đơn (CHỈ HIỂN THỊ KHI NGƯỜI DÙNG CÓ YÊU CẦU XUẤT HÓA ĐƠN DOANH NGHIỆP) */}
+                  {needCompanyInvoice && (taxCode || companyLegalName || billingAddress) ? (
                     <div>
-                      <h3 className="text-base font-bold text-slate-900 mb-3">Thông tin xuất hóa đơn VAT</h3>
+                      <h3 className="text-base font-bold text-slate-900 mb-3">Thông tin xuất hóa đơn</h3>
                       <div className="space-y-2 text-xs sm:text-[13px]">
                         {taxCode && (
                           <div className="flex items-baseline gap-2">
