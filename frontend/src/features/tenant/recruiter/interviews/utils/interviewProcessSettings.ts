@@ -37,18 +37,20 @@ const defaults: Record<InterviewProcessConfig["key"], Record<string, unknown>> =
     followUpSettingVersion: 1, topic: "JOB_REQUIREMENTS", technicalKnowledgeWeight: 25, problemSolvingWeight: 25, reasoningWeight: 25, communicationWeight: 25, assessmentFocus: "" },
 };
 
-export function normalizeProcesses(processes: InterviewProcessConfig[]): InterviewProcessConfig[] {
-  return defaultProcesses().map(fallback => processes.find(process => process.key === fallback.key) ?? fallback).map((process, index) => {
-    const base = defaults[process.key];
+export function normalizeProcesses(processes?: InterviewProcessConfig[] | null): InterviewProcessConfig[] {
+  const list = Array.isArray(processes) ? processes : [];
+  return defaultProcesses().map(fallback => list.find(process => process?.key === fallback.key) ?? fallback).map((process, index) => {
+    const base = defaults[process.key] ?? defaults.COMMUNICATION;
+    const pConfig = (process && typeof process.config === "object" && process.config !== null) ? process.config : {};
     const config = Object.fromEntries(Object.entries(base).map(([key, fallback]) => {
       const value = (key === "questionCount"
-        ? process.config.questionCount ?? process.config.problemCount ?? process.config.mainQuestionCount ?? process.config.scenarioCount ?? process.config.conversationTopics
-        : process.config[key]) ?? fallback;
+        ? pConfig.questionCount ?? pConfig.problemCount ?? pConfig.mainQuestionCount ?? pConfig.scenarioCount ?? pConfig.conversationTopics
+        : pConfig[key]) ?? fallback;
       return [key, typeof fallback === "number" ? Number(value) : typeof fallback === "boolean" ? value === true || value === "true" : String(value)];
     }));
     // These controls are explicitly marked unavailable in the form.
     if (process.key === AVAILABLE_INTERVIEW_PROCESS) {
-      if (Number(process.config.followUpSettingVersion ?? 0) < 1) config.followUpEnabled = true;
+      if (Number(pConfig.followUpSettingVersion ?? 0) < 1) config.followUpEnabled = true;
       config.followUpSettingVersion = 1;
       config.realTimeInteraction = false;
       if (Number(config.maxFollowUp) < 2) config.maxFollowUp = 2;
@@ -62,13 +64,18 @@ export function defaultProcesses(): InterviewProcessConfig[] {
   return Object.entries(defaults).map(([key, config], index) => ({ key: key as InterviewProcessConfig["key"], enabled: key === AVAILABLE_INTERVIEW_PROCESS, order: index + 1, weight: key === AVAILABLE_INTERVIEW_PROCESS ? 100 : 0, config: { ...config } }));
 }
 
-export function processCount(processes: InterviewProcessConfig[]) {
-  return processes.filter(process => process.enabled).reduce((sum, process) => sum + (process.key === AVAILABLE_INTERVIEW_PROCESS
-    ? conversationQuestionCount(process.config) : Number(process.config.questionCount)), 0);
+export function processCount(processes?: InterviewProcessConfig[] | null) {
+  const list = Array.isArray(processes) ? processes : [];
+  return list.filter(process => process?.enabled).reduce((sum, process) => {
+    const pConfig = process?.config ?? {};
+    return sum + (process.key === AVAILABLE_INTERVIEW_PROCESS
+      ? conversationQuestionCount(pConfig) : Number(pConfig.questionCount || 0));
+  }, 0);
 }
 
-export function conversationQuestionCount(config: Record<string, unknown>) {
-  return 1 + (config.followUpEnabled === true || config.followUpEnabled === "true" ? Number(config.maxFollowUp ?? 2) : 0);
+export function conversationQuestionCount(config?: Record<string, unknown> | null) {
+  const safe = config ?? {};
+  return 1 + (safe.followUpEnabled === true || safe.followUpEnabled === "true" ? Number(safe.maxFollowUp ?? 2) : 0);
 }
 
 export function visibleInterviewDetails(interview: AiInterview): AiInterview {

@@ -47,8 +47,8 @@ export function InterviewConfigurationTabs({
 
   const client = useQueryClient();
   const form = useForm<ConfigValues>({ resolver: zodResolver(configSchema), defaultValues: toFormValues(config) });
-  const [processes, setProcesses] = useState<InterviewProcessConfig[]>(() => normalizeProcesses(config.policy.processes ?? defaultProcesses()));
-  const [exerciseDirty, setExerciseDirty] = useState(() => JSON.stringify(config.policy.processes ?? []) !== JSON.stringify(normalizeProcesses(config.policy.processes ?? defaultProcesses())));
+  const [processes, setProcesses] = useState<InterviewProcessConfig[]>(() => normalizeProcesses(config?.policy?.processes ?? defaultProcesses()));
+  const [exerciseDirty, setExerciseDirty] = useState(() => JSON.stringify(config?.policy?.processes ?? []) !== JSON.stringify(normalizeProcesses(config?.policy?.processes ?? defaultProcesses())));
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const processesRef = useRef(processes);
 
@@ -60,22 +60,29 @@ export function InterviewConfigurationTabs({
   }, [form, processes]);
 
   useEffect(() => {
-    const selectedSkills = form.getValues("policy.selectedSkills");
-    if (selectedSkills.length === 0 && jobSkills.length > 0) {
+    const selectedSkills = form.getValues("policy.selectedSkills") ?? [];
+    if (selectedSkills.length === 0 && (jobSkills ?? []).length > 0) {
       form.setValue("policy.selectedSkills", jobSkills, { shouldDirty: false, shouldValidate: true });
     }
   }, [form, jobSkills]);
 
-  const communication = processes.find(process => process.key === "COMMUNICATION")!;
-  const assessmentValidation = conversationAssessmentSchema.safeParse(communication.config);
-  const totalWeight = ASSESSMENT_CRITERIA.reduce((total, criterion) => total + (Number(communication.config[criterion.key]) || 0), 0);
+  const communication = processes.find(process => process.key === "COMMUNICATION") ?? {
+    key: "COMMUNICATION",
+    enabled: true,
+    order: 1,
+    weight: 100,
+    config: {},
+  };
+  const commConfig = (communication.config ?? {}) as Record<string, unknown>;
+  const assessmentValidation = conversationAssessmentSchema.safeParse(commConfig);
+  const totalWeight = ASSESSMENT_CRITERIA.reduce((total, criterion) => total + (Number(commConfig[criterion.key]) || 0), 0);
 
   const save = useMutation({
     mutationFn: (values: ConfigValues) => aiInterviewApi.saveConfig(jobId, request(values, processesRef.current)),
     onMutate: () => setSaveMessage("Đang lưu toàn bộ cấu hình…"),
     onSuccess: saved => {
       form.reset(toFormValues(saved));
-      if (saved.policy.processes) { processesRef.current = saved.policy.processes; setProcesses(saved.policy.processes); }
+      if (saved.policy?.processes) { processesRef.current = saved.policy.processes; setProcesses(saved.policy.processes); }
       setExerciseDirty(false);
       setSaveMessage("Đã lưu cấu hình thành công.");
       void client.invalidateQueries({ queryKey: ["ai-interview-config", jobId] });
@@ -95,7 +102,7 @@ export function InterviewConfigurationTabs({
 
   function updateAssessment(key: string, value: string | number) {
     updateProcesses(processes.map(process => process.key === "COMMUNICATION"
-      ? { ...process, config: { ...process.config, [key]: value } } : process));
+      ? { ...process, config: { ...(process.config ?? {}), [key]: value } } : process));
   }
 
   function submitInvalid(errors: FieldErrors<ConfigValues>) {
@@ -107,8 +114,10 @@ export function InterviewConfigurationTabs({
       className="space-y-6"
       onSubmit={form.handleSubmit(values => {
         if (!assessmentValidation.success) {
-          setTab(["maxFollowUp", "questionCount"].includes(String(assessmentValidation.error.issues[0].path[0])) ? "exercise" : "general");
-          setSaveMessage(assessmentValidation.error.issues[0].message);
+          const firstIssue = assessmentValidation.error.issues[0];
+          const firstKey = firstIssue?.path[0] ? String(firstIssue.path[0]) : "";
+          setTab(["maxFollowUp", "questionCount"].includes(firstKey) ? "exercise" : "general");
+          setSaveMessage(firstIssue?.message ?? "Cấu hình đánh giá chưa hợp lệ.");
           return;
         }
         save.mutate(values);
@@ -135,7 +144,7 @@ export function InterviewConfigurationTabs({
               type="button"
               onClick={() => {
                 form.reset(toFormValues(config));
-                setProcesses(normalizeProcesses(config.policy.processes ?? defaultProcesses()));
+                setProcesses(normalizeProcesses(config?.policy?.processes ?? defaultProcesses()));
                 setExerciseDirty(false);
               }}
               disabled={!form.formState.isDirty && !exerciseDirty}
@@ -236,7 +245,7 @@ export function InterviewConfigurationTabs({
                       max={100}
                       step={1}
                       disabled={busy}
-                      value={Number.isNaN(Number(communication.config[criterion.key])) ? "" : Number(communication.config[criterion.key])}
+                      value={Number.isNaN(Number(commConfig[criterion.key])) ? "" : Number(commConfig[criterion.key])}
                       aria-invalid={!assessmentValidation.success && assessmentValidation.error.issues.some(issue => issue.path[0] === criterion.key)}
                       onChange={event => updateAssessment(criterion.key, event.target.valueAsNumber)}
                     />
@@ -254,7 +263,7 @@ export function InterviewConfigurationTabs({
                 rows={4}
                 maxLength={2000}
                 disabled={busy}
-                value={String(communication.config.assessmentFocus ?? "")}
+                value={String(commConfig.assessmentFocus ?? "")}
                 placeholder="Ví dụ: tập trung thiết kế REST API, xử lý lỗi và giải thích lựa chọn database cho hệ thống bán hàng."
                 onChange={event => updateAssessment("assessmentFocus", event.target.value)}
               />
@@ -267,30 +276,33 @@ export function InterviewConfigurationTabs({
               Job Skills cần đánh giá
             </legend>
             <div className="flex flex-wrap gap-2">
-              {jobSkills.map(skill => (
-                <label
-                  key={skill}
-                  className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50 has-[:checked]:border-[#0066FF] has-[:checked]:bg-blue-50 has-[:checked]:text-[#0066FF] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:has-[:checked]:bg-blue-950/60 dark:has-[:checked]:text-blue-300"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-[#0066FF] rounded"
-                    checked={form.watch("policy.selectedSkills").includes(skill)}
-                    onChange={() => {
-                      const selected = form.getValues("policy.selectedSkills");
-                      form.setValue("policy.selectedSkills", selected.includes(skill) ? selected.filter(item => item !== skill) : [...selected, skill], { shouldDirty: true });
-                    }}
-                  />
-                  {skill}
-                </label>
-              ))}
+              {(jobSkills ?? []).map(skill => {
+                const currentSelected = form.watch("policy.selectedSkills") ?? [];
+                return (
+                  <label
+                    key={skill}
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50 has-[:checked]:border-[#0066FF] has-[:checked]:bg-blue-50 has-[:checked]:text-[#0066FF] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:has-[:checked]:bg-blue-950/60 dark:has-[:checked]:text-blue-300"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-[#0066FF] rounded"
+                      checked={currentSelected.includes(skill)}
+                      onChange={() => {
+                        const selected = form.getValues("policy.selectedSkills") ?? [];
+                        form.setValue("policy.selectedSkills", selected.includes(skill) ? selected.filter(item => item !== skill) : [...selected, skill], { shouldDirty: true });
+                      }}
+                    />
+                    {skill}
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
         </div>
       )}
 
       <div className={tab === "exercise" ? undefined : "hidden"} aria-hidden={tab !== "exercise"}>
-        <ExerciseStructureConfigurator jobSkills={form.watch("policy.selectedSkills")} processes={processes} onChange={updateProcesses} />
+        <ExerciseStructureConfigurator jobSkills={form.watch("policy.selectedSkills") ?? []} processes={processes} onChange={updateProcesses} />
       </div>
 
       <AssessmentError error={save.error} />

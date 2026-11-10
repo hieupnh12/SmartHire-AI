@@ -60,8 +60,9 @@ export function AiInterviewSubNav({
               role="tab"
               aria-selected={active}
               aria-current={active ? "page" : undefined}
-              onClick={() => {
-                if (onTabChange) {
+              onClick={(e) => {
+                if (onTabChange && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
                   onTabChange(item.id);
                 }
               }}

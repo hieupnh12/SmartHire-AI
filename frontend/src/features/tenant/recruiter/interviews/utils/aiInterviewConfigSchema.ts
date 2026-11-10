@@ -81,13 +81,44 @@ export const configSchema = z.object({
 export type ConfigValues = z.infer<typeof configSchema>;
 
 export function toFormValues(config: AiInterviewConfig): ConfigValues {
-  const local = (value: string | null) => {
-    const date = value ? new Date(value) : null;
-    return date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+  const local = (value: string | null | undefined) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    try {
+      return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    } catch {
+      return "";
+    }
   };
-  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy,
-    availability: config.policy.availability ?? { mode: config.availableFrom || config.availableUntil ? "ABSOLUTE" : "RELATIVE", startDelayHours: 0, completionWindowHours: 24 },
-    weights: Object.fromEntries(COMPETENCY_KEYS.map(key => [key, key === "COMMUNICATION" ? 100 : 0])) as Record<CompetencyKey, number>, miniAssessmentEnabled: false, stages: [], schemaVersion: 2 } };
+  const rawPolicy = config?.policy ?? ({} as Partial<AiInterviewConfig["policy"]>);
+  return {
+    ...config,
+    enabled: config?.enabled ?? true,
+    passingScore: config?.passingScore ?? 70,
+    questionCount: config?.questionCount ?? 3,
+    availableFrom: local(config?.availableFrom),
+    availableUntil: local(config?.availableUntil),
+    policy: {
+      durationMinutes: rawPolicy.durationMinutes ?? 15,
+      maxAttempts: rawPolicy.maxAttempts ?? 1,
+      miniAssessmentEnabled: false,
+      miniQuestionCount: rawPolicy.miniQuestionCount ?? 3,
+      miniWeight: rawPolicy.miniWeight ?? 0,
+      miniAfterStage: rawPolicy.miniAfterStage ?? 0,
+      availability: rawPolicy.availability ?? {
+        mode: config?.availableFrom || config?.availableUntil ? "ABSOLUTE" : "RELATIVE",
+        startDelayHours: 0,
+        completionWindowHours: 24,
+      },
+      weights: Object.fromEntries(
+        COMPETENCY_KEYS.map((key) => [key, key === "COMMUNICATION" ? 100 : 0])
+      ) as Record<CompetencyKey, number>,
+      selectedSkills: Array.isArray(rawPolicy.selectedSkills) ? rawPolicy.selectedSkills : [],
+      stages: Array.isArray(rawPolicy.stages) ? rawPolicy.stages : [],
+      schemaVersion: 2,
+    },
+  };
 }
 
 export function toRequest(values: ConfigValues): AiInterviewConfig {

@@ -29,14 +29,15 @@ type Props = {
   onOpenDetail?: (interviewId: number) => void;
 };
 
-function initials(name: string) {
+function initials(name?: string | null) {
+  if (!name) return "UV";
   return name
     .split(" ")
     .filter(Boolean)
     .slice(-2)
     .map((part) => part[0])
     .join("")
-    .toUpperCase();
+    .toUpperCase() || "UV";
 }
 
 export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
@@ -80,11 +81,9 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
       if (statusFilter === "UNASSIGNED" && hasInterview) return false;
 
       if (!q) return true;
-      return (
-        app.candidateName.toLowerCase().includes(q) ||
-        app.candidateEmail.toLowerCase().includes(q) ||
-        String(app.id).includes(q)
-      );
+      const name = (app.candidateName ?? "").toLowerCase();
+      const email = (app.candidateEmail ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q) || String(app.id).includes(q);
     });
   }, [eligibleApplicants, interviewByAppId, search, statusFilter]);
 

@@ -70,7 +70,7 @@ export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
 
   const skills = useQuery({
     queryKey: ["job-skills", jobId],
-    queryFn: () => jobApi.skills(jobId).then((r) => r.data.map((s) => s.name)),
+    queryFn: () => jobApi.skills(jobId).then((r) => (r.data ?? []).map((s) => s.name)).catch(() => []),
   });
 
   return (
@@ -141,13 +141,13 @@ export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
 
         {/* Cấu hình chung & Cấu hình bài tập */}
         <div className={cn(activeSection !== "general" && activeSection !== "exercise" && "hidden")}>
-          {config.data && skills.data && (
+          {config.data && (
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <InterviewConfigurationTabs
                 key={jobId}
                 jobId={jobId}
                 config={config.data}
-                jobSkills={skills.data}
+                jobSkills={skills.data ?? []}
                 activeSubTab={activeSection === "exercise" ? "exercise" : "general"}
                 onSubTabChange={(tab) => setSection(tab)}
                 hideInternalTabs

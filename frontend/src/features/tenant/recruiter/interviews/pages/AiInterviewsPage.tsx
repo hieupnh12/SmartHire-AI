@@ -40,6 +40,7 @@ import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
+import { AiInterviewErrorBoundary } from "../components/AiInterviewErrorBoundary";
 import { AiInterviewSubNav, type AiInterviewTab } from "../components/AiInterviewSubNav";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -80,14 +81,17 @@ function getPaginationItems(current: number, total: number): (number | "ellipsis
   return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
+function initials(name?: string | null) {
+  if (!name) return "UV";
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(-2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "UV"
+  );
 }
 
 function candidateName(row: AiInterviewRow) {
@@ -134,17 +138,19 @@ function ScoreCell({ row }: { row: AiInterviewRow }) {
   if (row.status === "SCORING") {
     return <span className="text-xs italic text-blue-600 dark:text-blue-400">Đang tổng hợp điểm...</span>;
   }
-  if (row.overallScore == null) {
+  const scoreNum = Number(row.overallScore);
+  const hasValidScore = row.overallScore != null && !isNaN(scoreNum);
+  if (!hasValidScore) {
     return <span className="text-xs italic text-slate-400 dark:text-slate-500">Chưa có điểm</span>;
   }
-  const pct = Math.min(Math.max(row.overallScore, 0), 100);
-  const isPassed = row.passingScore != null ? row.overallScore >= row.passingScore : row.overallScore >= 50;
+  const pct = Math.min(Math.max(scoreNum, 0), 100);
+  const isPassed = row.passingScore != null ? scoreNum >= Number(row.passingScore) : scoreNum >= 50;
 
   return (
     <div className="flex w-36 flex-col gap-1.5">
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-          {row.overallScore.toFixed(1)} <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">/100</span>
+          {scoreNum.toFixed(1)} <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">/100</span>
         </span>
         <span
           className={cn(
@@ -506,7 +512,9 @@ export function AiInterviewsPage() {
       {/* TAB CONTENT: CẤU HÌNH (CONFIG) */}
       {activeSubNavTab === "config" && (
         <div className="animate-in fade-in-50 duration-200">
-          <AiInterviewConfigPanel jobId={job.id} onOpenDetail={(id) => setDetailId(id)} />
+          <AiInterviewErrorBoundary fallbackTitle="Không thể hiển thị cấu hình phỏng vấn AI">
+            <AiInterviewConfigPanel jobId={job.id} onOpenDetail={(id) => setDetailId(id)} />
+          </AiInterviewErrorBoundary>
         </div>
       )}
 

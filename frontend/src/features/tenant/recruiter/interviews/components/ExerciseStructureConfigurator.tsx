@@ -26,15 +26,17 @@ const exercises: { id: ExerciseId; title: string; short: string; description: st
   { id: "communication", title: "Communication", short: "Giao tiếp kỹ thuật", description: "Đánh giá khả năng truyền đạt kỹ thuật rõ ràng cho từng nhóm người nghe.", weight: "10%" },
 ];
 
-export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }: {
-  jobSkills: string[];
+export function ExerciseStructureConfigurator({ jobSkills = [], processes = [], onChange }: {
+  jobSkills?: string[];
   processes: InterviewProcessConfig[];
   onChange: (processes: InterviewProcessConfig[]) => void;
 }) {
+  const safeJobSkills = Array.isArray(jobSkills) ? jobSkills : [];
+  const safeProcesses = Array.isArray(processes) ? processes : [];
   const [active, setActive] = useState<ExerciseId>("communication");
-  const exercise = exercises.find(item => item.id === active)!;
+  const exercise = exercises.find(item => item.id === active) ?? exercises[exercises.length - 1];
   function updateProcess(next: InterviewProcessConfig) {
-    onChange(processes.map(process => process.key === next.key ? next : process));
+    onChange(safeProcesses.map(process => process.key === next.key ? next : process));
   }
 
   return (
@@ -89,9 +91,9 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
           </span>
         </header>
         <div className="space-y-4 p-4">
-          <ProcessConfigScope process={findProcess(processes, "COMMUNICATION")} onChange={updateProcess}>
+          <ProcessConfigScope process={findProcess(safeProcesses, "COMMUNICATION")} onChange={updateProcess}>
             <div className={active === "communication" ? undefined : "hidden"}>
-              <CommunicationConfig jobSkills={jobSkills} />
+              <CommunicationConfig jobSkills={safeJobSkills} />
             </div>
           </ProcessConfigScope>
         </div>
@@ -816,7 +818,7 @@ function BehavioralConfig({ jobSkills }: { jobSkills: string[] }) {
   );
 }
 
-function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
+function CommunicationConfig({ jobSkills = [] }: { jobSkills?: string[] }) {
   const [topic, setTopic] = useState("JOB_REQUIREMENTS");
   const [language, setLanguage] = useState("English");
   const [mode, setMode] = useState("speech");
@@ -825,13 +827,14 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
   const [adaptive, setAdaptive] = useState(true);
   const [audio, setAudio] = useState(true);
   const [signals, setSignals] = useState(true);
+  const safeSkills = Array.isArray(jobSkills) ? jobSkills : [];
 
   return (
     <>
       <Card title="1. Hội thoại Communication" icon={MessageCircle}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Metric label="Enable Process" value="Đang hoạt động" />
-          <SelectField label="Chủ đề" value={topic} onChange={setTopic} options={[{ value: "JOB_REQUIREMENTS", label: "Yêu cầu công việc" }, ...jobSkills.map(skill => ({ value: skill, label: skill }))]} />
+          <SelectField label="Chủ đề" value={topic} onChange={setTopic} options={[{ value: "JOB_REQUIREMENTS", label: "Yêu cầu công việc" }, ...safeSkills.map(skill => ({ value: skill, label: skill }))]} />
           <ChoiceField label="Response Mode" value={mode} onChange={setMode} options={[{ value: "speech", label: "Giọng nói", detail: "STT và bản ghi âm" }, { value: "text", label: "Văn bản", detail: "Không có tín hiệu lời nói" }]} />
           <SelectField label="Language" value={language} onChange={setLanguage} options={[{ value: "English", label: "English" }, { value: "Vietnamese", label: "Tiếng Việt" }, { value: "Japanese", label: "日本語" }]} />
           <Metric label="Interaction" value="Hội thoại theo lượt" />
@@ -850,7 +853,7 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
           <Metric label="Real-time Interaction" value="Streaming hai chiều: sẽ mở rộng" />
         </div>
       </Card>
-      <ExampleShell title="Luồng hội thoại" meta={`${language} · ${jobSkills.join(", ") || "Theo yêu cầu Job"}`}>
+      <ExampleShell title="Luồng hội thoại" meta={`${language} · ${safeSkills.join(", ") || "Theo yêu cầu Job"}`}>
         <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">AI đặt câu hỏi → ứng viên nói → STT tạo transcript → gửi câu trả lời → NLP/LLM đánh giá và chọn câu tiếp theo. Recruiter xem điểm, transcript, audio và phản hồi sau phiên.</p>
       </ExampleShell>
       <Rubric items={["Kiến thức chuyên môn", "Giải quyết vấn đề", "Lập luận", "Kỹ năng giao tiếp"]} />
@@ -858,7 +861,8 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
   );
 }
 
-function PracticalExperienceConfig({ jobSkills }: { jobSkills: string[] }) {
+function PracticalExperienceConfig({ jobSkills = [] }: { jobSkills?: string[] }) {
+  const safeSkills = Array.isArray(jobSkills) ? jobSkills : [];
   const [enabled, setEnabled] = useState(true);
   const [count, setCount] = useState(3);
   const [response, setResponse] = useState("speech");
@@ -870,7 +874,7 @@ function PracticalExperienceConfig({ jobSkills }: { jobSkills: string[] }) {
   const [challenges, setChallenges] = useState(true);
   const [result, setResult] = useState(true);
   const [verifyCv, setVerifyCv] = useState(true);
-  const domain = jobSkills.find(skill => /kafka|redis|rabbit/i.test(skill)) ?? jobSkills[0] ?? "Kafka";
+  const domain = safeSkills.find(skill => /kafka|redis|rabbit/i.test(skill)) ?? safeSkills[0] ?? "Kafka";
 
   return (
     <>
