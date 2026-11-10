@@ -280,7 +280,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
             <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />
           )}
 
-          {data.conversational && (inProgress || !!data.completedAt) && (
+          {data.conversational && inProgress && (
             <ConversationRoom
               id={id}
               active={!!inProgress}
@@ -290,6 +290,11 @@ export function AiInterviewRoom({ id }: { id: number }) {
               reportJson={data.reportJson}
               status={data.status}
               onActivity={onConversationActivity}
+              onComplete={() => {
+                if (!complete.isPending && inProgress) {
+                  complete.mutate();
+                }
+              }}
             />
           )}
 

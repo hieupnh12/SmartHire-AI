@@ -4,13 +4,10 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  ArrowUpRight,
-  AudioLines,
   Ban,
   Bot,
   Building2,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +18,7 @@ import {
   Eye,
   FileText,
   Filter,
+  History,
   Inbox,
   Kanban,
   LayoutList,
@@ -248,6 +246,12 @@ export function AiInterviewsPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<"status" | "time" | "export" | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState("");
+  const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
+
+  const toggleExpandCandidate = (key: string) => {
+    setExpandedCandidates((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
@@ -300,8 +304,6 @@ export function AiInterviewsPage() {
     };
   }, [rows]);
 
-  const completionRate = counts.all ? Math.round((counts.scored / counts.all) * 100) : 0;
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const since = timeRange === "all" ? 0 : Date.now() - Number(timeRange) * DAY_MS;
@@ -330,6 +332,73 @@ export function AiInterviewsPage() {
   const pageItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
 
   const detailRow = rows.find((r) => r.id === detailId);
+
+  const candidateCompletedGroups = useMemo(() => {
+    const completedRows = rows.filter(
+      (r) =>
+        r.status === "SCORED" ||
+        r.status === "PASSED" ||
+        r.status === "FAILED" ||
+        r.overallScore != null ||
+        r.status === "SCORING"
+    );
+
+    const map = new Map<string, AiInterviewRow[]>();
+    for (const row of completedRows) {
+      const key = String(row.applicationId || (row.candidateId ? `c-${row.candidateId}` : `int-${row.id}`));
+      const list = map.get(key) || [];
+      list.push(row);
+      map.set(key, list);
+    }
+
+    const groups: {
+      key: string;
+      applicationId: number;
+      candidateId: number | null;
+      candidateName: string;
+      candidateEmail: string;
+      attempts: AiInterviewRow[];
+      latestAttempt: AiInterviewRow;
+    }[] = [];
+
+    for (const [key, groupRows] of map.entries()) {
+      groupRows.sort((a, b) => {
+        const timeA = a.completedAt ? new Date(a.completedAt).getTime() : a.id;
+        const timeB = b.completedAt ? new Date(b.completedAt).getTime() : b.id;
+        return timeB - timeA;
+      });
+
+      const latest = groupRows[0];
+      groups.push({
+        key,
+        applicationId: latest.applicationId,
+        candidateId: latest.candidateId ?? null,
+        candidateName: candidateName(latest),
+        candidateEmail: latest.application?.candidateEmail ?? "—",
+        attempts: groupRows,
+        latestAttempt: latest,
+      });
+    }
+
+    groups.sort((a, b) => {
+      const timeA = a.latestAttempt.completedAt ? new Date(a.latestAttempt.completedAt).getTime() : a.latestAttempt.id;
+      const timeB = b.latestAttempt.completedAt ? new Date(b.latestAttempt.completedAt).getTime() : b.latestAttempt.id;
+      return timeB - timeA;
+    });
+
+    return groups;
+  }, [rows]);
+
+  const filteredTrackingGroups = useMemo(() => {
+    if (!trackingSearch.trim()) return candidateCompletedGroups;
+    const q = trackingSearch.toLowerCase().trim();
+    return candidateCompletedGroups.filter(
+      (g) =>
+        g.candidateName.toLowerCase().includes(q) ||
+        g.candidateEmail.toLowerCase().includes(q) ||
+        String(g.applicationId).includes(q)
+    );
+  }, [candidateCompletedGroups, trackingSearch]);
 
   const triggerTableTransition = (action: () => void) => {
     setIsTableTransitioning(true);
@@ -444,118 +513,6 @@ export function AiInterviewsPage() {
       {/* TAB CONTENT: THEO DÕI KẾT QUẢ / NỘP BÀI (TRACKING) */}
       {activeSubNavTab === "tracking" && (
         <div className="flex flex-col gap-4 animate-in fade-in-50 duration-200">
-          {/* 4 Metric KPI Cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {/* Card 1: Tổng số phiên */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng số phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/40 dark:text-blue-400">
-                  <LayoutList className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.all}
-                  </p>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-[#0066FF] dark:bg-blue-950/50 dark:text-blue-300">
-                    Đang mở
-                  </span>
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Vị trí: <strong className="text-slate-700 dark:text-slate-300">{job.title}</strong>
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2: Đang diễn ra */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đang diễn ra</span>
-                  {counts.live > 0 && (
-                    <span className="relative flex size-2">
-                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-sky-400 opacity-75" />
-                      <span className="relative inline-flex size-2 rounded-full bg-sky-500" />
-                    </span>
-                  )}
-                </div>
-                <div className="grid size-8 place-items-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
-                  <AudioLines className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.live}
-                  </p>
-                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
-                    {counts.live > 0 ? "Trực tiếp" : "Không có"}
-                  </span>
-                </div>
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <span className={cn("size-1.5 rounded-full", counts.live > 0 ? "bg-sky-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600")} />
-                  <p className="truncate">
-                    {counts.live > 0 ? `${counts.live} ứng viên đang trong phòng phỏng vấn` : "Chờ ứng viên truy cập phòng thi"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Đã chấm điểm */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đã chấm điểm</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <CheckCircle2 className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.scored}
-                  </p>
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                    Sẵn sàng xem
-                  </span>
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Đã tổng hợp điểm và feedback AI đầy đủ
-                </p>
-              </div>
-            </div>
-
-            {/* Card 4: Tỷ lệ hoàn tất */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tỷ lệ hoàn tất phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
-                  <Sparkles className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {completionRate}%
-                  </p>
-                  <span className="inline-flex items-center text-[11px] font-semibold text-[#0066FF]">
-                    <ArrowUpRight className="size-3.5" aria-hidden="true" /> {counts.scored}/{counts.all} phiên
-                  </span>
-                </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-[#0066FF] transition-all duration-500"
-                    style={{ width: `${completionRate}%` }}
-                  />
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Số phiên đã chấm trên tổng số phiên được tạo
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Subscription Usage Card if available */}
           {sub && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
@@ -597,68 +554,213 @@ export function AiInterviewsPage() {
 
           {/* Scored / Completed Interviews Overview */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Kết quả phỏng vấn ứng viên đã hoàn tất
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Danh sách ứng viên đã hoàn thành phiên phỏng vấn và nhận phân tích năng lực từ AI
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Kết quả phỏng vấn ứng viên đã hoàn tất
+                  </h3>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    {candidateCompletedGroups.length} ứng viên
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Mỗi ứng viên hiển thị điểm số lần phỏng vấn gần nhất. Nhấn vào điểm hoặc nút phiên để xem chi tiết từng lần làm.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => handleSubNavChange("sessions")}
-                className="text-xs font-semibold text-[#0066FF] hover:underline cursor-pointer"
-              >
-                Xem toàn bộ phiên →
-              </button>
+              <div className="flex items-center gap-3">
+                {candidateCompletedGroups.length > 3 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={trackingSearch}
+                      onChange={(e) => setTrackingSearch(e.target.value)}
+                      placeholder="Tìm ứng viên..."
+                      className="h-8 w-44 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    />
+                    {trackingSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTrackingSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSubNavChange("sessions")}
+                  className="text-xs font-semibold text-[#0066FF] hover:underline cursor-pointer shrink-0"
+                >
+                  Xem toàn bộ phiên →
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-              {rows.filter((r) => r.status === "SCORED" || r.status === "PASSED" || r.status === "FAILED").length === 0 ? (
+              {candidateCompletedGroups.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
                   Chưa có phiên phỏng vấn nào hoàn tất và được chấm điểm.
                 </div>
+              ) : filteredTrackingGroups.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Không tìm thấy ứng viên phù hợp với từ khóa "{trackingSearch}".
+                </div>
               ) : (
-                rows
-                  .filter((r) => r.status === "SCORED" || r.status === "PASSED" || r.status === "FAILED")
-                  .slice(0, 10)
-                  .map((row) => {
-                    const name = candidateName(row);
-                    return (
-                      <div
-                        key={row.id}
-                        className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
-                            {initials(name)}
+                filteredTrackingGroups.map((group) => {
+                  const hasMultipleAttempts = group.attempts.length > 1;
+                  const isExpanded = !!expandedCandidates[group.key];
+                  const latest = group.latestAttempt;
+
+                  return (
+                    <div key={group.key} className="flex flex-col transition-colors">
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                        {/* Candidate Info */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                            {initials(group.candidateName)}
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                              {name}
-                            </p>
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                              {row.application?.candidateEmail ?? "—"} • Đơn #{row.applicationId}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                {group.candidateName}
+                              </p>
+                              {hasMultipleAttempts && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpandCandidate(group.key)}
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.5 text-[10px] font-bold text-[#0066FF] hover:bg-blue-100 transition-colors cursor-pointer dark:bg-blue-950 dark:text-blue-300"
+                                  title="Nhấn để xem các phiên và điểm của từng lần"
+                                >
+                                  <span>{group.attempts.length} lần phỏng vấn</span>
+                                  <ChevronDown className={cn("size-3 transition-transform duration-200", isExpanded && "rotate-180")} />
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                              {group.candidateEmail} • Đơn #{group.applicationId}
                             </p>
                           </div>
                         </div>
 
+                        {/* Scores & Actions */}
                         <div className="flex items-center gap-4">
-                          <ScoreCell row={row} />
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.id)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          <div
+                            className={cn(
+                              "flex flex-col items-end",
+                              hasMultipleAttempts && "cursor-pointer group/score"
+                            )}
+                            onClick={() => hasMultipleAttempts && toggleExpandCandidate(group.key)}
+                            title={hasMultipleAttempts ? "Nhấn để xem các phiên và điểm của từng lần" : undefined}
                           >
-                            <Eye className="size-3.5 text-slate-400" />
-                            <span>Xem báo cáo</span>
-                          </button>
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">
+                              {hasMultipleAttempts ? "Điểm gần nhất" : "Điểm phỏng vấn"}
+                            </span>
+                            <ScoreCell row={latest} />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {hasMultipleAttempts && (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandCandidate(group.key)}
+                                className={cn(
+                                  "inline-flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-semibold transition-all cursor-pointer",
+                                  isExpanded
+                                    ? "border-blue-300 bg-blue-100/80 text-[#0066FF] dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                    : "border-blue-200 bg-blue-50/70 text-[#0066FF] hover:bg-blue-100/70 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300"
+                                )}
+                              >
+                                <History className="size-3.5" />
+                                <span className="hidden sm:inline">Các phiên</span>
+                                <span>({group.attempts.length})</span>
+                                <ChevronDown className={cn("size-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setDetailId(latest.id)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                              <Eye className="size-3.5 text-slate-400" />
+                              <span>{hasMultipleAttempts ? "Báo cáo gần nhất" : "Xem báo cáo"}</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    );
-                  })
+
+                      {/* Expanded Attempts History Accordion */}
+                      {hasMultipleAttempts && isExpanded && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/40 animate-in fade-in-50 duration-150">
+                          <div className="mb-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <History className="size-3.5 text-[#0066FF]" />
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Lịch sử các phiên phỏng vấn của {group.candidateName}
+                              </span>
+                              <span className="rounded-full bg-slate-200/70 dark:bg-slate-700 px-2 py-0.2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                {group.attempts.length} phiên
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 hidden sm:inline">
+                              Xếp theo thứ tự từ mới nhất đến cũ nhất
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 bg-white dark:divide-slate-800/80 dark:border-slate-800 dark:bg-slate-900 overflow-hidden shadow-2xs">
+                            {group.attempts.map((attempt, index) => {
+                              const isLatest = index === 0;
+                              return (
+                                <div
+                                  key={attempt.id}
+                                  className="flex flex-wrap items-center justify-between gap-3 p-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="flex size-6 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                      #{group.attempts.length - index}
+                                    </span>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
+                                          Phiên #AI-{attempt.id}
+                                        </span>
+                                        {isLatest && (
+                                          <span className="rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.2 text-[10px] font-bold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+                                            Lần làm gần nhất
+                                          </span>
+                                        )}
+                                        <AiStatusBadge status={attempt.status} />
+                                      </div>
+                                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                        Hoàn tất lúc: {attempt.completedAt ? formatDateTime(attempt.completedAt) : formatDateTime(attempt.createdAt)}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4">
+                                    <ScoreCell row={attempt} />
+                                    <button
+                                      type="button"
+                                      onClick={() => setDetailId(attempt.id)}
+                                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    >
+                                      <Eye className="size-3 text-slate-400" />
+                                      <span>Xem báo cáo</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
