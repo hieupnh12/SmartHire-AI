@@ -9,55 +9,15 @@ import { interviewConversationApi, type Conversation, type ConversationMessage }
 import { getApiErrorMessage } from "@/lib/axios";
 import { useConversationVoice } from "../hooks/useConversationVoice";
 import { useCandidateInterviewScope } from "../hooks/useCandidateInterviews";
+import { getBrowserVoices, resolveBestVoice, prepareCleanSpeechText } from "../utils/speechVoiceUtils";
 
 const turnSchema = z.string().trim().min(1, "Hãy nhập hoặc ghi âm câu trả lời.").max(10000, "Câu trả lời tối đa 10.000 ký tự.");
 
-function cleanStreamingText(raw: string): string {
-  let cleaned = raw
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<think>[\s\S]*$/gi, "")
-    .replace(/<thought>[\s\S]*?<\/thought>/gi, "")
-    .replace(/<thought>[\s\S]*$/gi, "")
-    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
-    .replace(/<reasoning>[\s\S]*$/gi, "")
-    .replace(/^#{1,6}\s+.*$/gm, "")
-    .replace(/^(AI Interviewer|Interviewer|Assistant|AI|Trợ lý AI|Người phỏng vấn|面接官|AI面接官)\s*[:：\-]\s*/i, "")
-    .replace(/^(Certainly|Sure|Alright|Okay|OK)[!.,]?\s*(Here (is|are) (the|your|a) (opening|first|next)?\s*(question|scenario|follow-up)[:.]?\s*)?/i, "")
-    .replace(/^(Dưới đây là|Sau đây là)\s*(câu hỏi|lời chào|nội dung phỏng vấn)[^.?!:]*[:：.]\s*/i, "")
-    .replace(/^(承知いたしました|かしこまりました|以下が質問です|それでは最初の質問です)[!！。、\s]*([:：]\s*)?/i, "")
-    .replace(/^\*\*.*?\*\*[:：]?\s*/, "")
-    .replace(/^(Okay|OK|Alright|So|Now|First|Looking at)[^.!?\n]*(mentioned|said|noted|used|focus|question|candidate|user)[^.!?\n]*[.!?\n]+\s*/i, "")
-    .trimStart();
-
-  let matched = false;
-  do {
-    matched = false;
-    const before = cleaned;
-    cleaned = cleaned
-      .replace(/^(Hello|Hi|Greetings|Good (morning|afternoon|evening|day))[!.,]?\s*(and\s+)?(welcome (to (the|this|our|your)?\s*[^.!\n]*)?)?[!.,]?\s*/i, "")
-      .replace(/^Welcome to (the|this|our|your)?\s*[^.!\n]*[!.,]\s*/i, "")
-      .replace(/^(Let's (begin|start)( the interview)?|To (begin|start)( with)?)[!.,:]?\\s*/i, "")
-      .replace(/^Thank you for (joining|participating in|attending)[^.!\n]*[!.,]\s*/i, "")
-      .trimStart();
-    if (cleaned !== before) matched = true;
-  } while (matched && cleaned.length > 0);
-
-  return cleaned || raw.trimStart();
-}
-
-function prepareTextForSpeech(raw: string): string {
-  const cleaned = cleanStreamingText(raw);
-  return cleaned
-    .replace(/[*_#`~]/g, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, reportJson: _reportJson, status: _status, onActivity }: {
+export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, reportJson: _reportJson, status: _status, onActivity, onComplete }: {
   id: number; active: boolean; disabled: boolean; voiceEnabled: boolean; recordingEnabled: boolean;
   reportJson?: string | null; status?: string;
   onActivity: (busy: boolean, dirty: boolean) => void;
+  onComplete?: () => void;
 }) {
   const scope = useCandidateInterviewScope(); const key = [...scope, id, "conversation"];
   const client = useQueryClient();
@@ -94,17 +54,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
 
   // Pre-fetch browser voices when Web Speech API is ready
   useEffect(() => {
-    if (!("speechSynthesis" in window)) return;
-    const loadVoices = () => {
-      window.speechSynthesis.getVoices();
-    };
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-    return () => {
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
+    void getBrowserVoices();
   }, []);
 
   const pendingRequest = useRef<{ requestId: string; content: string } | null>(null);
@@ -189,6 +139,23 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     void play(message);
   }, [id, session.data, active, disabled, voiceEnabled, autoPlayVoice, busy]);
 
+  const autoSubmittedRef = useRef(false);
+  const [autoSubmitting, setAutoSubmitting] = useState(false);
+
+  // Auto-complete session when candidate finishes all turns and AI wraps up
+  useEffect(() => {
+    if (!active || disabled || !session.data?.dialogueComplete || autoSubmittedRef.current) return;
+    if (speaking !== null || busy || send.isPending || !!partial) return;
+
+    autoSubmittedRef.current = true;
+    setAutoSubmitting(true);
+    const timer = setTimeout(() => {
+      if (onComplete) onComplete();
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, [active, disabled, session.data?.dialogueComplete, speaking, busy, send.isPending, partial, onComplete]);
+
   function toggleAutoPlay() {
     setAutoPlayVoice(prev => {
       const next = !prev;
@@ -237,26 +204,28 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     }
   }
 
-  function playViaBrowser(message: ConversationMessage, request: number): boolean {
+  async function playViaBrowser(message: ConversationMessage, request: number): Promise<boolean> {
     if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
       return false;
     }
     window.speechSynthesis.cancel();
-    const langCode = session.data?.language === "Vietnamese" ? "vi" : session.data?.language === "Japanese" ? "ja" : "en";
-    const fullLang = session.data?.language === "Vietnamese" ? "vi-VN" : session.data?.language === "Japanese" ? "ja-JP" : "en-US";
-    const voices = window.speechSynthesis.getVoices?.() ?? [];
-    const matchedVoice = voices.find(v => {
-      const vLang = v.lang.toLowerCase().replace("_", "-");
-      return vLang.startsWith(langCode) || vLang.includes(langCode);
-    });
+    const voices = await getBrowserVoices();
+    const resolved = resolveBestVoice(session.data?.language, voices);
 
-    const cleanContent = prepareTextForSpeech(message.content);
+    // CRITICAL: If target language is Vietnamese or Japanese, but the browser has NO voice
+    // for that language, do NOT let English voice (Microsoft David) speak and spell out letter-by-letter.
+    // Return false so the system gracefully falls back to Cloud TTS (Gemini API).
+    if (!resolved.isNativeMatch && resolved.lang !== "en-US") {
+      return false;
+    }
+
+    const cleanContent = prepareCleanSpeechText(message.content);
     if (!cleanContent) return false;
 
     const utterance = new SpeechSynthesisUtterance(cleanContent);
-    utterance.lang = fullLang;
-    if (matchedVoice) utterance.voice = matchedVoice;
-    utterance.rate = session.data?.language === "Vietnamese" ? 0.95 : 1.0;
+    utterance.lang = resolved.lang;
+    if (resolved.voice) utterance.voice = resolved.voice;
+    utterance.rate = resolved.rate;
 
     utterance.onend = () => {
       if (request === playbackRequest.current) {
@@ -352,9 +321,9 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     // ASSISTANT role (AI question / greeting):
     // 1. If engine is "browser", run Web Speech API immediately (< 50ms, zero network delay)
     if (engine === "browser") {
-      const started = playViaBrowser(message, request);
+      const started = await playViaBrowser(message, request);
       if (started) return;
-      // Fall through to cloud if browser speech is unavailable
+      // Fall through to cloud if browser speech is unavailable or lacks a native voice for this language
     }
 
     // 2. Play via Cloud TTS (Gemini via backend)
@@ -376,7 +345,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
         return;
       }
       // If cloud fails, fallback to browser speech
-      const fallbackSuccess = playViaBrowser(message, request);
+      const fallbackSuccess = await playViaBrowser(message, request);
       if (!fallbackSuccess) {
         setError(getApiErrorMessage(failure));
         setSpeaking(null);
@@ -579,7 +548,11 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
                 : send.isPending || partial
                 ? "Hệ thống đang xử lý và đánh giá câu trả lời của bạn..."
                 : session.data?.dialogueComplete
-                ? "Bạn đã hoàn thành đủ số lượt hỏi. Bấm nút Kết thúc để nộp toàn phiên."
+                ? (speaking !== null
+                    ? "AI đang nói lời kết thúc phiên phỏng vấn. Hệ thống sẽ tự động nộp bài ngay sau đó..."
+                    : autoSubmitting
+                    ? "Đã hoàn thành! Đang tự động nộp bài và chuyển sang phần chấm điểm..."
+                    : "Bạn đã hoàn thành đủ số lượt hỏi. Hệ thống đang tiến hành nộp toàn phiên...")
                 : "Bấm nút bắt đầu để trả lời trực tiếp bằng giọng nói."}
             </p>
 
@@ -607,6 +580,30 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
               </div>
             )}
 
+            {/* Auto-completion panel when dialogue is complete */}
+            {session.data?.dialogueComplete && (
+              <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-md">
+                <div className="flex items-center gap-2.5 rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-3.5 text-sm font-semibold text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <Sparkles className="size-4 animate-spin text-emerald-600" aria-hidden="true" />
+                  <span>
+                    {speaking !== null
+                      ? "Đang lắng nghe lời kết... Sẽ tự động nộp bài sau đó"
+                      : "Đã hoàn tất! Đang tự động nộp bài và chấm điểm..."}
+                  </span>
+                </div>
+                {onComplete && (
+                  <Button
+                    type="button"
+                    disabled={disabled}
+                    onClick={onComplete}
+                    className="bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 shadow-md min-w-[170px]"
+                  >
+                    Nộp bài ngay
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Action Voice Controls */}
             {!session.data?.dialogueComplete && (
               <div className="mt-8 flex flex-col items-center gap-4 w-full max-w-md">
@@ -631,6 +628,29 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
                       {send.isPending ? "Đang gửi..." : "Hoàn tất & Gửi câu trả lời"}
                     </Button>
                   </div>
+                ) : speaking !== null ? (
+                  <div className="flex flex-col items-center gap-2 w-full">
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-8 py-4 text-base font-medium text-blue-700 shadow-sm cursor-not-allowed dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300"
+                    >
+                      <Volume2 className="size-5 animate-pulse text-blue-600" aria-hidden="true" />
+                      <span>Đang lắng nghe AI đặt câu hỏi... (Vui lòng đợi AI nói xong)</span>
+                    </button>
+                    <p className="text-xs text-[var(--color-on-surface-variant)] text-center">
+                      Bạn chỉ có thể bật mic trả lời sau khi người phỏng vấn AI nói xong.
+                    </p>
+                  </div>
+                ) : send.isPending || !!partial ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-8 py-4 text-base font-medium text-amber-700 shadow-sm cursor-not-allowed dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                  >
+                    <Sparkles className="size-5 animate-spin text-amber-600" aria-hidden="true" />
+                    <span>AI đang xử lý và chuẩn bị câu hỏi...</span>
+                  </button>
                 ) : (
                   <button
                     type="button"
@@ -642,7 +662,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
                       setLiveTranscript("");
                       void voice.start();
                     }}
-                    className="group inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[var(--color-primary)] px-8 py-4 text-base font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-[var(--color-primary)]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+                    className="group inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[var(--color-primary)] px-8 py-4 text-base font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-[var(--color-primary)]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                   >
                     <Mic className="size-5 transition-transform group-hover:scale-110" aria-hidden="true" />
                     <span>Bắt đầu trả lời bằng giọng nói</span>
@@ -673,17 +693,17 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
                 value={draft}
                 onChange={e => setValue("content", e.target.value, { shouldDirty: true, shouldValidate: true })}
                 aria-invalid={!!errors.content}
-                disabled={send.isPending || upload.isPending || disabled || !!pendingRecording}
+                disabled={speaking !== null || send.isPending || upload.isPending || disabled || !!pendingRecording}
                 maxLength={10000}
                 rows={4}
-                placeholder="Nhập nội dung câu trả lời của bạn..."
+                placeholder={speaking !== null ? "Vui lòng đợi AI nói xong câu hỏi trước khi nhập câu trả lời..." : "Nhập nội dung câu trả lời của bạn..."}
                 className="w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-lowest)] p-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-60"
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs text-[var(--color-on-surface-variant)]">
                   {draft.length}/10.000 ký tự
                 </span>
-                <Button type="submit" disabled={busy || disabled || !!pendingRecording || !draft.trim()}>
+                <Button type="submit" disabled={speaking !== null || busy || disabled || !!pendingRecording || !draft.trim()}>
                   <Send className="size-4 mr-1.5" aria-hidden="true" />
                   {send.isPending ? "Đang gửi…" : "Gửi câu trả lời"}
                 </Button>
@@ -703,7 +723,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
           : voice.status === "connecting"
           ? "Đang kết nối micro…"
           : session.data?.dialogueComplete
-          ? "Hội thoại đã đủ lượt. Bấm Kết thúc để gửi toàn phiên đánh giá."
+          ? "Hội thoại đã đủ lượt. Đang tự động nộp toàn phiên đánh giá..."
           : "Điểm và nhận xét được tổng hợp sau khi kết thúc phiên."}
       </p>
 

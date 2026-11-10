@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Bot, CheckCircle2, Circle, Clock3, Headphones, I
 import { Button } from "@/components/ux/Button";
 import { cn } from "@/lib/utils";
 import { mockInterviewInvitation } from "../constants/mockInterviewInvitation";
+import { getBrowserVoices, resolveBestVoice, prepareCleanSpeechText } from "../utils/speechVoiceUtils";
 
 type Phase = "intro" | "active" | "complete";
 type VoiceAnswer = { duration: number; audioUrl: string };
@@ -37,12 +38,16 @@ export function DemoInterviewRoom() {
     stream.current?.getTracks().forEach(track => track.stop());
   }, []);
 
-  function readQuestion() {
+  async function readQuestion() {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(question.questionText);
-    speech.lang = "vi-VN";
-    speech.rate = 0.92;
+    const voices = await getBrowserVoices();
+    const resolved = resolveBestVoice("Vietnamese", voices);
+    const cleanText = prepareCleanSpeechText(question.questionText);
+    const speech = new SpeechSynthesisUtterance(cleanText);
+    speech.lang = resolved.lang;
+    if (resolved.voice) speech.voice = resolved.voice;
+    speech.rate = resolved.rate;
     window.speechSynthesis.speak(speech);
   }
 

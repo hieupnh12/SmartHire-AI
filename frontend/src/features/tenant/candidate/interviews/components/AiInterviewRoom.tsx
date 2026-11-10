@@ -290,6 +290,11 @@ export function AiInterviewRoom({ id }: { id: number }) {
               reportJson={data.reportJson}
               status={data.status}
               onActivity={onConversationActivity}
+              onComplete={() => {
+                if (!complete.isPending && inProgress) {
+                  complete.mutate();
+                }
+              }}
             />
           )}
 
