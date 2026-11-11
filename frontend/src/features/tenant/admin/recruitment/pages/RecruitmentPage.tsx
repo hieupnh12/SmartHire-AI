@@ -42,7 +42,7 @@ export function RecruitmentPage() {
 
   const jobs = useQuery({
     queryKey: ["admin", "published-jobs"],
-    queryFn: () => jobApi.search({ status: "PUBLISHED", page: 0, size: 50 }),
+    queryFn: () => jobApi.search({ status: "PUBLISHED", page: 0, size: 50, scope: "all" }),
   });
   const jobItems = jobs.data?.data?.items ?? [];
   const jobTotal = jobs.data?.data?.total ?? jobItems.length;

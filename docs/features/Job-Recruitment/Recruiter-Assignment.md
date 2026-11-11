@@ -16,8 +16,8 @@ Thay thế hoàn toàn cơ chế "Phân công" tách rời bằng hệ thống *
 
 ## Actor & Quyền hạn
 
-- `TENANT_ADMIN` / `ADMIN`: Toàn quyền hệ thống — xem, sửa, xóa mọi job; quản lý phân quyền trên mọi job.
-- Nhân viên có quyền `JOBS_ALL`: Xem được danh sách và chi tiết tất cả các tin tuyển dụng (có tab chuyển đổi "Việc làm của tôi" / "Tất cả").
+- `TENANT_ADMIN` / `ADMIN`: Toàn quyền hệ thống — xem, sửa, xóa mọi job; quản lý phân quyền trên mọi job (mặc định mở tab **Tất cả job** trên `/recruiter`, vẫn có tab **Job được phân bổ**).
+- Nhân viên có quyền `JOBS_ALL`: Xem được danh sách và chi tiết tất cả các tin tuyển dụng (có 2 tab chuyển đổi **Job được phân bổ** / **Tất cả job**, mặc định mở **Job được phân bổ**).
 - `Creator` (Người tạo tin): Toàn quyền xem, sửa, quản lý phân quyền nhân viên trên tin mình tạo.
 - `Staff được cấp canView`: Xem thông tin job và pipeline ứng viên. Không được sửa thông tin job.
 - `Staff được cấp canEdit`: Được sửa thông tin job, quy trình tuyển dụng và cập nhật trạng thái tin.
@@ -30,10 +30,14 @@ Thay thế hoàn toàn cơ chế "Phân công" tách rời bằng hệ thống *
 - Tại phần **Phạm vi tuyển dụng**, bật/tắt quyền **Xem tất cả tin tuyển dụng (`JOBS_ALL`)** cho từng vai trò tùy theo nhu cầu doanh nghiệp.
 
 ### 2. Xem danh sách tin tuyển dụng (Recruiter)
-- Nếu người dùng có quyền Admin hoặc `JOBS_ALL`, giao diện hiển thị 2 tab:
-  - **Việc làm của tôi:** Các tin do người dùng tạo hoặc được phân quyền phụ trách.
-  - **Tất cả:** Toàn bộ tin tuyển dụng trong workspace của doanh nghiệp.
-- Nếu không có `JOBS_ALL`, chỉ thấy danh sách tin của mình / được cấp quyền xem.
+- API `GET /api/v1/jobs?scope=my|all` tách biệt rõ hai phạm vi ngay cả khi user là Admin hoặc có quyền `JOBS_ALL`:
+  - `scope=my` (mặc định): Chỉ trả các tin do user tạo (`created_by`) hoặc được cấp quyền `canView = true`.
+  - `scope=all`: Trả toàn bộ tin tuyển dụng trong doanh nghiệp (chỉ hợp lệ khi là Admin hoặc có quyền `JOBS_ALL`; user không đủ quyền bị chặn `403 FORBIDDEN`).
+- Trên `/recruiter`:
+  - Nếu người dùng có quyền Admin hoặc `JOBS_ALL`, giao diện hiển thị 2 tab kèm số lượng từng danh sách:
+    - **Job được phân bổ:** Các tin do người dùng tạo hoặc được phân quyền phụ trách (`scope=my`). Staff có `JOBS_ALL` mặc định mở tab này.
+    - **Tất cả job:** Toàn bộ tin tuyển dụng trong workspace của doanh nghiệp (`scope=all`). Admin mặc định mở tab này.
+  - Nếu không có `JOBS_ALL`, chỉ hiển thị danh sách **Job được phân bổ** (`scope=my`).
 
 ### 3. Phân quyền chi tiết trên từng Job
 - Tại trang chi tiết tin tuyển dụng (`/recruiter/jobs/{id}`), Admin hoặc Người tạo bấm nút **"Phân quyền"** (icon Shield).
@@ -84,6 +88,6 @@ Thay thế hoàn toàn cơ chế "Phân công" tách rời bằng hệ thống *
 ## UI Components liên quan
 
 - `RolesPage.tsx` (`/internal/admin/roles`): Cấu hình quyền `JOBS_ALL` (Phạm vi tuyển dụng) cho từng vai trò.
-- `HomePage.tsx` (`/recruiter`): Danh sách job dùng `scope=my` mặc định; backend tự trả toàn bộ job cho Admin hoặc vai trò có quyền `JOBS_ALL`.
+- `HomePage.tsx` (`/recruiter`): Tách riêng tab **Job được phân bổ** (`scope=my`) và **Tất cả job** (`scope=all` cho Admin hoặc vai trò có quyền `JOBS_ALL`).
 - `JobDetailPage.tsx` (`/recruiter/jobs/:id`): Nút "Phân quyền" (mở modal) cho Admin hoặc Creator; kiểm soát hiển thị nút Sửa/Đổi trạng thái dựa theo `job.canEdit`.
 - `JobPermissionsModal.tsx`: Modal quản lý và cập nhật quyền Xem/Sửa của từng nhân viên trên Job.
