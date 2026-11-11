@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { BrainCircuit, Mail, ArrowUpRight } from "lucide-react";
+import { Mail, ArrowUpRight } from "lucide-react";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useLandingModal } from "../context/LandingModalContext";
 
 const NAV_LINKS = [
@@ -23,13 +24,8 @@ export function LandingFooter() {
 
           {/* Brand column */}
           <div className="space-y-4">
-            <Link to="/" className="inline-flex items-center gap-3 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-900/40 group-hover:scale-105 transition-transform">
-                <BrainCircuit className="w-5 h-5" />
-              </div>
-              <span className="font-bold text-white text-base tracking-tight">
-                SmartHire<span className="text-blue-400">.AI</span>
-              </span>
+            <Link to="/" className="inline-flex items-center group">
+              <SmartHireLogo tone="dark" className="h-8" />
             </Link>
             <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
               Nền tảng tuyển dụng AI thế hệ mới dành cho doanh nghiệp — tự động hóa sàng lọc, đánh giá và phỏng vấn với độ chính xác vượt trội.

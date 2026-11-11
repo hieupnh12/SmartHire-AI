@@ -8,12 +8,12 @@ import {
   ExternalLink,
   ArrowRight,
   ShieldCheck,
-  BrainCircuit,
   Receipt,
   RotateCcw,
   Mail,
 } from "lucide-react";
 import { checkoutApi, VnPayVerifyReturnData } from "@/api/master/checkoutApi";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 
 export function VnPayReturnPage() {
@@ -75,13 +75,8 @@ export function VnPayReturnPage() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
+          <Link to="/" className="flex items-center group">
+            <SmartHireLogo className="h-9" />
           </Link>
 
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-100/80 px-3 py-1.5 rounded-full border border-slate-200">
