@@ -71,4 +71,56 @@ class GeminiCvAiClientTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void extractsJsonIgnoringThinkTagAndMarkdownFence() throws Exception {
+        var mapper = new ObjectMapper();
+        var server = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/chat/completions", exchange -> {
+            byte[] body = """
+                    {"choices":[{"message":{"content":"<think>Consider {invalid json inside think}</think>\\n```json\\n{\\"verdict\\":\\"ok\\"}\\n```"}}]}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            try (var output = exchange.getResponseBody()) { output.write(body); }
+        });
+        server.start();
+        try {
+            String endpoint = "http://127.0.0.1:" + server.getAddress().getPort() + "/chat/completions";
+            var provider = mock(DynamicAiConfigProvider.class);
+            when(provider.resolveExecutionChain("CV_PARSING")).thenReturn(List.of(
+                    new DynamicAiConfigProvider.ResolvedAiConfig("CV_PARSING", "OPENAI", "reasoning-model", "k1", endpoint,
+                            BigDecimal.ZERO, 4096, 5, null, null)));
+            var client = new GeminiCvAiClient(new HeuristicCvAiClient(mapper), mapper, 5);
+            client.setConfigProvider(provider);
+
+            String json = client.completeJson("system", "prompt");
+            assertThat(mapper.readTree(json).path("verdict").asText()).isEqualTo("ok");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void readTextConcatenatesNonThoughtGeminiParts() throws Exception {
+        var mapper = new ObjectMapper();
+        var client = new GeminiCvAiClient(new HeuristicCvAiClient(mapper), mapper, 5);
+        String geminiResponse = """
+                {
+                  "candidates": [{
+                    "content": {
+                      "parts": [
+                        {"thought": true, "text": "Thinking about CV {unclosed"},
+                        {"text": "{\\"strengths\\":[\\"Java\\"],"},
+                        {"text": "\\"risks\\":[\\"Docker\\"]}"}
+                      ]
+                    }
+                  }]
+                }
+                """;
+        String text = client.readText(geminiResponse);
+        String json = GeminiCvAiClient.extractJsonObject(text);
+        assertThat(mapper.readTree(json).path("strengths").get(0).asText()).isEqualTo("Java");
+        assertThat(mapper.readTree(json).path("risks").get(0).asText()).isEqualTo("Docker");
+    }
 }

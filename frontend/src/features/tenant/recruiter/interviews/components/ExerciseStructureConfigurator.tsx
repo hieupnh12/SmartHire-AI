@@ -39,7 +39,7 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
 
   return (
     <div role="tabpanel" className="space-y-4">
-      <div className="rounded-xl border border-blue-200/70 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+      <div className="rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/70 p-4">
         <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Cấu trúc bài tập chuyên biệt</p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Communication đang hoạt động. Các quy trình khác sẽ phát triển mở rộng trong tương lai và chưa thể sử dụng.</p>
       </div>
@@ -57,13 +57,13 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
             className={cn(
               "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
               active === item.id
-                ? "bg-white text-[#0066FF] shadow-xs dark:bg-slate-900 dark:text-blue-400"
+                ? "bg-white text-[var(--color-primary-hover)] shadow-xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                 : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             )}
           >
             <span className={cn(
               "grid size-4.5 place-items-center rounded-full text-[10px]",
-              active === item.id ? "bg-blue-100 text-[#0066FF] font-bold" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+              active === item.id ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-bold" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
             )}>
               {String(index + 1).padStart(2, "0")}
             </span>
@@ -77,7 +77,7 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.5 text-[10px] font-bold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+              <span className="rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
                 QUY TRÌNH {String(exercises.indexOf(exercise) + 1).padStart(2, "0")}
               </span>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{exercise.title.toUpperCase()}</h3>
@@ -130,7 +130,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon: typeof Cli
   return (
     <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
       <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-        <Icon className="size-4 text-[#0066FF]" aria-hidden="true" />
+        <Icon className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
         {title}
       </h4>
       {children}
@@ -201,9 +201,9 @@ function TechnicalPreview({ enabled, count, mode, difficulty, randomize, multipl
   return (
     <ExampleShell title={`Mẫu câu hỏi AI giao · Câu 01/${count}`} meta={`${mode} · 4 lựa chọn · Tổng 15 phút`}>
       <div className="mb-3 flex flex-wrap justify-between gap-2 text-[10px]">
-        <span className="rounded-full bg-blue-50 text-[#0066FF] px-2 py-0.5 font-semibold">Difficulty: {difficulty}</span>
+        <span className="rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2 py-0.5 font-semibold">Difficulty: {difficulty}</span>
         <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">{randomize ? "Đảo đáp án ngẫu nhiên" : "Giữ thứ tự đáp án"}</span>
-        {displaySkills.map(skill => <span key={skill} className="rounded-full bg-blue-50 text-[#0066FF] px-2 py-0.5">{skill}</span>)}
+        {displaySkills.map(skill => <span key={skill} className="rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2 py-0.5">{skill}</span>)}
       </div>
       {!enabled ? <p className="rounded-xl border border-dashed border-slate-300 p-4 text-xs text-slate-500">Quy trình đang tắt — AI sẽ không sinh câu hỏi Technical Knowledge.</p> : <>
         <p className="mb-3 text-xs font-semibold leading-relaxed text-slate-900 dark:text-slate-100">“Trong Spring Framework, Bean có scope là ‘prototype’ sẽ có vòng đời và cơ chế khởi tạo như thế nào so với ‘singleton’ mặc định?”</p>
@@ -252,8 +252,8 @@ function Conceptual({ jobSkills }: { jobSkills: string[] }) {
         <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Chọn kỹ năng AI sẽ sử dụng để sinh câu hỏi Technical Knowledge ở quy trình này.</p>
         <div className="flex flex-wrap gap-2">
           {skillChoices.map(skill => (
-            <label key={skill} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 has-[:checked]:border-[#0066FF] has-[:checked]:bg-blue-50 has-[:checked]:text-[#0066FF]">
-              <input type="checkbox" className="accent-[#0066FF] rounded" checked={skills.includes(skill)} onChange={() => toggleSkill(skill)} />
+            <label key={skill} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 has-[:checked]:border-[var(--color-primary)] has-[:checked]:bg-[var(--color-primary-soft)] has-[:checked]:text-[var(--color-primary-hover)]">
+              <input type="checkbox" className="accent-[var(--color-primary)] rounded" checked={skills.includes(skill)} onChange={() => toggleSkill(skill)} />
               {skill}
             </label>
           ))}
@@ -322,8 +322,8 @@ function ProblemPreview({ enabled, count, style, complexity, content, isFrontend
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {solution && <span className="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">✓ Yêu cầu đề xuất solution</span>}
           {explanation && <span className="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">✓ Yêu cầu giải thích root cause</span>}
-          {hint && <span className="rounded-lg border border-blue-200 bg-blue-50/60 p-2 text-xs text-[#0066FF]">AI Hint có thể được sử dụng</span>}
-          {followUp && <span className="rounded-lg border border-blue-200 bg-blue-50/60 p-2 text-xs text-[#0066FF]">AI follow-up: tối đa {maxFollowUp} câu</span>}
+          {hint && <span className="rounded-lg border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-xs text-[var(--color-primary-hover)]">AI Hint có thể được sử dụng</span>}
+          {followUp && <span className="rounded-lg border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-xs text-[var(--color-primary-hover)]">AI follow-up: tối đa {maxFollowUp} câu</span>}
         </div>
       </>}
     </ExampleShell>
@@ -398,7 +398,7 @@ function CodeReview() {
       <Card title="1. Ngôn ngữ và loại lỗi cài cắm" icon={Code2}>
         <div className="flex flex-wrap gap-2">
           {["Java 17", "Spring Boot 3.x", "JPA / Hibernate"].map(item => (
-            <span key={item} className="rounded-lg bg-blue-50 border border-blue-200/60 px-2.5 py-1 font-mono text-xs font-semibold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+            <span key={item} className="rounded-lg bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-primary-hover)]">
               {item}
             </span>
           ))}
@@ -425,10 +425,10 @@ function Behavioral() {
     <>
       <Card title="1. Mô hình STAR và chủ đề tình huống" icon={Star}>
         <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold">
-          <span className="rounded-xl border border-blue-200/60 bg-blue-50 p-2 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">S<br /><small className="font-normal text-[10px]">Situation</small></span>
-          <span className="rounded-xl border border-blue-200/60 bg-blue-50 p-2 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">T<br /><small className="font-normal text-[10px]">Task</small></span>
-          <span className="rounded-xl border border-blue-200/60 bg-blue-50 p-2 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">A<br /><small className="font-normal text-[10px]">Action</small></span>
-          <span className="rounded-xl border border-blue-200/60 bg-blue-50 p-2 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">R<br /><small className="font-normal text-[10px]">Result</small></span>
+          <span className="rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-[var(--color-primary-hover)]">S<br /><small className="font-normal text-[10px]">Situation</small></span>
+          <span className="rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-[var(--color-primary-hover)]">T<br /><small className="font-normal text-[10px]">Task</small></span>
+          <span className="rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-[var(--color-primary-hover)]">A<br /><small className="font-normal text-[10px]">Action</small></span>
+          <span className="rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] p-2 text-[var(--color-primary-hover)]">R<br /><small className="font-normal text-[10px]">Result</small></span>
         </div>
         <Note>Chủ đề: bất đồng kỹ thuật với Tech Lead, áp lực deadline Sprint và tiếp nhận code feedback gay gắt.</Note>
       </Card>
@@ -472,8 +472,8 @@ function ConceptualExample({ questionCount, selection, options, timer, skills, s
 
   return (
     <ExampleShell title={`Mẫu câu hỏi AI giao · Câu 01/${questionCount}`} meta={`Định dạng: ${selection === "single" ? "Single-choice" : "Multiple-choice"} · ${options} lựa chọn · ${timer}s/câu`}>
-      <div className="mb-3 flex flex-wrap justify-end gap-1.5 text-[10px] font-medium text-[#0066FF]">
-        {skills.length ? skills.map(skill => <span key={skill} className="rounded-full bg-blue-50 px-2 py-0.5">{skill}</span>) : <span className="text-slate-400">Chưa chọn Job Skill</span>}
+      <div className="mb-3 flex flex-wrap justify-end gap-1.5 text-[10px] font-medium text-[var(--color-primary-hover)]">
+        {skills.length ? skills.map(skill => <span key={skill} className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5">{skill}</span>) : <span className="text-slate-400">Chưa chọn Job Skill</span>}
       </div>
       <p className="mb-3 text-xs font-semibold leading-relaxed text-slate-900 dark:text-slate-100">“Trong Spring Framework, Bean có scope là ‘prototype’ sẽ có vòng đời và cơ chế khởi tạo như thế nào so với ‘singleton’ mặc định?”</p>
       <div className="grid gap-2 md:grid-cols-2">
@@ -489,7 +489,7 @@ function ConceptualExample({ questionCount, selection, options, timer, skills, s
       </div>
       <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-slate-200/70 dark:border-slate-800 pt-2 text-[11px] text-slate-500 dark:text-slate-400">
         <span>{showAnswers ? reasoning ? "Cơ chế chấm: hiển thị đáp án và AI giải thích vì sao các phương án khác không phù hợp." : "Cơ chế chấm: hiển thị đúng/sai sau khi ứng viên nộp bài." : "Cơ chế chấm: đáp án được giữ kín sau khi ứng viên nộp bài."}</span>
-        <strong className="text-[#0066FF]">Score: Max 10 pts</strong>
+        <strong className="text-[var(--color-primary-hover)]">Score: Max 10 pts</strong>
       </div>
     </ExampleShell>
   );
@@ -514,13 +514,13 @@ function ScenarioExample({ count, context, errorLog, apm, probing, reference }: 
         )}
         {apm && (
           <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
-            <strong className="block text-[#0066FF]">APM snapshot</strong>
+            <strong className="block text-[var(--color-primary-hover)]">APM snapshot</strong>
             <span className="mt-1 block text-slate-500 dark:text-slate-400">CPU 89% · RAM 76% · Connection Pool 97/100</span>
           </div>
         )}
       </div>
-      {probing && <div className="mt-3 rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 text-xs text-slate-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-slate-200"><strong>AI Follow-up:</strong> Nếu ứng viên chỉ đề xuất “restart server”, AI sẽ hỏi bắt buộc về root cause và cách xác minh giả thuyết.</div>}
-      {reference && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900"><strong className="text-[#0066FF]">Sau khi nộp:</strong> hiển thị Reference Architecture Solution theo từng bước điều tra, hotfix và phòng ngừa dài hạn.</div>}
+      {probing && <div className="mt-3 rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] p-3 text-xs text-slate-700"><strong>AI Follow-up:</strong> Nếu ứng viên chỉ đề xuất “restart server”, AI sẽ hỏi bắt buộc về root cause và cách xác minh giả thuyết.</div>}
+      {reference && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900"><strong className="text-[var(--color-primary-hover)]">Sau khi nộp:</strong> hiển thị Reference Architecture Solution theo từng bước điều tra, hotfix và phòng ngừa dài hạn.</div>}
     </ExampleShell>
   );
 }
@@ -539,12 +539,12 @@ function ExperienceExample({ count, target, rigor, consistency }: { count: numbe
   return (
     <ExampleShell title={`Mẫu câu hỏi bóc tách CV · Câu 01/${count}`} meta={`${bySkill ? "Target: Job Skill" : "Target: Metric"} · ${deep ? "Deep Implementation" : "Role Clarification"}`}>
       <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-        <strong className="text-[#0066FF]">CV evidence:</strong> “Tối ưu caching Redis, giúp giảm 40% response time cho API sản phẩm.”
+        <strong className="text-[var(--color-primary-hover)]">CV evidence:</strong> “Tối ưu caching Redis, giúp giảm 40% response time cho API sản phẩm.”
       </div>
       <p className="text-xs font-semibold leading-relaxed text-slate-900 dark:text-slate-100">{prompt}</p>
       {consistency && (
-        <div className="mt-3 rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/30">
-          <strong className="text-[#0066FF]">Sau khi nộp · CV Consistency Score</strong>
+        <div className="mt-3 rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] p-3 text-xs">
+          <strong className="text-[var(--color-primary-hover)]">Sau khi nộp · CV Consistency Score</strong>
           <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
             <span className="text-emerald-700 dark:text-emerald-400">✓ Khớp CV evidence</span>
             <span className="text-amber-700 dark:text-amber-400">! Cần làm rõ metric</span>
@@ -574,13 +574,13 @@ function PromptExample({ title, prompt, meta, code }: { title: string; prompt: s
 
 function ExampleShell({ title, meta, children }: { title: string; meta: string; children: ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-blue-200/70 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200/60 bg-blue-50/70 px-4 py-2.5 dark:border-blue-900/60 dark:bg-blue-950/40">
-        <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#0066FF] dark:text-blue-400">
+    <section className="overflow-hidden rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/50">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-primary)]/15 bg-[var(--color-primary-subtle)] px-4 py-2.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-primary-hover)]">
           <Sparkles className="size-3.5" aria-hidden="true" />
           {title} <span className="font-normal normal-case text-slate-400">(Question Plan Seed)</span>
         </span>
-        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#0066FF] shadow-2xs border border-blue-100 dark:bg-slate-900 dark:border-slate-800">
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)] shadow-2xs border border-[var(--color-primary)]/20 dark:bg-slate-900">
           {meta}
         </span>
       </header>
@@ -601,7 +601,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
       <select
         value={savedValue}
         onChange={event => { onChange(event.target.value); config?.write(label, event.target.value); }}
-        className="h-9.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-900 outline-none transition-all focus:border-[#0066FF] focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white cursor-pointer"
+        className="h-9.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-900 outline-none transition-all focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white cursor-pointer"
       >
         {!options.some(option => option.value === savedValue) && <option value={savedValue}>{savedValue} (Đã lưu)</option>}
         {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -627,7 +627,7 @@ function ChoiceField({ label, value, onChange, options }: { label: string; value
             className={cn(
               "flex cursor-pointer gap-2.5 rounded-lg border p-2 text-xs transition-all",
               savedValue === option.value
-                ? "border-[#0066FF] bg-blue-50 text-[#0066FF] font-semibold dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
             )}
           >
@@ -637,7 +637,7 @@ function ChoiceField({ label, value, onChange, options }: { label: string; value
               value={option.value}
               checked={savedValue === option.value}
               onChange={event => { onChange(event.target.value); config?.write(label, event.target.value); }}
-              className="accent-[#0066FF] mt-0.5"
+              className="accent-[var(--color-primary)] mt-0.5"
             />
             <span>
               <strong className="block">{option.label}</strong>
@@ -669,7 +669,7 @@ function Toggle({ label, description, checked = false, onChange, disabled }: { l
         checked={savedChecked}
         disabled={disabled || unavailable}
         onChange={event => { onChange?.(event.target.checked); config?.write(label, event.target.checked); }}
-        className="mt-1 size-4 accent-[#0066FF] rounded cursor-pointer shrink-0"
+        className="mt-1 size-4 accent-[var(--color-primary)] rounded cursor-pointer shrink-0"
       />
     </label>
   );
@@ -707,7 +707,7 @@ function Rubric({ items }: { items: string[] }) {
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
         <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-          <Gauge className="size-4 text-[#0066FF]" aria-hidden="true" />
+          <Gauge className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
           Adaptive Rubric Matrix · {process}
         </span>
         <span className="text-[10px] font-semibold text-slate-400">{items.length} thang đo độc lập</span>
@@ -715,7 +715,7 @@ function Rubric({ items }: { items: string[] }) {
       <div className="grid divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
         {items.map((item, index) => (
           <div key={item} className="min-h-24 p-3.5">
-            <span className="text-xs font-bold text-[#0066FF] dark:text-blue-400">{index + 1}. {item}</span>
+            <span className="text-xs font-bold text-[var(--color-primary-hover)]">{index + 1}. {item}</span>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{details[item] ?? "Tiêu chí độc lập AI dùng để đánh giá câu trả lời."}</p>
           </div>
         ))}
@@ -917,32 +917,32 @@ function ExperiencePreview({ enabled, count, response, depth, followUp, maxFollo
             <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Bản đồ câu hỏi & cấu hình AI</p>
             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Các bước đang bật được hiển thị theo đúng thứ tự AI xử lý.</p>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 text-[10px] font-semibold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2.5 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">
             <Sparkles className="size-3" aria-hidden="true" /> {depth} depth
           </span>
         </div>
 
         <div className="grid gap-2 lg:grid-cols-[1fr_auto_1.25fr_auto_1fr] lg:items-stretch">
           <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#0066FF]">01 · AI đọc ngữ cảnh</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary-hover)]">01 · AI đọc ngữ cảnh</p>
             <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
               <p><strong className="text-slate-800 dark:text-slate-200">Job</strong> · Backend Developer · {domain}</p>
               <p><strong className="text-slate-800 dark:text-slate-200">CV</strong> · E-commerce · Spring Boot · {domain}</p>
             </div>
           </div>
           <ArrowRight className="mx-auto hidden size-4 self-center text-slate-400 lg:block" aria-hidden="true" />
-          <div className="rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 dark:border-blue-900/40 dark:bg-blue-950/30">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#0066FF]">02 · Câu hỏi chính</p>
+          <div className="rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary-hover)]">02 · Câu hỏi chính</p>
             <p className="mt-1.5 text-xs font-semibold leading-relaxed text-slate-900 dark:text-slate-100">Bạn đã sử dụng {domain} trong E-commerce project như thế nào?</p>
             <p className="mt-1 text-[10px] text-slate-500">Ứng viên trả lời bằng {mode.toLowerCase()} · tối đa 3 phút</p>
           </div>
           <ArrowRight className="mx-auto hidden size-4 self-center text-slate-400 lg:block" aria-hidden="true" />
           <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#0066FF]">03 · AI khai thác</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary-hover)]">03 · AI khai thác</p>
             <div className="mt-2 grid gap-1">
               {probes.map(probe => (
                 <span key={probe.label} className={cn("flex items-center gap-1.5 text-xs", probe.enabled ? "text-slate-800 dark:text-slate-200 font-medium" : "text-slate-300 dark:text-slate-600 line-through")}>
-                  <CheckCircle2 className={cn("size-3.5 shrink-0", probe.enabled ? "text-[#0066FF]" : "text-slate-300")} aria-hidden="true" />
+                  <CheckCircle2 className={cn("size-3.5 shrink-0", probe.enabled ? "text-[var(--color-primary)]" : "text-slate-300")} aria-hidden="true" />
                   {probe.label}
                 </span>
               ))}
@@ -951,11 +951,11 @@ function ExperiencePreview({ enabled, count, response, depth, followUp, maxFollo
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <div className={cn("rounded-xl border p-3 text-xs", followUp ? "border-blue-200/60 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900")}>
+          <div className={cn("rounded-xl border p-3 text-xs", followUp ? "border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/70" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900")}>
             <p className="font-bold text-slate-900 dark:text-slate-100">04 · AI Follow-up {followUp ? `· tối đa ${maxFollowUp} câu` : "· tắt"}</p>
             <p className="mt-1 text-slate-500 dark:text-slate-400 leading-relaxed">{followUp ? `Ví dụ: “Tại sao team chọn ${domain} thay vì xử lý synchronous?”` : "AI kết thúc sau câu trả lời chính."}</p>
           </div>
-          <div className={cn("rounded-xl border p-3 text-xs", verifyCv ? "border-blue-200/60 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900")}>
+          <div className={cn("rounded-xl border p-3 text-xs", verifyCv ? "border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/70" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900")}>
             <p className="font-bold text-slate-900 dark:text-slate-100">05 · Đối soát & đánh giá {verifyCv ? "· bật" : "· tắt"}</p>
             <p className="mt-1 text-slate-500 dark:text-slate-400 leading-relaxed">{verifyCv ? "So sánh câu trả lời với CV evidence để tạo CV Consistency Score." : "Chấm theo rubric, không đối chiếu bằng chứng trong CV."}</p>
           </div>

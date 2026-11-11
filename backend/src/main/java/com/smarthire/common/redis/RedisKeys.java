@@ -48,6 +48,11 @@ public final class RedisKeys {
         return "lock:github:analyze:" + cvId;
     }
 
+    public static String githubUserProfile(String owner) {
+        String normalized = owner == null ? "" : owner.trim().toLowerCase();
+        return "cache:github:user:" + normalized;
+    }
+
     public static String masterRefreshSession(String tokenId) {
         return "auth:master:refresh:" + tokenId;
     }

@@ -98,7 +98,7 @@ export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
         <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-start justify-between gap-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">TB Thời gian làm bài</span>
-            <div className="grid size-8 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+            <div className="grid size-8 place-items-center rounded-lg bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
               <Clock3 className="size-4.5" />
             </div>
           </div>
@@ -107,12 +107,12 @@ export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
               <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                 {formatDuration(avgDurationSec)}
               </p>
-              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+              <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                 {withDuration.length > 0 ? "Thực tế" : "Chờ dữ liệu"}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span className="size-1.5 rounded-full bg-sky-500" />
+              <span className="size-1.5 rounded-full bg-[var(--color-primary)]" />
               <p className="truncate">
                 {withDuration.length ? `Dựa trên ${withDuration.length} lượt hoàn thành` : "Đang ghi nhận lượt thi"}
               </p>
@@ -176,7 +176,7 @@ export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
                 <span className="text-xs font-normal text-slate-500">lượt</span>
               </p>
               <div className="flex items-center gap-1">
-                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                <span className="rounded bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                   {submittedCount} nộp
                 </span>
                 {inProgressCount > 0 && (

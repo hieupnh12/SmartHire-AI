@@ -78,6 +78,7 @@ import { JobFormPage } from "@/features/tenant/recruiter/jobs/pages/JobFormPage"
 import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
+import { CvDetailPage } from "@/features/tenant/recruiter/cv-screening/pages/CvDetailPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
 import { RankingCandidateDetailPage } from "@/features/tenant/recruiter/matching/pages/RankingCandidateDetailPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
@@ -93,6 +94,7 @@ import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/
 import { AiQuestionGeneratorPage } from "@/features/tenant/recruiter/assessments/pages/AiQuestionGeneratorPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
+import { AiInterviewDetailPage as RecruiterAiInterviewDetailPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewDetailPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
@@ -224,6 +226,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
             <Route path="jobs/:id/cvs" element={<CvScreeningPage />} />
+            <Route path="jobs/:id/cvs/:cvId" element={<CvDetailPage />} />
             <Route path="cvs" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
@@ -263,6 +266,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>
             <Route path="jobs/:id/ai-interviews" element={<JobRecruitmentWorkspace><RecruiterAiInterviewsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/ai-interviews/:interviewId" element={<JobRecruitmentWorkspace><RecruiterAiInterviewDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="ai-interviews" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>

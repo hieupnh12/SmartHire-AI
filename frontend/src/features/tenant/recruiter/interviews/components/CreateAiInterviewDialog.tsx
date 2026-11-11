@@ -63,7 +63,7 @@ export function CreateAiInterviewDialog({ jobId, applicants, existingApplication
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-900/60 shadow-2xs">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25 shadow-2xs">
             <Sparkles className="size-5" aria-hidden="true" />
           </div>
           <div>
@@ -85,7 +85,7 @@ export function CreateAiInterviewDialog({ jobId, applicants, existingApplication
             Chọn đơn ứng tuyển <span className="text-rose-500">*</span>
           </span>
           <select
-            className="mt-1 h-9.5 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-medium text-slate-900 transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white cursor-pointer"
+            className="mt-1 h-9.5 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-medium text-slate-900 transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white cursor-pointer"
             {...register("applicationId")}
             disabled={create.isPending}
           >

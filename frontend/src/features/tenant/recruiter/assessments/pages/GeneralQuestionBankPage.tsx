@@ -548,11 +548,11 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           </div>
 
           {selected.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#213145] px-4 py-2.5 text-white shadow-lg">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-primary)]/25 bg-slate-900 px-4 py-2.5 text-white shadow-lg">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">{selected.length}</span>
                 Đã chọn {selected.length} câu hỏi
-                <button type="button" className="text-xs text-sky-200 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
+                <button type="button" className="text-xs text-[var(--color-primary)] brightness-125 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
                   Chọn toàn bộ {pageRows.length} câu trên trang
                 </button>
               </div>
@@ -623,7 +623,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                                 {meta.label}
                               </span>
                               {row.aiGenerated && (
-                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                                   <Sparkles className="size-3" aria-hidden="true" />
                                   AI
                                 </span>
@@ -773,7 +773,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
 
       {active && (
         <>
-          <button type="button" aria-label="Đóng chi tiết câu hỏi" className="fixed inset-0 z-40 bg-[#213145]/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
+          <button type="button" aria-label="Đóng chi tiết câu hỏi" className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
           <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col bg-[var(--color-surface-card)] shadow-2xl" aria-label="Chi tiết câu hỏi">
             <div className="flex items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">

@@ -28,7 +28,25 @@ public final class CvModels {
             BigDecimal matchScore,
             String errorCode,
             Instant createdAt,
-            boolean fromBuilder) {}
+            boolean fromBuilder,
+            String githubStatus,
+            BigDecimal githubScore,
+            String githubTrustLevel) {
+        public CvSummary(
+                long id,
+                Long jobId,
+                long userId,
+                String candidateName,
+                String originalFilename,
+                String status,
+                BigDecimal matchScore,
+                String errorCode,
+                Instant createdAt,
+                boolean fromBuilder) {
+            this(id, jobId, userId, candidateName, originalFilename, status, matchScore, errorCode, createdAt, fromBuilder,
+                    null, null, null);
+        }
+    }
 
     public record CvJobStats(
             long total,

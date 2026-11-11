@@ -109,8 +109,8 @@ function statusMeta(status: SubmissionStatus) {
     case "SUBMITTED":
       return {
         label: "Đã nộp",
-        badge: "bg-blue-50 text-blue-700 border border-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40",
-        dot: "bg-blue-500",
+        badge: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20",
+        dot: "bg-[var(--color-primary)]",
       };
     case "IN_PROGRESS":
       return {
@@ -327,7 +327,7 @@ export function AssessmentSubmissionsPage() {
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all cursor-pointer",
                   active
-                    ? "bg-white font-semibold text-[#0066FF] shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                    ? "bg-white font-semibold text-[var(--color-primary)] shadow-2xs dark:bg-slate-900"
                     : "text-[#475467] hover:text-[#101828] dark:text-slate-400 dark:hover:text-slate-200",
                 )}
               >
@@ -336,7 +336,7 @@ export function AssessmentSubmissionsPage() {
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     active
-                      ? "bg-blue-50 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300"
+                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                       : "bg-slate-200/60 text-[#667085] dark:bg-slate-700/60 dark:text-slate-400",
                   )}
                 >
@@ -358,7 +358,7 @@ export function AssessmentSubmissionsPage() {
           >
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667085]" />
             <input
-              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-8 text-[13px] text-[#101828] placeholder:text-[#667085] outline-none transition focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:bg-slate-900"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-8 text-[13px] text-[#101828] placeholder:text-[#667085] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:bg-slate-900"
               placeholder="Tìm ứng viên, email…"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
@@ -385,7 +385,7 @@ export function AssessmentSubmissionsPage() {
             title="Làm mới dữ liệu"
             aria-label="Làm mới dữ liệu"
           >
-            <RefreshCw className={cn("size-3.5", submissions.isFetching && "animate-spin text-[#0066FF]")} aria-hidden="true" />
+            <RefreshCw className={cn("size-3.5", submissions.isFetching && "animate-spin text-[var(--color-primary)]")} aria-hidden="true" />
           </button>
 
           {/* Nút Chuyển chế độ: Tiêu chuẩn / Thu gọn (Segmented Control trực quan) */}
@@ -512,7 +512,7 @@ export function AssessmentSubmissionsPage() {
                 <span className="text-slate-300 dark:text-slate-700">·</span>
                 <span className="tabular-nums">Trang {safePage} / {pageCount}</span>
                 {submissions.isFetching && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0066FF] ml-1" role="status">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
                     <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
                     <span className="hidden sm:inline">Đang tải…</span>
                   </span>
@@ -530,7 +530,7 @@ export function AssessmentSubmissionsPage() {
                       const nextSize = Number(e.target.value);
                       goToPage(1, nextSize);
                     }}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
                       <option key={size} value={size}>
@@ -551,7 +551,7 @@ export function AssessmentSubmissionsPage() {
                     title="Về trang đầu (Trang 1)"
                     disabled={safePage === 1}
                     onClick={() => goToPage(1)}
-                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronsLeft className="size-4" aria-hidden="true" />
                   </button>
@@ -563,7 +563,7 @@ export function AssessmentSubmissionsPage() {
                     title="Trang trước"
                     disabled={safePage === 1}
                     onClick={() => goToPage(safePage - 1)}
-                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronLeft className="size-4" aria-hidden="true" />
                   </button>
@@ -592,8 +592,8 @@ export function AssessmentSubmissionsPage() {
                         className={cn(
                           "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all cursor-pointer",
                           isActive
-                            ? "bg-[#0066FF] text-white shadow-xs font-bold"
-                            : "border border-slate-200 bg-white text-slate-700 hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-[#0066FF]"
+                            ? "bg-brand-primary text-white shadow-xs font-bold"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-brand-primary"
                         )}
                       >
                         {item}
@@ -608,7 +608,7 @@ export function AssessmentSubmissionsPage() {
                     title="Trang sau"
                     disabled={safePage >= pageCount}
                     onClick={() => goToPage(safePage + 1)}
-                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronRight className="size-4" aria-hidden="true" />
                   </button>
@@ -620,7 +620,7 @@ export function AssessmentSubmissionsPage() {
                     title={`Đến trang cuối (Trang ${pageCount})`}
                     disabled={safePage >= pageCount}
                     onClick={() => goToPage(pageCount)}
-                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronsRight className="size-4" aria-hidden="true" />
                   </button>
@@ -652,13 +652,13 @@ export function AssessmentSubmissionsPage() {
                     onChange={(e) => setJumpVal(e.target.value)}
                     placeholder={String(safePage)}
                     aria-label="Nhập số trang cần đến"
-                    className="h-8 w-14 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    className="h-8 w-14 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   />
                   <span>Trang</span>
                   <button
                     type="submit"
                     disabled={!jumpVal || Number(jumpVal) < 1 || Number(jumpVal) > pageCount}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs sm:text-[13px] font-semibold text-slate-700 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs sm:text-[13px] font-semibold text-slate-700 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
                     Đi
                   </button>
@@ -831,7 +831,7 @@ function SubmissionRow({
             <Clock3 className="size-3" /> Đang thi
           </span>
         ) : row.status === "SUBMITTED" && row.score == null ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
             Chờ chấm bài
           </span>
         ) : row.status === "EXPIRED" && row.score == null ? (

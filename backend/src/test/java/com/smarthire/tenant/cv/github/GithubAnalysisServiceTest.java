@@ -277,6 +277,54 @@ class GithubAnalysisServiceTest {
         assertThat(stored.get().getScore()).isNull();
     }
 
+    @Test
+    void unmodifiedForkSkipsModelToSaveTokens() throws Exception {
+        RepoSnapshot forkRepo = new RepoSnapshot(
+                "octo/demo", "octo", "demo", "API", "main", SHA, "Java",
+                "https://github.com/octo/demo", true, false, false,
+                "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z", 500, 0, 0, "upstream/demo");
+        when(github.repository("octo", "demo")).thenReturn(forkRepo);
+        when(github.forkAheadBy("upstream/demo", "octo", "main")).thenReturn(0);
+
+        service().analyze(9L);
+
+        assertThat(stored.get().getStatus()).isEqualTo(GithubAnalysisStatus.PARTIAL);
+        assertThat(stored.get().getErrorCode()).isEqualTo("TRUST_GATE_SKIPPED");
+        assertThat(stored.get().getScore()).isNull();
+        verify(advisor, never()).advise(anyString(), anyString());
+        assertThat(json().path("authenticity").path("overallTrustLevel").asText()).isEqualTo("WARNING");
+    }
+
+    @Test
+    void earlyStopSkipsModelForSecondRepoWhenAllSkillsAlreadyVerified() throws Exception {
+        cv.setBuilderData("{\"personalInfo\":{\"github\":\"https://github.com/octo/demo\"},\"notes\":\"https://github.com/octo/second\"}");
+        RepoSnapshot second = new RepoSnapshot(
+                "octo/second", "octo", "second", "UI", "main", SHA_2, "Java",
+                "https://github.com/octo/second", false, false, false);
+        when(github.repository("octo", "second")).thenReturn(second);
+
+        service().analyze(9L);
+
+        verify(advisor, times(1)).advise(anyString(), anyString());
+        assertThat(json().path("repositories")).hasSize(2);
+        assertThat(json().path("repositories").get(1).path("cache").asText()).isEqualTo("EARLY_STOP");
+    }
+
+    @Test
+    void duplicateRepoSubmissionAcrossJobAddsWarningSignal() throws Exception {
+        Cv otherCv = new Cv();
+        otherCv.setId(99L);
+        GithubAnalysis other = new GithubAnalysis();
+        other.setCv(otherCv);
+        other.setSourceUrls("[\"octo/demo\"]");
+        when(analyses.findByJob_Id(3L)).thenReturn(List.of(other));
+
+        service().analyze(9L);
+
+        assertThat(json().path("authenticity").path("overallTrustLevel").asText()).isEqualTo("WARNING");
+        assertThat(json().path("authenticity").path("repositories").get(0).path("duplicateCvCount").asLong()).isEqualTo(1L);
+    }
+
     private com.fasterxml.jackson.databind.JsonNode json() throws Exception {
         return json.readTree(stored.get().getResultJson());
     }

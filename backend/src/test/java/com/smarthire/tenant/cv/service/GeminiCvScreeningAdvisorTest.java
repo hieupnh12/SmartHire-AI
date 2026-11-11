@@ -40,5 +40,34 @@ class GeminiCvScreeningAdvisorTest {
         assertThat(decision.get().interviewQuestions()).hasSize(2);
         assertThat(decision.get().candidateAdvice()).contains("Docker");
     }
+
+    @Test
+    void parsesObjectAndAliasFormatsForStrengthsAndRisks() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        GeminiCvAiClient ai = mock(GeminiCvAiClient.class);
+        when(ai.configured()).thenReturn(true);
+        when(ai.completeJson(anyString(), anyString())).thenReturn("""
+                {
+                  "passed": true,
+                  "summary": "Ứng viên có kinh nghiệm thực tế phù hợp.",
+                  "strengths": [
+                    {"title": "Backend Java", "detail": "2 năm làm Spring Boot và REST API"},
+                    {"text": "Có kinh nghiệm tối ưu Redis cache"}
+                  ],
+                  "weaknesses": "- Thiếu kinh nghiệm vận hành Kubernetes production\\n- Chưa có chứng chỉ cloud",
+                  "advice": "Tiến hành phỏng vấn kỹ thuật sâu."
+                }
+                """);
+
+        GeminiCvScreeningAdvisor advisor = new GeminiCvScreeningAdvisor(ai, mapper);
+        Optional<CvScreeningAdvisor.Decision> decision = advisor.decide(mapper.readTree("{\"score\":75}"), true);
+
+        assertThat(decision).isPresent();
+        assertThat(decision.get().verdict()).contains("kinh nghiệm thực tế");
+        assertThat(decision.get().strengths())
+                .containsExactly("Backend Java: 2 năm làm Spring Boot và REST API", "Có kinh nghiệm tối ưu Redis cache");
+        assertThat(decision.get().risks())
+                .containsExactly("Thiếu kinh nghiệm vận hành Kubernetes production", "Chưa có chứng chỉ cloud");
+    }
 }
 

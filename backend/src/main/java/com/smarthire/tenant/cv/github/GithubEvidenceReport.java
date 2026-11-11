@@ -24,8 +24,26 @@ public final class GithubEvidenceReport {
     public record Skill(String name, boolean required, String status, String confidence, Integer quality,
                          List<Evidence> evidence, String limit) {}
 
-    public record Report(List<Skill> skills, List<String> strengths, List<String> improvements,
-                          List<String> unverified, String summary, String confidence) {}
+    public record ClaimCheck(String claim, String status, String note) {}
+
+    public record InterviewProbe(String repository, String topic, String filePath, String question) {}
+
+    public record Report(
+            List<Skill> skills,
+            List<String> strengths,
+            List<String> improvements,
+            List<String> unverified,
+            String summary,
+            String confidence,
+            String codeDepth,
+            String authenticityCue,
+            List<ClaimCheck> claimChecks,
+            List<InterviewProbe> interviewProbes) {
+        public Report(List<Skill> skills, List<String> strengths, List<String> improvements,
+                      List<String> unverified, String summary, String confidence) {
+            this(skills, strengths, improvements, unverified, summary, confidence, "", "", List.of(), List.of());
+        }
+    }
 
     private GithubEvidenceReport() {}
 
@@ -50,9 +68,19 @@ public final class GithubEvidenceReport {
                     ? new Skill(need.name(), need.required(), "UNVERIFIED", "LOW", null, List.of(), "No evidence in the selected files.")
                     : new Skill(need.name(), need.required(), found.status(), found.confidence(), found.quality(), found.evidence(), found.limit()));
         }
-        return new Report(skills, texts(root.path("strengths")), texts(root.path("improvements")),
-                texts(root.path("unverified")), root.path("summary").asText(""),
-                confidence(root.path("confidence").asText("LOW")));
+        String summaryText = cleanText(root.path("summary").asText(""));
+        String cue = cleanText(root.path("authenticityCue").asText(""));
+        return new Report(
+                skills,
+                texts(root.path("strengths")),
+                texts(root.path("improvements")),
+                texts(root.path("unverified")),
+                summaryText,
+                confidence(root.path("confidence").asText("LOW")),
+                codeDepth(root.path("codeDepth").asText("")),
+                cue,
+                parseClaimChecks(root.path("claimChecks")),
+                parseInterviewProbes(root.path("interviewProbes"), sourcePaths));
     }
 
     public static Report merge(Report previous, Report updated, Set<String> changedPaths) {
@@ -65,8 +93,12 @@ public final class GithubEvidenceReport {
             boolean newlyShown = "VERIFIED".equals(skill.status()) || "PARTIAL".equals(skill.status());
             if (prior == null || priorTouched || newlyShown) kept.put(norm(skill.name()), skill);
         }
+        String depth = !updated.codeDepth().isBlank() ? updated.codeDepth() : previous.codeDepth();
+        String cue = !updated.authenticityCue().isBlank() ? updated.authenticityCue() : previous.authenticityCue();
+        List<ClaimCheck> claims = !updated.claimChecks().isEmpty() ? updated.claimChecks() : previous.claimChecks();
+        List<InterviewProbe> probes = !updated.interviewProbes().isEmpty() ? updated.interviewProbes() : previous.interviewProbes();
         return new Report(new ArrayList<>(kept.values()), updated.strengths(), updated.improvements(),
-                updated.unverified(), updated.summary(), updated.confidence());
+                updated.unverified(), updated.summary(), updated.confidence(), depth, cue, claims, probes);
     }
 
     public static Report attribute(Report report, String repository) {
@@ -78,8 +110,14 @@ public final class GithubEvidenceReport {
             skills.add(new Skill(skill.name(), skill.required(), skill.status(), skill.confidence(),
                     skill.quality(), evidence, skill.limit()));
         }
+        List<InterviewProbe> probes = report.interviewProbes().stream()
+                .map(p -> new InterviewProbe(
+                        p.repository() == null || p.repository().isBlank() ? repository : p.repository(),
+                        p.topic(), p.filePath(), p.question()))
+                .toList();
         return new Report(skills, report.strengths(), report.improvements(), report.unverified(),
-                report.summary(), report.confidence());
+                report.summary(), report.confidence(), report.codeDepth(), report.authenticityCue(),
+                report.claimChecks(), probes);
     }
 
     public static Report readStored(ObjectMapper mapper, String json) {
@@ -90,6 +128,10 @@ public final class GithubEvidenceReport {
             for (JsonNode skill : root.path("skills")) {
                 needs.add(new SkillNeed(skill.path("name").asText(), skill.path("required").asBoolean(false)));
                 for (JsonNode item : skill.path("evidence")) paths.add(item.path("path").asText());
+            }
+            for (JsonNode probe : root.path("interviewProbes")) {
+                String path = probe.path("filePath").asText("").trim();
+                if (!path.isEmpty()) paths.add(path);
             }
             return parse(mapper, json, needs, paths, java.util.Set.of());
         } catch (Exception ex) {
@@ -115,9 +157,26 @@ public final class GithubEvidenceReport {
         ObjectNode root = mapper.createObjectNode();
         root.put("summary", report.summary());
         root.put("confidence", report.confidence());
+        root.put("codeDepth", report.codeDepth() == null ? "" : report.codeDepth());
+        root.put("authenticityCue", report.authenticityCue() == null ? "" : report.authenticityCue());
         root.set("strengths", strings(mapper, report.strengths()));
         root.set("improvements", strings(mapper, report.improvements()));
         root.set("unverified", strings(mapper, report.unverified()));
+        ArrayNode claims = root.putArray("claimChecks");
+        for (ClaimCheck item : report.claimChecks()) {
+            ObjectNode c = claims.addObject();
+            c.put("claim", item.claim());
+            c.put("status", item.status());
+            c.put("note", item.note());
+        }
+        ArrayNode probes = root.putArray("interviewProbes");
+        for (InterviewProbe item : report.interviewProbes()) {
+            ObjectNode p = probes.addObject();
+            p.put("repository", item.repository() == null ? "" : item.repository());
+            p.put("topic", item.topic());
+            p.put("filePath", item.filePath());
+            p.put("question", item.question());
+        }
         ArrayNode skills = root.putArray("skills");
         for (Skill skill : report.skills()) {
             ObjectNode node = skills.addObject();
@@ -191,6 +250,60 @@ public final class GithubEvidenceReport {
     private static String confidence(String value) {
         String upper = value == null ? "LOW" : value.trim().toUpperCase(Locale.ROOT);
         return upper.equals("HIGH") || upper.equals("MEDIUM") ? upper : "LOW";
+    }
+
+    private static String codeDepth(String value) {
+        if (value == null) return "";
+        String upper = value.trim().toUpperCase(Locale.ROOT);
+        return switch (upper) {
+            case "PRODUCTION_GRADE", "INTERMEDIATE", "BASIC_CRUD", "TUTORIAL_BOILERPLATE" -> upper;
+            default -> "";
+        };
+    }
+
+    private static List<ClaimCheck> parseClaimChecks(JsonNode node) {
+        List<ClaimCheck> list = new ArrayList<>();
+        if (!node.isArray()) return list;
+        for (JsonNode item : node) {
+            String claim = cleanText(item.path("claim").asText(""));
+            String note = cleanText(item.path("note").asText(""));
+            String rawStatus = item.path("status").asText("NOT_FOUND").trim().toUpperCase(Locale.ROOT);
+            String status = switch (rawStatus) {
+                case "SUPPORTED", "PARTIAL", "OVERSTATED", "NOT_FOUND" -> rawStatus;
+                default -> "NOT_FOUND";
+            };
+            if (!claim.isEmpty() && !note.isEmpty()) {
+                list.add(new ClaimCheck(claim, status, note));
+                if (list.size() >= 6) break;
+            }
+        }
+        return list;
+    }
+
+    private static List<InterviewProbe> parseInterviewProbes(JsonNode node, Set<String> sourcePaths) {
+        List<InterviewProbe> list = new ArrayList<>();
+        if (!node.isArray()) return list;
+        for (JsonNode item : node) {
+            String topic = cleanText(item.path("topic").asText(""));
+            String filePath = item.path("filePath").asText("").trim();
+            String question = cleanText(item.path("question").asText(""));
+            if (question.isEmpty()) continue;
+            if (!filePath.isEmpty() && !sourcePaths.isEmpty() && !sourcePaths.contains(filePath)) continue;
+            list.add(new InterviewProbe(
+                    item.path("repository").asText("").trim(),
+                    topic.isEmpty() ? "Xác minh code" : topic,
+                    filePath,
+                    question));
+            if (list.size() >= 4) break;
+        }
+        return list;
+    }
+
+    private static String cleanText(String value) {
+        if (value == null || value.isBlank()) return "";
+        String trimmed = value.replaceAll("[\\p{Cntrl}&&[^\n\t]]", "").trim();
+        if (INJECTION.matcher(trimmed).find()) return "";
+        return trimmed.length() <= 600 ? trimmed : trimmed.substring(0, 600);
     }
 
     private static String norm(String value) {

@@ -106,7 +106,7 @@ export function AiReviewWorkspace({
         {/* State 1: Chưa có câu hỏi nào */}
         {drafts.length === 0 && !isGenerating && (
           <div className="flex min-h-[380px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-900 mb-4 shadow-sm">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/20 mb-4 shadow-sm">
               <Sparkles className="size-7" />
             </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -118,13 +118,13 @@ export function AiReviewWorkspace({
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3 text-xs text-slate-600 dark:text-slate-400">
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[#0066FF]">1.</span> Thiết lập Kỹ năng & Loại câu
+                <span className="font-bold text-[var(--color-primary)]">1.</span> Thiết lập Kỹ năng & Loại câu
               </span>
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[#0066FF]">2.</span> Nhập chủ đề hoặc dùng JD
+                <span className="font-bold text-[var(--color-primary)]">2.</span> Nhập chủ đề hoặc dùng JD
               </span>
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[#0066FF]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
+                <span className="font-bold text-[var(--color-primary)]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
               </span>
             </div>
           </div>
@@ -233,7 +233,7 @@ export function AiReviewWorkspace({
           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
             {selectedCount > 0 ? (
               <span>
-                Sẵn sàng lưu <strong className="text-[#0066FF]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
+                Sẵn sàng lưu <strong className="text-[var(--color-primary)]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
               </span>
             ) : (
               <span className="text-amber-600">Vui lòng tích chọn ít nhất 1 câu để lưu.</span>
