@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Inbox, Settings } from "lucide-react";
+import { PillNav } from "@/components/ux/PillNav";
 import { useT } from "@/i18n";
-import { cn } from "@/lib/utils";
 import { NotificationInbox } from "@/features/tenant/candidate/notifications/components/NotificationInbox";
 import { NotificationSettings } from "@/features/tenant/candidate/notifications/components/NotificationSettings";
 import { recruiterNotificationCategories } from "@/features/tenant/candidate/notifications/constants/notificationCategories";
@@ -51,25 +51,13 @@ export function NotificationsPage() {
               : t("recruiter.ops.notifications.subtitleAll")}
         </p>
       </header>
-      <div role="tablist" aria-label={t("recruiter.ops.notifications.tablistAria")} className="flex gap-2">
-        {tabs.map(({ key, labelKey, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={active === key}
-            onClick={() => setParams(key === "settings" ? { tab: key } : {}, { replace: true })}
-            className={cn(
-              "inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors",
-              active === key
-                ? "bg-[var(--color-primary)] text-white"
-                : "bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)]",
-            )}
-          >
-            <Icon className="size-4" aria-hidden="true" />
-            {t(labelKey)}
-          </button>
-        ))}
+      <div className="border-b border-slate-200/80 dark:border-slate-800">
+        <PillNav
+          items={tabs.map((item) => ({ id: item.key, label: t(item.labelKey), icon: item.icon }))}
+          activeId={active}
+          ariaLabel={t("recruiter.ops.notifications.tablistAria")}
+          onSelect={(key) => setParams(key === "settings" ? { tab: key } : {}, { replace: true })}
+        />
       </div>
       <div role="tabpanel">
         {active === "settings" ? (

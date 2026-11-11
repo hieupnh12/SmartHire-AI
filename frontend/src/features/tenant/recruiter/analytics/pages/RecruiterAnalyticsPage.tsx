@@ -1,9 +1,9 @@
 import { useState, type ComponentType } from "react";
 import { AlertCircle, ArrowLeft, Gauge, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { PillNav } from "@/components/ux/PillNav";
 import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
-import { cn } from "@/lib/utils";
 import { AnalyticsLoadingState } from "../components/AnalyticsLoadingState";
 import { JobAnalyticsHeader } from "../components/JobAnalyticsHeader";
 import { JobInsightsPanel } from "../components/JobInsightsPanel";
@@ -111,51 +111,23 @@ export function RecruiterAnalyticsPage() {
 
   return (
     <section className="flex flex-col gap-3.5 text-[var(--color-on-surface)]">
-      {/* 1. Underline SubNav (đồng nhất AssessmentSubNav) + Range Picker */}
-      <div className="flex flex-col justify-between gap-2 border-b border-slate-200 sm:flex-row sm:items-center">
-        <div
-          className="flex items-center gap-1 overflow-x-auto scrollbar-none"
-          role="tablist"
-          aria-label={t("recruiter.ops.analytics.tabsAria")}
-        >
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const selected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm transition-all cursor-pointer",
-                  selected
-                    ? "border-[var(--color-primary)] font-semibold text-[var(--color-primary)]"
-                    : "border-transparent font-medium text-[#475467] hover:border-slate-300 hover:text-[#101828]",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "size-4 shrink-0",
-                    selected ? "text-[var(--color-primary)]" : "text-[#667085]",
-                  )}
-                  aria-hidden="true"
-                />
-                <span>{t(tab.labelKey)}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* 1. Hairline Secondary Nav (khớp lề trái với nav trên) + Range Picker */}
+      <div className="flex flex-col justify-between gap-2 border-b border-slate-200/80 sm:flex-row sm:items-center dark:border-slate-800">
+        <PillNav
+          items={tabs.map((tab) => ({ id: tab.id, label: t(tab.labelKey), icon: tab.icon }))}
+          activeId={activeTab}
+          ariaLabel={t("recruiter.ops.analytics.tabsAria")}
+          onSelect={setActiveTab}
+        />
 
-        <div className="flex items-center gap-2 pb-2 sm:pb-0">
-          <label className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+        <div className="flex shrink-0 items-center gap-2 pb-2 sm:pb-1">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-[#475467]">
             <span>{t("recruiter.ops.analytics.rangeLabel")}</span>
             <select
               aria-label={t("recruiter.ops.analytics.rangeSelectAria")}
               value={range}
               onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-              className="h-9 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-semibold text-[#101828] outline-none transition-colors focus:border-[var(--color-primary)] focus:bg-white"
+              className="h-8 rounded-lg border border-slate-200/90 bg-white px-2.5 text-xs font-semibold text-[#101828] outline-none transition-colors hover:border-slate-300 focus:border-[var(--color-primary)] cursor-pointer"
             >
               <option value="LAST_30_DAYS">{t("recruiter.ops.analytics.rangeLast30Days")}</option>
               <option value="CURRENT_QUARTER">{t("recruiter.ops.analytics.rangeCurrentQuarter")}</option>
