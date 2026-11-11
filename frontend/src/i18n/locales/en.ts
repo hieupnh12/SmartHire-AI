@@ -94,6 +94,7 @@ export const en = {
     company: "Company",
     billing: "Plan & Billing",
     landingPage: "Landing Page",
+    subscription: "Plan & Billing",
     system: "System",
     mailConfig: "Gmail Configuration",
     overview: "Overview",

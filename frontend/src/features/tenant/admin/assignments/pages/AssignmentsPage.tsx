@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { jobApi } from "@/api/tenant/jobApi";
 import { jobAssignmentsApi, type JobAssignment } from "@/api/tenant/jobAssignmentsApi";
 import { usersApi } from "@/api/tenant/usersApi";
@@ -92,10 +93,26 @@ function TransferOwnerModal({
 export function AssignmentsPage() {
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
-  const [query, setQuery] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+  const urlJobIdRaw = searchParams.get("jobId");
+  const urlJobId = urlJobIdRaw ? Number(urlJobIdRaw) : NaN;
+
+  const [query, setQuery] = useState(urlQuery);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(() =>
+    Number.isFinite(urlJobId) && urlJobId > 0 ? urlJobId : null,
+  );
   const [userId, setUserId] = useState("");
   const [showTransfer, setShowTransfer] = useState(false);
+
+  useEffect(() => {
+    if (urlQuery) {
+      setQuery(urlQuery);
+    }
+    if (Number.isFinite(urlJobId) && urlJobId > 0) {
+      setSelectedJobId(urlJobId);
+    }
+  }, [urlQuery, urlJobId]);
 
   const jobsQuery = useQuery({
     queryKey: queryKeys.jobs.list({ q: query, size: 50, page: 0, scope: "all" }),

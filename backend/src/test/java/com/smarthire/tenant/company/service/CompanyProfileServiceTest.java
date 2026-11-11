@@ -125,6 +125,27 @@ class CompanyProfileServiceTest {
     }
 
     @Test
+    void updateProfile_WhenRedisUnavailable_StillPersistsAndReturnsProfile() {
+        TenantInfo tenant = acmeTenant();
+        when(tenantInfoRepository.findByCode("acme")).thenReturn(Optional.of(tenant));
+        when(tenantInfoRepository.save(any(TenantInfo.class))).thenAnswer(call -> call.getArgument(0));
+        doThrow(new RuntimeException("Unable to connect to Redis"))
+                .when(redisService).delete(RedisKeys.landingPage("acme"));
+
+        UpdateCompanyProfileRequest request = UpdateCompanyProfileRequest.builder()
+                .companyName("Acme Vietnam")
+                .website("https://acme.vn")
+                .build();
+
+        CompanyProfileResponse response = assertDoesNotThrow(() -> companyProfileService.updateProfile(request));
+
+        assertEquals("Acme Vietnam", response.getCompanyName());
+        assertEquals("https://acme.vn", response.getWebsite());
+        verify(tenantInfoRepository, times(1)).save(tenant);
+        verify(redisService).delete(RedisKeys.landingPage("acme"));
+    }
+
+    @Test
     void getProfile_UnknownTenant_ThrowsBusinessException() {
         when(tenantInfoRepository.findByCode("acme")).thenReturn(Optional.empty());
         when(tenantInfoRepository.findBySubdomain("acme")).thenReturn(Optional.empty());

@@ -1,30 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link } from "react-router-dom";
-import { usersApi, type InviteMemberRequest, type StaffAssignment, type TenantMember } from "@/api/tenant/usersApi";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  usersApi,
+  type InviteMemberRequest,
+  type InviteMemberResponse,
+  type PendingInvitation,
+  type StaffAssignment,
+  type TenantMember,
+  type UserStatus,
+} from "@/api/tenant/usersApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
+import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import {
   AlertCircle,
+  Ban,
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   Eye,
+  Lock,
   Mail,
   MailPlus,
+  RotateCcw,
+  Search,
   Send,
   Shield,
+  Unlock,
   User as UserIcon,
+  Users,
 } from "lucide-react";
 import { InviteEmailPreviewModal } from "../components/InviteEmailPreviewModal";
+import { TransferJobsModal } from "../components/TransferJobsModal";
 
 const schema = z.object({
   fullName: z.string().trim().min(1, "Họ tên bắt buộc"),
@@ -33,14 +53,24 @@ const schema = z.object({
 });
 
 type Form = z.infer<typeof schema>;
+type RightTab = "employees" | "invitations";
+type StatusFilter = "ACTIVE_OR_LOCKED" | "ACTIVE" | "LOCKED" | "DISABLED" | "ALL";
+
+const PAGE_SIZE = 20;
 
 const inputClass =
-  "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
+  "min-h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
 
 const statusLabel: Record<string, string> = {
   ACTIVE: "Đang hoạt động",
   LOCKED: "Đã khóa",
   DISABLED: "Đã vô hiệu",
+};
+
+const statusBadgeStyle: Record<string, string> = {
+  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  LOCKED: "bg-amber-50 text-amber-800 border-amber-200",
+  DISABLED: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 const workspaceLabel: Record<string, string> = {
@@ -50,8 +80,11 @@ const workspaceLabel: Record<string, string> = {
 };
 
 const assignmentRoleLabel: Record<string, string> = {
+  OWNER: "Chủ sở hữu",
   PRIMARY_RECRUITER: "Phụ trách chính",
+  COLLABORATOR: "Cộng tác viên",
   CO_RECRUITER: "Đồng phụ trách",
+  VIEWER: "Người xem",
 };
 
 const jobStatusLabel: Record<string, string> = {
@@ -64,9 +97,29 @@ const jobStatusLabel: Record<string, string> = {
 
 export function UsersPage() {
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
+  const askConfirm = useUiStore((s) => s.askConfirm);
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+  const urlUserId = searchParams.get("userId");
+
+  const [rightTab, setRightTab] = useState<RightTab>("employees");
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE_OR_LOCKED");
+  const [page, setPage] = useState(0);
+
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const parsed = urlUserId ? Number(urlUserId) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  });
   const [previewOpen, setPreviewOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [lastInviteResult, setLastInviteResult] = useState<InviteMemberResponse | null>(null);
+  const [transferPrompt, setTransferPrompt] = useState<{
+    member: TenantMember;
+    status: UserStatus;
+  } | null>(null);
 
   const {
     register,
@@ -93,6 +146,11 @@ export function UsersPage() {
     queryFn: () => usersApi.list(),
   });
 
+  const invitationsQuery = useQuery({
+    queryKey: ["tenant-invitations", "PENDING"],
+    queryFn: () => usersApi.listInvitations("PENDING"),
+  });
+
   const mailSettings = useQuery({
     queryKey: ["tenant", "company", "mail-settings"],
     queryFn: companyApi.getMailSettings,
@@ -112,12 +170,14 @@ export function UsersPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const mutation = useMutation({
+  const inviteMutation = useMutation({
     mutationFn: (body: InviteMemberRequest) => usersApi.invite(body),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
+      setLastInviteResult(res.data);
       toast.success(res.data.emailSent ? "Đã gửi email lời mời đến Gmail của nhân viên!" : "Đã tạo lời mời thành công!");
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
     },
     onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi được lời mời")),
   });
@@ -132,11 +192,126 @@ export function UsersPage() {
     onError: (err) => toast.danger(getApiErrorMessage(err, "Không gắn được vai trò")),
   });
 
-  const invite = mutation.data?.data;
-  const rows = (members.data?.data ?? []).filter(
-    (row) => row.role !== "CANDIDATE" && row.workspace !== "CANDIDATE",
+  const statusMutation = useMutation({
+    mutationFn: ({
+      member,
+      status,
+      transferToUserId,
+    }: {
+      member: TenantMember;
+      status: UserStatus;
+      transferToUserId?: number;
+    }) => usersApi.updateStatus(member.id, { status, transferToUserId }),
+    onSuccess: (res, vars) => {
+      if (!res.success || !res.data) throw new Error(res.message);
+      const label =
+        vars.status === "ACTIVE"
+          ? "Đã kích hoạt lại tài khoản."
+          : vars.status === "LOCKED"
+          ? "Đã khóa tài khoản nhân viên."
+          : "Đã vô hiệu hóa tài khoản nhân viên.";
+      toast.success(label);
+      setTransferPrompt(null);
+      void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
+    },
+    onError: (err, vars) => {
+      if (axios.isAxiosError(err)) {
+        const code = (err.response?.data as { code?: string } | undefined)?.code;
+        if (code === "OWNER_TRANSFER_REQUIRED") {
+          setTransferPrompt({ member: vars.member, status: vars.status });
+          return;
+        }
+      }
+      toast.danger(getApiErrorMessage(err, "Không thể cập nhật trạng thái nhân viên"));
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: (id: number) => usersApi.resendInvitation(id),
+    onSuccess: (res) => {
+      if (!res.success || !res.data) throw new Error(res.message);
+      setLastInviteResult(res.data);
+      toast.success(res.data.emailSent ? "Đã gửi lại email lời mời!" : "Đã gia hạn liên kết lời mời!");
+      void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
+    },
+    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi lại được lời mời")),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (id: number) => usersApi.revokeInvitation(id),
+    onSuccess: () => {
+      toast.success("Đã thu hồi lời mời.");
+      void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
+    },
+    onError: (err) => toast.danger(getApiErrorMessage(err, "Không thu hồi được lời mời")),
+  });
+
+  const allStaff = useMemo(
+    () =>
+      (members.data?.data ?? []).filter(
+        (row) => row.role !== "CANDIDATE" && row.workspace !== "CANDIDATE",
+      ),
+    [members.data?.data],
   );
-  const selected = rows.find((row) => row.id === selectedId) ?? null;
+
+  const filteredStaff = useMemo(() => {
+    const q = searchQuery.trim().toLocaleLowerCase();
+    return allStaff.filter((row) => {
+      const rowStatus = row.status ?? "ACTIVE";
+      if (statusFilter === "ACTIVE_OR_LOCKED" && rowStatus === "DISABLED") return false;
+      if (
+        statusFilter !== "ALL" &&
+        statusFilter !== "ACTIVE_OR_LOCKED" &&
+        rowStatus !== statusFilter
+      ) {
+        return false;
+      }
+      if (roleFilter !== "ALL" && row.role !== roleFilter) return false;
+      if (
+        q &&
+        !row.fullName.toLocaleLowerCase().includes(q) &&
+        !row.email.toLocaleLowerCase().includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [allStaff, searchQuery, roleFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pagedStaff = useMemo(
+    () => filteredStaff.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
+    [filteredStaff, safePage],
+  );
+
+  const pendingInvitations = invitationsQuery.data?.data ?? [];
+  const selected = allStaff.find((row) => row.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!urlQuery && !urlUserId) return;
+    if (urlQuery) {
+      setRightTab("employees");
+      setSearchQuery(urlQuery);
+      setPage(0);
+    }
+    if (urlUserId) {
+      const parsed = Number(urlUserId);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        setSelectedId(parsed);
+      }
+    }
+  }, [urlQuery, urlUserId]);
+
+  useEffect(() => {
+    if (!urlUserId) return;
+    const parsed = Number(urlUserId);
+    const matched = allStaff.find((row) => row.id === parsed);
+    if (matched && matched.status === "DISABLED") {
+      setStatusFilter("ALL");
+    }
+  }, [allStaff, urlUserId]);
+
   const duties = useQuery({
     queryKey: ["tenant-users", selectedId, "assignments"],
     queryFn: () => usersApi.assignments(selectedId!),
@@ -152,18 +327,61 @@ export function UsersPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId]);
 
+  const confirmStatusChange = (member: TenantMember, targetStatus: UserStatus) => {
+    const config: Record<UserStatus, { title: string; description: string; confirmLabel: string; danger: boolean }> = {
+      LOCKED: {
+        title: `Khóa tài khoản ${member.fullName}?`,
+        description: "Nhân viên sẽ bị đăng xuất ngay và không thể truy cập hệ thống cho đến khi được mở khóa.",
+        confirmLabel: "Khóa tài khoản",
+        danger: true,
+      },
+      DISABLED: {
+        title: `Vô hiệu hóa ${member.fullName}?`,
+        description: "Tài khoản sẽ ngừng hoạt động và ẩn khỏi danh sách mặc định.",
+        confirmLabel: "Vô hiệu hóa",
+        danger: true,
+      },
+      ACTIVE: {
+        title: `Kích hoạt lại ${member.fullName}?`,
+        description: "Nhân viên sẽ có thể đăng nhập trở lại vào workspace.",
+        confirmLabel: "Mở khóa",
+        danger: false,
+      },
+    };
+    const cfg = config[targetStatus];
+    askConfirm({
+      ...cfg,
+      onConfirm: () => statusMutation.mutate({ member, status: targetStatus }),
+    });
+  };
+
+  const confirmRevokeInvitation = (inv: PendingInvitation) => {
+    askConfirm({
+      title: `Thu hồi lời mời của ${inv.email}?`,
+      description: "Liên kết kích hoạt đã gửi sẽ hết hiệu lực ngay lập tức.",
+      confirmLabel: "Thu hồi lời mời",
+      danger: true,
+      onConfirm: () => revokeMutation.mutate(inv.id),
+    });
+  };
+
+  const eligibleRecipients = useMemo(() => {
+    if (!transferPrompt) return [];
+    return allStaff.filter((m) => m.id !== transferPrompt.member.id && m.status === "ACTIVE");
+  }, [allStaff, transferPrompt]);
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">Người dùng &amp; Nhân sự</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Quản lý danh sách nhân viên, vai trò phân quyền và gửi thư mời kích hoạt tài khoản qua Gmail.
+            Quản lý danh sách nhân viên, trạng thái tài khoản, vai trò phân quyền và lời mời qua Gmail.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(20rem,26rem)_1fr] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[minmax(20rem,25rem)_1fr] lg:items-start">
         {/* Card Gửi lời mời nhân viên */}
         <Card className="space-y-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border-default)]/60 pb-3">
@@ -188,7 +406,6 @@ export function UsersPage() {
             </button>
           </div>
 
-          {/* Badge trạng thái Gmail công ty */}
           {isMailConfigured ? (
             <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <span className="flex items-center gap-1.5 font-medium truncate">
@@ -219,7 +436,7 @@ export function UsersPage() {
 
           <form
             className="space-y-4"
-            onSubmit={handleSubmit((values) => mutation.mutate(values))}
+            onSubmit={handleSubmit((values) => inviteMutation.mutate(values))}
             noValidate
           >
             <div>
@@ -263,25 +480,24 @@ export function UsersPage() {
             </div>
 
             <div className="flex items-center gap-2 pt-1">
-              <Button type="submit" disabled={mutation.isPending} className="flex-1">
+              <Button type="submit" disabled={inviteMutation.isPending} className="flex-1">
                 <Send className="size-4 mr-1.5" />
-                {mutation.isPending ? "Đang gửi email…" : "Gửi lời mời nhân viên"}
+                {inviteMutation.isPending ? "Đang gửi email…" : "Gửi lời mời nhân viên"}
               </Button>
             </div>
           </form>
 
-          {/* Kết quả gửi lời mời */}
-          {invite && (
+          {lastInviteResult && (
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3 text-xs animate-in fade-in">
               <div className="flex items-start gap-2 text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
                   <p className="font-bold text-sm">
-                    {invite.emailSent ? "Đã gửi email lời mời thành công!" : "Đã tạo liên kết lời mời!"}
+                    {lastInviteResult.emailSent ? "Đã gửi email lời mời thành công!" : "Đã tạo liên kết lời mời!"}
                   </p>
                   <p className="text-[11px] leading-relaxed">
-                    {invite.emailSent
-                      ? `Email mời tham gia đội ngũ đã được gửi đến hộp thư Gmail của ${invite.fullName} (${invite.email}).`
+                    {lastInviteResult.emailSent
+                      ? `Email mời tham gia đội ngũ đã được gửi đến hộp thư Gmail của ${lastInviteResult.fullName} (${lastInviteResult.email}).`
                       : "Email tự động chưa gửi được. Quý công ty có thể sao chép liên kết trực tiếp bên dưới gửi cho nhân sự:"}
                   </p>
                 </div>
@@ -292,7 +508,7 @@ export function UsersPage() {
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Liên kết kích hoạt (hiệu lực 72h):</span>
                   <button
                     type="button"
-                    onClick={() => handleCopy(invite.acceptUrl)}
+                    onClick={() => handleCopy(lastInviteResult.acceptUrl)}
                     className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 font-semibold text-brand-primary shadow-xs border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700"
                   >
                     {copied ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
@@ -300,7 +516,7 @@ export function UsersPage() {
                   </button>
                 </div>
                 <div className="break-all rounded-md bg-white/80 p-2 font-mono text-[11px] text-slate-800 border border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-800">
-                  {invite.acceptUrl}
+                  {lastInviteResult.acceptUrl}
                 </div>
               </div>
 
@@ -317,7 +533,8 @@ export function UsersPage() {
                   type="button"
                   onClick={() => {
                     reset({ fullName: "", email: "", role: "RECRUITER" });
-                    mutation.reset();
+                    setLastInviteResult(null);
+                    inviteMutation.reset();
                   }}
                   className="text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 >
@@ -328,82 +545,360 @@ export function UsersPage() {
           )}
         </Card>
 
-        <Card className="space-y-4 overflow-hidden">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Quản lý nhân viên</h2>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Chọn vai trò đã tạo ở Phân quyền cho từng nhân viên.
-          </p>
-          {members.isLoading && (
-            <div className="py-2" role="status" aria-busy="true">
-              <TableSkeleton columns={5} rows={4} />
-              <span className="sr-only">Đang tải danh sách nhân viên…</span>
+        {/* Card Danh sách nhân viên & Lời mời đang chờ */}
+        <Card className="space-y-4 overflow-hidden p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-3">
+            <div className="flex items-center gap-1.5" role="tablist" aria-label="Quản lý nhân sự">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightTab === "employees"}
+                onClick={() => setRightTab("employees")}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                  rightTab === "employees"
+                    ? "bg-[var(--color-primary-soft)] text-brand-primary"
+                    : "text-[var(--color-text-secondary)] hover:bg-surface-muted",
+                )}
+              >
+                <Users className="size-4" aria-hidden="true" />
+                Nhân viên
+                <span className="rounded-full bg-surface-card px-2 py-0.5 text-xs font-bold text-[var(--color-text-primary)]">
+                  {allStaff.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightTab === "invitations"}
+                onClick={() => setRightTab("invitations")}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                  rightTab === "invitations"
+                    ? "bg-[var(--color-primary-soft)] text-brand-primary"
+                    : "text-[var(--color-text-secondary)] hover:bg-surface-muted",
+                )}
+              >
+                <Clock className="size-4" aria-hidden="true" />
+                Lời mời đang chờ
+                {pendingInvitations.length > 0 && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                    {pendingInvitations.length}
+                  </span>
+                )}
+              </button>
             </div>
-          )}
-          {members.isError && (
-            <p className="text-sm text-status-danger" role="alert">
-              {getApiErrorMessage(members.error, "Không tải được danh sách nhân viên")}
-            </p>
-          )}
-          {!members.isLoading && !members.isError && rows.length === 0 && (
-            <p className="text-sm text-[var(--color-text-secondary)]">Chưa có nhân viên.</p>
-          )}
-          {rows.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[var(--color-surface-container-low)]">
-                  <tr>
-                    <th className="px-3 py-3 font-semibold">Họ tên</th>
-                    <th className="px-3 py-3 font-semibold">Email</th>
-                    <th className="px-3 py-3 font-semibold">Vai trò</th>
-                    <th className="px-3 py-3 font-semibold">Trạng thái</th>
-                    <th className="px-3 py-3 font-semibold">Chi tiết</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="border-t border-[var(--color-border-default)]">
-                      <td className="px-3 py-3">{row.fullName}</td>
-                      <td className="px-3 py-3">{row.email}</td>
-                      <td className="px-3 py-3">
-                        <select
-                          className={inputClass}
-                          value={row.role}
-                          disabled={assignMutation.isPending}
-                          aria-label={`Vai trò của ${row.fullName}`}
-                          onChange={(event) => {
-                            const next = event.target.value;
-                            if (next === row.role) return;
-                            assignMutation.mutate({ id: row.id, role: next });
-                          }}
-                        >
-                          {assignableRoles.map((role) => (
-                            <option key={role.code} value={role.code}>
-                              {role.name}
-                            </option>
-                          ))}
-                          {!assignableRoles.some((role) => role.code === row.role) && (
-                            <option value={row.role}>{roleLabel(row.role)}</option>
-                          )}
-                        </select>
-                      </td>
-                      <td className="px-3 py-3">{statusLabel[row.status ?? ""] ?? row.status ?? "—"}</td>
-                      <td className="px-3 py-3">
-                        <button
-                          type="button"
-                          className="text-sm font-semibold text-brand-primary"
-                          onClick={() => setSelectedId(row.id)}
-                        >
-                          Xem
-                        </button>
-                      </td>
-                    </tr>
+          </div>
+
+          {rightTab === "employees" ? (
+            <>
+              <div className="grid gap-2.5 sm:grid-cols-[1fr_11rem_12rem]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setPage(0);
+                    }}
+                    placeholder="Tìm theo tên hoặc email..."
+                    aria-label="Tìm nhân viên"
+                    className={cn(inputClass, "pl-9")}
+                  />
+                </div>
+                <select
+                  aria-label="Lọc theo vai trò"
+                  value={roleFilter}
+                  onChange={(event) => {
+                    setRoleFilter(event.target.value);
+                    setPage(0);
+                  }}
+                  className={inputClass}
+                >
+                  <option value="ALL">Tất cả vai trò</option>
+                  {assignableRoles.map((role) => (
+                    <option key={role.code} value={role.code}>
+                      {role.name}
+                    </option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+                <select
+                  aria-label="Lọc theo trạng thái"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value as StatusFilter);
+                    setPage(0);
+                  }}
+                  className={inputClass}
+                >
+                  <option value="ACTIVE_OR_LOCKED">Hoạt động &amp; Đã khóa</option>
+                  <option value="ACTIVE">Đang hoạt động</option>
+                  <option value="LOCKED">Đã khóa</option>
+                  <option value="DISABLED">Đã vô hiệu</option>
+                  <option value="ALL">Tất cả trạng thái</option>
+                </select>
+              </div>
+
+              {members.isLoading && (
+                <div className="py-2" role="status" aria-busy="true">
+                  <TableSkeleton columns={5} rows={4} />
+                  <span className="sr-only">Đang tải danh sách nhân viên…</span>
+                </div>
+              )}
+              {members.isError && (
+                <p className="text-sm text-status-danger" role="alert">
+                  {getApiErrorMessage(members.error, "Không tải được danh sách nhân viên")}
+                </p>
+              )}
+              {!members.isLoading && !members.isError && filteredStaff.length === 0 && (
+                <p className="py-6 text-center text-sm text-[var(--color-text-secondary)]">
+                  Không có nhân viên phù hợp với bộ lọc hiện tại.
+                </p>
+              )}
+
+              {pagedStaff.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-left text-sm">
+                    <thead className="bg-[var(--color-surface-container-low)] text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+                      <tr>
+                        <th className="px-3 py-3 font-semibold">Nhân viên</th>
+                        <th className="px-3 py-3 font-semibold">Vai trò</th>
+                        <th className="px-3 py-3 font-semibold">Trạng thái</th>
+                        <th className="px-3 py-3 text-right font-semibold">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedStaff.map((row) => {
+                        const rowStatus = (row.status ?? "ACTIVE") as UserStatus;
+                        const isSelf = currentUser?.id != null && row.id === currentUser.id;
+                        return (
+                          <tr key={row.id} className="border-t border-[var(--color-border-default)]">
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-[var(--color-text-primary)]">{row.fullName}</span>
+                                {isSelf && (
+                                  <span className="rounded bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-brand-primary">
+                                    Bạn
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-[var(--color-text-secondary)]">{row.email}</p>
+                            </td>
+                            <td className="px-3 py-3">
+                              <select
+                                className={inputClass}
+                                value={row.role}
+                                disabled={assignMutation.isPending || rowStatus === "DISABLED"}
+                                aria-label={`Vai trò của ${row.fullName}`}
+                                onChange={(event) => {
+                                  const next = event.target.value;
+                                  if (next === row.role) return;
+                                  assignMutation.mutate({ id: row.id, role: next });
+                                }}
+                              >
+                                {assignableRoles.map((role) => (
+                                  <option key={role.code} value={role.code}>
+                                    {role.name}
+                                  </option>
+                                ))}
+                                {!assignableRoles.some((role) => role.code === row.role) && (
+                                  <option value={row.role}>{roleLabel(row.role)}</option>
+                                )}
+                              </select>
+                            </td>
+                            <td className="px-3 py-3">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                                  statusBadgeStyle[rowStatus] ?? "bg-slate-100 text-slate-700 border-slate-200",
+                                )}
+                              >
+                                {statusLabel[rowStatus] ?? rowStatus}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-[var(--color-border-default)] px-2.5 py-1.5 text-xs font-semibold text-brand-primary hover:bg-[var(--color-primary-subtle)]"
+                                  onClick={() => setSelectedId(row.id)}
+                                >
+                                  Xem
+                                </button>
+                                {!isSelf && rowStatus === "ACTIVE" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={statusMutation.isPending}
+                                      onClick={() => confirmStatusChange(row, "LOCKED")}
+                                      title="Khóa tạm thời"
+                                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                    >
+                                      <Lock className="size-3.5" aria-hidden="true" />
+                                      Khóa
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={statusMutation.isPending}
+                                      onClick={() => confirmStatusChange(row, "DISABLED")}
+                                      title="Vô hiệu hóa (xóa mềm)"
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                    >
+                                      <Ban className="size-3.5" aria-hidden="true" />
+                                      Vô hiệu
+                                    </button>
+                                  </>
+                                )}
+                                {!isSelf && rowStatus === "LOCKED" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={statusMutation.isPending}
+                                      onClick={() => confirmStatusChange(row, "ACTIVE")}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                    >
+                                      <Unlock className="size-3.5" aria-hidden="true" />
+                                      Mở khóa
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={statusMutation.isPending}
+                                      onClick={() => confirmStatusChange(row, "DISABLED")}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                    >
+                                      <Ban className="size-3.5" aria-hidden="true" />
+                                      Vô hiệu
+                                    </button>
+                                  </>
+                                )}
+                                {!isSelf && rowStatus === "DISABLED" && (
+                                  <button
+                                    type="button"
+                                    disabled={statusMutation.isPending}
+                                    onClick={() => confirmStatusChange(row, "ACTIVE")}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                  >
+                                    <RotateCcw className="size-3.5" aria-hidden="true" />
+                                    Khôi phục
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {filteredStaff.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between border-t border-[var(--color-border-default)] pt-3 text-xs text-[var(--color-text-secondary)]">
+                  <span>
+                    Hiển thị {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filteredStaff.length)} /{" "}
+                    {filteredStaff.length} nhân viên
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={safePage === 0}
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    >
+                      Trước
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={safePage + 1 >= totalPages}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      Sau
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-3">
+              {invitationsQuery.isLoading && <TableSkeleton columns={4} rows={3} />}
+              {invitationsQuery.isError && (
+                <p className="text-sm text-status-danger" role="alert">
+                  {getApiErrorMessage(invitationsQuery.error, "Không tải được danh sách lời mời.")}
+                </p>
+              )}
+              {!invitationsQuery.isLoading && !invitationsQuery.isError && pendingInvitations.length === 0 && (
+                <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">
+                  Không có lời mời nào đang chờ kích hoạt.
+                </p>
+              )}
+              {pendingInvitations.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px] text-left text-sm">
+                    <thead className="bg-[var(--color-surface-container-low)] text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+                      <tr>
+                        <th className="px-3 py-3 font-semibold">Người nhận</th>
+                        <th className="px-3 py-3 font-semibold">Vai trò</th>
+                        <th className="px-3 py-3 font-semibold">Hạn kích hoạt</th>
+                        <th className="px-3 py-3 text-right font-semibold">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingInvitations.map((inv) => (
+                        <tr key={inv.id} className="border-t border-[var(--color-border-default)]">
+                          <td className="px-3 py-3">
+                            <p className="font-semibold text-[var(--color-text-primary)]">{inv.fullName}</p>
+                            <p className="text-xs text-[var(--color-text-secondary)]">{inv.email}</p>
+                          </td>
+                          <td className="px-3 py-3 text-xs font-medium text-[var(--color-text-primary)]">
+                            {roleLabel(inv.role)}
+                          </td>
+                          <td className="px-3 py-3 text-xs">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[var(--color-text-secondary)]">
+                                {new Date(inv.expiresAt).toLocaleString("vi-VN")}
+                              </span>
+                              {inv.expired && (
+                                <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                                  Hết hạn
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                disabled={resendMutation.isPending}
+                                onClick={() => resendMutation.mutate(inv.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-2.5 py-1.5 text-xs font-semibold text-brand-primary hover:bg-[var(--color-primary-subtle)] disabled:opacity-50"
+                              >
+                                <Send className="size-3.5" aria-hidden="true" />
+                                Gửi lại
+                              </button>
+                              <button
+                                type="button"
+                                disabled={revokeMutation.isPending}
+                                onClick={() => confirmRevokeInvitation(inv)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                              >
+                                <Ban className="size-3.5" aria-hidden="true" />
+                                Thu hồi
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </Card>
       </div>
+
       {selected && (
         <EmployeeDetailDialog
           member={selected}
@@ -415,17 +910,33 @@ export function UsersPage() {
         />
       )}
 
-      {/* Modal xem trước thư Gmail gửi nhân viên */}
+      <TransferJobsModal
+        open={transferPrompt != null}
+        targetMember={transferPrompt?.member ?? null}
+        targetStatus={transferPrompt?.status ?? "LOCKED"}
+        eligibleRecipients={eligibleRecipients}
+        submitting={statusMutation.isPending}
+        onClose={() => setTransferPrompt(null)}
+        onConfirm={(recipientId) => {
+          if (!transferPrompt) return;
+          statusMutation.mutate({
+            member: transferPrompt.member,
+            status: transferPrompt.status,
+            transferToUserId: recipientId,
+          });
+        }}
+      />
+
       <InviteEmailPreviewModal
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         workspaceName={workspaceName}
         senderEmail={mailSettings.data?.data?.mailUsername || ""}
         senderName={mailSettings.data?.data?.fromName || `Ban Tuyển Dụng ${workspaceName}`}
-        recipientName={invite?.fullName || formValues.fullName}
-        recipientEmail={invite?.email || formValues.email}
-        roleName={roleLabel(invite?.role || formValues.role)}
-        acceptUrl={invite?.acceptUrl}
+        recipientName={lastInviteResult?.fullName || formValues.fullName}
+        recipientEmail={lastInviteResult?.email || formValues.email}
+        roleName={roleLabel(lastInviteResult?.role || formValues.role)}
+        acceptUrl={lastInviteResult?.acceptUrl}
       />
     </section>
   );
