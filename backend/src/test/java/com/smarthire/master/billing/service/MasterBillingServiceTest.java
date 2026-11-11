@@ -335,4 +335,116 @@ class MasterBillingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Hóa đơn không tồn tại");
     }
+
+    @Test
+    void completePaidInvoice_RenewalOnActiveSubscription_ExtendsRemainingTerm() {
+        LocalDateTime originalStart = LocalDateTime.now().minusMonths(9);
+        LocalDateTime originalEnd = LocalDateTime.now().plusDays(90);
+
+        TenantSubscription activeSub = TenantSubscription.builder()
+                .id(30L)
+                .tenantId(10L)
+                .planId(2L)
+                .planCodeSnapshot("PROFESSIONAL")
+                .planNameSnapshot("Professional")
+                .status("ACTIVE")
+                .startsAt(originalStart)
+                .endsAt(originalEnd)
+                .build();
+
+        Invoice renewalInvoice = Invoice.builder()
+                .id(60L)
+                .invoiceNumber("INV-202611-0060")
+                .tenantId(10L)
+                .subscriptionId(30L)
+                .amount(new BigDecimal("72000000"))
+                .currency("VND")
+                .status("PENDING")
+                .build();
+
+        InvoiceLineItem renewalItem = InvoiceLineItem.builder()
+                .invoiceId(60L)
+                .itemType("SUBSCRIPTION_RENEWAL")
+                .quantity(2)
+                .unitPrice(new BigDecimal("36000000"))
+                .totalPrice(new BigDecimal("72000000"))
+                .build();
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(10L);
+        tenant.setCode("acme");
+        tenant.setStatus("ACTIVE");
+
+        when(invoiceRepository.findById(60L)).thenReturn(Optional.of(renewalInvoice));
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
+        when(subscriptionRepository.findById(30L)).thenReturn(Optional.of(activeSub));
+        when(invoiceLineItemRepository.findByInvoiceId(60L)).thenReturn(java.util.List.of(renewalItem));
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+
+        billingService.completePaidInvoice(60L, "SEPAY", "TXN-1", "Renew 2 years");
+
+        assertThat(renewalInvoice.getStatus()).isEqualTo("PAID");
+        assertThat(activeSub.getStatus()).isEqualTo("ACTIVE");
+        assertThat(activeSub.getStartsAt()).isEqualTo(originalStart);
+        assertThat(activeSub.getEndsAt()).isEqualTo(originalEnd.plusYears(2));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void completePaidInvoice_UpgradeFromPendingSub_CancelsOldSubAndActivatesNewSub() {
+        TenantSubscription oldSub = TenantSubscription.builder()
+                .id(40L)
+                .tenantId(10L)
+                .planId(1L)
+                .status("ACTIVE")
+                .startsAt(LocalDateTime.now().minusMonths(6))
+                .endsAt(LocalDateTime.now().plusMonths(6))
+                .build();
+
+        TenantSubscription pendingUpgradeSub = TenantSubscription.builder()
+                .id(41L)
+                .tenantId(10L)
+                .planId(2L)
+                .planCodeSnapshot("PROFESSIONAL")
+                .status("PENDING")
+                .upgradedFromSubscriptionId(40L)
+                .build();
+
+        Invoice upgradeInvoice = Invoice.builder()
+                .id(61L)
+                .invoiceNumber("INV-202611-0061")
+                .tenantId(10L)
+                .subscriptionId(41L)
+                .amount(new BigDecimal("24000000"))
+                .currency("VND")
+                .status("PENDING")
+                .build();
+
+        InvoiceLineItem upgradeItem = InvoiceLineItem.builder()
+                .invoiceId(61L)
+                .itemType("SUBSCRIPTION_UPGRADE")
+                .quantity(1)
+                .unitPrice(new BigDecimal("36000000"))
+                .totalPrice(new BigDecimal("36000000"))
+                .build();
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(10L);
+        tenant.setCode("acme");
+        tenant.setStatus("ACTIVE");
+
+        when(invoiceRepository.findById(61L)).thenReturn(Optional.of(upgradeInvoice));
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
+        when(subscriptionRepository.findById(41L)).thenReturn(Optional.of(pendingUpgradeSub));
+        when(subscriptionRepository.findById(40L)).thenReturn(Optional.of(oldSub));
+        when(invoiceLineItemRepository.findByInvoiceId(61L)).thenReturn(java.util.List.of(upgradeItem));
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+
+        billingService.completePaidInvoice(61L, "VNPAY", "VNP-99", "Upgrade approved");
+
+        assertThat(oldSub.getStatus()).isEqualTo("CANCELED");
+        assertThat(oldSub.getCancelReason()).isEqualTo("UPGRADED_TO_PROFESSIONAL");
+        assertThat(pendingUpgradeSub.getStatus()).isEqualTo("ACTIVE");
+        verifyNoInteractions(eventPublisher);
+    }
 }

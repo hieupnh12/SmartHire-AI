@@ -2,6 +2,7 @@ import { JobRecruitmentWorkspace } from "@/features/tenant/recruiter/jobs/compon
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { RouteSeoManager } from "@/app/RouteSeoManager";
 import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SolutionsPage } from "@/features/master/landing/pages/SolutionsPage";
 import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
@@ -53,6 +54,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
+import { SubscriptionBillingPage } from "@/features/tenant/admin/billing/pages/SubscriptionBillingPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
@@ -78,6 +80,7 @@ import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/App
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { CvDetailPage } from "@/features/tenant/recruiter/cv-screening/pages/CvDetailPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
+import { RankingCandidateDetailPage } from "@/features/tenant/recruiter/matching/pages/RankingCandidateDetailPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
@@ -127,7 +130,9 @@ function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
 
 export function AppRouter() {
   return (
-    <Routes>
+    <>
+      <RouteSeoManager />
+      <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
       <Route path="/solutions" element={<PublicMarketingRoute><SolutionsPage /></PublicMarketingRoute>} />
       <Route path="/preview" element={<PublicMarketingRoute><PreviewPage /></PublicMarketingRoute>} />
@@ -226,6 +231,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
             <Route path="jobs/:id/rank" element={<RankingPage />} />
+            <Route path="jobs/:id/rank/:applicationId" element={<RankingCandidateDetailPage />} />
             <Route path="rank" element={<Navigate to="/recruiter" replace />} />
             <Route path="matching" element={<Navigate to="/recruiter" replace />} />
           </Route>
@@ -293,6 +299,7 @@ export function AppRouter() {
           <Route path="recruiter-assignments" element={<AssignmentsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="billing" element={<SubscriptionBillingPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>
@@ -332,5 +339,6 @@ export function AppRouter() {
       <Route path="/admin/login" element={<MasterLoginPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

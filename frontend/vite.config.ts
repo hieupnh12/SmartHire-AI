@@ -13,6 +13,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/ws": { target: "ws://localhost:8080", ws: true, changeOrigin: false },
+      "/robots.txt": { target: "http://localhost:8080", changeOrigin: false },
+      "/sitemap.xml": { target: "http://localhost:8080", changeOrigin: false },
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: false,

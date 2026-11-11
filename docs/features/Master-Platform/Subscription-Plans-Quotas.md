@@ -8,12 +8,12 @@
 
 Quản lý danh mục gói cước SaaS B2B theo kiến trúc **2 tầng (Two-Tier Subscription Architecture — V27)**:
 - **Tầng 1 (`subscription_plans` — Plan Catalog / Templates):** Định nghĩa bảng giá niêm yết theo năm (VNĐ), hạn mức tài nguyên (`max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json`), hỗ trợ **Versioning / Grandfathering** (bảo lưu giá cho khách hàng hiện hữu khi tăng giá gói) và **Custom Enterprise Plan** (gói thiết kế riêng cho từng doanh nghiệp).
-- **Tầng 2 (`tenant_subscriptions` — Tenant Subscription Instance):** Lưu hợp đồng thuê bao thực tế của từng doanh nghiệp kèm **11 cột Snapshot bất biến** tại thời điểm ký kết, đảm bảo việc chỉnh sửa gói ở Tầng 1 không làm thay đổi cam kết hợp đồng đang chạy của khách hàng. Hỗ trợ nâng cấp khấu trừ theo ngày (**Prorated Upgrade**), hạ cấp cuối kỳ (**End-of-cycle Downgrade**), kiểm soát hạn mức thời gian thực (**Quota Enforcement**) và ghi đè hạn mức riêng cho từng doanh nghiệp (**Tenant Quota Override**).
+- **Tầng 2 (`tenant_subscriptions` — Tenant Subscription Instance):** Lưu hợp đồng thuê bao thực tế của từng doanh nghiệp kèm **11 cột Snapshot bất biến** tại thời điểm ký kết, đảm bảo việc chỉnh sửa gói ở Tầng 1 không làm thay đổi cam kết hợp đồng đang chạy của khách hàng. Hỗ trợ nâng cấp khấu trừ theo ngày (**Prorated Upgrade** — chờ thanh toán khi phát sinh số tiền > 0), gia hạn chu kỳ (**Renewal**), bật/tắt tự động gia hạn (**Auto-Renew**), hạ cấp cuối kỳ (**End-of-cycle Downgrade**), kiểm soát hạn mức thời gian thực (**Quota Enforcement**) và ghi đè hạn mức riêng cho từng doanh nghiệp (**Tenant Quota Override**).
 
 ## Actor
 
 - **Workspace Admin (`WORKSPACE_ADMIN`):** Tạo/cập nhật gói cước, tạo phiên bản gói mới (Grandfathering), thiết kế gói Custom Enterprise, gán gói thuê bao cho Tenant, cấu hình nâng/hạ cấp và ghi đè hạn mức (Quota Override).
-- **Tenant Admin (`TENANT_ADMIN`):** Xem thông tin gói thuê bao hiện tại, tiến độ sử dụng hạn mức (Quota Usage) và yêu cầu nâng cấp/gia hạn gói trên cổng Billing của doanh nghiệp.
+- **Tenant Admin (`TENANT_ADMIN`):** Xem thông tin gói thuê bao hiện tại, tiến độ sử dụng hạn mức (Quota Usage), chủ động gia hạn bản quyền, cấu hình tự động gia hạn, xem dự toán nâng/hạ cấp gói (Proration) và thanh toán hóa đơn trực tuyến ngay trong Workspace (`/internal/admin/billing`).
 - **Hệ thống (Quota Guard & Lifecycle Scheduler):** Kiểm tra hạn mức trước khi cho phép mở Job, Parse CV, Phỏng vấn AI, Giám sát thi (Proctoring); tự động quét chuyển trạng thái thuê bao hết hạn (`ACTIVE` → `PAST_DUE` → `SUSPENDED`).
 
 ## Luồng hoạt động
@@ -28,25 +28,33 @@ Quản lý danh mục gói cước SaaS B2B theo kiến trúc **2 tầng (Two-Ti
 ### 2. Gán Gói Thuê bao & Snapshot Hợp đồng (11 cột V27)
 1. Khi gán gói cho Tenant (`POST /api/v1/master/subscriptions/assign`) hoặc khởi tạo qua B2B Deal Wizard / Self-serve Checkout:
    - Nếu `status = ACTIVE`, hệ thống tự động đóng các bản ghi `ACTIVE`/`TRIAL` cũ của Tenant sang `UPGRADED` (đảm bảo bất biến **1 Tenant chỉ có tối đa 1 Subscription ACTIVE**).
-   - Nếu `status = PENDING` (từ B2B Deal Wizard trước khi thanh toán), hệ thống giữ nguyên trạng thái `PENDING` và chỉ kích hoạt thành `ACTIVE` khi hoá đơn được thanh toán (`MasterInvoiceService.activatePaidInvoice()`).
+   - Nếu `status = PENDING` (từ B2B Deal Wizard hoặc Self-serve Upgrade trước khi thanh toán), hệ thống giữ nguyên trạng thái `PENDING` và chỉ kích hoạt thành `ACTIVE` khi hoá đơn được thanh toán (`MasterBillingService.completePaidInvoice()`).
 2. Mọi bản ghi `tenant_subscriptions` đều được sao chụp đầy đủ 11 cột snapshot từ `SubscriptionPlan`: `plan_code_snapshot`, `plan_name_snapshot`, `plan_version_snapshot`, `contracted_price_yearly`, `snapshot_max_jobs`, `snapshot_max_cv_parses`, `snapshot_max_ai_interview_hours`, `snapshot_max_storage_gb`, `snapshot_max_proctoring_hours`, `snapshot_video_retention_days`, `snapshot_features_json`.
 
-### 3. Nâng cấp Giữa kỳ (Prorated Upgrade) & Hạ cấp Cuối kỳ (Downgrade)
-1. **Prorated Upgrade (`POST /api/v1/master/subscriptions/tenants/{tenantId}/upgrade`):**
-   - Hệ thống tính số ngày còn lại trong chu kỳ 365 ngày hiện tại và tính tiền dư chưa sử dụng: `credit = (remainingDays / 365) * currentContractedPriceYearly`.
-   - Chuyển thuê bao cũ sang `CANCELED` (`cancel_reason = UPGRADED_TO_<NEW_PLAN>`), tạo thuê bao mới với `prorated_credit_amount = credit`, `upgraded_from_subscription_id = oldSub.id` và phát hành hoá đơn phần chênh lệch `max(0, newPlanPrice - credit)`.
-2. **Schedule Downgrade (`POST /api/v1/master/subscriptions/tenants/{tenantId}/downgrade`):**
-   - Không cắt giảm hạn mức ngay lập tức để tránh làm gián đoạn dữ liệu đang vận hành của khách hàng; hệ thống gán `next_plan_id = targetPlan.id` để áp dụng vào kỳ gia hạn tiếp theo.
+### 3. Tự phục vụ của Tenant Admin: Nâng cấp (Proration), Gia hạn, Hạ cấp cuối kỳ
+1. **Nâng cấp giữa kỳ (Self-serve Upgrade — `/internal/admin/billing`):**
+   - Tenant Admin xem bảng gói tiêu chuẩn từ `GET /api/v1/public/checkout/plans` và gọi `GET /api/v1/tenant/company/subscription/change-preview?targetPlanCode=...` để tính số ngày dư còn lại và số tiền khấu trừ Proration (`credit = (remainingDays / totalCycleDays) * currentContractedPriceYearly`).
+   - Khi xác nhận (`POST /api/v1/tenant/company/subscription/change-plan`):
+     - Nếu `netAmountDue > 0`: hệ thống huỷ các hoá đơn self-serve `PENDING` cũ, giữ nguyên thuê bao hiện tại đang chạy để không gián đoạn dịch vụ, tạo thuê bao mới ở trạng thái `PENDING` và phát hành hoá đơn `PENDING` (`SUBSCRIPTION_UPGRADE` + `PRORATION_CREDIT`) kèm mở modal thanh toán (**VietQR SePay / VNPay / PayPal**). Khi hoá đơn chuyển sang `PAID`, hệ thống tự động đóng thuê bao cũ và kích hoạt thuê bao mới + xoá cache quota Redis.
+     - Nếu `netAmountDue == 0` (đã đủ tiền khấu trừ Proration): hệ thống kích hoạt gói mới ngay lập tức và xuất hoá đơn `PAID`.
+2. **Gia hạn bản quyền (`POST /api/v1/tenant/company/subscription/renew`):**
+   - Hỗ trợ gia hạn từ `1` đến `5` năm cho gói hiện tại (hoặc kích hoạt chu kỳ trả phí nếu doanh nghiệp đang dùng gói mặc định `FALLBACK_STARTER`).
+   - Gia hạn sớm khi gói còn hạn (`endsAt > now`) sẽ cộng dồn tiếp từ `endsAt` để bảo toàn 100% số ngày còn lại. Nếu đang ở trạng thái `PAST_DUE` hoặc `SUSPENDED`, thanh toán gia hạn xong sẽ tự động khôi phục trạng thái `ACTIVE` cho cả thuê bao và Tenant.
+3. **Bật/tắt Tự động gia hạn (`PATCH /api/v1/tenant/company/subscription/auto-renew`):**
+   - Cho phép Tenant Admin bật hoặc tắt cờ `autoRenew` trên thuê bao hiện hành (từ chối sạch nếu doanh nghiệp đang ở `FALLBACK_STARTER` chưa có hợp đồng trả phí).
+4. **Lên lịch / Huỷ hạ cấp cuối kỳ (`POST .../change-plan`, `DELETE .../scheduled-downgrade`):**
+   - Hạ cấp luôn áp dụng vào cuối chu kỳ (`next_plan_id`) để bảo toàn dữ liệu và các tin tuyển dụng đang mở.
 
 ### 4. Đối chiếu Hạn mức (Quota Enforcement) & Ghi đè Hạn mức (Quota Override)
-1. `MasterSubscriptionService` luôn ưu tiên đọc hạn mức từ các cột `snapshot_max_*` trên `tenant_subscriptions` đang `ACTIVE`; chỉ fallback sang `subscription_plans` đối với dữ liệu lịch sử trước V27.
+1. `MasterSubscriptionService` và `TenantSubscriptionQuotaService` luôn ưu tiên đọc hạn mức từ các cột `snapshot_max_*` trên `tenant_subscriptions` đang `ACTIVE` (bỏ qua bản ghi `PENDING`); chỉ fallback sang gói `STARTER` khi Tenant chưa có thuê bao chính thức (`FALLBACK_STARTER`).
 2. Khi Workspace Admin cập nhật hạn mức riêng cho một doanh nghiệp (`PUT /api/v1/master/tenants/{id}/quotas`), hệ thống ghi đè trực tiếp vào các cột `snapshot_max_*` của thuê bao đang `ACTIVE` mà không làm ảnh hưởng các doanh nghiệp khác dùng chung gói gốc.
 
 ## Business Rules
 
-- Hệ thống chỉ kinh doanh theo chu kỳ **hằng năm (Yearly, 365 ngày)** và thống nhất sử dụng đơn vị tiền tệ **VNĐ (`VND`)** làm gốc.
+- Hệ thống kinh doanh theo chu kỳ **hằng năm (Yearly, 365 ngày)** và thống nhất sử dụng đơn vị tiền tệ **VNĐ (`VND`)** làm gốc.
 - Giá trị hạn mức `-1` đại diện cho **Không giới hạn (Unlimited)**; giá trị `0` đại diện cho **Khoá tính năng (Locked)**.
-- Mỗi Tenant chỉ có duy nhất **01** bản ghi `tenant_subscriptions` ở trạng thái `ACTIVE` tại một thời điểm.
+- Mỗi Tenant chỉ có duy nhất **01** bản ghi `tenant_subscriptions` ở trạng thái `ACTIVE` tại một thời điểm; thuê bao nâng cấp chưa thanh toán nằm ở trạng thái `PENDING` và không làm gián đoạn hoặc hiển thị sai gói hiện hành trước khi thanh toán xong.
+- Chỉ `TENANT_ADMIN` / `ADMIN` mới được phép thay đổi gói, gia hạn, bật/tắt tự động gia hạn, xem thông tin thanh toán hoặc huỷ hoá đơn; các role HR/Recruiter/Staff chỉ được đọc thông tin quota ở `GET /api/v1/tenant/company/subscription`.
 - Chu trình vòng đời tự động (`SubscriptionLifecycleScheduler` chạy mỗi giờ):
   - Thuê bao `ACTIVE` hoặc `TRIAL` quá hạn `ends_at`: chuyển sang `PAST_DUE` và cấp thời gian ân hạn 5 ngày (`grace_period_ends_at = now + 5 days`), đồng thời gửi email cảnh báo gia hạn.
   - Thuê bao `PAST_DUE` quá hạn `grace_period_ends_at`: chuyển sang `SUSPENDED`, đồng thời khoá tạm thời Tenant (`tenants.status = SUSPENDED`) và đóng kết nối DB pool cho tới khi thanh toán gia hạn.
@@ -55,7 +63,7 @@ Quản lý danh mục gói cước SaaS B2B theo kiến trúc **2 tầng (Two-Ti
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| GET | `/api/v1/master/subscriptions/plans/public` | Public | Danh sách gói chuẩn đang mở bán (`ACTIVE`, `is_custom = false`, `is_archived = false`) |
+| GET | `/api/v1/public/checkout/plans` | Public | Danh sách gói chuẩn đang mở bán (`ACTIVE`, `is_custom = false`, `is_archived = false`) |
 | GET | `/api/v1/master/subscriptions/plans` | WORKSPACE_ADMIN | Danh sách toàn bộ gói cước (chuẩn + custom + archived) |
 | POST | `/api/v1/master/subscriptions/plans` | WORKSPACE_ADMIN | Tạo gói cước chuẩn hoặc gói Custom Enterprise |
 | PUT | `/api/v1/master/subscriptions/plans/{id}` | WORKSPACE_ADMIN | Cập nhật gói hoặc phát hành version mới (Grandfathering) |
@@ -64,7 +72,14 @@ Quản lý danh mục gói cước SaaS B2B theo kiến trúc **2 tầng (Two-Ti
 | POST | `/api/v1/master/subscriptions/tenants/{tenantId}/upgrade` | WORKSPACE_ADMIN | Nâng cấp gói giữa kỳ có khấu trừ Proration |
 | POST | `/api/v1/master/subscriptions/tenants/{tenantId}/downgrade` | WORKSPACE_ADMIN | Đặt lịch hạ cấp gói vào cuối chu kỳ |
 | PUT | `/api/v1/master/tenants/{id}/quotas` | WORKSPACE_ADMIN | Ghi đè hạn mức trực tiếp vào snapshot thuê bao của Tenant |
-| GET | `/api/v1/tenant/billing/subscription` | TENANT_ADMIN | Xem gói cước và hạn mức sử dụng hiện tại của doanh nghiệp |
+| GET | `/api/v1/tenant/company/subscription` | TENANT_ADMIN, HR, RECRUITER | Xem gói cước hiện hành, tiến độ Quota và lịch sử hoá đơn của doanh nghiệp |
+| GET | `/api/v1/tenant/company/subscription/change-preview` | TENANT_ADMIN | Dự toán nâng cấp (Proration) hoặc hạ cấp cuối chu kỳ |
+| POST | `/api/v1/tenant/company/subscription/change-plan` | TENANT_ADMIN | Tạo yêu cầu/hoá đơn nâng cấp hoặc lên lịch hạ cấp gói |
+| POST | `/api/v1/tenant/company/subscription/renew` | TENANT_ADMIN | Tạo hoá đơn gia hạn chu kỳ (1–5 năm) |
+| PATCH | `/api/v1/tenant/company/subscription/auto-renew` | TENANT_ADMIN | Bật hoặc tắt tự động gia hạn |
+| GET | `/api/v1/tenant/company/subscription/invoices/{invoiceId}/checkout` | TENANT_ADMIN | Lấy thông tin VietQR & cổng thanh toán cho hoá đơn thuộc doanh nghiệp |
+| POST | `/api/v1/tenant/company/subscription/invoices/{invoiceId}/cancel` | TENANT_ADMIN | Huỷ hoá đơn `PENDING` và thuê bao `PENDING` đi kèm |
+| DELETE | `/api/v1/tenant/company/subscription/scheduled-downgrade` | TENANT_ADMIN | Huỷ lịch hạ cấp cuối kỳ |
 
 ## Database liên quan
 
@@ -76,6 +91,7 @@ Quản lý danh mục gói cước SaaS B2B theo kiến trúc **2 tầng (Two-Ti
 
 ## UI mockup
 
-- `/admin/plans` (`PlanManagementPage.tsx`): Quản lý gói cước 2 tab (**Gói Tiêu Chuẩn** và **Gói Thiết Kế Riêng B2B**), hỗ trợ tạo phiên bản mới bảo lưu giá (Grandfathering) và cấu hình hạn mức.
-- `/admin/tenants` (`TenantDirectoryPage.tsx`): Drawer cấu hình **Ghi đè hạn mức (Quota Override)** và modal gán/nâng cấp gói cho từng doanh nghiệp.
-- `/admin/billing` (Tenant Workspace): Hiển thị thông tin gói đang áp dụng và thanh tiến độ tiêu thụ Quota.
+- `/admin/subscriptions/plans` (`PlanManagementPage.tsx`): Quản lý gói cước 2 tab (**Gói Tiêu Chuẩn** và **Gói Thiết Kế Riêng B2B**), hỗ trợ tạo phiên bản mới bảo lưu giá (Grandfathering) và cấu hình hạn mức.
+- `/admin/tenants/directory` (`TenantManagementPage.tsx`): Drawer cấu hình **Ghi đè hạn mức (Quota Override)** và modal gán/nâng cấp gói cho từng doanh nghiệp.
+- `/internal/admin/billing` (`SubscriptionBillingPage.tsx` & `InvoicePaymentModal.tsx`): Trang quản trị Gói cước, Gia hạn, Tự động gia hạn, So sánh/Nâng cấp gói động từ DB, Quota Telemetry và Thanh toán hoá đơn cho Tenant Admin.
+- `/internal/admin/analytics` (`UsagePanel` trong `AnalyticsPage.tsx`): Theo dõi Quota Telemetry và điều hướng nhanh sang `/internal/admin/billing`.

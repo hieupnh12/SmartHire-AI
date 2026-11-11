@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import {
-  BrainCircuit,
   Lock,
   ArrowRight,
   ArrowLeft,
@@ -64,18 +64,10 @@ export function MasterLoginPage() {
       <header className="relative z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
           <div
-            className="flex items-center gap-3 cursor-pointer select-none group"
+            className="flex items-center cursor-pointer select-none group"
             onClick={() => navigate("/")}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-slate-900 font-display">
-                SmartHire<span className="text-blue-600">.AI</span>
-              </span>
-
-            </div>
+            <SmartHireLogo className="h-9 sm:h-10" />
           </div>
 
           <div className="flex items-center gap-4 text-xs font-medium">

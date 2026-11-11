@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { LegalPolicyModal, type LegalPolicyTab } from "../components/modals/LegalPolicyModal";
 
 const CURRENT_POLICY_VERSION = "v2026.10";
@@ -313,8 +314,8 @@ export function CheckoutPage() {
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <img src="/logo-smarthrie.png" alt="SmartHire AI" className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" />
+          <Link to="/" className="flex items-center group">
+            <SmartHireLogo className="h-9 sm:h-10" />
           </Link>
         </div>
       </header>

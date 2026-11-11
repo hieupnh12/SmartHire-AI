@@ -98,6 +98,7 @@ export function PricingPage() {
   return (
     <div className="py-12 md:py-20">
       <div className="max-w-7xl mx-auto px-6">
+        <h1 className="sr-only">Bảng giá và gói giải pháp tuyển dụng SmartHire AI</h1>
         {/* SMALL INTRO / CTA */}
         <div className="flex flex-wrap items-center gap-3 mb-8">
           <span className="italic text-slate-900 font-medium text-lg">Nếu Doanh nghiệp có quy mô khác</span>

@@ -43,7 +43,13 @@ Tổng hợp kỹ năng (S), kinh nghiệm liên quan (E), assessment (A), AI in
 
 ## UI mockup
 
-- Panel chi tiết trong `/recruiter/jobs/{jobId}/rank`: điểm tổng, lịch sử ba vòng (CV / AI Interview / Assessment), bảng đóng góp, bằng chứng kỹ năng/kinh nghiệm và nhận xét AI interview. Nút **Đặt lịch phỏng vấn trực tiếp** mở form lịch ngay trong panel khi cả ba vòng đều đạt; không bắt buộc chuyển sang trang Phỏng vấn. `jobId` lấy từ Job workspace đã chọn; Candidate không có quyền xem.
+- Giao diện chi tiết ứng viên tại trang riêng `/recruiter/jobs/{jobId}/rank/{applicationId}` (chuyển hướng trực tiếp khi nhấn vào ứng viên từ bảng xếp hạng `/recruiter/jobs/{jobId}/rank` thay vì hiển thị dạng popup):
+  - **Thanh tiêu đề (Top Header Bar)**: Nút quay lại bảng xếp hạng `←`, Họ tên ứng viên, Mã hồ sơ & trạng thái xét tuyển, đường phân cách và khối hiển thị **Tổng điểm xếp hạng** cùng thứ hạng (#1, #2,...) và các nút hành động nhanh (Đặt lịch phỏng vấn, Quay lại).
+  - **Thanh điều hướng danh mục dọc (Left Sidebar Tabs)**:
+    - **AI Interview**: Hiển thị điểm số AI, số câu hỏi, trạng thái đạt/chưa đạt. Khung bên phải ưu tiên hiển thị **Bài làm & Câu trả lời của ứng viên** (gồm toàn bộ câu hỏi, câu trả lời thực tế của ứng viên dạng văn bản, bản ghi âm giọng nói nghe trực tiếp, hoặc bản ghi hội thoại Transcript đầy đủ theo thời gian thực đối với phiên phỏng vấn tương tác) cùng tab **Báo cáo & Phân tích năng lực AI** (tiêu chí đánh giá, 4 nhóm năng lực, điểm mạnh và điểm cần cải thiện).
+    - **Assessment**: Hiển thị điểm bài làm, trạng thái chốt điểm. Khung bên phải phân chia thành các mục rõ ràng: **Tự luận lý thuyết**, **Trắc nghiệm**, **Tự luận code (lập trình - nếu có)**, và **Nhật ký giám sát**. Khi ấn vào từng mục và câu hỏi, hiển thị chi tiết bài làm nguyên bản của ứng viên (đoạn văn tự luận, đáp án trắc nghiệm đã chọn so với đáp án đúng, mã nguồn lập trình đã nộp kèm kết quả chạy test cases và độ phức tạp O(N)), đáp án mẫu tham khảo, rubric tiêu chí và điểm số.
+    - **Đặt lịch phỏng vấn**: Kiểm tra điều kiện tiên quyết (đạt cả 3 vòng CV, AI Interview, Assessment). Hiển thị chi tiết lịch phỏng vấn trực tiếp đã xếp (hình thức Online/Offline, phòng họp / Google Meet link, hội đồng phỏng vấn, phiếu đánh giá & điểm số của hội đồng) hoặc nút **Đặt lịch phỏng vấn trực tiếp ngay**.
+    - **Tổng quan & CV**: Biểu đồ Gauge điểm tổng, phân tích điểm đa chiều (Component breakdown), bằng chứng đối chiếu kỹ năng và kinh nghiệm thực tế từ CV, nhận định đề xuất của AI và tiến trình hồ sơ.
 
 ## Phụ thuộc
 

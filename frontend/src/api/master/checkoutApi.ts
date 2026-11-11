@@ -53,6 +53,10 @@ export interface PublicSubscriptionPlan {
   maxCvParses: number;
   maxAiInterviewHours?: number;
   maxStorageGb?: number;
+  maxProctoringHours?: number;
+  videoRetentionDays?: number;
+  version?: number;
+  custom?: boolean;
   featuresJson?: string;
   status: string;
 }
@@ -82,6 +86,8 @@ export interface VnPayVerifyReturnData {
   transactionNo?: string;
   bankCode?: string;
   payDate?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface PayPalVerifyReturnData {
@@ -95,6 +101,8 @@ export interface PayPalVerifyReturnData {
   contactEmail?: string;
   amountVnd: number;
   transactionNo?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface InvoiceStatusResponse {

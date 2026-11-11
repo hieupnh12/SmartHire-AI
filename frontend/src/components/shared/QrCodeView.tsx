@@ -20,6 +20,8 @@ export function QrCodeView({
 }: QrCodeViewProps) {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const showCenterLogo = Boolean(logoUrl && failedLogoUrl !== logoUrl);
 
   // Use reliable public QR service with fallback
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size * 2}x${size * 2}&margin=8&data=${encodeURIComponent(
@@ -120,8 +122,8 @@ export function QrCodeView({
           className="absolute inset-0 m-auto flex items-center justify-center rounded-lg bg-white p-1 shadow-md border border-slate-200"
           style={{ width: Math.max(28, size * 0.22), height: Math.max(28, size * 0.22) }}
         >
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="size-full object-contain rounded" />
+          {showCenterLogo ? (
+            <img src={logoUrl!} alt="" className="size-full object-contain rounded" onError={() => setFailedLogoUrl(logoUrl ?? null)} />
           ) : (
             <span className="text-[11px] font-bold text-slate-800 uppercase">
               {logoText?.slice(0, 2) || "SH"}

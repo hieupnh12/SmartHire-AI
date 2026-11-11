@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/ws/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/robots.txt", "/sitemap.xml").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/master/auth/login", "/api/v1/master/auth/refresh", "/api/v1/master/auth/logout",
                                 "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/refresh", "/api/v1/tenant/auth/logout",
@@ -67,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/directory").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "STAFF")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/tenant/company/directory").hasAnyRole("TENANT_ADMIN", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/subscription").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "STAFF")
+                        .requestMatchers("/api/v1/tenant/company/subscription/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/company/mail-settings", "/api/v1/tenant/company/mail-settings/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/landing-page", "/api/v1/tenant/landing-page/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR")
                         .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE", "STAFF")

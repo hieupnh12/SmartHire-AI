@@ -22,6 +22,7 @@ public class TenantSubscriptionQuotaResponse {
     private String description;
     private BigDecimal priceYearly;
     private String subscriptionStatus;
+    private boolean hasExplicitSubscription;
     private boolean autoRenew;
     private LocalDateTime startsAt;
     private LocalDateTime endsAt;
@@ -91,6 +92,10 @@ public class TenantSubscriptionQuotaResponse {
         private LocalDateTime paidAt;
         private LocalDateTime billingPeriodStart;
         private LocalDateTime billingPeriodEnd;
+        private String planCode;
         private String planName;
+        private String invoiceType;
+        private String paymentGateway;
+        private String notes;
     }
 }

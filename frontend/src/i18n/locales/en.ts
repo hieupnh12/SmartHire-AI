@@ -92,6 +92,7 @@ export const en = {
     notifications: "Notifications",
     users: "Users",
     company: "Company",
+    billing: "Plan & Billing",
     landingPage: "Landing Page",
     system: "System",
     mailConfig: "Gmail Configuration",

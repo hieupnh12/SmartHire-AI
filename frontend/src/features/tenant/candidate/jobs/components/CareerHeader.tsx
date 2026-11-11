@@ -101,6 +101,8 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const showLogo = Boolean(logoUrl && failedLogoUrl !== logoUrl);
   const token = useAuthStore((state) => state.accessToken);
   const storedUser = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
@@ -145,7 +147,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
     <header className="sticky top-0 z-50 border-b border-[var(--color-border-default)] bg-white shadow-sm">
       <div className="mx-auto flex h-[76px] max-w-[1536px] items-center gap-5 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-3" aria-label={`${tenantName} Careers`}>
-          {logoUrl ? <img src={logoUrl} alt="" className="h-11 max-w-36 object-contain" /> : <span className="grid size-11 place-items-center rounded-xl text-lg font-semibold text-white" style={{ backgroundColor: primaryColor }}>{tenantCode.charAt(0).toUpperCase()}</span>}
+          {showLogo ? <img src={logoUrl!} alt="" className="h-11 max-w-36 object-contain" onError={() => setFailedLogoUrl(logoUrl ?? null)} /> : <span className="grid size-11 place-items-center rounded-xl text-lg font-semibold text-white" style={{ backgroundColor: primaryColor }}>{tenantCode.charAt(0).toUpperCase()}</span>}
           <span className="hidden min-w-0 xl:block"><span className="block max-w-44 truncate text-lg font-semibold text-slate-800">{tenantName}</span><span className="block max-w-44 truncate text-[11px] text-slate-500">{slogan || "Cổng tuyển dụng nhân tài"}</span></span>
         </Link>
 
