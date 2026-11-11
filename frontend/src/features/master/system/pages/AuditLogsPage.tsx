@@ -2,8 +2,11 @@ import { useState, useMemo } from "react";
 import { AuditLog } from "@/api/master/masterAdminApi";
 import { useAuditLogs } from "@/api/master/queries";
 import { LogDetailModal } from "../components/modals/LogDetailModal";
+import { useT, useLocale, formatDateTime } from "@/i18n";
 
 export function AuditLogsPage() {
+  const t = useT();
+  const locale = useLocale();
   const { data: logs = [] } = useAuditLogs();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [logLevelFilter, setLogLevelFilter] = useState<string>("ALL");
@@ -21,24 +24,24 @@ export function AuditLogsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Nhật Ký Kiểm Toán Hệ Thống (Audit Logs)
+            {t("master.ops.auditLogs.title")}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Ghi nhận mọi hành vi quản trị, cấp phát Database và các sự kiện an toàn thông tin toàn sàn.
+            {t("master.ops.auditLogs.subtitle")}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Lọc theo mức độ:</span>
+          <span className="text-xs text-slate-500">{t("master.ops.auditLogs.filterLabel")}</span>
           <select
             value={logLevelFilter}
             onChange={(e) => setLogLevelFilter(e.target.value)}
             className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 focus:border-blue-600 focus:outline-none shadow-2xs"
           >
-            <option value="ALL">Tất cả mức độ</option>
-            <option value="INFO">Thông tin (INFO)</option>
-            <option value="WARN">Cảnh báo (WARN)</option>
-            <option value="ERROR">Lỗi (ERROR)</option>
+            <option value="ALL">{t("master.ops.auditLogs.filterAll")}</option>
+            <option value="INFO">{t("master.ops.auditLogs.filterInfo")}</option>
+            <option value="WARN">{t("master.ops.auditLogs.filterWarn")}</option>
+            <option value="ERROR">{t("master.ops.auditLogs.filterError")}</option>
           </select>
         </div>
       </div>
@@ -47,13 +50,13 @@ export function AuditLogsPage() {
         <table className="w-full min-w-[820px] text-left text-xs text-slate-600">
           <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
             <tr>
-              <th className="p-4">Mã Log</th>
-              <th className="p-4">Doanh Nghiệp</th>
-              <th className="p-4">Hành Động</th>
-              <th className="p-4">Chi Tiết Sự Kiện</th>
-              <th className="p-4">Mức Độ</th>
-              <th className="p-4">Thời Gian</th>
-              <th className="p-4 text-right">Thao Tác</th>
+              <th className="p-4">{t("master.ops.auditLogs.colLogId")}</th>
+              <th className="p-4">{t("master.ops.auditLogs.colCompany")}</th>
+              <th className="p-4">{t("master.ops.auditLogs.colAction")}</th>
+              <th className="p-4">{t("master.ops.auditLogs.colDetails")}</th>
+              <th className="p-4">{t("master.ops.auditLogs.colLevel")}</th>
+              <th className="p-4">{t("master.ops.auditLogs.colTime")}</th>
+              <th className="p-4 text-right">{t("master.ops.auditLogs.colActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -79,14 +82,14 @@ export function AuditLogsPage() {
                   </span>
                 </td>
                 <td className="p-4 text-slate-500 text-[11px]">
-                  {new Date(log.timestamp).toLocaleString("vi-VN")}
+                  {formatDateTime(log.timestamp, undefined, locale)}
                 </td>
                 <td className="p-4 text-right">
                   <button
                     onClick={() => setSelectedLog(log)}
                     className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
                   >
-                    Xem chi tiết
+                    {t("master.ops.auditLogs.viewDetailBtn")}
                   </button>
                 </td>
               </tr>

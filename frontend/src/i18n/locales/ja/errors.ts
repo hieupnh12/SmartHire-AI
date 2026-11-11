@@ -1,0 +1,28 @@
+export const errorsJa = {
+  requestFailed: "リクエストを完了できませんでした。もう一度お試しください。",
+  actionFailed: "操作を完了できませんでした。もう一度お試しください。",
+  timeout: "サーバーからの応答に時間がかかっています。処理が続行している場合がありますので、少し待ってから再読み込みしてください。",
+  network: "サーバーに接続できません。ネットワークを確認してもう一度お試しください。",
+  forbidden: "この操作を実行する権限がありません。",
+  notFound: "要求されたデータが見つかりません。",
+  interviewConnectFailed: "会話に接続できませんでした（HTTP {status}）。もう一度お試しください。",
+  interviewInterrupted: "接続が中断されました。再送信を押して同じターンから再開してください。",
+  interviewAiTimeout: "AIの応答に時間がかかっています。再送信を押して同じターンから再開してください（入力内容は保持されています）。",
+  aiQuestionGenFailed: "AIによる問題生成中にエラーが発生しました",
+  subscriptionCreated: "サブスクリプションプランを作成しました！",
+  subscriptionUpdated: "サブスクリプションプランを更新しました！",
+  subscriptionStatusUpdated: "プランのステータスを更新しました！",
+  codes: {
+    AI_INTERVIEW_PROVIDER_OVERLOADED: "AI面接サービスが現在混み合っています。しばらくしてから再試行してください。",
+    AI_INTERVIEW_PROVIDER_TIMEOUT: "AIサービスの応答がタイムアウトしました。しばらくしてから再試行してください。",
+    AI_INTERVIEW_PROVIDER_UNAVAILABLE: "AI面接サービスに接続できませんでした。時間をおいて再試行するかサポートへご連絡ください。",
+    AI_INTERVIEW_PROVIDER_RATE_LIMITED: "AIサービスの利用上限に達しました。しばらくしてから再試行してください。",
+    AI_INTERVIEW_PROVIDER_AUTH_FAILED: "AIサービスの認証に失敗しました。設定確認のためサポートへご連絡ください。",
+    AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND: "設定されたAI面接モデルが利用できません。サポートへご連絡ください。",
+    AI_INTERVIEW_LOCKED: "セッションはロックされています。未開始で作成済み・準備完了・エラー状態のセッションのみ削除できます。",
+    INTERNAL_ERROR: "一時的なシステムエラーが発生しました。数分後にもう一度お試しください。",
+    VALIDATION_ERROR: "入力内容に不備があります。確認してもう一度お試しください。",
+    BAD_REQUEST: "不正なリクエストです。入力内容をご確認ください。",
+  },
+} as const;
+

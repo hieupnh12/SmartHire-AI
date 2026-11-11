@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Loader2, UploadCloud } from "lucide-react";
+import { useT } from "@/i18n";
 import { CV_ACCEPT } from "../constants/cvStatus";
 
 export function CvUploadZone({ pending, error, onFile }: { pending: boolean; error: string | null; onFile: (file: File) => void }) {
+  const t = useT();
   const [dragging, setDragging] = useState(false);
   return (
     <div>
@@ -20,8 +22,8 @@ export function CvUploadZone({ pending, error, onFile }: { pending: boolean; err
         <span className="grid size-11 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-primary)_12%,white)] text-[var(--color-primary)]">
           {pending ? <Loader2 className="size-5 animate-spin" aria-hidden="true" /> : <UploadCloud className="size-5" aria-hidden="true" />}
         </span>
-        <span className="text-sm font-semibold text-slate-800">{pending ? "Đang tải CV lên…" : "Kéo thả hoặc chọn file CV"}</span>
-        <span className="text-xs text-slate-500">Hỗ trợ PDF, DOC, DOCX</span>
+        <span className="text-sm font-semibold text-slate-800">{pending ? t("candidate.cv.upload.uploading") : t("candidate.cv.upload.dropOrSelect")}</span>
+        <span className="text-xs text-slate-500">{t("candidate.cv.upload.supportedFormats")}</span>
         <input
           type="file"
           className="sr-only"

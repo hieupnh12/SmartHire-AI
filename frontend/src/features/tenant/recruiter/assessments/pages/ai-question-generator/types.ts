@@ -2,6 +2,7 @@ import type { BankQuestionRequest } from "@/api/types/questionBank";
 import type { CodingContent, QuestionRequest } from "@/api/types/assessment";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
+import { t as globalT, type TranslateFn } from "@/i18n";
 import {
   CheckCheck,
   Code2,
@@ -10,9 +11,6 @@ import {
 } from "lucide-react";
 
 export const SKILLS = SKILL_CATALOG.flatMap((group) => group.skills);
-
-export const HELP =
-  "AI Question Studio cho phép biên soạn câu hỏi tự động theo kỹ năng và JD. Bạn có thể sinh nháp nhiều đợt, kiểm tra độ trùng lặp, trực tiếp chỉnh sửa đáp án và chọn lọc các câu ưng ý nhất trước khi nhập vào Ngân hàng.";
 
 export type QuestionKind = "MCQ" | "MULTIPLE_CHOICE" | "ESSAY" | "CODING";
 export type CodingLanguage = "java" | "python" | "javascript" | "sql";
@@ -58,6 +56,7 @@ export async function pollCodingDrafts(
     instructions: string;
   },
   signal?: AbortSignal,
+  translate: TranslateFn = globalT,
 ): Promise<BankQuestionRequest[]> {
   const started = await questionBankApi.generate(
     {
@@ -73,7 +72,7 @@ export async function pollCodingDrafts(
 
   for (let attempt = 0; attempt < 90; attempt++) {
     if (signal?.aborted) {
-      throw new DOMException("Thao tác sinh câu hỏi đã bị hủy.", "AbortError");
+      throw new DOMException(translate("recruiter.assessments.aiStudio.abortedError"), "AbortError");
     }
     const status = await questionBankApi.generationStatus(started.id, signal);
     if (status.status === "READY") {
@@ -89,65 +88,71 @@ export async function pollCodingDrafts(
       }));
     }
     if (status.status === "FAILED") {
-      throw new Error(status.error || "AI chưa tạo được câu code hợp lệ.");
+      throw new Error(status.error || translate("recruiter.assessments.aiStudio.codingGenerateFailed"));
     }
     await sleep(2000);
   }
-  throw new Error("Hết thời gian chờ AI tạo câu code. Thử lại với ít câu hơn.");
+  throw new Error(translate("recruiter.assessments.aiStudio.codingGenerateTimeout"));
 }
 
-export function codingSummary(coding: CodingContent | null | undefined) {
+export function codingSummary(coding: CodingContent | null | undefined, translate: TranslateFn = globalT) {
   if (!coding) return null;
   const langs = Object.keys(coding.starterCode ?? {});
   const sample = (coding.testCases ?? []).filter((item) => item.sample).length;
   const hidden = (coding.testCases ?? []).filter((item) => !item.sample).length;
   return {
-    title: coding.title || "Bài code",
+    title: coding.title || translate("recruiter.assessments.aiStudio.codingFallbackTitle"),
     category: coding.category,
-    langs: langs.join(", ") || "—",
+    langs: langs.join(", ") || translate("recruiter.assessments.common.dash"),
     sample,
     hidden,
   };
 }
 
-export const QUESTION_TYPES = [
-  {
-    id: "MCQ" as const,
-    label: "Trắc nghiệm",
-    badge: "1 đáp án",
-    icon: ListChecks,
-  },
-  {
-    id: "MULTIPLE_CHOICE" as const,
-    label: "Nhiều đáp án",
-    badge: "Multi-select",
-    icon: CheckCheck,
-  },
-  {
-    id: "ESSAY" as const,
-    label: "Tự luận",
-    badge: "Rubric AI",
-    icon: FileText,
-  },
-  {
-    id: "CODING" as const,
-    label: "Lập trình",
-    badge: "Code & Tests",
-    icon: Code2,
-  },
-] as const;
+export function getQuestionTypes(translate: TranslateFn = globalT) {
+  return [
+    {
+      id: "MCQ" as const,
+      label: translate("recruiter.assessments.aiStudio.questionTypes.mcqLabel"),
+      badge: translate("recruiter.assessments.aiStudio.questionTypes.mcqBadge"),
+      icon: ListChecks,
+    },
+    {
+      id: "MULTIPLE_CHOICE" as const,
+      label: translate("recruiter.assessments.aiStudio.questionTypes.multiLabel"),
+      badge: translate("recruiter.assessments.aiStudio.questionTypes.multiBadge"),
+      icon: CheckCheck,
+    },
+    {
+      id: "ESSAY" as const,
+      label: translate("recruiter.assessments.aiStudio.questionTypes.essayLabel"),
+      badge: translate("recruiter.assessments.aiStudio.questionTypes.essayBadge"),
+      icon: FileText,
+    },
+    {
+      id: "CODING" as const,
+      label: translate("recruiter.assessments.aiStudio.questionTypes.codingLabel"),
+      badge: translate("recruiter.assessments.aiStudio.questionTypes.codingBadge"),
+      icon: Code2,
+    },
+  ] as const;
+}
 
-export const DIFFICULTIES = [
-  { id: "Easy" as const, label: "Dễ" },
-  { id: "Medium" as const, label: "Trung bình" },
-  { id: "Hard" as const, label: "Khó" },
-] as const;
+export function getDifficulties(translate: TranslateFn = globalT) {
+  return [
+    { id: "Easy" as const, label: translate("recruiter.assessments.common.difficulty.easyShort") },
+    { id: "Medium" as const, label: translate("recruiter.assessments.common.difficulty.mediumShort") },
+    { id: "Hard" as const, label: translate("recruiter.assessments.common.difficulty.hardShort") },
+  ] as const;
+}
 
-export const QUICK_PROMPTS = [
-  "Kiến trúc & Design Patterns",
-  "Tối ưu hóa hiệu năng",
-  "Xử lý concurrency & đa luồng",
-  "Bảo mật & Authentication",
-  "Clean Code & SOLID",
-  "Xử lý Transaction & Database",
-];
+export function getQuickPrompts(translate: TranslateFn = globalT) {
+  return [
+    translate("recruiter.assessments.aiStudio.quickPrompts.architecture"),
+    translate("recruiter.assessments.aiStudio.quickPrompts.performance"),
+    translate("recruiter.assessments.aiStudio.quickPrompts.concurrency"),
+    translate("recruiter.assessments.aiStudio.quickPrompts.security"),
+    translate("recruiter.assessments.aiStudio.quickPrompts.cleanCode"),
+    translate("recruiter.assessments.aiStudio.quickPrompts.transactions"),
+  ];
+}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ux/Button";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import type { QuestionRequest } from "@/api/types/assessment";
 import type { DraftItem, QuestionKind } from "../types";
+import { useT } from "@/i18n";
 import { AiQuestionCard } from "./AiQuestionCard";
 import {
   AiRealtimeProgressCard,
@@ -75,6 +76,7 @@ export function AiReviewWorkspace({
   onPatchDraft,
   onPatchOption,
 }: AiReviewWorkspaceProps) {
+  const t = useT();
   // Xác định số thứ tự đợt sinh lớn nhất để gắn badge "Mới" cho các câu mới sinh
   const latestBatchNumber = useMemo(() => {
     if (drafts.length === 0) return 0;
@@ -110,21 +112,21 @@ export function AiReviewWorkspace({
               <Sparkles className="size-7" />
             </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Chưa có câu hỏi nháp nào được sinh
+              {t("recruiter.assessments.aiStudio.emptyTitle")}
             </h3>
             <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Thiết lập các thông số kỹ năng, định dạng câu hỏi và chủ đề ở bảng điều khiển bên trái, sau đó bấm nút{" "}
-              <strong>Sinh nháp bằng AI</strong>.
+              {t("recruiter.assessments.aiStudio.emptyDescPrefix")}
+              <strong>{t("recruiter.assessments.aiStudio.emptyDescBtnName")}</strong>.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3 text-xs text-slate-600 dark:text-slate-400">
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[var(--color-primary)]">1.</span> Thiết lập Kỹ năng & Loại câu
+                <span className="font-bold text-[var(--color-primary)]">1.</span> {t("recruiter.assessments.aiStudio.emptyStep1")}
               </span>
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[var(--color-primary)]">2.</span> Nhập chủ đề hoặc dùng JD
+                <span className="font-bold text-[var(--color-primary)]">2.</span> {t("recruiter.assessments.aiStudio.emptyStep2")}
               </span>
               <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                <span className="font-bold text-[var(--color-primary)]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
+                <span className="font-bold text-[var(--color-primary)]">3.</span> {t("recruiter.assessments.aiStudio.emptyStep3")}
               </span>
             </div>
           </div>
@@ -233,10 +235,10 @@ export function AiReviewWorkspace({
           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
             {selectedCount > 0 ? (
               <span>
-                Sẵn sàng lưu <strong className="text-[var(--color-primary)]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
+                {t("recruiter.assessments.aiStudio.readyToSavePrefix")}<strong className="text-[var(--color-primary)]">{selectedCount}</strong>{t("recruiter.assessments.aiStudio.readyToSaveSuffix")}
               </span>
             ) : (
-              <span className="text-amber-600">Vui lòng tích chọn ít nhất 1 câu để lưu.</span>
+              <span className="text-amber-600">{t("recruiter.assessments.aiStudio.pickOneToSaveWarning")}</span>
             )}
           </div>
 
@@ -248,7 +250,7 @@ export function AiReviewWorkspace({
               onClick={onNavigateBack}
               size="sm"
             >
-              Hủy bỏ
+              {t("recruiter.assessments.common.actions.cancelAction")}
             </Button>
             <Button
               type="button"
@@ -261,12 +263,12 @@ export function AiReviewWorkspace({
               {isSaving ? (
                 <>
                   <RefreshCw className="size-4 animate-spin" />
-                  <span>Đang lưu...</span>
+                  <span>{t("recruiter.assessments.common.actions.saving")}</span>
                 </>
               ) : (
                 <>
                   <Save className="size-4" />
-                  <span>Lưu {selectedCount} câu vào Ngân hàng</span>
+                  <span>{t("recruiter.assessments.aiStudio.saveCountIntoBankBtn", { count: selectedCount })}</span>
                 </>
               )}
             </Button>

@@ -14,14 +14,15 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { formatNumber, useLocale, useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { cn } from "@/lib/utils";
 import { closeSocketSafely, createRankingSocket } from "@/lib/ws";
-import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
-import { applicationStatusLabel, button, labels, scoreText } from "../components/rankingUi";
+import { getRankingPreview, PREVIEW_JOB_ID } from "../data/rankingPreview";
+import { applicationStatusLabel, button, getRankingLabel, scoreText } from "../components/rankingUi";
 import { useRankingStore } from "../stores/useRankingStore";
 import type { RankingConfig, RankingPage as RankingPageType, RankingRow, RankingSummary } from "../types/ranking";
 
@@ -29,9 +30,23 @@ const terminal = new Set(["REJECTED", "WITHDRAWN", "HIRED"]);
 const componentScore = (row: RankingRow, key: string) =>
   row.result.components.find((part) => part.key === key)?.score ?? null;
 
+function renderHighlightedRange(template: string, range: string, total: string) {
+  const parts = template.split(/(__RANGE__|__TOTAL__)/g);
+  return parts.map((part, idx) => {
+    if (part === "__RANGE__") {
+      return <strong key={idx} className="font-semibold text-slate-900">{range}</strong>;
+    }
+    if (part === "__TOTAL__") {
+      return <strong key={idx} className="font-semibold text-slate-900">{total}</strong>;
+    }
+    return part;
+  });
+}
+
 function RankingLoadingState() {
+  const t = useT();
   return (
-    <LoadingState label="Đang tải và tính điểm ứng viên" className="space-y-3">
+    <LoadingState label={t("recruiter.screening.ranking.loadingLabel")} className="space-y-3">
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
         <Skeleton className="h-10 w-full" />
       </div>
@@ -62,25 +77,35 @@ function statusTone(status: string) {
   return "bg-brand-primary/10 text-brand-primary";
 }
 
-function getScoreTier(score: number | null) {
-  if (score == null) return { text: "text-slate-400", label: "Chưa có", bar: "bg-slate-300" };
+function getScoreTier(score: number | null, t: TranslateFn) {
+  if (score == null) {
+    return { text: "text-slate-400", label: t("recruiter.screening.ranking.tiers.none"), bar: "bg-slate-300" };
+  }
   const num = Number(score);
-  if (num >= 80) return { text: "text-emerald-700", label: "Xuất sắc", bar: "bg-emerald-500" };
-  if (num >= 70) return { text: "text-blue-700", label: "Phù hợp", bar: "bg-blue-500" };
-  if (num >= 50) return { text: "text-amber-700", label: "Cân nhắc", bar: "bg-amber-500" };
-  return { text: "text-rose-600", label: "Chưa đạt", bar: "bg-rose-500" };
+  if (num >= 80) {
+    return { text: "text-emerald-700", label: t("recruiter.screening.ranking.tiers.excellent"), bar: "bg-emerald-500" };
+  }
+  if (num >= 70) {
+    return { text: "text-blue-700", label: t("recruiter.screening.ranking.tiers.good"), bar: "bg-blue-500" };
+  }
+  if (num >= 50) {
+    return { text: "text-amber-700", label: t("recruiter.screening.ranking.tiers.consider"), bar: "bg-amber-500" };
+  }
+  return { text: "text-rose-600", label: t("recruiter.screening.ranking.tiers.below"), bar: "bg-rose-500" };
 }
 
 function TableScoreCell({ score, showBar = false }: { score: number | null; showBar?: boolean }) {
+  const t = useT();
+  const locale = useLocale();
   if (score == null) {
-    return <span className="text-xs italic text-slate-400">Chưa có</span>;
+    return <span className="text-xs italic text-slate-400">{t("recruiter.screening.common.notAvailable")}</span>;
   }
   const num = Number(score);
-  const tier = getScoreTier(num);
+  const tier = getScoreTier(num, t);
   return (
     <div className="flex flex-col gap-1">
       <span className={cn("text-xs font-bold tabular-nums", tier.text)}>
-        {scoreText(num)}
+        {scoreText(num, locale)}
         <span className="font-normal text-slate-400"> /100</span>
       </span>
       {showBar && (
@@ -96,13 +121,14 @@ function TableScoreCell({ score, showBar = false }: { score: number | null; show
 }
 
 function RankBadge({ rank }: { rank: number | null }) {
+  const t = useT();
   if (rank === null) {
     return (
       <span
         className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 select-none whitespace-nowrap"
-        title="Chưa đủ điều kiện để xếp hạng chính thức"
+        title={t("recruiter.screening.ranking.badges.pendingRankTitle")}
       >
-        Chờ bổ sung
+        {t("recruiter.screening.ranking.badges.pendingRank")}
       </span>
     );
   }
@@ -110,7 +136,7 @@ function RankBadge({ rank }: { rank: number | null }) {
     return (
       <span
         className="flex size-7 items-center justify-center rounded-full bg-amber-100 border border-amber-300 text-xs font-bold text-amber-900 shadow-2xs"
-        title="Hạng 1"
+        title={t("recruiter.screening.ranking.badges.rankTitle", { rank: 1 })}
       >
         #1
       </span>
@@ -120,7 +146,7 @@ function RankBadge({ rank }: { rank: number | null }) {
     return (
       <span
         className="flex size-7 items-center justify-center rounded-full bg-slate-200 border border-slate-300 text-xs font-bold text-slate-800 shadow-2xs"
-        title="Hạng 2"
+        title={t("recruiter.screening.ranking.badges.rankTitle", { rank: 2 })}
       >
         #2
       </span>
@@ -130,7 +156,7 @@ function RankBadge({ rank }: { rank: number | null }) {
     return (
       <span
         className="flex size-7 items-center justify-center rounded-full bg-amber-700/10 border border-amber-700/20 text-xs font-bold text-amber-800 shadow-2xs"
-        title="Hạng 3"
+        title={t("recruiter.screening.ranking.badges.rankTitle", { rank: 3 })}
       >
         #3
       </span>
@@ -148,41 +174,48 @@ function RankingSummaryBar({
 }: {
   summary: RankingSummary | undefined;
 }) {
+  const t = useT();
+  const locale = useLocale();
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {/* 1. Tổng ứng viên */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[13px] sm:text-sm font-medium text-slate-700">Tổng ứng viên:</span>
+            <span className="text-[13px] sm:text-sm font-medium text-slate-700">
+              {t("recruiter.screening.ranking.summary.totalCandidates")}
+            </span>
             <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
               {summary?.totalCandidates ?? 0}
             </span>
             <span className="text-xs text-slate-400">
-              ({summary?.activeCandidates ?? 0} đang xét tuyển)
+              {t("recruiter.screening.ranking.summary.activeSub", { count: summary?.activeCandidates ?? 0 })}
             </span>
           </div>
 
           <div className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
-          {/* 2. Đủ kết quả */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[13px] sm:text-sm font-medium text-slate-700">Đủ kết quả:</span>
+            <span className="text-[13px] sm:text-sm font-medium text-slate-700">
+              {t("recruiter.screening.ranking.summary.completeResults")}
+            </span>
             <span className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-700 tabular-nums">
               {summary?.completeCandidates ?? 0}
             </span>
             <span className="text-xs text-slate-400">
-              ({(summary?.totalCandidates ?? 0) - (summary?.completeCandidates ?? 0)} chờ bổ sung)
+              {t("recruiter.screening.ranking.summary.pendingSub", {
+                count: (summary?.totalCandidates ?? 0) - (summary?.completeCandidates ?? 0),
+              })}
             </span>
           </div>
 
           <div className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
-          {/* 3. Ứng viên dẫn đầu */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[13px] sm:text-sm font-medium text-slate-700">Ứng viên dẫn đầu:</span>
+            <span className="text-[13px] sm:text-sm font-medium text-slate-700">
+              {t("recruiter.screening.ranking.summary.topCandidate")}
+            </span>
             <span className="text-xl sm:text-2xl font-bold tracking-tight text-brand-primary tabular-nums">
-              {summary?.topScore == null ? "—" : scoreText(summary.topScore)}
+              {summary?.topScore == null ? "—" : scoreText(summary.topScore, locale)}
             </span>
             {summary?.topCandidateName && (
               <span
@@ -196,11 +229,12 @@ function RankingSummaryBar({
 
           <div className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
-          {/* 4. Điểm trung bình */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[13px] sm:text-sm font-medium text-slate-700">Điểm trung bình:</span>
+            <span className="text-[13px] sm:text-sm font-medium text-slate-700">
+              {t("recruiter.screening.ranking.summary.averageScore")}
+            </span>
             <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-              {summary?.averageScore == null ? "—" : scoreText(summary.averageScore)}
+              {summary?.averageScore == null ? "—" : scoreText(summary.averageScore, locale)}
             </span>
             <span className="text-xs text-slate-400">/ 100</span>
           </div>
@@ -211,29 +245,34 @@ function RankingSummaryBar({
 }
 
 function WeightDistributionWidget({ config }: { config: RankingConfig }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useState(false);
   const componentWeights = [
-    { key: "skills", label: labels.skills ?? "CV Screening", weight: config.weights.skills ?? 0, bg: "bg-blue-500" },
-    { key: "experience", label: labels.experience ?? "Kinh nghiệm", weight: config.weights.experience ?? 0, bg: "bg-indigo-500" },
-    { key: "assessment", label: labels.assessment ?? "Assessment", weight: config.weights.assessment ?? 0, bg: "bg-amber-500" },
-    { key: "interview", label: labels.interview ?? "AI Interview", weight: config.weights.interview ?? 0, bg: "bg-emerald-500" },
+    { key: "skills", label: getRankingLabel("skills", t), weight: config.weights.skills ?? 0, bg: "bg-blue-500" },
+    { key: "experience", label: getRankingLabel("experience", t), weight: config.weights.experience ?? 0, bg: "bg-indigo-500" },
+    { key: "assessment", label: getRankingLabel("assessment", t), weight: config.weights.assessment ?? 0, bg: "bg-amber-500" },
+    { key: "interview", label: getRankingLabel("interview", t), weight: config.weights.interview ?? 0, bg: "bg-emerald-500" },
   ];
   const activeWeights = componentWeights.filter((c) => c.weight > 0);
   const skillGroups = Object.entries(config.groups);
 
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
-      {/* Widget Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="size-4 text-brand-primary" aria-hidden="true" />
-          <span className="text-[13px] font-semibold text-slate-800">Cơ cấu trọng số tính điểm</span>
+          <span className="text-[13px] font-semibold text-slate-800">
+            {t("recruiter.screening.ranking.weights.title")}
+          </span>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-            {config.revision === 0 ? "Theo Job" : `R${config.revision}`}
+            {config.revision === 0 ? t("recruiter.screening.ranking.weights.byJob") : `R${config.revision}`}
           </span>
           {config.requiredExperienceMonths > 0 && (
             <span className="text-xs text-slate-500 hidden sm:inline">
-              · Yêu cầu kinh nghiệm: <strong className="font-semibold text-slate-700">{config.requiredExperienceMonths} tháng</strong>
+              · {t("recruiter.screening.ranking.weights.requiredExp")}{" "}
+              <strong className="font-semibold text-slate-700">
+                {t("recruiter.screening.ranking.weights.expMonths", { months: config.requiredExperienceMonths })}
+              </strong>
             </span>
           )}
         </div>
@@ -243,11 +282,12 @@ function WeightDistributionWidget({ config }: { config: RankingConfig }) {
           onClick={() => setCollapsed((v) => !v)}
           className="text-xs font-semibold text-brand-primary hover:text-brand-primary-hover transition-colors"
         >
-          {collapsed ? "Mở rộng chi tiết ▾" : "Thu gọn ▴"}
+          {collapsed
+            ? t("recruiter.screening.ranking.weights.expandDetails")
+            : t("recruiter.screening.ranking.weights.collapse")}
         </button>
       </div>
 
-      {/* Segmented Progress Bar */}
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 shadow-inner">
         {activeWeights.map((c) => (
           <div
@@ -259,10 +299,8 @@ function WeightDistributionWidget({ config }: { config: RankingConfig }) {
         ))}
       </div>
 
-      {/* Expanded Details / Legend */}
       {!collapsed && (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-0.5 text-xs">
-          {/* Component Weights Legend */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {activeWeights.map((c) => (
               <div key={c.key} className="flex items-center gap-1.5">
@@ -273,13 +311,14 @@ function WeightDistributionWidget({ config }: { config: RankingConfig }) {
             ))}
           </div>
 
-          {/* Skill Categories (Groups) */}
           {skillGroups.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Nhóm kỹ năng:</span>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                {t("recruiter.screening.ranking.weights.skillGroups")}
+              </span>
               {skillGroups.map(([key, val]) => (
                 <span key={key} className="rounded-md border border-slate-200/90 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                  {labels[key] ?? key} <strong className="font-semibold text-slate-900">{val}%</strong>
+                  {getRankingLabel(key, t)} <strong className="font-semibold text-slate-900">{val}%</strong>
                 </span>
               ))}
             </div>
@@ -295,6 +334,7 @@ function RankingFilterToolbar({
 }: {
   cohorts: string[];
 }) {
+  const t = useT();
   const state = useRankingStore();
   const isFiltered =
     state.search !== "" ||
@@ -305,68 +345,62 @@ function RankingFilterToolbar({
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-white p-2 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
-      {/* Left: Search input */}
       <div className="relative flex items-center min-w-0 flex-1 sm:max-w-xs">
         <Search className="pointer-events-none absolute left-3 size-4 text-slate-400" aria-hidden="true" />
         <input
           value={state.search}
           onChange={(e) => state.filter({ search: e.target.value })}
-          placeholder="Tìm tên ứng viên..."
-          aria-label="Tìm tên ứng viên"
+          placeholder={t("recruiter.screening.ranking.filters.searchPlaceholder")}
+          aria-label={t("recruiter.screening.ranking.filters.searchAria")}
           className="h-8.5 w-full rounded-lg border border-slate-200 bg-slate-50/60 pl-9 pr-3 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-1 focus:ring-brand-primary"
         />
       </div>
 
-      {/* Right: 3 Dropdowns + Clear button */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Nhóm đánh giá */}
         <select
-          aria-label="Nhóm đánh giá"
+          aria-label={t("recruiter.screening.ranking.filters.cohortAria")}
           value={state.cohort}
           onChange={(e) => state.filter({ cohort: e.target.value })}
           className="h-8.5 max-w-[200px] cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary shadow-2xs"
         >
-          <option value="ALL">Tất cả nhóm điểm</option>
-          <option value="COMPLETE">Đủ kết quả</option>
+          <option value="ALL">{t("recruiter.screening.ranking.filters.cohortAll")}</option>
+          <option value="COMPLETE">{t("recruiter.screening.ranking.filters.cohortComplete")}</option>
           {cohorts.map((cohort) => (
             <option key={cohort} value={cohort}>
-              {cohort.split("+").map((part) => labels[part] ?? part).join(" + ")}
+              {cohort.split("+").map((part) => getRankingLabel(part, t)).join(" + ")}
             </option>
           ))}
         </select>
 
-        {/* Trạng thái */}
         <select
-          aria-label="Trạng thái ứng viên"
+          aria-label={t("recruiter.screening.ranking.filters.statusAria")}
           value={state.status}
           onChange={(e) => state.filter({ status: e.target.value })}
           className="h-8.5 max-w-[170px] cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary shadow-2xs"
         >
-          <option value="ACTIVE">Đang xét tuyển</option>
-          <option value="ALL">Tất cả trạng thái</option>
+          <option value="ACTIVE">{t("recruiter.screening.ranking.filters.statusActive")}</option>
+          <option value="ALL">{t("recruiter.screening.ranking.filters.statusAll")}</option>
           {["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED", "WITHDRAWN"].map((status) => (
             <option key={status} value={status}>
-              {labels[status] ?? status}
+              {getRankingLabel(status, t)}
             </option>
           ))}
         </select>
 
-        {/* Sắp xếp */}
         <select
-          aria-label="Sắp xếp ứng viên"
+          aria-label={t("recruiter.screening.ranking.filters.sortAria")}
           value={state.sort}
           onChange={(e) => state.filter({ sort: e.target.value })}
           className="h-8.5 max-w-[190px] cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary shadow-2xs"
         >
-          <option value="score">Điểm rank cao nhất</option>
+          <option value="score">{t("recruiter.screening.ranking.filters.sortScore")}</option>
           {(["skills", "experience", "assessment", "interview"] as const).map((part) => (
             <option key={part} value={part}>
-              {labels[part] ?? part} cao nhất
+              {t("recruiter.screening.ranking.filters.sortHighest", { label: getRankingLabel(part, t) })}
             </option>
           ))}
         </select>
 
-        {/* Nút Xóa bộ lọc */}
         {isFiltered && (
           <button
             type="button"
@@ -374,7 +408,7 @@ function RankingFilterToolbar({
             className="inline-flex h-8.5 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-50 shadow-2xs"
           >
             <FilterX className="size-3.5" aria-hidden="true" />
-            <span>Xóa lọc</span>
+            <span>{t("recruiter.screening.ranking.filters.clearFilters")}</span>
           </button>
         )}
       </div>
@@ -383,7 +417,9 @@ function RankingFilterToolbar({
 }
 
 function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: boolean; onOpen: () => void }) {
-  const scoreTier = getScoreTier(row.result.score);
+  const t = useT();
+  const locale = useLocale();
+  const scoreTier = getScoreTier(row.result.score, t);
   return (
     <article className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs">
       <div className="flex items-start gap-3">
@@ -395,20 +431,25 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
             <div className="min-w-0">
               <h3 className="truncate font-semibold text-slate-900">{row.candidateName}</h3>
               <p className="mt-0.5 text-xs text-slate-500">
-                Hồ sơ #{row.applicationId} · {row.experienceMonths === null ? "Chưa rõ kinh nghiệm" : `${(row.experienceMonths / 12).toFixed(1)} năm kinh nghiệm`}
+                {t("recruiter.screening.ranking.card.applicationCode", { id: row.applicationId })} ·{" "}
+                {row.experienceMonths === null
+                  ? t("recruiter.screening.ranking.card.expUnclear")
+                  : t("recruiter.screening.ranking.card.expYears", {
+                      years: formatNumber(row.experienceMonths / 12, { minimumFractionDigits: 1, maximumFractionDigits: 1 }, locale),
+                    })}
               </p>
             </div>
             <div className="flex items-center gap-1.5">
               <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold", statusTone(row.status))}>
-                {applicationStatusLabel(row.status)}
+                {applicationStatusLabel(row.status, t)}
               </span>
               {row.result.complete ? (
                 <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  Hoàn chỉnh
+                  {t("recruiter.screening.ranking.badges.complete")}
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                  Tạm tính
+                  {t("recruiter.screening.ranking.badges.provisional")}
                 </span>
               )}
             </div>
@@ -416,11 +457,11 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
             {[
-              { key: "score", label: "Tổng", value: row.result.score, text: scoreTier.text },
-              { key: "skills", label: "CV Match", value: componentScore(row, "skills"), text: getScoreTier(componentScore(row, "skills")).text },
-              { key: "experience", label: "Kinh nghiệm", value: componentScore(row, "experience"), text: getScoreTier(componentScore(row, "experience")).text },
-              { key: "assessment", label: "Assessment", value: componentScore(row, "assessment"), text: getScoreTier(componentScore(row, "assessment")).text },
-              { key: "interview", label: "PV AI", value: componentScore(row, "interview"), text: getScoreTier(componentScore(row, "interview")).text },
+              { key: "score", label: t("recruiter.screening.ranking.card.total"), value: row.result.score, text: scoreTier.text },
+              { key: "skills", label: t("recruiter.screening.ranking.card.cvMatch"), value: componentScore(row, "skills"), text: getScoreTier(componentScore(row, "skills"), t).text },
+              { key: "experience", label: t("recruiter.screening.ranking.card.experience"), value: componentScore(row, "experience"), text: getScoreTier(componentScore(row, "experience"), t).text },
+              { key: "assessment", label: t("recruiter.screening.ranking.card.assessment"), value: componentScore(row, "assessment"), text: getScoreTier(componentScore(row, "assessment"), t).text },
+              { key: "interview", label: t("recruiter.screening.ranking.card.aiInterviewShort"), value: componentScore(row, "interview"), text: getScoreTier(componentScore(row, "interview"), t).text },
             ].map((item, index) => (
               <div
                 key={item.key}
@@ -430,7 +471,7 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
                 )}
               >
                 <strong className={cn("block text-sm tabular-nums", item.text)}>
-                  {scoreText(item.value)}
+                  {scoreText(item.value, locale)}
                 </strong>
                 <span className="text-[10px] font-medium text-slate-500">{item.label}</span>
               </div>
@@ -443,7 +484,7 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
             onClick={onOpen}
           >
             <Eye className="size-3.5" aria-hidden="true" />
-            Xem hồ sơ và điểm chi tiết
+            {t("recruiter.screening.ranking.card.viewProfile")}
           </button>
         </div>
       </div>
@@ -452,6 +493,8 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
 }
 
 export function RankingPage() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const state = useRankingStore();
   const { id } = useParams<{ id: string }>();
@@ -464,6 +507,7 @@ export function RankingPage() {
   const pageSize = state.pageSize;
   const deferredSearch = useDeferredValue(state.search);
   const isPreview = jobId === PREVIEW_JOB_ID;
+  const previewRanking = useMemo(() => getRankingPreview(t), [t]);
   const rankingQuery = {
     page: state.page,
     size: pageSize,
@@ -480,20 +524,20 @@ export function RankingPage() {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  const previewRows = rankingPreview.rows.filter((row) => !terminal.has(row.status));
+  const previewRows = previewRanking.rows.filter((row) => !terminal.has(row.status));
   const previewBoard: RankingPageType = {
-    ...rankingPreview,
-    cohorts: [...new Set(rankingPreview.rows.map((row) => row.result.cohort))],
+    ...previewRanking,
+    cohorts: [...new Set(previewRanking.rows.map((row) => row.result.cohort))],
     summary: {
-      totalCandidates: rankingPreview.rows.length,
+      totalCandidates: previewRanking.rows.length,
       activeCandidates: previewRows.length,
-      scoredCandidates: rankingPreview.rows.length,
-      averageScore: rankingPreview.rows.reduce((sum, row) => sum + (row.result.score ?? 0), 0) / rankingPreview.rows.length,
-      topCandidateName: rankingPreview.rows[0]?.candidateName ?? null,
-      topScore: rankingPreview.rows[0]?.result.score ?? null,
-      completeCandidates: rankingPreview.rows.filter((row) => row.result.complete).length,
+      scoredCandidates: previewRanking.rows.length,
+      averageScore: previewRanking.rows.reduce((sum, row) => sum + (row.result.score ?? 0), 0) / previewRanking.rows.length,
+      topCandidateName: previewRanking.rows[0]?.candidateName ?? null,
+      topScore: previewRanking.rows[0]?.result.score ?? null,
+      completeCandidates: previewRanking.rows.filter((row) => row.result.complete).length,
     },
-    page: { number: 0, size: pageSize, totalElements: rankingPreview.rows.length, totalPages: 1 },
+    page: { number: 0, size: pageSize, totalElements: previewRanking.rows.length, totalPages: 1 },
   };
   const board = isPreview ? previewBoard : query.data?.data;
 
@@ -504,7 +548,6 @@ export function RankingPage() {
   useEffect(() => {
     if (!token || isPreview) return;
     let socket: WebSocket | null = null;
-    // Defer past StrictMode's immediate unmount/remount to avoid churning an in-flight handshake.
     const connectTimer = window.setTimeout(() => {
       socket = createRankingSocket(token, (event) => {
         if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
@@ -525,38 +568,43 @@ export function RankingPage() {
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 text-[var(--color-on-surface)]">
       {!token && (
         <p role="status" className="rounded-xl border border-slate-200 bg-white p-5">
-          Đăng nhập bằng tài khoản Recruiter để xem bảng xếp hạng.
+          {t("recruiter.screening.ranking.authRequired")}
         </p>
       )}
       {!validJobId && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">
-          Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter">Quay lại danh sách công việc</Link>
+          {t("recruiter.screening.ranking.invalidJob")}{" "}
+          <Link className="font-semibold underline" to="/recruiter">
+            {t("recruiter.screening.ranking.backToJobs")}
+          </Link>
         </div>
       )}
       {jobId && !isPreview && token && query.isPending && <RankingLoadingState />}
       {jobId && !isPreview && query.isError && (
         <div className="rounded-xl border border-slate-200 bg-white p-6" role="alert">
-          {getApiErrorMessage(query.error)} <button className={button} onClick={() => void query.refetch()}>Thử lại</button>
+          {getApiErrorMessage(query.error)}{" "}
+          <button className={button} onClick={() => void query.refetch()}>
+            {t("recruiter.screening.common.retry")}
+          </button>
         </div>
       )}
 
       {board && (
         <>
-          {/* 1. Header with Info Tooltip */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                Xếp hạng ứng viên
+                {t("recruiter.screening.ranking.pageTitle")}
               </h1>
               <Tooltip
-                content={`Điểm ứng viên cho ${board.jobTitle}. Ở chế độ tất cả nhóm điểm, hồ sơ đủ thành phần được ưu tiên xếp trước; thứ hạng chính thức chỉ dành cho hồ sơ đã hoàn thành đầy đủ các vòng đánh giá.`}
+                content={t("recruiter.screening.ranking.rulesTooltip", { jobTitle: board.jobTitle })}
                 side="bottom"
                 className="max-w-xs text-xs"
               >
                 <button
                   type="button"
                   className="inline-flex size-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                  aria-label="Thông tin quy tắc xếp hạng"
+                  aria-label={t("recruiter.screening.ranking.rulesAria")}
                 >
                   <Info className="size-4" aria-hidden="true" />
                 </button>
@@ -565,7 +613,7 @@ export function RankingPage() {
 
             <div className="flex items-center gap-2">
               <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-mono text-slate-600">
-                Snapshot: {board.rankingVersion}
+                {t("recruiter.screening.ranking.snapshot", { version: board.rankingVersion })}
               </span>
               <span className="rounded-md bg-brand-primary/10 px-2.5 py-1 text-xs font-semibold text-brand-primary">
                 {board.jobTitle}
@@ -573,26 +621,20 @@ export function RankingPage() {
             </div>
           </div>
 
-          {/* 2. Summary Metrics Strip */}
           <RankingSummaryBar summary={summary} />
 
-          {/* 3. Weight Distribution Widget (Progress Segment Bar) */}
           <WeightDistributionWidget config={board.config} />
 
-          {/* Alert if job skills changed */}
           {board.rows.some((row) => row.notices.includes("JOB_SKILLS_CHANGED")) && (
             <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">
               <AlertTriangle className="size-4 shrink-0 text-amber-600" />
-              <span>Nhóm kỹ năng của Job đã thay đổi. Hãy kiểm tra và lưu lại cấu hình trọng số trước khi sử dụng điểm.</span>
+              <span>{t("recruiter.screening.ranking.skillsChangedAlert")}</span>
             </div>
           )}
 
-          {/* 4. Single-line Filter Toolbar */}
           <RankingFilterToolbar cohorts={cohorts} />
 
-          {/* 5. Candidate Ranking Table */}
           <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
-            {/* Mobile View */}
             <div className="grid gap-3 p-4 md:hidden">
               {filtered.map((row) => (
                 <CandidateCard
@@ -608,37 +650,36 @@ export function RankingPage() {
               ))}
             </div>
 
-            {/* Desktop Table */}
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                 <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-700">
                   <tr>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 py-3 pl-6 pr-3 w-28">
-                      Hạng
+                      {t("recruiter.screening.ranking.table.rank")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3 min-w-[220px]">
-                      Ứng viên
+                      {t("recruiter.screening.ranking.table.candidate")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3 min-w-[130px]">
-                      Điểm tổng
+                      {t("recruiter.screening.ranking.table.totalScore")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3">
-                      CV Match
+                      {t("recruiter.screening.ranking.table.cvMatch")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3">
-                      Kinh nghiệm
+                      {t("recruiter.screening.ranking.table.experience")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3">
-                      Assessment
+                      {t("recruiter.screening.ranking.table.assessment")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3">
-                      AI Interview
+                      {t("recruiter.screening.ranking.table.aiInterview")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 px-4 py-3 min-w-[150px]">
-                      Trạng thái
+                      {t("recruiter.screening.ranking.table.status")}
                     </th>
                     <th scope="col" className="whitespace-nowrap border-b border-slate-200/80 py-3 pr-6 text-right">
-                      Thao tác
+                      {t("recruiter.screening.ranking.table.actions")}
                     </th>
                   </tr>
                 </thead>
@@ -663,12 +704,10 @@ export function RankingPage() {
                           });
                         }}
                       >
-                        {/* Hạng */}
                         <td className="py-3.5 pl-6 pr-3">
                           <RankBadge rank={row.rank} />
                         </td>
 
-                        {/* Ứng viên */}
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-3">
                             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary">
@@ -679,66 +718,64 @@ export function RankingPage() {
                                 {row.candidateName}
                               </span>
                               <p className="mt-0.5 truncate text-xs text-slate-500">
-                                Hồ sơ #{row.applicationId} · {row.experienceMonths === null ? "Chưa rõ kinh nghiệm" : `${(row.experienceMonths / 12).toFixed(1)} năm kinh nghiệm`}
+                                {t("recruiter.screening.ranking.card.applicationCode", { id: row.applicationId })} ·{" "}
+                                {row.experienceMonths === null
+                                  ? t("recruiter.screening.ranking.card.expUnclear")
+                                  : t("recruiter.screening.ranking.card.expYears", {
+                                      years: formatNumber(row.experienceMonths / 12, { minimumFractionDigits: 1, maximumFractionDigits: 1 }, locale),
+                                    })}
                               </p>
                             </div>
                           </div>
                         </td>
 
-                        {/* Điểm tổng */}
                         <td className="px-4 py-3.5">
                           <div className="flex flex-col gap-0.5">
-                            <span className={cn("text-base font-bold tabular-nums", getScoreTier(row.result.score).text)}>
-                              {row.result.score == null ? "—" : scoreText(row.result.score)}
+                            <span className={cn("text-base font-bold tabular-nums", getScoreTier(row.result.score, t).text)}>
+                              {row.result.score == null ? "—" : scoreText(row.result.score, locale)}
                               <span className="text-xs font-normal text-slate-400"> /100</span>
                             </span>
                             <span className="text-[11px] font-medium text-slate-500">
-                              {row.result.availableWeight}% trọng số
+                              {t("recruiter.screening.ranking.table.weightPct", { weight: row.result.availableWeight })}
                             </span>
                           </div>
                         </td>
 
-                        {/* CV Match */}
                         <td className="px-4 py-3.5">
                           <TableScoreCell score={skillsScore} showBar />
                         </td>
 
-                        {/* Kinh nghiệm */}
                         <td className="px-4 py-3.5">
                           <TableScoreCell score={expScore} />
                         </td>
 
-                        {/* Assessment */}
                         <td className="px-4 py-3.5">
                           <TableScoreCell score={testScore} />
                         </td>
 
-                        {/* AI Interview */}
                         <td className="px-4 py-3.5">
                           <TableScoreCell score={aiScore} />
                         </td>
 
-                        {/* Trạng thái & Độ hoàn chỉnh */}
                         <td className="px-4 py-3.5">
                           <div className="flex flex-col gap-1 items-start">
                             <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusTone(row.status))}>
-                              {applicationStatusLabel(row.status)}
+                              {applicationStatusLabel(row.status, t)}
                             </span>
                             {row.result.complete ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.2 text-[10px] font-semibold text-emerald-700">
                                 <span className="size-1.5 rounded-full bg-emerald-500" />
-                                Hoàn chỉnh
+                                {t("recruiter.screening.ranking.badges.complete")}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200/80 px-2 py-0.2 text-[10px] font-semibold text-amber-700">
                                 <span className="size-1.5 rounded-full bg-amber-500" />
-                                Tạm tính
+                                {t("recruiter.screening.ranking.badges.provisional")}
                               </span>
                             )}
                           </div>
                         </td>
 
-                        {/* Thao tác */}
                         <td className="py-3.5 pr-6 text-right">
                           <button
                             type="button"
@@ -750,7 +787,7 @@ export function RankingPage() {
                             }}
                             className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand-primary/10 px-3 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white"
                           >
-                            Chi tiết
+                            {t("recruiter.screening.common.details")}
                             <ArrowRight className="size-3.5" aria-hidden="true" />
                           </button>
                         </td>
@@ -761,30 +798,34 @@ export function RankingPage() {
               </table>
             </div>
 
-            {/* Empty State */}
             {filtered.length === 0 && (
               <div className="px-6 py-14 text-center">
                 <FilterX className="mx-auto size-8 text-slate-400" aria-hidden="true" />
                 <p className="mt-3 text-sm font-semibold text-slate-800">
-                  {board.rows.length === 0 ? "Job chưa có ứng viên" : "Không có ứng viên phù hợp bộ lọc"}
+                  {board.rows.length === 0
+                    ? t("recruiter.screening.ranking.empty.noApplicants")
+                    : t("recruiter.screening.ranking.empty.noMatch")}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Thử thay đổi từ khóa tìm kiếm hoặc điều chỉnh nhóm đánh giá/trạng thái.
+                  {t("recruiter.screening.ranking.empty.hint")}
                 </p>
               </div>
             )}
 
-            {/* Pagination Footer */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200/80 bg-slate-50/60 px-5 py-3.5 text-xs text-slate-600">
               <div className="flex flex-wrap items-center gap-3">
                 <span>
-                  Hiển thị <strong className="font-semibold text-slate-900">{board.page.totalElements === 0 ? 0 : page * pageSize + 1}–{Math.min((page + 1) * pageSize, board.page.totalElements)}</strong> trong tổng số <strong className="font-semibold text-slate-900">{board.page.totalElements}</strong> ứng viên
+                  {renderHighlightedRange(
+                    t("recruiter.screening.ranking.pagination.showing", { range: "__RANGE__", total: "__TOTAL__" }),
+                    `${board.page.totalElements === 0 ? 0 : page * pageSize + 1}–${Math.min((page + 1) * pageSize, board.page.totalElements)}`,
+                    formatNumber(board.page.totalElements, undefined, locale),
+                  )}
                 </span>
                 <span aria-hidden="true" className="text-slate-300">•</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="shrink-0 text-slate-600">Số dòng:</span>
+                  <span className="shrink-0 text-slate-600">{t("recruiter.screening.ranking.pagination.rowsLabel")}</span>
                   <select
-                    aria-label="Số dòng mỗi trang"
+                    aria-label={t("recruiter.screening.ranking.pagination.rowsAria")}
                     value={String(pageSize)}
                     onChange={(e) => state.setPageSize(Number(e.target.value))}
                     className="h-8 cursor-pointer rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary shadow-2xs"
@@ -804,10 +845,10 @@ export function RankingPage() {
                   className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 shadow-2xs"
                   disabled={page === 0}
                   onClick={() => state.setPage(page - 1)}
-                  aria-label="Trang trước"
+                  aria-label={t("recruiter.screening.ranking.pagination.prevAria")}
                 >
                   <ChevronLeft className="size-3.5" aria-hidden="true" />
-                  <span>Trước</span>
+                  <span>{t("recruiter.screening.ranking.pagination.prev")}</span>
                 </button>
                 <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-brand-primary px-2 text-xs font-semibold text-white shadow-xs">
                   {page + 1}
@@ -818,9 +859,9 @@ export function RankingPage() {
                   className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 shadow-2xs"
                   disabled={page + 1 >= board.page.totalPages}
                   onClick={() => state.setPage(page + 1)}
-                  aria-label="Trang sau"
+                  aria-label={t("recruiter.screening.ranking.pagination.nextAria")}
                 >
-                  <span>Sau</span>
+                  <span>{t("recruiter.screening.ranking.pagination.next")}</span>
                   <ChevronRight className="size-3.5" aria-hidden="true" />
                 </button>
               </div>

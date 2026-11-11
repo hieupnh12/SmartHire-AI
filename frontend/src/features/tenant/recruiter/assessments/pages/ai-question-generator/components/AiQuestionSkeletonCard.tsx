@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 interface AiQuestionSkeletonCardProps {
@@ -11,6 +12,7 @@ export function AiQuestionSkeletonCard({
   questionType = "MCQ",
   className,
 }: AiQuestionSkeletonCardProps) {
+  const t = useT();
   const isCoding = questionType === "CODING";
   const isEssay = questionType === "ESSAY";
 
@@ -44,7 +46,7 @@ export function AiQuestionSkeletonCard({
           <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-primary)] font-medium">
             <span className="inline-block size-1.5 rounded-full bg-[var(--color-primary)] animate-ping" />
-            <span>Đang soạn thảo câu #{index + 1}...</span>
+            <span>{t("recruiter.assessments.aiStudio.skeletonWriting", { index: index + 1 })}</span>
           </div>
         </div>
         <div className="h-4 w-11/12 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />

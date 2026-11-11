@@ -1,15 +1,11 @@
 import { AlertTriangle, CheckCircle2, FileCheck2, Sparkles, XCircle } from "lucide-react";
 import { AVAILABLE_INTERVIEW_PROCESS } from "../utils/interviewProcessSettings";
-import { COMPETENCY_LABELS, type AiInterviewReport, type AiQuestion, type CompetencyKey } from "@/api/types/aiInterview";
+import { type AiInterviewReport, type AiQuestion, type CompetencyKey } from "@/api/types/aiInterview";
+import { useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { formatInterviewScore } from "./aiInterviewUi";
 
-const CRITERION_LABELS: Record<string, string> = {
-  TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn",
-  PROBLEM_SOLVING: "Giải quyết vấn đề",
-  REASONING: "Lập luận",
-  COMMUNICATION: "Kỹ năng giao tiếp",
-};
+const KNOWN_CRITERIA = new Set(["TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING", "REASONING", "COMMUNICATION"]);
 
 export function parseAiInterviewReport(json: string | null | undefined): AiInterviewReport | null {
   if (!json) return null;
@@ -33,8 +29,19 @@ export function AiInterviewReportView({
   bare?: boolean;
   passingScore?: number | null;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const report = parseAiInterviewReport(reportJson);
   if (!report) return null;
+
+  const criterionLabel = (key: string) =>
+    KNOWN_CRITERIA.has(key) ? t(`recruiter.interviews.ai.report.criteria.${key}`) : key;
+
+  const competencyLabel = (key: CompetencyKey) => {
+    const k = `recruiter.interviews.competencies.${key}`;
+    const res = t(k);
+    return res === k ? key : res;
+  };
 
   const visibleSkills = Object.entries(report.skills ?? {}).filter(([, entry]) =>
     entry.questionIds?.some((id) => questions.some((question) => question.id === id))
@@ -59,17 +66,18 @@ export function AiInterviewReportView({
             </div>
             <div>
               <h3 id="ai-report-title" className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Báo cáo đánh giá AI Interview
+                {t("recruiter.interviews.ai.report.title")}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Tổng hợp điểm năng lực, phản hồi chi tiết và bằng chứng trích xuất từ câu trả lời.
+                {t("recruiter.interviews.ai.report.subtitle")}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-hover)]">
-              Điểm tổng: <strong className="text-sm font-extrabold">{formatInterviewScore(report.overallScore)}/100</strong>
+              {t("recruiter.interviews.ai.report.overallScoreLabel")}{" "}
+              <strong className="text-sm font-extrabold">{formatInterviewScore(report.overallScore, locale)}/100</strong>
             </span>
           </div>
         </div>
@@ -83,10 +91,10 @@ export function AiInterviewReportView({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
                   <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  Nhận xét của AI
+                  {t("recruiter.interviews.ai.report.aiInsightsTitle")}
                 </div>
                 <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
-                  Đánh giá chuyên sâu
+                  {t("recruiter.interviews.ai.report.deepEvaluationBadge")}
                 </span>
               </div>
 
@@ -102,7 +110,7 @@ export function AiInterviewReportView({
                     <div className="space-y-1.5">
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
                         <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                        Điểm mạnh nổi bật
+                        {t("recruiter.interviews.ai.report.strengthsTitle")}
                       </p>
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-on-surface)]">
                         {report.strengths}
@@ -113,7 +121,7 @@ export function AiInterviewReportView({
                     <div className="space-y-1.5">
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
                         <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-                        Rủi ro / Cần kiểm chứng
+                        {t("recruiter.interviews.ai.report.weaknessesTitle")}
                       </p>
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-on-surface)]">
                         {report.weaknesses}
@@ -129,7 +137,7 @@ export function AiInterviewReportView({
           {report.evaluationMode === "POST_SESSION" && criteriaEntries.length > 0 && (
             <div className="space-y-2.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Đánh giá &amp; bằng chứng theo từng tiêu chí
+                {t("recruiter.interviews.ai.report.criteriaEvidenceTitle")}
               </h4>
               <dl className="grid gap-3 sm:grid-cols-2">
                 {criteriaEntries.map(([criterion, score]) => {
@@ -138,7 +146,7 @@ export function AiInterviewReportView({
                     <div key={criterion} className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3.5 shadow-2xs">
                       <dt className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
                         <span>
-                          {CRITERION_LABELS[criterion] ?? criterion}
+                          {criterionLabel(criterion)}
                           {report.criterionWeights?.[criterion] != null && (
                             <span className="font-normal text-slate-400"> ({report.criterionWeights[criterion]}%)</span>
                           )}
@@ -153,12 +161,15 @@ export function AiInterviewReportView({
                             key={index}
                             className="mt-2 border-t border-slate-100 pt-2 text-[11px] italic leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400 whitespace-pre-wrap"
                           >
-                            <span className="not-italic font-semibold text-[var(--color-primary-hover)]">Tin #{evidence.messageId}:</span> “{evidence.quote}”
+                            <span className="not-italic font-semibold text-[var(--color-primary-hover)]">
+                              {t("recruiter.interviews.ai.report.messageRef", { id: evidence.messageId })}
+                            </span>{" "}
+                            “{evidence.quote}”
                           </dd>
                         ))
                       ) : (
                         <dd className="mt-2 border-t border-slate-100 pt-2 text-[11px] italic text-slate-400 dark:border-slate-800">
-                          Chưa có trích dẫn tin nhắn cụ thể cho tiêu chí này.
+                          {t("recruiter.interviews.ai.report.noEvidenceQuote")}
                         </dd>
                       )}
                     </div>
@@ -172,7 +183,7 @@ export function AiInterviewReportView({
           {report.evaluationMode !== "POST_SESSION" && criteriaEntries.length > 0 && (
             <div className="space-y-2.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Tiêu chí nội dung trong Communication
+                {t("recruiter.interviews.ai.report.communicationCriteriaTitle")}
               </h4>
               <ul className="grid gap-2.5 sm:grid-cols-2">
                 {criteriaEntries.map(([key, score]) => (
@@ -181,7 +192,7 @@ export function AiInterviewReportView({
                     className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-[var(--color-surface-alt)] p-3 text-xs"
                   >
                     <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {CRITERION_LABELS[key] ?? key}
+                      {criterionLabel(key)}
                     </span>
                     <span className="rounded-md border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)] px-2 py-0.5 font-bold tabular-nums text-[var(--color-primary-hover)]">
                       {score}/100
@@ -202,10 +213,10 @@ export function AiInterviewReportView({
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-                    Điểm tổng AI Interview
+                    {t("recruiter.interviews.ai.report.overallScoreTitle")}
                   </p>
                   <p className="mt-1 text-4xl font-bold tracking-tight tabular-nums">
-                    {formatInterviewScore(report.overallScore)}
+                    {formatInterviewScore(report.overallScore, locale)}
                     <span className="text-base font-normal text-[var(--color-on-surface-variant)]"> /100</span>
                   </p>
                 </div>
@@ -216,7 +227,7 @@ export function AiInterviewReportView({
                   )}
                 >
                   {passed ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <XCircle className="size-4" aria-hidden="true" />}
-                  {passed ? "Đạt" : "Chưa đạt"}
+                  {passed ? t("recruiter.interviews.ai.report.passed") : t("recruiter.interviews.ai.report.failed")}
                 </span>
               </div>
 
@@ -226,7 +237,7 @@ export function AiInterviewReportView({
                   <div
                     className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--color-on-surface)]"
                     style={{ left: `${Math.min(Math.max(passingScore, 0), 100)}%` }}
-                    title={`Ngưỡng ${formatInterviewScore(passingScore)}`}
+                    title={t("recruiter.interviews.ai.report.thresholdTooltip", { score: formatInterviewScore(passingScore, locale) })}
                     aria-hidden="true"
                   />
                 )}
@@ -234,12 +245,19 @@ export function AiInterviewReportView({
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
                 <span>
                   {passed
-                    ? "Đạt chuẩn AI Interview → sẵn sàng đánh giá vòng tiếp theo."
+                    ? t("recruiter.interviews.ai.report.passedDesc")
                     : passingScore != null
-                      ? `Điểm tổng (${formatInterviewScore(report.overallScore)}) thấp hơn ngưỡng đạt (${formatInterviewScore(passingScore)}).`
-                      : "Chưa đạt ngưỡng đánh giá."}
+                      ? t("recruiter.interviews.ai.report.failedWithThresholdDesc", {
+                          score: formatInterviewScore(report.overallScore, locale),
+                          threshold: formatInterviewScore(passingScore, locale),
+                        })
+                      : t("recruiter.interviews.ai.report.failedNoThresholdDesc")}
                 </span>
-                {passingScore != null && <span className="tabular-nums">Ngưỡng đạt: {formatInterviewScore(passingScore)}</span>}
+                {passingScore != null && (
+                  <span className="tabular-nums">
+                    {t("recruiter.interviews.ai.report.thresholdLabel", { score: formatInterviewScore(passingScore, locale) })}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -247,7 +265,7 @@ export function AiInterviewReportView({
           {criteriaEntries.length > 0 && (
             <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Điểm thành phần theo tiêu chí
+                {t("recruiter.interviews.ai.report.criteriaBreakdownTitle")}
               </h4>
               <div className="space-y-3.5">
                 {criteriaEntries.map(([key, score]) => {
@@ -257,8 +275,12 @@ export function AiInterviewReportView({
                     <div key={key} className="space-y-1.5 text-xs">
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {CRITERION_LABELS[key] ?? key}
-                          {weight != null && <span className="ml-1 font-normal text-slate-400">(Trọng số {weight}%)</span>}
+                          {criterionLabel(key)}
+                          {weight != null && (
+                            <span className="ml-1 font-normal text-slate-400">
+                              {t("recruiter.interviews.ai.report.weightLabel", { weight })}
+                            </span>
+                          )}
                         </span>
                         <span className="font-bold tabular-nums text-[var(--color-primary-hover)]">{score}/100</span>
                       </div>
@@ -275,14 +297,14 @@ export function AiInterviewReportView({
           {visibleCompetencies.length > 0 && (
             <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Điểm theo nhóm năng lực
+                {t("recruiter.interviews.ai.report.competenciesTitle")}
               </h4>
               <ul className="space-y-2.5">
                 {visibleCompetencies.map(([key, score]) => (
                   <li key={key} className="space-y-1.5 rounded-xl border border-slate-200/70 bg-[var(--color-surface-alt)] p-3 text-xs">
                     <div className="flex justify-between gap-3 font-semibold text-slate-800 dark:text-slate-200">
                       <span>
-                        {COMPETENCY_LABELS[key] ?? key}
+                        {competencyLabel(key)}
                         {report.weights?.[key] != null && <span className="font-normal text-slate-400"> ({report.weights[key]}%)</span>}
                       </span>
                       <span className="tabular-nums font-bold text-[var(--color-primary-hover)]">{score}/100</span>
@@ -302,7 +324,8 @@ export function AiInterviewReportView({
           {visibleSkills.length > 0 && (
             <div className="space-y-2.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Điểm theo Job Skill <span className="font-normal normal-case text-slate-400">(tham khảo, không cộng vào điểm tổng)</span>
+                {t("recruiter.interviews.ai.report.skillsTitle")}{" "}
+                <span className="font-normal normal-case text-slate-400">{t("recruiter.interviews.ai.report.skillsNote")}</span>
               </h4>
               <ul className="overflow-hidden divide-y divide-slate-100 rounded-xl border border-slate-200/70 bg-white text-xs shadow-2xs dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
                 {visibleSkills.map(([skill, entry]) => {
@@ -312,11 +335,13 @@ export function AiInterviewReportView({
                       <div className="min-w-0">
                         <p className="font-semibold text-slate-800 dark:text-slate-200">{skill}</p>
                         <p className="text-[11px] text-slate-400">
-                          {evidence.length ? `Bằng chứng: câu ${evidence.join(", ")}` : "Không có câu hỏi kiểm tra"}
+                          {evidence.length
+                            ? t("recruiter.interviews.ai.report.evidenceQuestions", { questions: evidence.join(", ") })
+                            : t("recruiter.interviews.ai.report.noCheckQuestions")}
                         </p>
                       </div>
                       <span className="shrink-0 font-bold tabular-nums text-slate-700 dark:text-slate-300">
-                        {entry.score == null ? "Chưa đủ dữ liệu" : `${entry.score}/100`}
+                        {entry.score == null ? t("recruiter.interviews.ai.report.insufficientData") : `${entry.score}/100`}
                       </span>
                     </li>
                   );

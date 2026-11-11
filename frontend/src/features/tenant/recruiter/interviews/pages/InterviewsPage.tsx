@@ -5,6 +5,7 @@ import { humanInterviewApi as api } from "@/api/tenant/humanInterviewApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import type { HumanInterview, InterviewFilters } from "@/api/types/humanInterview";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { DetailDialog } from "@/components/ux/DetailDialog";
@@ -26,6 +27,7 @@ async function allRows(filters: InterviewFilters) {
 }
 
 export function InterviewsPage() {
+  const t = useT();
   const job = useRecruitmentJob();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -89,7 +91,7 @@ export function InterviewsPage() {
     onSuccess: () => {
       refresh();
       setDetail(null);
-      toast.success("Đã cập nhật lịch phỏng vấn.");
+      toast.success(t("recruiter.interviews.human.page.updatedToast"));
     },
     onError: (e) => toast.error(getApiErrorMessage(e)),
   });
@@ -118,7 +120,15 @@ export function InterviewsPage() {
         const rows = await allRows(params);
         const cell = (value: string) => `"${value.replace(/^[=+@-]/, "'$&").replaceAll('"', '""')}"`;
         const lines = [
-          ["Ứng viên", "Email", "Vòng", "Hình thức", "Bắt đầu", "Kết thúc", "Trạng thái"],
+          [
+            t("recruiter.interviews.human.page.csvHeaderCandidate"),
+            t("recruiter.interviews.human.page.csvHeaderEmail"),
+            t("recruiter.interviews.human.page.csvHeaderRound"),
+            t("recruiter.interviews.human.page.csvHeaderMode"),
+            t("recruiter.interviews.human.page.csvHeaderStart"),
+            t("recruiter.interviews.human.page.csvHeaderEnd"),
+            t("recruiter.interviews.human.page.csvHeaderStatus"),
+          ],
           ...rows.map((r) => [r.candidateName, r.candidateEmail, r.round, r.mode, r.start, r.end, r.status]),
         ];
         downloadInterview(
@@ -126,7 +136,11 @@ export function InterviewsPage() {
           `interviews-${job.id}.csv`,
         );
       }
-      toast.success(format === "ics" ? "Đã xuất lịch .ics." : "Đã xuất CSV.");
+      toast.success(
+        format === "ics"
+          ? t("recruiter.interviews.human.page.exportIcsSuccess")
+          : t("recruiter.interviews.human.page.exportCsvSuccess"),
+      );
     } catch (e) {
       toast.error(getApiErrorMessage(e));
     }
@@ -138,7 +152,7 @@ export function InterviewsPage() {
         <p role="alert" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {getApiErrorMessage(list.error ?? summary.error ?? options.error ?? calendar.error)}{" "}
           <button type="button" className="font-semibold underline" onClick={refresh}>
-            Thử lại
+            {t("recruiter.interviews.human.page.retry")}
           </button>
         </p>
       )}
@@ -198,9 +212,11 @@ export function InterviewsPage() {
           onSaved={(draft) => {
             closeEditor();
             refresh();
-            toast.success(draft
-              ? "Đã lưu bản nháp lịch phỏng vấn (chưa gửi thông báo)."
-              : "Đã lưu lịch và gửi lời mời / thông báo tới ứng viên và hội đồng.");
+            toast.success(
+              draft
+                ? t("recruiter.interviews.human.page.savedDraftToast")
+                : t("recruiter.interviews.human.page.savedSentToast"),
+            );
           }}
           onProfile={profile}
           onAiReport={() => navigate(`/recruiter/jobs/${job.id}/cvs`)}
@@ -211,14 +227,14 @@ export function InterviewsPage() {
         open={!!detail}
         title={
           detail?.action === "profile"
-            ? "Hồ sơ ứng viên"
+            ? t("recruiter.interviews.human.page.dialogProfileTitle")
             : detail?.action === "scorecard"
-              ? "Phiếu đánh giá phỏng vấn"
+              ? t("recruiter.interviews.human.page.dialogScorecardTitle")
               : detail?.action === "preview"
-                ? "Nội dung email"
+                ? t("recruiter.interviews.human.page.dialogPreviewTitle")
                 : detail?.action === "shift"
-                  ? "Đổi lịch hàng loạt"
-                  : "Hủy lịch phỏng vấn"
+                  ? t("recruiter.interviews.human.page.dialogShiftTitle")
+                  : t("recruiter.interviews.human.page.dialogCancelTitle")
         }
         onClose={() => setDetail(null)}
       >
@@ -231,7 +247,11 @@ export function InterviewsPage() {
             <div className="space-y-3">
               <h3 className="font-semibold">{applicant.data?.data.candidateName}</h3>
               <p>{applicant.data?.data.candidateEmail}</p>
-              <p>Sàng lọc CV: {applicant.data?.data.cvScreeningStatus ?? "Chưa có kết quả"}</p>
+              <p>
+                {t("recruiter.interviews.human.page.cvScreeningLabel", {
+                  status: applicant.data?.data.cvScreeningStatus ?? t("recruiter.interviews.human.page.noResult"),
+                })}
+              </p>
               {applicant.data?.data.cvs.map((cv) => (
                 <div key={cv.id} className="flex items-center justify-between rounded-xl border p-3">
                   <span>
@@ -247,11 +267,11 @@ export function InterviewsPage() {
                         .catch((e) => toast.error(getApiErrorMessage(e)))
                     }
                   >
-                    Tải CV
+                    {t("recruiter.interviews.human.page.downloadCv")}
                   </button>
                 </div>
               ))}
-              {!applicant.data?.data.cvs.length && <p>Chưa có CV.</p>}
+              {!applicant.data?.data.cvs.length && <p>{t("recruiter.interviews.human.page.noCv")}</p>}
             </div>
           ))}
         {detail?.action === "preview" &&
@@ -267,21 +287,25 @@ export function InterviewsPage() {
           ))}
         {detail?.action === "cancel" && (
           <>
-            <p>Hủy lịch của {detail.row?.candidateName}? Người tham gia sẽ nhận thông báo.</p>
+            <p>
+              {t("recruiter.interviews.human.page.cancelConfirmPrompt", {
+                name: detail.row?.candidateName ?? "",
+              })}
+            </p>
             <button
               type="button"
               className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
               disabled={mutation.isPending}
               onClick={() => run(() => api.cancel(detail.row!.id))}
             >
-              Xác nhận hủy
+              {t("recruiter.interviews.human.page.confirmCancelBtn")}
             </button>
           </>
         )}
         {detail?.action === "shift" && (
           <>
             <label className="block text-sm">
-              Số phút dịch lịch (âm để sớm hơn)
+              {t("recruiter.interviews.human.page.shiftMinutesLabel")}
               <input
                 type="number"
                 min={-10080}
@@ -297,7 +321,7 @@ export function InterviewsPage() {
               disabled={mutation.isPending || !Number.isInteger(shift)}
               onClick={() => run(() => api.bulk(selected, "RESCHEDULE", shift))}
             >
-              Áp dụng cho {selected.length} lịch
+              {t("recruiter.interviews.human.page.applyShiftBtn", { count: selected.length })}
             </button>
           </>
         )}

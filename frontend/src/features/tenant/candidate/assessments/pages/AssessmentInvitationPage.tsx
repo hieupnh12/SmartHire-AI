@@ -7,6 +7,7 @@ import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { Button } from "@/components/ux/Button";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { isDemoAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
@@ -27,6 +28,7 @@ const roomShell =
   "-mx-4 -my-6 flex h-[calc(100dvh-76px)] flex-col overflow-hidden px-4 py-3 text-[var(--color-on-surface)] sm:-mx-6 sm:-my-8 sm:px-6 sm:py-4 lg:-mx-10 lg:px-8";
 
 export function AssessmentInvitationPage() {
+  const t = useT();
   const { testId: testIdParam } = useParams();
   const [params, setParams] = useSearchParams();
   const testId = Number(testIdParam);
@@ -96,7 +98,7 @@ export function AssessmentInvitationPage() {
   const back = `/assessments${applicationId > 0 ? `?applicationId=${applicationId}` : ""}`;
 
   if (!Number.isSafeInteger(testId) || testId <= 0) {
-    return <p role="alert">Mã bài kiểm tra không hợp lệ.</p>;
+    return <p role="alert">{t("candidate.assess.invitation.invalidTestId")}</p>;
   }
 
   return (
@@ -104,7 +106,7 @@ export function AssessmentInvitationPage() {
       <div className="flex shrink-0 items-center justify-between gap-3 pb-2">
         <Link className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:underline" to={back}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Bài đánh giá
+          {t("candidate.assess.invitation.backToAssessments")}
         </Link>
         {(applications.isError || available.isError || start.isError) && (
           <p role="alert" className="truncate text-sm text-[var(--color-status-danger)]">
@@ -124,31 +126,31 @@ export function AssessmentInvitationPage() {
               }}
             >
               <RefreshCw className="size-4" aria-hidden="true" />
-              Thử lại
+              {t("candidate.assess.common.retry")}
             </Button>
           </Panel>
         )}
 
         {(applications.isPending || (resolvedApplicationId > 0 && available.isPending)) && (
-          <LoadingState className="h-full" label="Đang tải lời mời bài đánh giá">
+          <LoadingState className="h-full" label={t("candidate.assess.invitation.loadingInvitation")}>
             <SkeletonCard className="h-full min-h-0" />
           </LoadingState>
         )}
 
         {!applications.isPending && eligible.length === 0 && (
           <Panel>
-            <p className="font-semibold">Không có đơn đang ở vòng đánh giá</p>
+            <p className="font-semibold">{t("candidate.assess.invitation.noEligibleTitle")}</p>
             <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Lời mời chỉ mở khi hồ sơ đang ở giai đoạn Assessment.
+              {t("candidate.assess.invitation.noEligibleDesc")}
             </p>
           </Panel>
         )}
 
         {!available.isPending && resolvedApplicationId > 0 && !test && (
           <Panel>
-            <p className="font-semibold">Không tìm thấy lời mời bài này</p>
+            <p className="font-semibold">{t("candidate.assess.invitation.notFoundTitle")}</p>
             <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Bài #{testId} không thuộc đơn đang chọn hoặc chưa được gửi tới bạn.
+              {t("candidate.assess.invitation.notFoundDesc", { testId })}
             </p>
           </Panel>
         )}

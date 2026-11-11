@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,28 +8,37 @@ import { masterTenantApi } from "@/api/master/tenantApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { ArrowLeft, CheckCircle2, Building2, ShieldCheck, Database, Loader2, Sparkles } from "lucide-react";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT, type TranslateFn } from "@/i18n";
 
-const adminSchema = z.object({
-  adminName: z.string().trim().min(1, "Vui lòng nhập họ tên quản trị viên").max(255),
-  adminEmail: z.string().trim().email("Email không đúng định dạng").max(255),
-});
+function createAdminSchema(t: TranslateFn) {
+  return z.object({
+    adminName: z.string().trim().min(1, t("master.commerce.tenantOnboard.validation.adminNameRequired")).max(255),
+    adminEmail: z.string().trim().email(t("master.commerce.tenantOnboard.validation.adminEmailInvalid")).max(255),
+  });
+}
 
-const schema = adminSchema.extend({
-  code: z.string()
-    .regex(/^[a-z][a-z0-9-]{1,31}$/, "Mã gồm 2-32 ký tự thường, số hoặc gạch ngang; bắt đầu bằng chữ cái (ví dụ: se36, fpt)"),
-  name: z.string().trim().min(1, "Vui lòng nhập tên doanh nghiệp").max(255),
-  subdomain: z.string()
-    .regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, "Subdomain gồm 3-63 ký tự chữ thường và số (ví dụ: se36, acme)"),
-  environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
-});
+function createSchema(t: TranslateFn) {
+  return createAdminSchema(t).extend({
+    code: z.string()
+      .regex(/^[a-z][a-z0-9-]{1,31}$/, t("master.commerce.tenantOnboard.validation.codePattern")),
+    name: z.string().trim().min(1, t("master.commerce.tenantOnboard.validation.nameRequired")).max(255),
+    subdomain: z.string()
+      .regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, t("master.commerce.tenantOnboard.validation.subdomainPattern")),
+    environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
+  });
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof createSchema>>;
 
 export function TenantOnboardPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const retryId = Number(params.get("retry"));
   const retry = Number.isSafeInteger(retryId) && retryId > 0;
+
+  const adminSchema = useMemo(() => createAdminSchema(t), [t]);
+  const schema = useMemo(() => createSchema(t), [t]);
 
   const initialName = params.get("name") || "";
   const initialEmail = params.get("email") || "";
@@ -97,7 +107,7 @@ export function TenantOnboardPage() {
             className="inline-flex items-center gap-2 rounded-[8px] px-3 py-1.5 text-sm font-medium text-[#64748b] transition-colors hover:bg-white hover:text-[#1e293b] hover:shadow-sm"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Quay lại Quản trị Landlord</span>
+            <span>{t("master.commerce.tenantOnboard.backToLandlord")}</span>
           </button>
           <LanguageSwitcher />
         </div>
@@ -108,15 +118,15 @@ export function TenantOnboardPage() {
           <div className="mb-8 border-b border-[#f1f5f9] pb-6">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#2563eb]">
               <Building2 className="h-3.5 w-3.5" />
-              <span>Multi-Tenant Provisioning Engine</span>
+              <span>{t("master.commerce.tenantOnboard.badge")}</span>
             </div>
             <h1 className="font-display text-2xl font-bold tracking-tight text-[#0f172a] sm:text-3xl">
-              {retry ? "Thử lại khởi tạo doanh nghiệp" : "Khởi tạo Doanh nghiệp Mới"}
+              {retry ? t("master.commerce.tenantOnboard.titleRetry") : t("master.commerce.tenantOnboard.titleCreate")}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[#64748b]">
               {retry
-                ? "Nhập lại thông tin tài khoản Quản trị viên để tiếp tục tiến trình khởi tạo Database riêng biệt."
-                : "Hệ thống sẽ tự động cấp phát Database MySQL riêng biệt (Separate Database) và phân quyền Quản trị viên cho Workspace của doanh nghiệp."}
+                ? t("master.commerce.tenantOnboard.subtitleRetry")
+                : t("master.commerce.tenantOnboard.subtitleCreate")}
             </p>
           </div>
 
@@ -127,29 +137,31 @@ export function TenantOnboardPage() {
               </div>
               <div className="space-y-2">
                 <h2 className="font-display text-2xl font-bold text-[#0f172a]">
-                  Khởi tạo Doanh nghiệp Thành công!
+                  {t("master.commerce.tenantOnboard.successTitle")}
                 </h2>
                 <p className="text-sm text-[#475569]">
-                  Doanh nghiệp <strong>{mutation.data.name}</strong> đã được tạo và kích hoạt Database riêng biệt.
+                  {t("master.commerce.tenantOnboard.successDescBefore")}
+                  <strong>{mutation.data.name}</strong>
+                  {t("master.commerce.tenantOnboard.successDescAfter")}
                 </p>
               </div>
 
               <div className="rounded-[12px] border border-[#e2e8f0] bg-[#f8fafc] p-4 text-left font-mono text-xs space-y-2 text-[#334155]">
                 <div className="flex justify-between">
-                  <span className="text-[#64748b]">Mã định danh (Code):</span>
+                  <span className="text-[#64748b]">{t("master.commerce.tenantOnboard.codeLabel")}</span>
                   <span className="font-bold text-[#0f172a]">{mutation.data.code}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#64748b]">Subdomain Workspace:</span>
+                  <span className="text-[#64748b]">{t("master.commerce.tenantOnboard.subdomainLabel")}</span>
                   <span className="font-bold text-[#2563eb]">{mutation.data.subdomain}.smarthire.top</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#64748b]">Database riêng:</span>
+                  <span className="text-[#64748b]">{t("master.commerce.tenantOnboard.dedicatedDbLabel")}</span>
                   <span className="font-bold text-[#059669]">{mutation.data.dbName || `smarthire_tenant_${mutation.data.code}`}</span>
                 </div>
                 {mutation.data.activationUrl && (
                   <div className="pt-2 border-t border-[#e2e8f0] space-y-1">
-                    <span className="block text-[#64748b] font-sans">Link kích hoạt Admin (One-Time Activation Link):</span>
+                    <span className="block text-[#64748b] font-sans">{t("master.commerce.tenantOnboard.activationLinkLabel")}</span>
                     <a
                       href={mutation.data.activationUrl}
                       target="_blank"
@@ -168,7 +180,7 @@ export function TenantOnboardPage() {
                   onClick={() => navigate("/admin/dashboard")}
                   className="rounded-[10px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white shadow transition hover:bg-[#1e293b]"
                 >
-                  Về danh sách Doanh nghiệp
+                  {t("master.commerce.tenantOnboard.backToListBtn")}
                 </button>
               </div>
             </div>
@@ -179,9 +191,10 @@ export function TenantOnboardPage() {
                   role="alert"
                   className="rounded-[10px] border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700 leading-relaxed"
                 >
-                  <strong>Lỗi khởi tạo:</strong> {getApiErrorMessage(mutation.error, "Không thể khởi tạo doanh nghiệp.")}
+                  <strong>{t("master.commerce.tenantOnboard.errorPrefix")}</strong>{" "}
+                  {getApiErrorMessage(mutation.error, t("master.commerce.tenantOnboard.errorFallback"))}
                   <p className="mt-1 text-red-600">
-                    Vui lòng kiểm tra lại mã code/subdomain (không trùng lặp) và đảm bảo máy chủ Database khả dụng.
+                    {t("master.commerce.tenantOnboard.errorHint")}
                   </p>
                 </div>
               )}
@@ -192,18 +205,18 @@ export function TenantOnboardPage() {
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-[#475569] uppercase tracking-wider mb-2">
                         <Building2 className="h-4 w-4 text-[#3b82f6]" />
-                        <span>Thông tin Doanh nghiệp</span>
+                        <span>{t("master.commerce.tenantOnboard.companySection")}</span>
                       </div>
 
                       {/* Name */}
                       <div>
                         <label htmlFor="name" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                          Tên Doanh nghiệp <span className="text-red-500">*</span>
+                          {t("master.commerce.tenantOnboard.companyNameLabel")} <span className="text-red-500">*</span>
                         </label>
                         <input
                           id="name"
                           type="text"
-                          placeholder="Ví dụ: FPT Software, VNG Corporation"
+                          placeholder={t("master.commerce.tenantOnboard.companyNamePlaceholder")}
                           {...form.register("name")}
                           onChange={handleNameChange}
                           className={inputClass}
@@ -221,12 +234,12 @@ export function TenantOnboardPage() {
                       {/* Code */}
                       <div>
                         <label htmlFor="code" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                          Mã Doanh nghiệp (Code) <span className="text-red-500">*</span>
+                          {t("master.commerce.tenantOnboard.companyCodeLabel")} <span className="text-red-500">*</span>
                         </label>
                         <input
                           id="code"
                           type="text"
-                          placeholder="ví dụ: se36, fpt"
+                          placeholder={t("master.commerce.tenantOnboard.companyCodePlaceholder")}
                           {...form.register("code")}
                           className={`${inputClass} font-mono`}
                           aria-invalid={Boolean(form.formState.errors.code)}
@@ -241,13 +254,13 @@ export function TenantOnboardPage() {
                       {/* Subdomain */}
                       <div>
                         <label htmlFor="subdomain" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                          Subdomain Workspace <span className="text-red-500">*</span>
+                          {t("master.commerce.tenantOnboard.subdomainFieldLabel")} <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <input
                             id="subdomain"
                             type="text"
-                            placeholder="ví dụ: se36"
+                            placeholder={t("master.commerce.tenantOnboard.subdomainPlaceholder")}
                             {...form.register("subdomain")}
                             className={`${inputClass} font-mono pr-28`}
                             aria-invalid={Boolean(form.formState.errors.subdomain)}
@@ -267,7 +280,7 @@ export function TenantOnboardPage() {
                     {/* Environment Type (Production vs POC Sandbox) */}
                     <div>
                       <label className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                        Loại Môi trường Triển khai <span className="text-red-500">*</span>
+                        {t("master.commerce.tenantOnboard.envTypeLabel")} <span className="text-red-500">*</span>
                       </label>
                       <div className="grid grid-cols-2 gap-3">
                         <label
@@ -284,8 +297,8 @@ export function TenantOnboardPage() {
                             className="text-blue-600 focus:ring-blue-500"
                           />
                           <div>
-                            <div className="text-xs">Chính thức (Production)</div>
-                            <div className="text-[10px] text-slate-500 font-normal">Dành cho Hợp đồng dài hạn</div>
+                            <div className="text-xs">{t("master.commerce.tenantOnboard.envProductionTitle")}</div>
+                            <div className="text-[10px] text-slate-500 font-normal">{t("master.commerce.tenantOnboard.envProductionDesc")}</div>
                           </div>
                         </label>
 
@@ -303,8 +316,8 @@ export function TenantOnboardPage() {
                             className="text-amber-600 focus:ring-amber-500"
                           />
                           <div>
-                            <div className="text-xs">Dùng thử (POC Sandbox)</div>
-                            <div className="text-[10px] text-slate-500 font-normal">Môi trường thử nghiệm</div>
+                            <div className="text-xs">{t("master.commerce.tenantOnboard.envSandboxTitle")}</div>
+                            <div className="text-[10px] text-slate-500 font-normal">{t("master.commerce.tenantOnboard.envSandboxDesc")}</div>
                           </div>
                         </label>
                       </div>
@@ -312,7 +325,7 @@ export function TenantOnboardPage() {
 
                     <div className="rounded-[10px] bg-slate-50 border border-slate-200 p-3 text-xs text-[#64748b] flex items-center gap-2">
                       <Database className="h-4 w-4 text-[#3b82f6] shrink-0" />
-                      <span>Database riêng sẽ được tạo tự động: <code className="font-mono text-[#0f172a]">smarthire_tenant_{form.watch("code") || "..."}</code></span>
+                      <span>{t("master.commerce.tenantOnboard.autoDbHint")} <code className="font-mono text-[#0f172a]">smarthire_tenant_{form.watch("code") || "..."}</code></span>
                     </div>
                   </>
                 )}
@@ -320,19 +333,19 @@ export function TenantOnboardPage() {
                 <div className="pt-3 border-t border-[#f1f5f9]">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[#475569] uppercase tracking-wider mb-4">
                     <ShieldCheck className="h-4 w-4 text-[#059669]" />
-                    <span>Tài khoản Quản trị viên (Tenant Admin)</span>
+                    <span>{t("master.commerce.tenantOnboard.adminSection")}</span>
                   </div>
 
                   <div className="space-y-4">
                     {/* Admin Name */}
                     <div>
                       <label htmlFor="adminName" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                        Họ tên Quản trị viên <span className="text-red-500">*</span>
+                        {t("master.commerce.tenantOnboard.adminNameLabel")} <span className="text-red-500">*</span>
                       </label>
                       <input
                         id="adminName"
                         type="text"
-                        placeholder="Ví dụ: Nguyễn Văn Quản Trị"
+                        placeholder={t("master.commerce.tenantOnboard.adminNamePlaceholder")}
                         autoComplete="name"
                         {...form.register("adminName")}
                         className={inputClass}
@@ -348,12 +361,12 @@ export function TenantOnboardPage() {
                     {/* Admin Email */}
                     <div>
                       <label htmlFor="adminEmail" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                        Email Quản trị viên <span className="text-red-500">*</span>
+                        {t("master.commerce.tenantOnboard.adminEmailLabel")} <span className="text-red-500">*</span>
                       </label>
                       <input
                         id="adminEmail"
                         type="email"
-                        placeholder="admin@ten-doanh-nghiep.com"
+                        placeholder={t("master.commerce.tenantOnboard.adminEmailPlaceholder")}
                         autoComplete="email"
                         {...form.register("adminEmail")}
                         className={`${inputClass} font-mono`}
@@ -368,9 +381,9 @@ export function TenantOnboardPage() {
 
                     <div className="rounded-[10px] border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs leading-relaxed text-emerald-900">
                       <strong className="block font-semibold text-emerald-800 mb-0.5">
-                        Cơ chế Lời mời kích hoạt (Invite &amp; Claim Account)
+                        {t("master.commerce.tenantOnboard.inviteClaimTitle")}
                       </strong>
-                      Hệ thống không khởi tạo mật khẩu tĩnh. Sau khi cấp phát Database, một email chứa liên kết xác thực 1 lần sẽ được gửi tới Email Quản trị viên để khách hàng tự thiết lập mật khẩu riêng.
+                      {t("master.commerce.tenantOnboard.inviteClaimDesc")}
                     </div>
                   </div>
                 </div>
@@ -383,12 +396,12 @@ export function TenantOnboardPage() {
                   {mutation.isPending ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Đang cấp phát Database & chạy Migration...</span>
+                      <span>{t("master.commerce.tenantOnboard.submittingBtn")}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      <span>{retry ? "Thử lại cấp phát" : "Khởi tạo Doanh nghiệp & Cấp phát Database"}</span>
+                      <span>{retry ? t("master.commerce.tenantOnboard.submitRetryBtn") : t("master.commerce.tenantOnboard.submitCreateBtn")}</span>
                     </>
                   )}
                 </button>

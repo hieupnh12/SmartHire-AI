@@ -1,18 +1,19 @@
 import { Link } from "react-router-dom";
 import { Mail, ArrowUpRight } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
 
-const NAV_LINKS = [
-  { label: "Giải Pháp AI", to: "/solutions" },
-  { label: "Trải Nghiệm Thực Tế", to: "/preview" },
-  { label: "Hiệu Quả & ROI", to: "/roi" },
-  { label: "Bảo Mật Dữ Liệu", to: "/security" },
-  { label: "Gói Giải Pháp", to: "/pricing" },
-];
-
 export function LandingFooter() {
+  const t = useT();
   const { openWorkspaceModal } = useLandingModal();
+  const navLinks = [
+    { label: t("master.landingChrome.nav.solutions"), to: "/solutions" },
+    { label: t("master.landingChrome.nav.preview"), to: "/preview" },
+    { label: t("master.landingChrome.nav.roi"), to: "/roi" },
+    { label: t("master.landingChrome.nav.security"), to: "/security" },
+    { label: t("master.landingChrome.nav.pricing"), to: "/pricing" },
+  ];
 
   return (
     <footer className="bg-slate-950 text-slate-400 text-sm">
@@ -28,7 +29,7 @@ export function LandingFooter() {
               <SmartHireLogo tone="dark" className="h-8" />
             </Link>
             <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-              Nền tảng tuyển dụng AI thế hệ mới dành cho doanh nghiệp — tự động hóa sàng lọc, đánh giá và phỏng vấn với độ chính xác vượt trội.
+              {t("master.landingChrome.footer.brandDesc")}
             </p>
             <a
               href="mailto:contact@smarthire.top"
@@ -42,10 +43,10 @@ export function LandingFooter() {
           {/* Solutions links */}
           <div>
             <h5 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-4">
-              Giải Pháp
+              {t("master.landingChrome.footer.solutionsTitle")}
             </h5>
             <ul className="space-y-2.5">
-              {NAV_LINKS.map((l) => (
+              {navLinks.map((l) => (
                 <li key={l.to}>
                   <Link
                     to={l.to}
@@ -62,7 +63,7 @@ export function LandingFooter() {
           {/* Customers column */}
           <div>
             <h5 className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-4">
-              Dành Cho Khách Hàng
+              {t("master.landingChrome.footer.forCustomersTitle")}
             </h5>
             <ul className="space-y-2.5">
               <li>
@@ -70,7 +71,7 @@ export function LandingFooter() {
                   onClick={openWorkspaceModal}
                   className="text-xs text-slate-500 hover:text-slate-200 transition-colors text-left flex items-center gap-1 group"
                 >
-                  Vào Workspace Tuyển Dụng
+                  {t("master.landingChrome.footer.enterWorkspace")}
                   <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               </li>
@@ -79,7 +80,7 @@ export function LandingFooter() {
                   href="mailto:contact@smarthire.top"
                   className="text-xs text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1 group"
                 >
-                  Hỗ Trợ Kỹ Thuật
+                  {t("master.landingChrome.footer.techSupport")}
                   <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </a>
               </li>
@@ -88,7 +89,7 @@ export function LandingFooter() {
                   to="/security"
                   className="text-xs text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1 group"
                 >
-                  Chính Sách Bảo Mật
+                  {t("master.landingChrome.footer.privacyPolicy")}
                   <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
               </li>
@@ -98,11 +99,11 @@ export function LandingFooter() {
 
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-          <p>© 2026 SmartHire.AI Enterprise. All rights reserved.</p>
+          <p>{t("master.landingChrome.footer.copyright")}</p>
           <div className="flex items-center gap-5">
-            <Link to="/terms" className="hover:text-slate-400 transition-colors">Điều khoản sử dụng</Link>
-            <Link to="/privacy" className="hover:text-slate-400 transition-colors">Bảo vệ dữ liệu cá nhân</Link>
-            <Link to="/security" className="hover:text-slate-400 transition-colors">An ninh hệ thống</Link>
+            <Link to="/terms" className="hover:text-slate-400 transition-colors">{t("master.landingChrome.footer.terms")}</Link>
+            <Link to="/privacy" className="hover:text-slate-400 transition-colors">{t("master.landingChrome.footer.personalDataProtection")}</Link>
+            <Link to="/security" className="hover:text-slate-400 transition-colors">{t("master.landingChrome.footer.systemSecurity")}</Link>
           </div>
         </div>
       </div>

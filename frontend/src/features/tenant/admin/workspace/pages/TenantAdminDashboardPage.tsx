@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { companyApi } from "@/api/tenant/companyApi";
+import { useT, useLocale, formatDate, formatNumber } from "@/i18n";
+import {
+  formatInvoiceStatusLabel,
+  formatPlanDisplayName,
+  formatSubscriptionStatusLabel,
+} from "@/features/tenant/admin/billing/utils/billingLabels";
 import {
   Users,
   Building2,
@@ -43,6 +49,8 @@ interface BillingInvoice {
 }
 
 export function TenantAdminDashboardPage() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const rawTenantCode = getTenantIdFromWindow() || "acme";
   const theme = getTenantTheme(rawTenantCode);
@@ -68,10 +76,10 @@ export function TenantAdminDashboardPage() {
   // State: Company Profile (UC: Update Company Profile Info)
   const [companyName, setCompanyName] = useState(theme.name);
   const [companyTagline, setCompanyTagline] = useState(theme.tagline);
-  const [companySize, setCompanySize] = useState("100 - 500 Kỹ sư");
+  const [companySize, setCompanySize] = useState(() => t("tenantAdmin.workspace.defaults.companySize"));
   const [companyWebsite, setCompanyWebsite] = useState(`https://${theme.code}.smarthire.top`);
-  const [companyAddress, setCompanyAddress] = useState("Tầng 12, Tòa nhà Enterprise Tech Tower, Hà Nội / TP.HCM");
-  const [companyBio, setCompanyBio] = useState(`Dẫn đầu các giải pháp Công nghệ Enterprise Multi-Tenant & Phỏng vấn AI tại Việt Nam.`);
+  const [companyAddress, setCompanyAddress] = useState(() => t("tenantAdmin.workspace.defaults.companyAddress"));
+  const [companyBio, setCompanyBio] = useState(() => t("tenantAdmin.workspace.defaults.companyBio"));
   const [selectedThemePreset, setSelectedThemePreset] = useState(theme.accentBadge);
   const [profileSaved, setProfileSaved] = useState(false);
 
@@ -81,11 +89,14 @@ export function TenantAdminDashboardPage() {
     queryFn: companyApi.getSubscription,
   });
   const sub = subQuery.data?.data;
-  const [invoices] = useState<BillingInvoice[]>([
-    { id: "INV-2026-001", date: "2026-08-01", description: "Gói SaaS Professional - Hàng Tháng", amount: 149, status: "PAID" },
-    { id: "INV-2026-002", date: "2026-07-01", description: "Gói SaaS Professional - Hàng Tháng", amount: 149, status: "PAID" },
-    { id: "INV-2026-003", date: "2026-06-15", description: "Mua thêm Add-on 500 Lượt CV Parsing", amount: 29, status: "PAID" }
-  ]);
+  const invoices = useMemo<BillingInvoice[]>(
+    () => [
+      { id: "INV-2026-001", date: "2026-08-01", description: t("tenantAdmin.workspace.defaults.inv1Desc"), amount: 149, status: "PAID" },
+      { id: "INV-2026-002", date: "2026-07-01", description: t("tenantAdmin.workspace.defaults.inv2Desc"), amount: 149, status: "PAID" },
+      { id: "INV-2026-003", date: "2026-06-15", description: t("tenantAdmin.workspace.defaults.inv3Desc"), amount: 29, status: "PAID" },
+    ],
+    [t],
+  );
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [purchasedAddon, setPurchasedAddon] = useState(false);
 
@@ -155,7 +166,7 @@ export function TenantAdminDashboardPage() {
                 {theme.name}
               </span>
               <span className={`ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${theme.badgeBg}`}>
-                Company Workspace Admin
+                {t("tenantAdmin.workspace.adminBadge")}
               </span>
             </div>
           </div>
@@ -169,7 +180,7 @@ export function TenantAdminDashboardPage() {
               }`}
             >
               <Users className="w-4 h-4 text-teal-600" />
-              <span>Workspace Members</span>
+              <span>{t("tenantAdmin.workspace.tabs.members")}</span>
             </button>
 
             <button
@@ -179,7 +190,7 @@ export function TenantAdminDashboardPage() {
               }`}
             >
               <Building2 className="w-4 h-4 text-cyan-600" />
-              <span>Profile & Branding</span>
+              <span>{t("tenantAdmin.workspace.tabs.profile")}</span>
             </button>
 
             <button
@@ -189,7 +200,7 @@ export function TenantAdminDashboardPage() {
               }`}
             >
               <CreditCard className="w-4 h-4 text-amber-600" />
-              <span>Plan & Billing</span>
+              <span>{t("tenantAdmin.workspace.tabs.billing")}</span>
             </button>
 
             <button
@@ -199,7 +210,7 @@ export function TenantAdminDashboardPage() {
               }`}
             >
               <BrainCircuit className="w-4 h-4 text-indigo-600" />
-              <span>AI Screening Criteria</span>
+              <span>{t("tenantAdmin.workspace.tabs.aiScreening")}</span>
             </button>
           </nav>
 
@@ -211,7 +222,7 @@ export function TenantAdminDashboardPage() {
               className="px-3.5 py-2 text-xs font-semibold rounded-[8px] bg-slate-100 hover:bg-slate-200 text-[#1e293b] transition-colors flex items-center gap-1.5 border border-[#e2e8f0]"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>View Career Site</span>
+              <span>{t("tenantAdmin.workspace.viewCareerSite")}</span>
             </button>
 
             <button
@@ -222,7 +233,7 @@ export function TenantAdminDashboardPage() {
               className="px-3 py-2 text-xs font-semibold rounded-[8px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Log Out</span>
+              <span>{t("tenantAdmin.workspace.logout")}</span>
             </button>
           </div>
         </div>
@@ -235,8 +246,12 @@ export function TenantAdminDashboardPage() {
           <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold font-display text-[#1e293b]">Workspace Member Directory & Permissions</h1>
-                <p className="text-xs text-[#64748b]">Quản lý thành viên doanh nghiệp, gán vai trò RBAC và mời nhân sự mới gia nhập workspace.</p>
+                <h1 className="text-2xl font-bold font-display text-[#1e293b]">
+                  {t("tenantAdmin.workspace.members.title")}
+                </h1>
+                <p className="text-xs text-[#64748b]">
+                  {t("tenantAdmin.workspace.members.subtitle")}
+                </p>
               </div>
 
               <button
@@ -244,27 +259,49 @@ export function TenantAdminDashboardPage() {
                 className={`px-4 py-2.5 text-xs font-semibold rounded-[8px] ${theme.primaryColorBtn} text-white shadow-md transition-all flex items-center gap-2`}
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Invite New Member</span>
+                <span>{t("tenantAdmin.workspace.members.inviteButton")}</span>
               </button>
             </div>
 
             {/* Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-5 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm">
-                <span className="text-xs text-[#64748b] block mb-1">Tổng Thành Viên</span>
-                <span className="text-2xl font-extrabold text-[#1e293b]">{members.length} Nhân Sự</span>
+                <span className="text-xs text-[#64748b] block mb-1">
+                  {t("tenantAdmin.workspace.members.metricTotalLabel")}
+                </span>
+                <span className="text-2xl font-extrabold text-[#1e293b]">
+                  {t("tenantAdmin.workspace.members.metricTotalValue", { count: members.length })}
+                </span>
               </div>
               <div className="p-5 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm">
-                <span className="text-xs text-[#64748b] block mb-1">Chuyên Viên HR Recruiter</span>
-                <span className="text-2xl font-extrabold text-teal-600">{members.filter(m => m.role === "HR_RECRUITER").length} Thành Viên</span>
+                <span className="text-xs text-[#64748b] block mb-1">
+                  {t("tenantAdmin.workspace.members.metricHrLabel")}
+                </span>
+                <span className="text-2xl font-extrabold text-teal-600">
+                  {t("tenantAdmin.workspace.members.metricHrValue", {
+                    count: members.filter((m) => m.role === "HR_RECRUITER").length,
+                  })}
+                </span>
               </div>
               <div className="p-5 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm">
-                <span className="text-xs text-[#64748b] block mb-1">Hiring Manager</span>
-                <span className="text-2xl font-extrabold text-indigo-600">{members.filter(m => m.role === "HIRING_MANAGER").length} Trưởng Phòng</span>
+                <span className="text-xs text-[#64748b] block mb-1">
+                  {t("tenantAdmin.workspace.members.metricHmLabel")}
+                </span>
+                <span className="text-2xl font-extrabold text-indigo-600">
+                  {t("tenantAdmin.workspace.members.metricHmValue", {
+                    count: members.filter((m) => m.role === "HIRING_MANAGER").length,
+                  })}
+                </span>
               </div>
               <div className="p-5 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm">
-                <span className="text-xs text-[#64748b] block mb-1">Trạng Thái Đang Hoạt Động</span>
-                <span className="text-2xl font-extrabold text-[#16a34a]">{members.filter(m => m.status === "ACTIVE").length} Active</span>
+                <span className="text-xs text-[#64748b] block mb-1">
+                  {t("tenantAdmin.workspace.members.metricActiveLabel")}
+                </span>
+                <span className="text-2xl font-extrabold text-[#16a34a]">
+                  {t("tenantAdmin.workspace.members.metricActiveValue", {
+                    count: members.filter((m) => m.status === "ACTIVE").length,
+                  })}
+                </span>
               </div>
             </div>
 
@@ -275,24 +312,26 @@ export function TenantAdminDashboardPage() {
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#64748b]" />
                   <input
                     type="text"
-                    placeholder="Tìm theo tên hoặc email thành viên..."
+                    placeholder={t("tenantAdmin.workspace.members.searchPlaceholder")}
                     value={memberSearch}
                     onChange={(e) => setMemberSearch(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 rounded-[8px] bg-[#f8f9ff] border border-[#e2e8f0] text-xs focus:outline-none"
                   />
                 </div>
-                <span className="text-xs text-[#64748b] font-mono">Hiển thị {filteredMembers.length} kết quả</span>
+                <span className="text-xs text-[#64748b] font-mono">
+                  {t("tenantAdmin.workspace.members.resultsCount", { count: filteredMembers.length })}
+                </span>
               </div>
 
               <table className="w-full text-left text-xs text-[#475569]">
                 <thead className="bg-[#f8f9ff] text-[#1e293b] font-semibold border-b border-[#e2e8f0]">
                   <tr>
-                    <th className="p-4">Họ và Tên</th>
-                    <th className="p-4">Email Công Vụ</th>
-                    <th className="p-4">Vai Trò (Role Token)</th>
-                    <th className="p-4">Trạng Thái</th>
-                    <th className="p-4">Ngày Tham Gia</th>
-                    <th className="p-4 text-right">Thao Tác UC</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.members.columns.fullName")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.members.columns.email")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.members.columns.role")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.members.columns.status")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.members.columns.joinedDate")}</th>
+                    <th className="p-4 text-right">{t("tenantAdmin.workspace.members.columns.actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e2e8f0]">
@@ -319,16 +358,20 @@ export function TenantAdminDashboardPage() {
                           m.status === "ACTIVE" ? "bg-[#16a34a]/10 text-[#16a34a]" : "bg-red-50 text-red-600"
                         }`}>
                           {m.status === "ACTIVE" ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                          {m.status}
+                          {m.status === "ACTIVE"
+                            ? t("tenantAdmin.workspace.members.statusActive")
+                            : t("tenantAdmin.workspace.members.statusInactive")}
                         </span>
                       </td>
-                      <td className="p-4 text-[#64748b] font-mono">{m.joinedDate}</td>
+                      <td className="p-4 text-[#64748b] font-mono">
+                        {formatDate(m.joinedDate, undefined, locale)}
+                      </td>
                       <td className="p-4 text-right space-x-2">
                         <button
-                          onClick={() => alert(`Cập nhật vai trò cho ${m.fullName}`)}
+                          onClick={() => alert(t("tenantAdmin.workspace.members.roleUpdateNotice", { name: m.fullName }))}
                           className="px-2.5 py-1.5 rounded-[6px] bg-slate-100 hover:bg-slate-200 text-[#1e293b] font-semibold text-[11px] transition-colors inline-flex items-center gap-1"
                         >
-                          <Edit className="w-3 h-3" /> Role
+                          <Edit className="w-3 h-3" /> {t("tenantAdmin.workspace.members.roleAction")}
                         </button>
                         <button
                           onClick={() => handleToggleMemberStatus(m.id)}
@@ -336,7 +379,10 @@ export function TenantAdminDashboardPage() {
                             m.status === "ACTIVE" ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-[#16a34a]/10 text-[#16a34a]"
                           }`}
                         >
-                          <UserX className="w-3 h-3" /> {m.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                          <UserX className="w-3 h-3" />{" "}
+                          {m.status === "ACTIVE"
+                            ? t("tenantAdmin.workspace.members.deactivateAction")
+                            : t("tenantAdmin.workspace.members.activateAction")}
                         </button>
                       </td>
                     </tr>
@@ -351,8 +397,12 @@ export function TenantAdminDashboardPage() {
         {activeTab === "profile" && (
           <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
             <div>
-              <h1 className="text-2xl font-bold font-display text-[#1e293b]">Company Profile & Career Page Branding</h1>
-              <p className="text-xs text-[#64748b]">Cấu hình thông tin giới thiệu công ty, tải lên Brand Media và điều chỉnh phong cách Career Page.</p>
+              <h1 className="text-2xl font-bold font-display text-[#1e293b]">
+                {t("tenantAdmin.workspace.profile.title")}
+              </h1>
+              <p className="text-xs text-[#64748b]">
+                {t("tenantAdmin.workspace.profile.subtitle")}
+              </p>
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-8">
@@ -360,12 +410,14 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-4 text-xs">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-cyan-600" />
-                  <span>Thông Tin Doanh Nghiệp (Profile Info)</span>
+                  <span>{t("tenantAdmin.workspace.profile.cardInfoTitle")}</span>
                 </h3>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Tên Thương Hiệu Doanh Nghiệp *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.profile.companyNameLabel")}
+                    </label>
                     <input
                       type="text"
                       required
@@ -376,7 +428,9 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Quy Mô Nhân Sự *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.profile.companySizeLabel")}
+                    </label>
                     <input
                       type="text"
                       value={companySize}
@@ -387,7 +441,9 @@ export function TenantAdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#1e293b] mb-1">Slogan / Tagline Tuyển Dụng *</label>
+                  <label className="block font-semibold text-[#1e293b] mb-1">
+                    {t("tenantAdmin.workspace.profile.sloganLabel")}
+                  </label>
                   <input
                     type="text"
                     value={companyTagline}
@@ -397,7 +453,9 @@ export function TenantAdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#1e293b] mb-1">Website Doanh Nghiệp (Domain/Subdomain) *</label>
+                  <label className="block font-semibold text-[#1e293b] mb-1">
+                    {t("tenantAdmin.workspace.profile.websiteLabel")}
+                  </label>
                   <input
                     type="url"
                     value={companyWebsite}
@@ -407,7 +465,9 @@ export function TenantAdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#1e293b] mb-1">Địa Chỉ Trụ Sở Chính</label>
+                  <label className="block font-semibold text-[#1e293b] mb-1">
+                    {t("tenantAdmin.workspace.profile.addressLabel")}
+                  </label>
                   <input
                     type="text"
                     value={companyAddress}
@@ -417,7 +477,9 @@ export function TenantAdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#1e293b] mb-1">Giới Thiệu Văn Hóa & Tầm Nhìn Doanh Nghiệp</label>
+                  <label className="block font-semibold text-[#1e293b] mb-1">
+                    {t("tenantAdmin.workspace.profile.bioLabel")}
+                  </label>
                   <textarea
                     rows={3}
                     value={companyBio}
@@ -431,18 +493,24 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-4 text-xs">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <Upload className="w-5 h-5 text-teal-600" />
-                  <span>Update Brand Media Assets</span>
+                  <span>{t("tenantAdmin.workspace.profile.mediaTitle")}</span>
                 </h3>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Hero Banner Preview */}
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-2">Ảnh Hero Banner Tuyển Dụng (High-Tech)</label>
+                    <label className="block font-semibold text-[#1e293b] mb-2">
+                      {t("tenantAdmin.workspace.profile.heroBannerLabel")}
+                    </label>
                     <div className="relative rounded-[16px] overflow-hidden border border-[#e2e8f0] h-36 bg-slate-900 group">
-                      <img src={theme.heroImage} alt="Hero Banner" className="w-full h-full object-cover opacity-60" />
+                      <img
+                        src={theme.heroImage}
+                        alt={t("tenantAdmin.workspace.profile.heroBannerAlt")}
+                        className="w-full h-full object-cover opacity-60"
+                      />
                       <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button type="button" className="px-3 py-1.5 rounded-full bg-white text-[#1e293b] font-bold text-[11px] flex items-center gap-1 shadow-md">
-                          <Upload className="w-3.5 h-3.5" /> Thay Ảnh Banner
+                          <Upload className="w-3.5 h-3.5" /> {t("tenantAdmin.workspace.profile.changeBannerBtn")}
                         </button>
                       </div>
                     </div>
@@ -450,12 +518,18 @@ export function TenantAdminDashboardPage() {
 
                   {/* Culture Photo Preview */}
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-2">Ảnh Văn Hóa Môi Trường Làm Việc</label>
+                    <label className="block font-semibold text-[#1e293b] mb-2">
+                      {t("tenantAdmin.workspace.profile.culturePhotoLabel")}
+                    </label>
                     <div className="relative rounded-[16px] overflow-hidden border border-[#e2e8f0] h-36 bg-slate-900 group">
-                      <img src={theme.cultureImage} alt="Culture" className="w-full h-full object-cover opacity-75" />
+                      <img
+                        src={theme.cultureImage}
+                        alt={t("tenantAdmin.workspace.profile.culturePhotoAlt")}
+                        className="w-full h-full object-cover opacity-75"
+                      />
                       <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button type="button" className="px-3 py-1.5 rounded-full bg-white text-[#1e293b] font-bold text-[11px] flex items-center gap-1 shadow-md">
-                          <Upload className="w-3.5 h-3.5" /> Thay Ảnh Văn Hóa
+                          <Upload className="w-3.5 h-3.5" /> {t("tenantAdmin.workspace.profile.changeCultureBtn")}
                         </button>
                       </div>
                     </div>
@@ -467,11 +541,13 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-4 text-xs">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <Palette className="w-5 h-5 text-indigo-600" />
-                  <span>Configure Career Page Style Theme</span>
+                  <span>{t("tenantAdmin.workspace.profile.themeTitle")}</span>
                 </h3>
 
                 <div>
-                  <label className="block font-semibold text-[#1e293b] mb-2">Chọn Palette Màu Thương Hiệu Ứng Dụng Động</label>
+                  <label className="block font-semibold text-[#1e293b] mb-2">
+                    {t("tenantAdmin.workspace.profile.paletteLabel")}
+                  </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {["Teal Cyber Tech", "Royal Indigo Tech", "Sunset Amber Tech", "Electric Blue Tech"].map((preset) => (
                       <button
@@ -496,7 +572,11 @@ export function TenantAdminDashboardPage() {
                   type="submit"
                   className={`px-8 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md transition-all flex items-center gap-2`}
                 >
-                  {profileSaved ? <span>Đã Lưu Thay Đổi! ✓</span> : <span>Lưu Cấu Hình Profile Doanh Nghiệp</span>}
+                  {profileSaved ? (
+                    <span>{t("tenantAdmin.workspace.profile.savedButton")}</span>
+                  ) : (
+                    <span>{t("tenantAdmin.workspace.profile.saveButton")}</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -507,8 +587,12 @@ export function TenantAdminDashboardPage() {
         {activeTab === "billing" && (
           <div className="space-y-8 animate-fade-in">
             <div>
-              <h1 className="text-2xl font-bold font-display text-[#1e293b]">Subscription Plan & Billing History</h1>
-              <p className="text-xs text-[#64748b]">Theo dõi hạn ngạch sử dụng thực tế theo gói đã mua và xem lịch sử hóa đơn dịch vụ.</p>
+              <h1 className="text-2xl font-bold font-display text-[#1e293b]">
+                {t("tenantAdmin.workspace.billing.title")}
+              </h1>
+              <p className="text-xs text-[#64748b]">
+                {t("tenantAdmin.workspace.billing.subtitle")}
+              </p>
             </div>
 
             {/* Current Plan Overview Card */}
@@ -516,35 +600,46 @@ export function TenantAdminDashboardPage() {
               <div className="relative z-10 grid md:grid-cols-12 gap-8 items-center">
                 <div className="md:col-span-7 space-y-3">
                   <span className="px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 font-bold text-xs border border-teal-500/30">
-                    CURRENT PLAN: {(sub?.planCode || "STARTER").toUpperCase()} ({sub?.subscriptionStatus || "ACTIVE"})
+                    {t("tenantAdmin.workspace.billing.currentPlanBadge", {
+                      code: (sub?.planCode || "STARTER").toUpperCase(),
+                      status: formatSubscriptionStatusLabel(sub?.subscriptionStatus || "ACTIVE", t),
+                    })}
                   </span>
-                  <h2 className="text-3xl font-extrabold font-display">Gói {sub?.planName || "Starter"}</h2>
+                  <h2 className="text-3xl font-extrabold font-display">
+                    {t("tenantAdmin.workspace.billing.planTitle", {
+                      name: formatPlanDisplayName(sub?.planName || "Starter", t),
+                    })}
+                  </h2>
                   <p className="text-xs text-slate-300">
-                    {sub?.description || "Gói bản quyền SaaS Multi-Tenant đang áp dụng cho workspace của doanh nghiệp."}
+                    {sub?.description || t("tenantAdmin.workspace.billing.defaultPlanDesc")}
                   </p>
                   <p className="text-xs text-teal-300 font-semibold">
-                    Thời hạn còn lại: {sub?.daysRemaining ?? 0} ngày · Lưu trữ bản ghi phỏng vấn:{" "}
+                    {t("tenantAdmin.workspace.billing.retentionLabel", { days: sub?.daysRemaining ?? 0 })}
                     {sub == null
                       ? "—"
                       : sub.videoRetentionDays < 0
-                      ? "Vĩnh viễn"
+                      ? t("tenantAdmin.workspace.billing.retentionForever")
                       : sub.videoRetentionDays === 0
-                      ? "Không hỗ trợ (0 ngày)"
-                      : `${sub.videoRetentionDays} ngày`}
+                      ? t("tenantAdmin.workspace.billing.retentionNone")
+                      : t("tenantAdmin.workspace.billing.retentionDays", { days: sub.videoRetentionDays })}
                   </p>
                 </div>
 
                 <div className="md:col-span-5 bg-white/10 backdrop-blur-md p-6 rounded-[20px] border border-white/20 text-center space-y-3">
-                  <span className="text-xs text-slate-300 block">Chi Phí Bản Quyền Theo Năm</span>
+                  <span className="text-xs text-slate-300 block">
+                    {t("tenantAdmin.workspace.billing.annualPriceLabel")}
+                  </span>
                   <span className="text-3xl font-extrabold text-cyan-400">
-                    {(sub?.priceYearly ?? 0).toLocaleString("vi-VN")} ₫
-                    <span className="text-xs text-slate-300">/năm</span>
+                    {t("tenantAdmin.workspace.billing.priceValue", {
+                      amount: formatNumber(sub?.priceYearly ?? 0, undefined, locale),
+                    })}
+                    <span className="text-xs text-slate-300">{t("tenantAdmin.workspace.billing.perYear")}</span>
                   </span>
                   <button
                     onClick={() => setShowUpgradeModal(true)}
                     className="w-full py-2.5 rounded-[10px] bg-white text-slate-900 font-bold text-xs hover:bg-slate-100 transition-colors shadow-md"
                   >
-                    Nâng Cấp Gói Hoặc Mua Add-ons
+                    {t("tenantAdmin.workspace.billing.upgradeOrAddonsBtn")}
                   </button>
                 </div>
               </div>
@@ -554,9 +649,12 @@ export function TenantAdminDashboardPage() {
             <div className="grid md:grid-cols-3 gap-6">
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>Tin Tuyển Dụng (Active Jobs)</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.activeJobs")}</span>
                   <span className="text-[#3b82f6]">
-                    {sub?.usedJobs ?? 0} / {sub?.maxJobs != null && sub.maxJobs < 0 ? "Unlimited" : `${sub?.maxJobs ?? 3} Jobs`}
+                    {sub?.usedJobs ?? 0} /{" "}
+                    {sub?.maxJobs != null && sub.maxJobs < 0
+                      ? t("tenantAdmin.workspace.billing.unlimited")
+                      : t("tenantAdmin.workspace.billing.jobsSuffix", { count: sub?.maxJobs ?? 3 })}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -569,9 +667,12 @@ export function TenantAdminDashboardPage() {
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>CV Parsing AI (Theo tháng)</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.cvParsing")}</span>
                   <span className="text-teal-600">
-                    {sub?.usedCvParses ?? 0} / {sub?.maxCvParses != null && sub.maxCvParses < 0 ? "Unlimited" : `${sub?.maxCvParses ?? 100} CVs`}
+                    {sub?.usedCvParses ?? 0} /{" "}
+                    {sub?.maxCvParses != null && sub.maxCvParses < 0
+                      ? t("tenantAdmin.workspace.billing.unlimited")
+                      : t("tenantAdmin.workspace.billing.cvsSuffix", { count: sub?.maxCvParses ?? 100 })}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -584,14 +685,14 @@ export function TenantAdminDashboardPage() {
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>AI Voice Interview Hours</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.aiVoice")}</span>
                   <span className="text-amber-600">
                     {((sub?.usedAiInterviewSeconds ?? 0) / 3600).toFixed(1)} /{" "}
                     {sub?.maxAiInterviewHours != null && sub.maxAiInterviewHours < 0
-                      ? "Unlimited"
+                      ? t("tenantAdmin.workspace.billing.unlimited")
                       : sub?.maxAiInterviewHours === 0
-                      ? "0h (Khóa)"
-                      : `${sub?.maxAiInterviewHours ?? 0} Hours`}
+                      ? t("tenantAdmin.workspace.billing.lockedZeroHours")
+                      : t("tenantAdmin.workspace.billing.hoursSuffix", { count: sub?.maxAiInterviewHours ?? 0 })}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -604,14 +705,14 @@ export function TenantAdminDashboardPage() {
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>Giám Sát Thi Proctoring AI</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.proctoring")}</span>
                   <span className="text-indigo-600">
                     {((sub?.usedProctoringSeconds ?? 0) / 3600).toFixed(1)} /{" "}
                     {sub?.maxProctoringHours != null && sub.maxProctoringHours < 0
-                      ? "Unlimited"
+                      ? t("tenantAdmin.workspace.billing.unlimited")
                       : sub?.maxProctoringHours === 0
-                      ? "0h (Khóa)"
-                      : `${sub?.maxProctoringHours ?? 0} Hours`}
+                      ? t("tenantAdmin.workspace.billing.lockedZeroHours")
+                      : t("tenantAdmin.workspace.billing.hoursSuffix", { count: sub?.maxProctoringHours ?? 0 })}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -624,10 +725,12 @@ export function TenantAdminDashboardPage() {
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>Dung Lượng Lưu Trữ (Storage)</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.storage")}</span>
                   <span className="text-cyan-600">
                     {((sub?.usedStorageBytes ?? 0) / (1024 * 1024)).toFixed(1)} MB /{" "}
-                    {sub?.maxStorageGb != null && sub.maxStorageGb < 0 ? "Unlimited" : `${sub?.maxStorageGb ?? 2} GB`}
+                    {sub?.maxStorageGb != null && sub.maxStorageGb < 0
+                      ? t("tenantAdmin.workspace.billing.unlimited")
+                      : `${sub?.maxStorageGb ?? 2} GB`}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -640,15 +743,15 @@ export function TenantAdminDashboardPage() {
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>Lưu Trữ Video/Audio Phỏng Vấn</span>
+                  <span>{t("tenantAdmin.workspace.billing.quotas.videoRetention")}</span>
                   <span className="text-emerald-600">
                     {sub == null
                       ? "—"
                       : sub.videoRetentionDays < 0
-                      ? "Unlimited"
+                      ? t("tenantAdmin.workspace.billing.unlimited")
                       : sub.videoRetentionDays === 0
-                      ? "0 ngày (Khóa)"
-                      : `${sub.videoRetentionDays} ngày`}
+                      ? t("tenantAdmin.workspace.billing.lockedZeroDays")
+                      : t("tenantAdmin.workspace.billing.daysSuffix", { count: sub.videoRetentionDays })}
                   </span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
@@ -663,17 +766,19 @@ export function TenantAdminDashboardPage() {
             {/* Billing Invoices Table */}
             <div className="bg-white border border-[#e2e8f0] rounded-[24px] overflow-hidden shadow-sm">
               <div className="p-5 border-b border-[#e2e8f0]">
-                <h3 className="font-bold text-base text-[#1e293b]">Lịch Sử Hóa Đơn Thanh Toán (Billing Invoices)</h3>
+                <h3 className="font-bold text-base text-[#1e293b]">
+                  {t("tenantAdmin.workspace.billing.invoicesTitle")}
+                </h3>
               </div>
 
               <table className="w-full text-left text-xs text-[#475569]">
                 <thead className="bg-[#f8f9ff] text-[#1e293b] font-semibold border-b border-[#e2e8f0]">
                   <tr>
-                    <th className="p-4">Mã Hóa Đơn</th>
-                    <th className="p-4">Ngày Thanh Toán</th>
-                    <th className="p-4">Nội Dung Thanh Toán</th>
-                    <th className="p-4">Số Tiền</th>
-                    <th className="p-4">Trạng Thái</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.billing.invoiceColumns.id")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.billing.invoiceColumns.date")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.billing.invoiceColumns.description")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.billing.invoiceColumns.amount")}</th>
+                    <th className="p-4">{t("tenantAdmin.workspace.billing.invoiceColumns.status")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e2e8f0]">
@@ -682,17 +787,25 @@ export function TenantAdminDashboardPage() {
                       <tr key={inv.id} className="hover:bg-[#f8f9ff] font-mono">
                         <td className="p-4 font-bold text-[#3b82f6]">{inv.invoiceNumber}</td>
                         <td className="p-4 text-[#64748b]">
-                          {inv.paidAt ? inv.paidAt.slice(0, 10) : inv.dueDate ? inv.dueDate.slice(0, 10) : "—"}
+                          {inv.paidAt
+                            ? formatDate(inv.paidAt, undefined, locale)
+                            : inv.dueDate
+                            ? formatDate(inv.dueDate, undefined, locale)
+                            : "—"}
                         </td>
                         <td className="p-4 font-sans text-xs font-semibold text-[#1e293b]">
-                          {inv.planName ? `Bản quyền gói ${inv.planName}` : "Hóa đơn dịch vụ SaaS"}
+                          {inv.planName
+                            ? t("tenantAdmin.workspace.billing.invoicePlanDesc", {
+                                plan: formatPlanDisplayName(inv.planName, t),
+                              })
+                            : t("tenantAdmin.workspace.billing.invoiceFallbackDesc")}
                         </td>
                         <td className="p-4 font-extrabold text-[#1e293b]">
-                          {Number(inv.amount || 0).toLocaleString("vi-VN")} {inv.currency || "VND"}
+                          {formatNumber(Number(inv.amount || 0), undefined, locale)} {inv.currency || "VND"}
                         </td>
                         <td className="p-4">
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#16a34a]/10 text-[#16a34a]">
-                            {inv.status}
+                            {formatInvoiceStatusLabel(inv.status, t)}
                           </span>
                         </td>
                       </tr>
@@ -701,12 +814,14 @@ export function TenantAdminDashboardPage() {
                     invoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-[#f8f9ff] font-mono">
                         <td className="p-4 font-bold text-[#3b82f6]">{inv.id}</td>
-                        <td className="p-4 text-[#64748b]">{inv.date}</td>
+                        <td className="p-4 text-[#64748b]">{formatDate(inv.date, undefined, locale)}</td>
                         <td className="p-4 font-sans text-xs font-semibold text-[#1e293b]">{inv.description}</td>
                         <td className="p-4 font-extrabold text-[#1e293b]">${inv.amount}</td>
                         <td className="p-4">
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#16a34a]/10 text-[#16a34a]">
-                            {inv.status}
+                            {inv.status === "PAID"
+                              ? t("tenantAdmin.workspace.billing.invoicePaid")
+                              : t("tenantAdmin.workspace.billing.invoicePending")}
                           </span>
                         </td>
                       </tr>
@@ -722,8 +837,12 @@ export function TenantAdminDashboardPage() {
         {activeTab === "ai_screening" && (
           <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
             <div>
-              <h1 className="text-2xl font-bold font-display text-[#1e293b]">Configure AI CV Screening & Weightage</h1>
-              <p className="text-xs text-[#64748b]">Tùy chỉnh ngưỡng điểm đạt CV (Passing Threshold), tỷ trọng đánh giá và cấu hình phỏng vấn giọng nói AI.</p>
+              <h1 className="text-2xl font-bold font-display text-[#1e293b]">
+                {t("tenantAdmin.workspace.aiScreening.title")}
+              </h1>
+              <p className="text-xs text-[#64748b]">
+                {t("tenantAdmin.workspace.aiScreening.subtitle")}
+              </p>
             </div>
 
             <form onSubmit={handleSaveAiCriteria} className="space-y-8 text-xs">
@@ -731,12 +850,14 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-6">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <BrainCircuit className="w-5 h-5 text-indigo-600" />
-                  <span>Ngưỡng Điểm Phân Loại CV Tự Động (AI Matching Score Threshold)</span>
+                  <span>{t("tenantAdmin.workspace.aiScreening.thresholdCardTitle")}</span>
                 </h3>
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-[#1e293b]">Điểm Khớp CV Tối Thiểu Đạt Yêu Cầu (Pass Score):</span>
+                    <span className="font-semibold text-[#1e293b]">
+                      {t("tenantAdmin.workspace.aiScreening.passScoreLabel")}
+                    </span>
                     <span className="text-2xl font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-[8px] border border-indigo-200">
                       {minPassScore}%
                     </span>
@@ -751,9 +872,9 @@ export function TenantAdminDashboardPage() {
                     className="w-full accent-indigo-600 cursor-pointer"
                   />
                   <div className="flex justify-between text-[11px] text-[#64748b]">
-                    <span>50% (Mở rộng ứng viên)</span>
-                    <span>75% (Tiêu chuẩn đề xuất)</span>
-                    <span>95% (Tuyển lọc gắt gao)</span>
+                    <span>{t("tenantAdmin.workspace.aiScreening.scaleMin")}</span>
+                    <span>{t("tenantAdmin.workspace.aiScreening.scaleRec")}</span>
+                    <span>{t("tenantAdmin.workspace.aiScreening.scaleMax")}</span>
                   </div>
                 </div>
               </div>
@@ -762,12 +883,14 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-6">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-teal-600" />
-                  <span>Ma Trận Tỷ Trọng Đánh Giá (Criteria Weightage % Matrix)</span>
+                  <span>{t("tenantAdmin.workspace.aiScreening.matrixCardTitle")}</span>
                 </h3>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Tỷ Trọng Kỹ Năng Chuyên Môn (Technical Skills): {techWeight}%</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.aiScreening.techWeightLabel", { weight: techWeight })}
+                    </label>
                     <input
                       type="range"
                       min="10"
@@ -779,7 +902,9 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Tỷ Trọng Số Năm Kinh Nghiệm (Experience): {expWeight}%</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.aiScreening.expWeightLabel", { weight: expWeight })}
+                    </label>
                     <input
                       type="range"
                       min="10"
@@ -791,7 +916,9 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Tỷ Trọng Bằng Cấp & Chứng Chỉ (Education): {eduWeight}%</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.aiScreening.eduWeightLabel", { weight: eduWeight })}
+                    </label>
                     <input
                       type="range"
                       min="5"
@@ -803,7 +930,9 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Tỷ Trọng Kỹ Năng Mềm (Soft Skills): {softWeight}%</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.aiScreening.softWeightLabel", { weight: softWeight })}
+                    </label>
                     <input
                       type="range"
                       min="5"
@@ -816,9 +945,12 @@ export function TenantAdminDashboardPage() {
                 </div>
 
                 <div className="p-3 rounded-[12px] bg-slate-50 border border-[#e2e8f0] text-slate-700 flex items-center justify-between font-mono">
-                  <span>Tổng Tỷ Trọng Cấu Hình:</span>
+                  <span>{t("tenantAdmin.workspace.aiScreening.totalWeightLabel")}</span>
                   <span className={`font-bold ${techWeight + expWeight + eduWeight + softWeight === 100 ? "text-[#16a34a]" : "text-red-600"}`}>
-                    {techWeight + expWeight + eduWeight + softWeight}% {techWeight + expWeight + eduWeight + softWeight === 100 ? "(Chuẩn 100%)" : "(Vui lòng điều chỉnh tổng về 100%)"}
+                    {techWeight + expWeight + eduWeight + softWeight}%{" "}
+                    {techWeight + expWeight + eduWeight + softWeight === 100
+                      ? t("tenantAdmin.workspace.aiScreening.weightValid")
+                      : t("tenantAdmin.workspace.aiScreening.weightInvalid")}
                   </span>
                 </div>
               </div>
@@ -827,22 +959,24 @@ export function TenantAdminDashboardPage() {
               <div className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm space-y-6">
                 <h3 className="text-base font-bold font-display text-[#1e293b] border-b pb-3 flex items-center gap-2">
                   <Cpu className="w-5 h-5 text-amber-600" />
-                  <span>Cấu Hình Đánh Giá Phỏng Vấn Giọng Nói AI (Voice Interview Engine)</span>
+                  <span>{t("tenantAdmin.workspace.aiScreening.voiceCardTitle")}</span>
                 </h3>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-2">Độ Nghiêm Ngặt Đánh Giá Của AI Bot</label>
+                    <label className="block font-semibold text-[#1e293b] mb-2">
+                      {t("tenantAdmin.workspace.aiScreening.strictnessLabel")}
+                    </label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { id: "LENIENT", name: "Linh Hoạt (Lenient)" },
-                        { id: "BALANCED", name: "Cân Bằng (Balanced Standard)" },
-                        { id: "RIGOROUS", name: "Nghiêm Ngặt (Rigorous)" }
+                        { id: "LENIENT", name: t("tenantAdmin.workspace.aiScreening.strictnessLenient") },
+                        { id: "BALANCED", name: t("tenantAdmin.workspace.aiScreening.strictnessBalanced") },
+                        { id: "RIGOROUS", name: t("tenantAdmin.workspace.aiScreening.strictnessRigorous") },
                       ].map((st) => (
                         <button
                           key={st.id}
                           type="button"
-                          onClick={() => setAiStrictness(st.id as any)}
+                          onClick={() => setAiStrictness(st.id as "LENIENT" | "BALANCED" | "RIGOROUS")}
                           className={`p-3 rounded-[12px] border text-xs font-semibold transition-all ${
                             aiStrictness === st.id ? "border-indigo-600 bg-indigo-50 text-indigo-700" : "border-[#e2e8f0] bg-[#f8f9ff] text-[#475569]"
                           }`}
@@ -862,7 +996,7 @@ export function TenantAdminDashboardPage() {
                       className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
                     />
                     <label htmlFor="autoReject" className="font-semibold text-[#1e293b] cursor-pointer">
-                      Tự động chuyển hồ sơ sang trạng thái "Không Phù Hợp" nếu điểm AI Score &lt; 50%
+                      {t("tenantAdmin.workspace.aiScreening.autoRejectLabel")}
                     </label>
                   </div>
                 </div>
@@ -874,7 +1008,11 @@ export function TenantAdminDashboardPage() {
                   type="submit"
                   className={`px-8 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md transition-all flex items-center gap-2`}
                 >
-                  {aiCriteriaSaved ? <span>Đã Lưu Cấu Hình AI! ✓</span> : <span>Lưu Tiêu Chí AI Screening</span>}
+                  {aiCriteriaSaved ? (
+                    <span>{t("tenantAdmin.workspace.aiScreening.savedButton")}</span>
+                  ) : (
+                    <span>{t("tenantAdmin.workspace.aiScreening.saveButton")}</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -893,21 +1031,33 @@ export function TenantAdminDashboardPage() {
             {inviteSuccess ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-12 h-12 text-[#16a34a] mx-auto mb-3" />
-                <h4 className="text-xl font-bold text-[#1e293b] mb-1">Đã Gửi Thư Mời ✉️</h4>
-                <p className="text-xs text-[#64748b]">Thành viên <strong>{inviteEmail}</strong> đã được thêm vào workspace thành công.</p>
+                <h4 className="text-xl font-bold text-[#1e293b] mb-1">
+                  {t("tenantAdmin.workspace.inviteModal.successTitle")}
+                </h4>
+                <p className="text-xs text-[#64748b]">
+                  {t("tenantAdmin.workspace.inviteModal.successDescPrefix")}
+                  <strong>{inviteEmail}</strong>
+                  {t("tenantAdmin.workspace.inviteModal.successDescSuffix")}
+                </p>
               </div>
             ) : (
               <>
-                <h3 className="text-xl font-bold font-display text-[#1e293b] mb-1">Mời Thành Viên Mới Gia Nhập</h3>
-                <p className="text-xs text-[#64748b] mb-6">Gửi thư mời qua Email và phân quyền truy cập workspace cho nhân sự.</p>
+                <h3 className="text-xl font-bold font-display text-[#1e293b] mb-1">
+                  {t("tenantAdmin.workspace.inviteModal.title")}
+                </h3>
+                <p className="text-xs text-[#64748b] mb-6">
+                  {t("tenantAdmin.workspace.inviteModal.subtitle")}
+                </p>
 
                 <form onSubmit={handleInviteSubmit} className="space-y-4">
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Họ và Tên Nhân Sự *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.inviteModal.nameLabel")}
+                    </label>
                     <input
                       type="text"
                       required
-                      placeholder="Nguyễn Văn B"
+                      placeholder={t("tenantAdmin.workspace.inviteModal.namePlaceholder")}
                       value={inviteName}
                       onChange={(e) => setInviteName(e.target.value)}
                       className="w-full px-3 py-2 rounded-[8px] bg-[#f8f9ff] border border-[#e2e8f0]"
@@ -915,7 +1065,9 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Email Công Vụ *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.inviteModal.emailLabel")}
+                    </label>
                     <input
                       type="email"
                       required
@@ -927,16 +1079,18 @@ export function TenantAdminDashboardPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Gán Vai Trò (Role Token) *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">
+                      {t("tenantAdmin.workspace.inviteModal.roleLabel")}
+                    </label>
                     <select
                       value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value as any)}
+                      onChange={(e) => setInviteRole(e.target.value as WorkspaceMember["role"])}
                       className="w-full px-3 py-2 rounded-[8px] bg-[#f8f9ff] border border-[#e2e8f0] font-semibold"
                     >
-                      <option value="HR_RECRUITER">HR_RECRUITER (Tạo Job, Quản lý CV & Phỏng vấn AI)</option>
-                      <option value="HIRING_MANAGER">HIRING_MANAGER (Duyệt tin tuyển dụng & Đánh giá phỏng vấn)</option>
-                      <option value="INTERVIEWER">INTERVIEWER (Chuyên viên tham gia phỏng vấn kỹ thuật)</option>
-                      <option value="TENANT_ADMIN">TENANT_ADMIN (Toàn quyền quản trị Workspace & Billing)</option>
+                      <option value="HR_RECRUITER">{t("tenantAdmin.workspace.inviteModal.roleHr")}</option>
+                      <option value="HIRING_MANAGER">{t("tenantAdmin.workspace.inviteModal.roleHm")}</option>
+                      <option value="INTERVIEWER">{t("tenantAdmin.workspace.inviteModal.roleInterviewer")}</option>
+                      <option value="TENANT_ADMIN">{t("tenantAdmin.workspace.inviteModal.roleAdmin")}</option>
                     </select>
                   </div>
 
@@ -944,7 +1098,7 @@ export function TenantAdminDashboardPage() {
                     type="submit"
                     className={`w-full py-3 rounded-[8px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md transition-all mt-4`}
                   >
-                    Gửi Thư Mời Gia Nhập
+                    {t("tenantAdmin.workspace.inviteModal.submitButton")}
                   </button>
                 </form>
               </>
@@ -964,19 +1118,33 @@ export function TenantAdminDashboardPage() {
             {purchasedAddon ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-12 h-12 text-[#16a34a] mx-auto mb-3" />
-                <h4 className="text-xl font-bold text-[#1e293b] mb-1">Thanh Toán Dịch Vụ Thành Công 🎉</h4>
-                <p className="text-xs text-[#64748b]">Cảm ơn bạn! Hạn ngạch tài nguyên AI đã được bổ sung trực tiếp vào workspace của <strong>{theme.name}</strong>.</p>
+                <h4 className="text-xl font-bold text-[#1e293b] mb-1">
+                  {t("tenantAdmin.workspace.upgradeModal.successTitle")}
+                </h4>
+                <p className="text-xs text-[#64748b]">
+                  {t("tenantAdmin.workspace.upgradeModal.successDescPrefix")}
+                  <strong>{theme.name}</strong>
+                  {t("tenantAdmin.workspace.upgradeModal.successDescSuffix")}
+                </p>
               </div>
             ) : (
               <>
-                <h3 className="text-xl font-bold font-display text-[#1e293b] mb-1">Purchase Subscription / Add-ons</h3>
-                <p className="text-xs text-[#64748b] mb-6">Bổ sung tài nguyên AI Parsing & Giờ phỏng vấn cho workspace.</p>
+                <h3 className="text-xl font-bold font-display text-[#1e293b] mb-1">
+                  {t("tenantAdmin.workspace.upgradeModal.title")}
+                </h3>
+                <p className="text-xs text-[#64748b] mb-6">
+                  {t("tenantAdmin.workspace.upgradeModal.subtitle")}
+                </p>
 
                 <div className="space-y-4">
                   <div className="p-4 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0] flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-[#1e293b] block">Add-on: +500 Lượt CV Parsing AI</span>
-                      <span className="text-[#64748b] text-[11px]">Bổ sung ngay 500 lượt bóc tách & phân tích CV</span>
+                      <span className="font-bold text-[#1e293b] block">
+                        {t("tenantAdmin.workspace.upgradeModal.addon1Title")}
+                      </span>
+                      <span className="text-[#64748b] text-[11px]">
+                        {t("tenantAdmin.workspace.upgradeModal.addon1Desc")}
+                      </span>
                     </div>
                     <button
                       onClick={() => {
@@ -988,14 +1156,18 @@ export function TenantAdminDashboardPage() {
                       }}
                       className="px-4 py-2 rounded-[8px] bg-teal-600 text-white font-bold text-xs"
                     >
-                      $29 / Mua Ngay
+                      {t("tenantAdmin.workspace.upgradeModal.addon1Btn")}
                     </button>
                   </div>
 
                   <div className="p-4 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0] flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-[#1e293b] block">Add-on: +10 Giờ Phỏng Vấn AI Voice</span>
-                      <span className="text-[#64748b] text-[11px]">Thêm 10 giờ phỏng vấn thoại AI STT tự động</span>
+                      <span className="font-bold text-[#1e293b] block">
+                        {t("tenantAdmin.workspace.upgradeModal.addon2Title")}
+                      </span>
+                      <span className="text-[#64748b] text-[11px]">
+                        {t("tenantAdmin.workspace.upgradeModal.addon2Desc")}
+                      </span>
                     </div>
                     <button
                       onClick={() => {
@@ -1007,7 +1179,7 @@ export function TenantAdminDashboardPage() {
                       }}
                       className="px-4 py-2 rounded-[8px] bg-indigo-600 text-white font-bold text-xs"
                     >
-                      $39 / Mua Ngay
+                      {t("tenantAdmin.workspace.upgradeModal.addon2Btn")}
                     </button>
                   </div>
                 </div>
@@ -1019,7 +1191,7 @@ export function TenantAdminDashboardPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#e2e8f0] py-6 text-center text-xs text-[#64748b] bg-white">
-        {theme.name} Workspace Management Portal © 2026. Powered by SmartHire AI.
+        {t("tenantAdmin.workspace.footer", { name: theme.name })}
       </footer>
     </div>
   );

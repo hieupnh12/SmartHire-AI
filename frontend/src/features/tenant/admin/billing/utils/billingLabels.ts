@@ -1,6 +1,11 @@
-export function formatPlanDisplayName(name?: string | null): string {
+import { t as globalT, type TranslateFn } from "@/i18n";
+
+export function formatPlanDisplayName(
+  name?: string | null,
+  translate: TranslateFn = globalT,
+): string {
   const raw = (name || "").trim();
-  if (!raw) return "Gói Khởi Đầu";
+  if (!raw) return translate("tenantAdmin.billing.plans.starter");
 
   const cleaned = raw
     .replace(/\s*\((?:Starter|Professional|Enterprise(?:\s+Scale)?|Custom|Fallback)\)\s*/gi, " ")
@@ -9,112 +14,129 @@ export function formatPlanDisplayName(name?: string | null): string {
 
   switch (cleaned.toUpperCase()) {
     case "STARTER":
-      return "Gói Khởi Đầu";
+      return translate("tenantAdmin.billing.plans.starter");
     case "PROFESSIONAL":
-      return "Gói Chuyên Nghiệp";
+      return translate("tenantAdmin.billing.plans.professional");
     case "ENTERPRISE":
     case "ENTERPRISE SCALE":
-      return "Gói Doanh Nghiệp";
+      return translate("tenantAdmin.billing.plans.enterprise");
     default:
       return cleaned || raw;
   }
 }
 
-export function formatSubscriptionStatusLabel(status?: string | null): string {
+export function formatSubscriptionStatusLabel(
+  status?: string | null,
+  translate: TranslateFn = globalT,
+): string {
   switch ((status || "").toUpperCase()) {
     case "ACTIVE":
-      return "Đang hoạt động";
+      return translate("tenantAdmin.billing.subscriptionStatuses.ACTIVE");
     case "FALLBACK_STARTER":
-      return "Gói mặc định";
+      return translate("tenantAdmin.billing.subscriptionStatuses.FALLBACK_STARTER");
     case "PAST_DUE":
-      return "Quá hạn (Đang ân hạn)";
+      return translate("tenantAdmin.billing.subscriptionStatuses.PAST_DUE");
     case "SUSPENDED":
-      return "Đang tạm khóa";
+      return translate("tenantAdmin.billing.subscriptionStatuses.SUSPENDED");
     case "EXPIRED":
-      return "Đã hết hạn";
+      return translate("tenantAdmin.billing.subscriptionStatuses.EXPIRED");
     case "PENDING":
-      return "Chờ thanh toán";
+      return translate("tenantAdmin.billing.subscriptionStatuses.PENDING");
     case "CANCELED":
     case "CANCELLED":
-      return "Đã hủy";
+      return translate("tenantAdmin.billing.subscriptionStatuses.CANCELLED");
     default:
-      return status || "Đang hoạt động";
+      return status || translate("tenantAdmin.billing.subscriptionStatuses.ACTIVE");
   }
 }
 
-export function formatInvoiceStatusLabel(status?: string | null): string {
+export function formatInvoiceStatusLabel(
+  status?: string | null,
+  translate: TranslateFn = globalT,
+): string {
   switch ((status || "").toUpperCase()) {
     case "PAID":
-      return "Đã thanh toán";
+      return translate("tenantAdmin.billing.invoiceStatuses.PAID");
     case "PENDING":
-      return "Chờ thanh toán";
+      return translate("tenantAdmin.billing.invoiceStatuses.PENDING");
     case "CANCELLED":
     case "CANCELED":
-      return "Đã hủy";
+      return translate("tenantAdmin.billing.invoiceStatuses.CANCELLED");
     case "OVERDUE":
-      return "Quá hạn";
+      return translate("tenantAdmin.billing.invoiceStatuses.OVERDUE");
     default:
       return status || "—";
   }
 }
 
-export function formatInvoiceTypeLabel(invoiceType?: string | null): string {
+export function formatInvoiceTypeLabel(
+  invoiceType?: string | null,
+  translate: TranslateFn = globalT,
+): string {
   switch ((invoiceType || "").toUpperCase()) {
     case "UPGRADE":
-      return "Nâng cấp gói";
+      return translate("tenantAdmin.billing.invoiceTypes.UPGRADE");
     case "RENEWAL":
-      return "Gia hạn gói";
+      return translate("tenantAdmin.billing.invoiceTypes.RENEWAL");
     case "B2B_CONTRACT":
-      return "Hợp đồng doanh nghiệp";
+      return translate("tenantAdmin.billing.invoiceTypes.B2B_CONTRACT");
     case "SUBSCRIPTION":
     default:
-      return "Thuê bao gói dịch vụ";
+      return translate("tenantAdmin.billing.invoiceTypes.SUBSCRIPTION");
   }
 }
 
-export function formatPaymentGatewayLabel(gateway?: string | null): string {
+export function formatPaymentGatewayLabel(
+  gateway?: string | null,
+  translate: TranslateFn = globalT,
+): string {
   switch ((gateway || "").toUpperCase()) {
     case "BANK_TRANSFER":
-      return "Chuyển khoản";
+      return translate("tenantAdmin.billing.gateways.BANK_TRANSFER");
     case "PRORATION_CREDIT":
-      return "Bù trừ từ gói cũ";
+      return translate("tenantAdmin.billing.gateways.PRORATION_CREDIT");
     case "SEPAY":
-      return "VietQR (SePay)";
+      return translate("tenantAdmin.billing.gateways.SEPAY");
     case "VNPAY":
-      return "VNPay";
+      return translate("tenantAdmin.billing.gateways.VNPAY");
     case "PAYPAL":
-      return "PayPal";
+      return translate("tenantAdmin.billing.gateways.PAYPAL");
     default:
       return gateway || "—";
   }
 }
 
-const FEATURE_TRANSLATIONS: Record<string, string> = {
-  "AI CV Screening": "Sàng lọc hồ sơ CV bằng AI",
-  "Standard MCQ Tests": "Bài kiểm tra trắc nghiệm tiêu chuẩn",
-  "Career Site": "Trang tuyển dụng riêng",
-  "Email Support": "Hỗ trợ qua email",
-  "Code Sandbox Automated Grading": "Chấm bài lập trình tự động",
-  "Voice AI Interview": "Phỏng vấn AI giọng nói",
-  "Priority Support": "Hỗ trợ ưu tiên",
-  "Unlimited Jobs": "Không giới hạn tin tuyển dụng",
-  "Dedicated Database Engine": "Cơ sở dữ liệu riêng biệt",
-  "SSO Integration (Google/Microsoft)": "Đăng nhập một lần SSO (Google/Microsoft)",
-  "Custom Grading Weights": "Tùy chỉnh trọng số chấm điểm",
-  "SLA 99.99%": "Cam kết vận hành ổn định 99,99%",
-  "24/7 Dedicated Support": "Hỗ trợ chuyên biệt 24/7",
+const FEATURE_TRANSLATION_KEYS: Record<string, string> = {
+  "AI CV Screening": "tenantAdmin.billing.features.aiCvScreening",
+  "Standard MCQ Tests": "tenantAdmin.billing.features.standardMcqTests",
+  "Career Site": "tenantAdmin.billing.features.careerSite",
+  "Email Support": "tenantAdmin.billing.features.emailSupport",
+  "Code Sandbox Automated Grading": "tenantAdmin.billing.features.codeSandboxAutomatedGrading",
+  "Voice AI Interview": "tenantAdmin.billing.features.voiceAiInterview",
+  "Priority Support": "tenantAdmin.billing.features.prioritySupport",
+  "Unlimited Jobs": "tenantAdmin.billing.features.unlimitedJobs",
+  "Dedicated Database Engine": "tenantAdmin.billing.features.dedicatedDatabaseEngine",
+  "SSO Integration (Google/Microsoft)": "tenantAdmin.billing.features.ssoIntegration",
+  "Custom Grading Weights": "tenantAdmin.billing.features.customGradingWeights",
+  "SLA 99.99%": "tenantAdmin.billing.features.sla",
+  "24/7 Dedicated Support": "tenantAdmin.billing.features.dedicatedSupport247",
 };
 
-export function translatePlanFeatureLabel(feature: string): string {
+export function translatePlanFeatureLabel(
+  feature: string,
+  translate: TranslateFn = globalT,
+): string {
   const trimmed = feature.trim();
   if (!trimmed) return "";
 
-  const exact = FEATURE_TRANSLATIONS[trimmed];
-  if (exact) return exact;
+  const exactKey = FEATURE_TRANSLATION_KEYS[trimmed];
+  if (exactKey) return translate(exactKey);
 
   const voiceMatch = /^Voice AI Interview\s*\((\d+)\s*h\)$/i.exec(trimmed);
   if (voiceMatch) {
-    return `Phỏng vấn AI giọng nói (${voiceMatch[1]} giờ)`;
+    return translate("tenantAdmin.billing.features.voiceAiInterviewHours", {
+      hours: voiceMatch[1],
+    });
   }
 
   return trimmed;

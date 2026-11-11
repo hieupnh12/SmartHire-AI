@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { Button } from "@/components/ux/Button";
+import { t as globalT, useT } from "@/i18n";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -38,10 +39,10 @@ export class GradingDetailErrorBoundary extends React.Component<ErrorBoundaryPro
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Không thể hiển thị chi tiết bài làm
+              {globalT("recruiter.assessments.submissions.errorBoundaryTitle")}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Đã xảy ra lỗi không mong muốn khi dựng dữ liệu bài thi. Vui lòng thử tải lại hoặc quay lại danh sách bài nộp.
+              {globalT("recruiter.assessments.submissions.errorBoundaryDesc")}
             </p>
             {this.state.error?.message && (
               <p className="mt-2 text-[11px] font-mono text-rose-500 bg-rose-50/50 dark:bg-rose-950/30 p-2 rounded-lg max-w-lg mx-auto break-words">
@@ -54,10 +55,10 @@ export class GradingDetailErrorBoundary extends React.Component<ErrorBoundaryPro
               variant="secondary"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
-              Thử lại
+              {globalT("recruiter.assessments.common.actions.retry")}
             </Button>
             <Button onClick={() => window.location.assign(this.props.backUrl)}>
-              <ArrowLeft className="size-4" /> Quay lại danh sách bài nộp
+              <ArrowLeft className="size-4" /> {globalT("recruiter.assessments.submissions.backToSubmissionsBtn")}
             </Button>
           </div>
         </div>
@@ -69,6 +70,7 @@ export class GradingDetailErrorBoundary extends React.Component<ErrorBoundaryPro
 }
 
 export function AssessmentSubmissionDetailPage() {
+  const t = useT();
   const job = useRecruitmentJob();
   const navigate = useNavigate();
   const { submissionId: submissionIdParam } = useParams<{ id: string; submissionId: string }>();
@@ -81,13 +83,13 @@ export function AssessmentSubmissionDetailPage() {
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
           <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
-            Không tìm thấy bài làm
+            {t("recruiter.assessments.submissions.notFoundTitle")}
           </p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Mã bài làm không hợp lệ hoặc đã bị xóa.
+            {t("recruiter.assessments.submissions.notFoundDesc")}
           </p>
           <Button className="mt-4" onClick={() => navigate(backUrl)}>
-            <ArrowLeft className="size-4" /> Quay lại danh sách
+            <ArrowLeft className="size-4" /> {t("recruiter.assessments.common.actions.backToList")}
           </Button>
         </div>
       </div>

@@ -24,6 +24,8 @@ import { jobApi } from "@/api/tenant/jobApi";
 import type { ApplicationStatus, ApplicationSummary } from "@/api/types/applicant";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
+import { formatDate, useLocale, useT, type TranslateFn } from "@/i18n";
+import { sourceLabel } from "@/features/tenant/recruiter/applicants/components/applicantUi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -44,11 +46,9 @@ type PipelineColumn = {
 
 const iconClass = "size-3.5 shrink-0";
 
-const PIPELINE_COLUMNS: PipelineColumn[] = [
+const PIPELINE_COLUMN_DEFS: Array<{ status: ApplicationStatus; theme: ColumnTheme }> = [
   {
     status: "NEW",
-    label: "Mới",
-    description: "Hồ sơ vừa nhận",
     theme: {
       icon: <Users className={iconClass} aria-hidden="true" />,
       headerIcon: "text-sky-600",
@@ -58,8 +58,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "IN_REVIEW",
-    label: "Sàng lọc CV",
-    description: "Đang xem xét hồ sơ",
     theme: {
       icon: <FileSearch className={iconClass} aria-hidden="true" />,
       headerIcon: "text-blue-600",
@@ -69,8 +67,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "ASSESSMENT",
-    label: "Bài đánh giá",
-    description: "Đánh giá kỹ thuật",
     theme: {
       icon: <ClipboardList className={iconClass} aria-hidden="true" />,
       headerIcon: "text-indigo-600",
@@ -80,8 +76,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "INTERVIEW",
-    label: "Phỏng vấn AI",
-    description: "Vòng phỏng vấn AI",
     theme: {
       icon: <Mic className={iconClass} aria-hidden="true" />,
       headerIcon: "text-amber-600",
@@ -91,8 +85,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "HUMAN_INTERVIEW",
-    label: "Phỏng vấn trực tiếp",
-    description: "Phỏng vấn với hội đồng",
     theme: {
       icon: <Video className={iconClass} aria-hidden="true" />,
       headerIcon: "text-teal-600",
@@ -102,8 +94,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "OFFER",
-    label: "Đề nghị",
-    description: "Đang xử lý offer",
     theme: {
       icon: <Handshake className={iconClass} aria-hidden="true" />,
       headerIcon: "text-orange-600",
@@ -113,8 +103,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "HIRED",
-    label: "Chốt Offer",
-    description: "Tuyển thành công",
     theme: {
       icon: <Award className={iconClass} aria-hidden="true" />,
       headerIcon: "text-emerald-600",
@@ -124,8 +112,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "REJECTED",
-    label: "Từ chối",
-    description: "Không tiếp tục",
     theme: {
       icon: <XCircle className={iconClass} aria-hidden="true" />,
       headerIcon: "text-red-600",
@@ -135,8 +121,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "FAILED",
-    label: "Trượt PV AI",
-    description: "Hết lượt phỏng vấn AI",
     theme: {
       icon: <XCircle className={iconClass} aria-hidden="true" />,
       headerIcon: "text-rose-700",
@@ -146,8 +130,6 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
   {
     status: "WITHDRAWN",
-    label: "Đã rút",
-    description: "Ứng viên chủ động rút",
     theme: {
       icon: <UserX className={iconClass} aria-hidden="true" />,
       headerIcon: "text-slate-500",
@@ -157,14 +139,13 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   },
 ];
 
-const movableStatuses = PIPELINE_COLUMNS.filter((column) => column.status !== "WITHDRAWN" && column.status !== "FAILED");
 const CLOSED_STATUSES: ApplicationStatus[] = ["REJECTED", "FAILED", "WITHDRAWN"];
 
-function relativeDate(value: string) {
+function relativeDate(value: string, t: TranslateFn) {
   const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return "Hôm nay";
-  if (days === 1) return "Hôm qua";
-  return `${days} ngày trước`;
+  if (days === 0) return t("recruiter.ops.pipeline.today");
+  if (days === 1) return t("recruiter.ops.pipeline.yesterday");
+  return t("recruiter.ops.pipeline.daysAgo", { count: days });
 }
 
 function skillTags(tags: string | null) {
@@ -172,32 +153,35 @@ function skillTags(tags: string | null) {
   return tags.split(/[,;|]/).map((part) => part.trim()).filter(Boolean).slice(0, 3);
 }
 
-function statusBadge(application: ApplicationSummary, column: PipelineColumn) {
-  if (application.duplicate) return { text: "Trùng", className: "bg-amber-100 text-amber-800" };
-  if (application.status === "HIRED") return { text: "Accepted", className: column.theme.badge };
-  if (application.status === "OFFER") return { text: "Offer", className: column.theme.badge };
-  if (application.status === "NEW") return { text: "Mới", className: column.theme.badge };
-  return { text: relativeDate(application.createdAt), className: column.theme.badge };
+function statusBadge(application: ApplicationSummary, column: PipelineColumn, t: TranslateFn) {
+  if (application.duplicate) return { text: t("recruiter.ops.pipeline.badgeDuplicate"), className: "bg-amber-100 text-amber-800" };
+  if (application.status === "HIRED") return { text: t("recruiter.ops.pipeline.badgeAccepted"), className: column.theme.badge };
+  if (application.status === "OFFER") return { text: t("recruiter.ops.pipeline.badgeOffer"), className: column.theme.badge };
+  if (application.status === "NEW") return { text: t("recruiter.ops.pipeline.badgeNew"), className: column.theme.badge };
+  return { text: relativeDate(application.createdAt, t), className: column.theme.badge };
 }
 
 function CandidateCard({
   application,
   column,
+  movableStatuses,
   pending,
   onOpen,
   onMove,
 }: {
   application: ApplicationSummary;
   column: PipelineColumn;
+  movableStatuses: PipelineColumn[];
   pending: boolean;
   onOpen: () => void;
   onMove: (status: ApplicationStatus) => void;
 }) {
+  const t = useT();
   const closed = CLOSED_STATUSES.includes(application.status);
   const availableStatuses = application.status === "HIRED"
     ? movableStatuses.filter((item) => item.status === application.status || item.status === "IN_REVIEW")
     : movableStatuses;
-  const badge = statusBadge(application, column);
+  const badge = statusBadge(application, column, t);
   const tags = skillTags(application.tags);
 
   return (
@@ -220,22 +204,24 @@ function CandidateCard({
         <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-500">
           <span className="inline-flex min-w-0 items-center gap-1 truncate">
             <UserRound className="size-3 shrink-0" aria-hidden="true" />
-            {application.assigneeName ?? "Chưa phân công"}
+            {application.assigneeName ?? t("recruiter.ops.common.unassigned")}
           </span>
           <span className="inline-flex shrink-0 items-center gap-1">
             <Clock3 className="size-3" aria-hidden="true" />
-            {relativeDate(application.createdAt)}
+            {relativeDate(application.createdAt, t)}
           </span>
         </div>
       </button>
       <div className="mt-2.5 border-t border-white/70 pt-2.5">
         {closed ? (
           <p className="text-[11px] leading-4 text-slate-500">
-            {application.status === "WITHDRAWN" ? "Ứng viên đã rút hồ sơ." : "Hồ sơ đã kết thúc, không thể mở lại."}
+            {application.status === "WITHDRAWN"
+              ? t("recruiter.ops.pipeline.withdrawnNote")
+              : t("recruiter.ops.pipeline.closedNote")}
           </p>
         ) : (
           <label className="block">
-            <span className="sr-only">Chuyển {application.candidateName} sang giai đoạn</span>
+            <span className="sr-only">{t("recruiter.ops.pipeline.moveStageSr", { name: application.candidateName })}</span>
             <select
               value={application.status}
               disabled={pending}
@@ -254,6 +240,8 @@ function CandidateCard({
 }
 
 export function PipelineBoard() {
+  const t = useT();
+  const locale = useLocale();
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const jobId = id && /^\d+$/.test(id) ? id : undefined;
@@ -264,6 +252,21 @@ export function PipelineBoard() {
     return Number.isInteger(value) && value > 0 ? value : null;
   });
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const pipelineColumns = useMemo<PipelineColumn[]>(
+    () =>
+      PIPELINE_COLUMN_DEFS.map((def) => ({
+        status: def.status,
+        label: t(`recruiter.ops.pipeline.columns.${def.status}.label`),
+        description: t(`recruiter.ops.pipeline.columns.${def.status}.description`),
+        theme: def.theme,
+      })),
+    [t],
+  );
+  const movableStatuses = useMemo(
+    () => pipelineColumns.filter((column) => column.status !== "WITHDRAWN" && column.status !== "FAILED"),
+    [pipelineColumns],
+  );
 
   const jobQuery = useQuery({ queryKey: queryKeys.jobs.detail(jobId ?? 0), queryFn: () => jobApi.get(jobId!), enabled: Boolean(jobId) });
   const applicationsQuery = useQuery({
@@ -282,11 +285,11 @@ export function PipelineBoard() {
   const moveMutation = useMutation({
     mutationFn: ({ applicationId, status }: { applicationId: number; status: ApplicationStatus }) => applicantApi.changeStatus(applicationId, status),
     onSuccess: async () => {
-      setFeedback({ type: "success", message: "Đã cập nhật giai đoạn của ứng viên." });
+      setFeedback({ type: "success", message: t("recruiter.ops.pipeline.moveSuccess") });
       await queryClient.invalidateQueries({ queryKey: queryKeys.applicants.byJob(jobId ?? 0) });
       if (selectedId) await queryClient.invalidateQueries({ queryKey: queryKeys.applicants.detail(selectedId) });
     },
-    onError: (error) => setFeedback({ type: "error", message: getApiErrorMessage(error, "Không thể chuyển giai đoạn ứng viên.") }),
+    onError: (error) => setFeedback({ type: "error", message: getApiErrorMessage(error, t("recruiter.ops.pipeline.moveError")) }),
   });
 
   const applications = applicationsQuery.data ?? [];
@@ -310,7 +313,7 @@ export function PipelineBoard() {
     setSearchParams(next, { replace: true });
   };
 
-  if (!jobId) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Không xác định được job cho pipeline.</div>;
+  if (!jobId) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{t("recruiter.ops.pipeline.missingJobError")}</div>;
 
   return (
     <section className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden py-3 text-[var(--color-on-surface)] sm:gap-4 sm:py-4">
@@ -318,32 +321,32 @@ export function PipelineBoard() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold text-blue-700">
             <BriefcaseBusiness className="size-4 shrink-0" aria-hidden="true" />
-            Live Recruitment Workspace
+            {t("recruiter.ops.pipeline.workspaceEyebrow")}
           </div>
           <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
             {jobQuery.data?.data.title ? jobQuery.data.data.title : <Skeleton className="inline-block h-6 w-48" />}
           </h1>
-          <p className="mt-1 text-xs text-slate-500">{applications.length} ứng viên · cập nhật trực tiếp theo trạng thái hồ sơ</p>
+          <p className="mt-1 text-xs text-slate-500">{t("recruiter.ops.pipeline.subtitle", { count: applications.length })}</p>
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="relative block w-full min-w-0 sm:max-w-[240px] sm:flex-1">
-            <span className="sr-only">Tìm ứng viên trong pipeline</span>
+            <span className="sr-only">{t("recruiter.ops.pipeline.searchSr")}</span>
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm tên, email, kỹ năng…"
+              placeholder={t("recruiter.ops.pipeline.searchPlaceholder")}
               className="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/15"
             />
           </label>
           {query && (
             <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               <FilterX className="size-4" aria-hidden="true" />
-              Xóa lọc
+              {t("recruiter.ops.pipeline.clearFilterBtn")}
             </button>
           )}
           <Link to={`/recruiter/jobs/${jobId}/applicants?view=list`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
-            Xem dạng danh sách
+            {t("recruiter.ops.pipeline.listViewBtn")}
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </div>
@@ -359,19 +362,19 @@ export function PipelineBoard() {
         >
           <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
           {feedback.message}
-          <button type="button" onClick={() => setFeedback(null)} className="ml-auto font-semibold underline">Đóng</button>
+          <button type="button" onClick={() => setFeedback(null)} className="ml-auto font-semibold underline">{t("recruiter.ops.common.close")}</button>
         </div>
       )}
 
       {applicationsQuery.isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {getApiErrorMessage(applicationsQuery.error, "Không tải được pipeline.")}
+          {getApiErrorMessage(applicationsQuery.error, t("recruiter.ops.pipeline.loadError"))}
         </div>
       ) : (
         <div className="relative min-h-0 min-w-0 w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
           <div className="absolute inset-3 overflow-x-auto overflow-y-hidden overscroll-x-contain sm:inset-4 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
             <div className="flex h-full w-max gap-4 pb-2">
-              {PIPELINE_COLUMNS.map((column, index) => {
+              {pipelineColumns.map((column, index) => {
                 const rows = filtered.filter((application) => application.status === column.status);
                 return (
                   <section
@@ -394,6 +397,7 @@ export function PipelineBoard() {
                           key={application.id}
                           application={application}
                           column={column}
+                          movableStatuses={movableStatuses}
                           pending={moveMutation.isPending && moveMutation.variables?.applicationId === application.id}
                           onOpen={() => openDetail(application.id)}
                           onMove={(status) => status !== application.status && moveMutation.mutate({ applicationId: application.id, status })}
@@ -401,7 +405,7 @@ export function PipelineBoard() {
                       ))}
                       {!applicationsQuery.isLoading && rows.length === 0 && (
                         <div className="grid min-h-28 place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-5 text-center text-[11px] leading-4 text-slate-500">
-                          Chưa có ứng viên ở giai đoạn này
+                          {t("recruiter.ops.pipeline.columnEmpty")}
                         </div>
                       )}
                       {applicationsQuery.isLoading && <div className="h-28 animate-pulse rounded-lg bg-slate-100" />}
@@ -414,26 +418,26 @@ export function PipelineBoard() {
         </div>
       )}
 
-      <DetailDialog open={selectedId != null} title={detail?.candidateName ?? "Chi tiết ứng viên"} onClose={closeDetail}>
+      <DetailDialog open={selectedId != null} title={detail?.candidateName ?? t("recruiter.ops.pipeline.detailTitleFallback")} onClose={closeDetail}>
         {detailQuery.isLoading ? (
           <SkeletonCard className="h-56" />
         ) : detail ? (
           <div className="space-y-4">
             <div className="grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 sm:grid-cols-2">
-              <div><p className="text-xs text-[var(--color-on-surface-variant)]">Email</p><p className="mt-1 text-sm font-medium">{detail.candidateEmail}</p></div>
-              <div><p className="text-xs text-[var(--color-on-surface-variant)]">Người phụ trách</p><p className="mt-1 text-sm font-medium">{detail.assigneeName ?? "Chưa phân công"}</p></div>
-              <div><p className="text-xs text-[var(--color-on-surface-variant)]">Nguồn</p><p className="mt-1 text-sm font-medium">{detail.source ?? "Không ghi nhận"}</p></div>
-              <div><p className="text-xs text-[var(--color-on-surface-variant)]">Ngày ứng tuyển</p><p className="mt-1 text-sm font-medium">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(detail.createdAt))}</p></div>
+              <div><p className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.common.email")}</p><p className="mt-1 text-sm font-medium">{detail.candidateEmail}</p></div>
+              <div><p className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.common.assignee")}</p><p className="mt-1 text-sm font-medium">{detail.assigneeName ?? t("recruiter.ops.common.unassigned")}</p></div>
+              <div><p className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.common.source")}</p><p className="mt-1 text-sm font-medium">{detail.source ? sourceLabel(detail.source, t) : t("recruiter.ops.common.notRecorded")}</p></div>
+              <div><p className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.pipeline.detailAppliedAt")}</p><p className="mt-1 text-sm font-medium">{formatDate(detail.createdAt, { dateStyle: "medium" }, locale)}</p></div>
             </div>
-            {detail.tags && <div><p className="text-xs font-semibold">Kỹ năng / nhãn</p><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{detail.tags}</p></div>}
-            {detail.notes && <div><p className="text-xs font-semibold">Ghi chú</p><p className="mt-1 whitespace-pre-wrap text-sm text-[var(--color-on-surface-variant)]">{detail.notes}</p></div>}
+            {detail.tags && <div><p className="text-xs font-semibold">{t("recruiter.ops.pipeline.detailSkillsTags")}</p><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{detail.tags}</p></div>}
+            {detail.notes && <div><p className="text-xs font-semibold">{t("recruiter.ops.common.notes")}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[var(--color-on-surface-variant)]">{detail.notes}</p></div>}
             <Link to={`/recruiter/jobs/${jobId}/applicants?view=list&applicationId=${detail.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-primary-hover">
-              Mở hồ sơ đầy đủ
+              {t("recruiter.ops.pipeline.openFullProfileBtn")}
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-red-700">{getApiErrorMessage(detailQuery.error, "Không tải được chi tiết ứng viên.")}</p>
+          <p className="text-sm text-red-700">{getApiErrorMessage(detailQuery.error, t("recruiter.ops.pipeline.detailLoadError"))}</p>
         )}
       </DetailDialog>
     </section>

@@ -17,8 +17,15 @@ import {
 import type { HumanInterview, InterviewPage, InterviewSummary } from "@/api/types/humanInterview";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { formatDate, formatTime, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { roundLabels, statusLabels, localDate } from "./humanInterviewUi";
+import {
+  HUMAN_INTERVIEW_STATUSES,
+  ROUND_CODES,
+  getHumanInterviewStatusLabel,
+  getRoundLabel,
+  localDate,
+} from "./humanInterviewUi";
 
 export type InterviewAction = "edit" | "cancel" | "remind" | "complete" | "scorecard" | "profile" | "preview";
 
@@ -52,6 +59,8 @@ type Props = {
 };
 
 export function HumanInterviewWorkspace(p: Props) {
+  const t = useT();
+  const locale = useLocale();
   const [exportOpen, setExportOpen] = useState(false);
   const rows = p.data?.items ?? [];
   const total = p.data?.total ?? 0;
@@ -73,11 +82,11 @@ export function HumanInterviewWorkspace(p: Props) {
       <header>
         <Breadcrumb
           items={[
-            { label: "Việc làm", to: "/recruiter" },
+            { label: t("recruiter.interviews.human.workspace.breadcrumbJobs"), to: "/recruiter" },
             ...(p.jobId != null
               ? [{ label: p.jobTitle ?? `#${p.jobId}`, to: `/recruiter/jobs/${p.jobId}` }]
               : []),
-            { label: "Phỏng vấn trực tiếp" },
+            { label: t("recruiter.interviews.human.workspace.breadcrumbHuman") },
           ]}
           actions={
             <>
@@ -87,7 +96,7 @@ export function HumanInterviewWorkspace(p: Props) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-2.5 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary"
               >
                 <Bot className="size-3.5" aria-hidden="true" />
-                AI Interview
+                {t("recruiter.interviews.human.workspace.aiInterviewBtn")}
               </button>
 
               {/* Export Dropdown */}
@@ -98,7 +107,7 @@ export function HumanInterviewWorkspace(p: Props) {
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-2.5 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary"
                 >
                   <Download className="size-3.5" aria-hidden="true" />
-                  Xuất lịch
+                  {t("recruiter.interviews.human.workspace.exportBtn")}
                 </button>
 
                 {exportOpen && (
@@ -111,7 +120,7 @@ export function HumanInterviewWorkspace(p: Props) {
                       }}
                       className="block w-full rounded px-2.5 py-1.5 text-left text-xs font-medium hover:bg-[var(--color-surface-alt)]"
                     >
-                      Lịch .ics (Outlook/Google)
+                      {t("recruiter.interviews.human.workspace.exportIcs")}
                     </button>
                     <button
                       type="button"
@@ -121,7 +130,7 @@ export function HumanInterviewWorkspace(p: Props) {
                       }}
                       className="block w-full rounded px-2.5 py-1.5 text-left text-xs font-medium hover:bg-[var(--color-surface-alt)]"
                     >
-                      Xuất CSV (Excel)
+                      {t("recruiter.interviews.human.workspace.exportCsv")}
                     </button>
                   </div>
                 )}
@@ -133,7 +142,7 @@ export function HumanInterviewWorkspace(p: Props) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary-hover"
               >
                 <CalendarPlus className="size-3.5" aria-hidden="true" />
-                + Lên lịch mới
+                {t("recruiter.interviews.human.workspace.newScheduleBtn")}
               </button>
             </>
           }
@@ -148,7 +157,7 @@ export function HumanInterviewWorkspace(p: Props) {
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" />
             <input
               type="search"
-              placeholder="Tìm ứng viên, email, interviewer..."
+              placeholder={t("recruiter.interviews.human.workspace.searchPlaceholder")}
               value={p.search}
               onChange={(e) => p.onFilter("search", e.target.value)}
               className="h-8 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] pl-8 pr-2.5 text-xs outline-none focus:border-brand-primary focus:bg-white"
@@ -157,42 +166,42 @@ export function HumanInterviewWorkspace(p: Props) {
 
           {/* Round Filter */}
           <select
-            aria-label="Vòng phỏng vấn"
+            aria-label={t("recruiter.interviews.human.workspace.roundFilterAria")}
             value={p.round}
             onChange={(e) => p.onFilter("round", e.target.value)}
             className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:border-brand-primary"
           >
-            <option value="">Tất cả vòng phỏng vấn</option>
-            {Object.entries(roundLabels).map(([code, label]) => (
+            <option value="">{t("recruiter.interviews.human.workspace.allRounds")}</option>
+            {ROUND_CODES.map((code) => (
               <option key={code} value={code}>
-                {label}
+                {getRoundLabel(code, t)}
               </option>
             ))}
           </select>
 
           {/* Mode Filter */}
           <select
-            aria-label="Hình thức"
+            aria-label={t("recruiter.interviews.human.workspace.modeFilterAria")}
             value={p.mode}
             onChange={(e) => p.onFilter("mode", e.target.value)}
             className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:border-brand-primary"
           >
-            <option value="">Mọi hình thức</option>
-            <option value="ONLINE">Trực tuyến (Online)</option>
-            <option value="OFFLINE">Trực tiếp tại văn phòng</option>
+            <option value="">{t("recruiter.interviews.human.workspace.allModes")}</option>
+            <option value="ONLINE">{t("recruiter.interviews.human.workspace.modeOnline")}</option>
+            <option value="OFFLINE">{t("recruiter.interviews.human.workspace.modeOffline")}</option>
           </select>
 
           {/* Status Filter */}
           <select
-            aria-label="Trạng thái lịch"
+            aria-label={t("recruiter.interviews.human.workspace.statusFilterAria")}
             value={p.status}
             onChange={(e) => p.onFilter("status", e.target.value)}
             className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:border-brand-primary"
           >
-            <option value="">Tất cả trạng thái lịch</option>
-            {Object.entries(statusLabels).map(([code, label]) => (
+            <option value="">{t("recruiter.interviews.human.workspace.allStatuses")}</option>
+            {HUMAN_INTERVIEW_STATUSES.map((code) => (
               <option key={code} value={code}>
-                {label}
+                {getHumanInterviewStatusLabel(code, t)}
               </option>
             ))}
           </select>
@@ -212,7 +221,7 @@ export function HumanInterviewWorkspace(p: Props) {
             )}
           >
             <List className="size-3.5" />
-            Danh sách
+            {t("recruiter.interviews.human.workspace.viewList")}
           </button>
           <button
             type="button"
@@ -226,7 +235,7 @@ export function HumanInterviewWorkspace(p: Props) {
             )}
           >
             <Calendar className="size-3.5" />
-            Lịch tuần
+            {t("recruiter.interviews.human.workspace.viewCalendar")}
           </button>
         </div>
       </div>
@@ -236,7 +245,7 @@ export function HumanInterviewWorkspace(p: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-primary/20 bg-[var(--color-primary-soft)] px-3 py-2 text-xs">
           <div className="flex items-center gap-3">
             <span className="font-semibold text-brand-primary">
-              Đã chọn {p.selected.length} lịch phỏng vấn
+              {t("recruiter.interviews.human.workspace.selectedCount", { count: p.selected.length })}
             </span>
             <button
               type="button"
@@ -245,7 +254,7 @@ export function HumanInterviewWorkspace(p: Props) {
               className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 font-semibold text-brand-primary shadow-xs hover:bg-slate-50"
             >
               <Mail className="size-3" />
-              Nhắc hội đồng
+              {t("recruiter.interviews.human.workspace.remindPanelBtn")}
             </button>
             <button
               type="button"
@@ -254,7 +263,7 @@ export function HumanInterviewWorkspace(p: Props) {
               className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 font-semibold text-[var(--color-on-surface)] shadow-xs hover:bg-slate-50"
             >
               <Clock className="size-3" />
-              Dời lịch
+              {t("recruiter.interviews.human.workspace.rescheduleBtn")}
             </button>
           </div>
           <button
@@ -262,7 +271,7 @@ export function HumanInterviewWorkspace(p: Props) {
             onClick={() => p.onSelect([])}
             className="font-medium text-[var(--color-on-surface-variant)] hover:underline"
           >
-            Bỏ chọn
+            {t("recruiter.interviews.human.workspace.clearSelection")}
           </button>
         </div>
       )}
@@ -279,7 +288,7 @@ export function HumanInterviewWorkspace(p: Props) {
                   <th scope="col" className="w-10 px-3 py-2.5">
                     <input
                       type="checkbox"
-                      aria-label="Chọn tất cả"
+                      aria-label={t("recruiter.interviews.human.workspace.selectAllAria")}
                       checked={rows.length > 0 && rows.every((r) => p.selected.includes(r.id))}
                       onChange={(e) =>
                         p.onSelect(e.target.checked ? rows.map((r) => r.id) : [])
@@ -287,13 +296,13 @@ export function HumanInterviewWorkspace(p: Props) {
                       className="rounded border-[var(--color-border-default)]"
                     />
                   </th>
-                  <th scope="col" className="px-3 py-2.5">Ứng viên</th>
-                  <th scope="col" className="px-3 py-2.5">Vòng phỏng vấn</th>
-                  <th scope="col" className="px-3 py-2.5">Thời gian & Địa điểm</th>
-                  <th scope="col" className="px-3 py-2.5">Hội đồng (Lead)</th>
-                  <th scope="col" className="px-3 py-2.5">Trạng thái lịch</th>
-                  <th scope="col" className="px-3 py-2.5">Phiếu đánh giá</th>
-                  <th scope="col" className="px-3 py-2.5 text-right">Thao tác</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colCandidate")}</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colRound")}</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colTimePlace")}</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colLead")}</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colStatus")}</th>
+                  <th scope="col" className="px-3 py-2.5">{t("recruiter.interviews.human.workspace.colScorecard")}</th>
+                  <th scope="col" className="px-3 py-2.5 text-right">{t("recruiter.interviews.human.workspace.colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
@@ -314,20 +323,14 @@ export function HumanInterviewWorkspace(p: Props) {
                 {!rows.length && !p.loading && (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-xs text-[var(--color-on-surface-variant)]">
-                      Chưa có lịch phỏng vấn nào phù hợp.
+                      {t("recruiter.interviews.human.workspace.emptyList")}
                     </td>
                   </tr>
                 )}
                 {rows.map((r) => {
-                  const startTime = new Date(r.start).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
-                  const endTime = new Date(r.end).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
-                  const startDate = new Date(r.start).toLocaleDateString("vi-VN");
+                  const startTime = formatTime(r.start, { hour: "2-digit", minute: "2-digit" }, locale);
+                  const endTime = formatTime(r.end, { hour: "2-digit", minute: "2-digit" }, locale);
+                  const startDate = formatDate(r.start, undefined, locale);
                   const leadName = r.participants.find((u) => u.role === "LEAD")?.name ?? "—";
                   const initials = r.candidateName
                     .split(" ")
@@ -342,7 +345,7 @@ export function HumanInterviewWorkspace(p: Props) {
                       <td className="px-3 py-2.5">
                         <input
                           type="checkbox"
-                          aria-label={`Chọn ${r.candidateName}`}
+                          aria-label={t("recruiter.interviews.human.workspace.selectRowAria", { name: r.candidateName })}
                           checked={p.selected.includes(r.id)}
                           onChange={(e) =>
                             p.onSelect(
@@ -377,7 +380,7 @@ export function HumanInterviewWorkspace(p: Props) {
 
                       <td className="px-3 py-2.5">
                         <span className="inline-flex rounded-md bg-[var(--color-surface-alt)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-on-surface)]">
-                          {roundLabels[r.round] ?? r.round}
+                          {getRoundLabel(r.round, t)}
                         </span>
                       </td>
 
@@ -401,11 +404,11 @@ export function HumanInterviewWorkspace(p: Props) {
                             {r.mode === "ONLINE" && (r.meetingUrl || r.configuration.provider === "SMARTHIRE") && new Date(r.end).getTime() > Date.now() && (
                               r.configuration.provider === "SMARTHIRE" || (r.meetingUrl?.includes("/meet/human/") ?? false) ? (
                                 <Link to={`/meet/human/${r.id}`} className="ml-1 underline font-semibold text-[10px]">
-                                  Vào họp
+                                  {t("recruiter.interviews.human.workspace.joinMeeting")}
                                 </Link>
                               ) : (
                                 <a href={r.meetingUrl!} target="_blank" rel="noreferrer" className="ml-1 underline font-semibold text-[10px]">
-                                  Vào họp
+                                  {t("recruiter.interviews.human.workspace.joinMeeting")}
                                 </a>
                               )
                             )}
@@ -419,7 +422,7 @@ export function HumanInterviewWorkspace(p: Props) {
                             {leadName}
                           </span>
                           <span className="rounded bg-slate-100 px-1 py-0.2 text-[9px] font-semibold text-slate-600">
-                            Lead
+                            {t("recruiter.interviews.human.workspace.leadBadge")}
                           </span>
                         </div>
                       </td>
@@ -439,7 +442,7 @@ export function HumanInterviewWorkspace(p: Props) {
                                     : "bg-red-50 text-red-700 line-through",
                           )}
                         >
-                          {statusLabels[r.status] ?? r.status}
+                          {getHumanInterviewStatusLabel(r.status, t)}
                         </span>
                       </td>
 
@@ -449,7 +452,10 @@ export function HumanInterviewWorkspace(p: Props) {
                           onClick={() => p.onAction("scorecard", r)}
                           className="font-semibold text-brand-primary hover:underline text-[11px]"
                         >
-                          {r.evaluations.length}/{scoreCount(r)} phiếu
+                          {t("recruiter.interviews.human.workspace.scorecardsCount", {
+                            submitted: r.evaluations.length,
+                            total: scoreCount(r),
+                          })}
                         </button>
                       </td>
 
@@ -462,7 +468,7 @@ export function HumanInterviewWorkspace(p: Props) {
                               onClick={() => p.onAction("complete", r)}
                               className="rounded px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
                             >
-                              Hoàn tất buổi
+                              {t("recruiter.interviews.human.workspace.completeSession")}
                             </button>
                           )}
                           {r.status !== "DONE" && r.status !== "CANCELLED" && (
@@ -471,7 +477,7 @@ export function HumanInterviewWorkspace(p: Props) {
                               onClick={() => p.onAction("edit", r)}
                               className="rounded px-2 py-1 text-[11px] font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-alt)]"
                             >
-                              Sửa
+                              {t("recruiter.interviews.human.workspace.edit")}
                             </button>
                           )}
                           {r.status !== "DONE" && r.status !== "CANCELLED" && (
@@ -480,7 +486,7 @@ export function HumanInterviewWorkspace(p: Props) {
                               onClick={() => p.onAction("cancel", r)}
                               className="rounded px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
                             >
-                              Hủy
+                              {t("recruiter.interviews.human.workspace.cancel")}
                             </button>
                           )}
                         </div>
@@ -495,14 +501,18 @@ export function HumanInterviewWorkspace(p: Props) {
           {/* Footer Pagination */}
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
             <span>
-              Hiển thị {total ? page * size + 1 : 0}–{Math.min((page + 1) * size, total)} trên {total} lịch phỏng vấn
+              {t("recruiter.interviews.human.workspace.showingRange", {
+                from: total ? page * size + 1 : 0,
+                to: Math.min((page + 1) * size, total),
+                total,
+              })}
             </span>
 
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5">
-                Hiển thị:
+                {t("recruiter.interviews.human.workspace.perPageLabel")}
                 <select
-                  aria-label="Số dòng mỗi trang"
+                  aria-label={t("recruiter.interviews.human.workspace.perPageAria")}
                   value={size}
                   onChange={(e) => p.onSize(Number(e.target.value))}
                   className="rounded border border-[var(--color-border-default)] bg-white px-2 py-0.5 text-xs font-medium"
@@ -518,7 +528,7 @@ export function HumanInterviewWorkspace(p: Props) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  aria-label="Trang trước"
+                  aria-label={t("recruiter.interviews.human.workspace.prevPageAria")}
                   disabled={page === 0 || p.loading}
                   onClick={() => p.onPage(page - 1)}
                   className="grid size-7 place-items-center rounded border border-[var(--color-border-default)] disabled:opacity-40"
@@ -530,7 +540,7 @@ export function HumanInterviewWorkspace(p: Props) {
                 </span>
                 <button
                   type="button"
-                  aria-label="Trang sau"
+                  aria-label={t("recruiter.interviews.human.workspace.nextPageAria")}
                   disabled={(page + 1) * size >= total || p.loading}
                   onClick={() => p.onPage(page + 1)}
                   className="grid size-7 place-items-center rounded border border-[var(--color-border-default)] disabled:opacity-40"
@@ -548,18 +558,21 @@ export function HumanInterviewWorkspace(p: Props) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="Tuần trước"
+                aria-label={t("recruiter.interviews.human.workspace.prevWeekAria")}
                 onClick={() => p.onWeek(-1)}
                 className="grid size-7 place-items-center rounded border border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]"
               >
                 <ChevronLeft className="size-4" />
               </button>
               <h2 className="text-sm font-bold text-[var(--color-on-surface)] min-w-44 text-center">
-                Tuần {p.week.toLocaleDateString("vi-VN")} – {days[6].toLocaleDateString("vi-VN")}
+                {t("recruiter.interviews.human.workspace.weekRange", {
+                  from: formatDate(p.week, undefined, locale),
+                  to: formatDate(days[6], undefined, locale),
+                })}
               </h2>
               <button
                 type="button"
-                aria-label="Tuần sau"
+                aria-label={t("recruiter.interviews.human.workspace.nextWeekAria")}
                 onClick={() => p.onWeek(1)}
                 className="grid size-7 place-items-center rounded border border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]"
               >
@@ -570,15 +583,15 @@ export function HumanInterviewWorkspace(p: Props) {
             <div className="flex items-center gap-3 text-xs text-[var(--color-on-surface-variant)]">
               <span className="flex items-center gap-1">
                 <span className="size-2 rounded-full bg-brand-primary" />
-                Technical
+                {t("recruiter.interviews.human.rounds.shortTechnical")}
               </span>
               <span className="flex items-center gap-1">
                 <span className="size-2 rounded-full bg-emerald-500" />
-                Culture
+                {t("recruiter.interviews.human.rounds.shortCulture")}
               </span>
               <span className="flex items-center gap-1">
                 <span className="size-2 rounded-full bg-amber-500" />
-                Executive
+                {t("recruiter.interviews.human.rounds.shortExecutive")}
               </span>
             </div>
           </div>
@@ -602,11 +615,15 @@ export function HumanInterviewWorkspace(p: Props) {
                           : "bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]",
                       )}
                     >
-                      {day.toLocaleDateString("vi-VN", {
-                        weekday: "short",
-                        day: "2-digit",
-                        month: "2-digit",
-                      })}
+                      {formatDate(
+                        day,
+                        {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "2-digit",
+                        },
+                        locale,
+                      )}
                     </div>
 
                     <div className="min-h-[200px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/30 p-1 space-y-1.5">
@@ -618,16 +635,20 @@ export function HumanInterviewWorkspace(p: Props) {
                           className="block w-full rounded-md border border-[var(--color-border-default)] bg-white p-2 text-left text-xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)]/40 shadow-xs"
                         >
                           <span className="text-[10px] font-bold text-brand-primary block">
-                            {new Date(r.start).toLocaleTimeString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {formatTime(
+                              r.start,
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                              locale,
+                            )}
                           </span>
                           <p className="font-bold text-[11px] text-[var(--color-on-surface)] truncate">
                             {r.candidateName}
                           </p>
                           <span className="text-[10px] text-[var(--color-outline)] block truncate">
-                            {roundLabels[r.round] ?? r.round}
+                            {getRoundLabel(r.round, t)}
                           </span>
                         </button>
                       ))}

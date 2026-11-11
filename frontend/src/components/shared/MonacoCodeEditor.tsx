@@ -1,5 +1,6 @@
 import { useRef, useId } from "react";
 import Editor, { loader, type OnMount } from "@monaco-editor/react";
+import { useT } from "@/i18n";
 import * as monaco from "monaco-editor/editor/editor.api";
 import "monaco-editor/languages/definitions/java/register.js";
 import "monaco-editor/languages/definitions/python/register.js";
@@ -53,6 +54,7 @@ export function MonacoCodeEditor({
   lineNumbers = "on",
   minimap = false,
 }: MonacoCodeEditorProps) {
+  const t = useT();
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoLang = normalizeMonacoLanguage(language);
   const containerId = useId();
@@ -84,7 +86,7 @@ export function MonacoCodeEditor({
         loading={
           <div className="flex h-full min-h-[160px] items-center justify-center bg-[#1e1e1e] text-xs text-slate-400">
             <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-            Đang tải Monaco Editor...
+            {t("ux.monacoLoading")}
           </div>
         }
         options={{

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import {
@@ -26,47 +27,36 @@ import {
 } from "lucide-react";
 import { InviteEmailPreviewModal } from "../components/InviteEmailPreviewModal";
 
-const schema = z.object({
-  fullName: z.string().trim().min(1, "Họ tên bắt buộc"),
-  email: z.string().trim().email("Email không hợp lệ"),
-  role: z.string().trim().min(1, "Chọn vai trò"),
-});
+function createInviteSchema(t: TranslateFn) {
+  return z.object({
+    fullName: z.string().trim().min(1, t("tenantAdmin.users.validation.fullNameRequired")),
+    email: z.string().trim().email(t("tenantAdmin.users.validation.emailInvalid")),
+    role: z.string().trim().min(1, t("tenantAdmin.users.validation.roleRequired")),
+  });
+}
 
-type Form = z.infer<typeof schema>;
+type Form = z.infer<ReturnType<typeof createInviteSchema>>;
 
 const inputClass =
   "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
 
-const statusLabel: Record<string, string> = {
-  ACTIVE: "Đang hoạt động",
-  LOCKED: "Đã khóa",
-  DISABLED: "Đã vô hiệu",
-};
-
-const workspaceLabel: Record<string, string> = {
-  ADMIN: "Quản trị",
-  RECRUITER: "Tuyển dụng",
-  CANDIDATE: "Ứng viên",
-};
-
-const assignmentRoleLabel: Record<string, string> = {
-  PRIMARY_RECRUITER: "Phụ trách chính",
-  CO_RECRUITER: "Đồng phụ trách",
-};
-
-const jobStatusLabel: Record<string, string> = {
-  DRAFT: "Nháp",
-  PUBLISHED: "Đang đăng",
-  PAUSED: "Tạm dừng",
-  CLOSED: "Đã đóng",
-  ARCHIVED: "Lưu trữ",
-};
-
 export function UsersPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const schema = useMemo(() => createInviteSchema(t), [t]);
+
+  const statusLabel = useMemo<Record<string, string>>(
+    () => ({
+      ACTIVE: t("tenantAdmin.users.statuses.ACTIVE"),
+      LOCKED: t("tenantAdmin.users.statuses.LOCKED"),
+      DISABLED: t("tenantAdmin.users.statuses.DISABLED"),
+    }),
+    [t],
+  );
 
   const {
     register,
@@ -108,7 +98,7 @@ export function UsersPage() {
   const handleCopy = (url: string) => {
     void navigator.clipboard.writeText(url);
     setCopied(true);
-    toast.success("Đã sao chép liên kết kích hoạt vào bộ nhớ tạm!");
+    toast.success(t("tenantAdmin.users.toasts.copiedActivationLink"));
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -116,20 +106,24 @@ export function UsersPage() {
     mutationFn: (body: InviteMemberRequest) => usersApi.invite(body),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success(res.data.emailSent ? "Đã gửi email lời mời đến Gmail của nhân viên!" : "Đã tạo lời mời thành công!");
+      toast.success(
+        res.data.emailSent
+          ? t("tenantAdmin.users.toasts.inviteEmailSent")
+          : t("tenantAdmin.users.toasts.inviteCreated"),
+      );
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi được lời mời")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.inviteError"))),
   });
 
   const assignMutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: string }) => usersApi.assignRole(id, role),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã gắn vai trò. Nhân viên cần đăng nhập lại để áp dụng quyền mới.");
+      toast.success(t("tenantAdmin.users.toasts.roleAssigned"));
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gắn được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.roleAssignError"))),
   });
 
   const invite = mutation.data?.data;
@@ -156,15 +150,15 @@ export function UsersPage() {
     <section className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">Người dùng &amp; Nhân sự</h1>
+          <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.users.pageTitle")}</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Quản lý danh sách nhân viên, vai trò phân quyền và gửi thư mời kích hoạt tài khoản qua Gmail.
+            {t("tenantAdmin.users.pageSubtitle")}
           </p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(20rem,26rem)_1fr] lg:items-start">
-        {/* Card Gửi lời mời nhân viên */}
+        {/* Invite Card */}
         <Card className="space-y-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border-default)]/60 pb-3">
             <div className="flex items-center gap-2.5">
@@ -172,8 +166,8 @@ export function UsersPage() {
                 <MailPlus className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-[var(--color-text-primary)]">Gửi lời mời nhân viên</h2>
-                <p className="text-xs text-[var(--color-text-secondary)]">Thư kích hoạt &amp; tạo mật khẩu</p>
+                <h2 className="text-base font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.users.inviteCardTitle")}</h2>
+                <p className="text-xs text-[var(--color-text-secondary)]">{t("tenantAdmin.users.inviteCardSubtitle")}</p>
               </div>
             </div>
 
@@ -181,38 +175,41 @@ export function UsersPage() {
               type="button"
               onClick={() => setPreviewOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] hover:border-brand-primary hover:text-brand-primary transition-colors"
-              title="Xem trước mẫu thư gửi qua Gmail"
+              title={t("tenantAdmin.users.previewEmailTitle")}
             >
               <Eye className="size-3.5" />
-              <span>Xem mẫu Gmail</span>
+              <span>{t("tenantAdmin.users.previewEmailButton")}</span>
             </button>
           </div>
 
-          {/* Badge trạng thái Gmail công ty */}
+          {/* Company Gmail Status Badge */}
           {isMailConfigured ? (
             <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <span className="flex items-center gap-1.5 font-medium truncate">
                 <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span className="truncate">Gmail gửi: <strong>{mailSettings.data?.data?.mailUsername}</strong></span>
+                <span className="truncate">
+                  {t("tenantAdmin.users.mailConfiguredSender")}{" "}
+                  <strong>{mailSettings.data?.data?.mailUsername}</strong>
+                </span>
               </span>
               <Link to="/internal/admin/system" className="text-[11px] font-semibold text-brand-primary hover:underline shrink-0 ml-2">
-                Đổi
+                {t("tenantAdmin.users.changeMailLink")}
               </Link>
             </div>
           ) : !mailSettings.isLoading ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1.5">
               <p className="font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <AlertCircle className="size-4 shrink-0" />
-                Chưa kết nối Gmail công ty
+                {t("tenantAdmin.users.mailNotConfiguredTitle")}
               </p>
               <p className="leading-relaxed text-[11px]">
-                Để gửi email lời mời trực tiếp từ địa chỉ Gmail của công ty, vui lòng thiết lập trước.
+                {t("tenantAdmin.users.mailNotConfiguredDesc")}
               </p>
               <Link
                 to="/internal/admin/system"
                 className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline pt-0.5 text-xs"
               >
-                Cài đặt Gmail tại mục Hệ thống &rarr;
+                {t("tenantAdmin.users.configureMailLink")}
               </Link>
             </div>
           ) : null}
@@ -225,9 +222,9 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="fullName">
                 <UserIcon className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Họ và tên nhân sự <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.fullNameLabel")} <strong className="text-red-500">*</strong></span>
               </label>
-              <input id="fullName" placeholder="VD: Nguyễn Thị Thu Hà" className={inputClass} {...register("fullName")} />
+              <input id="fullName" placeholder={t("tenantAdmin.users.fullNamePlaceholder")} className={inputClass} {...register("fullName")} />
               {errors.fullName && (
                 <p className="mt-1 text-xs text-status-danger" role="alert">
                   {errors.fullName.message}
@@ -238,9 +235,9 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="email">
                 <Mail className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Địa chỉ Gmail / Email nhận <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.emailLabel")} <strong className="text-red-500">*</strong></span>
               </label>
-              <input id="email" type="email" placeholder="VD: thuha.hr@gmail.com" className={inputClass} {...register("email")} />
+              <input id="email" type="email" placeholder={t("tenantAdmin.users.emailPlaceholder")} className={inputClass} {...register("email")} />
               {errors.email && (
                 <p className="mt-1 text-xs text-status-danger" role="alert">
                   {errors.email.message}
@@ -251,7 +248,7 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="role">
                 <Shield className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Vai trò được giao <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.roleLabel")} <strong className="text-red-500">*</strong></span>
               </label>
               <select id="role" className={inputClass} {...register("role")}>
                 {assignableRoles.map((role) => (
@@ -265,38 +262,41 @@ export function UsersPage() {
             <div className="flex items-center gap-2 pt-1">
               <Button type="submit" disabled={mutation.isPending} className="flex-1">
                 <Send className="size-4 mr-1.5" />
-                {mutation.isPending ? "Đang gửi email…" : "Gửi lời mời nhân viên"}
+                {mutation.isPending ? t("tenantAdmin.users.sendingEmail") : t("tenantAdmin.users.sendInviteButton")}
               </Button>
             </div>
           </form>
 
-          {/* Kết quả gửi lời mời */}
+          {/* Invite Result */}
           {invite && (
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3 text-xs animate-in fade-in">
               <div className="flex items-start gap-2 text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
                   <p className="font-bold text-sm">
-                    {invite.emailSent ? "Đã gửi email lời mời thành công!" : "Đã tạo liên kết lời mời!"}
+                    {invite.emailSent ? t("tenantAdmin.users.inviteSentTitle") : t("tenantAdmin.users.inviteLinkCreatedTitle")}
                   </p>
                   <p className="text-[11px] leading-relaxed">
                     {invite.emailSent
-                      ? `Email mời tham gia đội ngũ đã được gửi đến hộp thư Gmail của ${invite.fullName} (${invite.email}).`
-                      : "Email tự động chưa gửi được. Quý công ty có thể sao chép liên kết trực tiếp bên dưới gửi cho nhân sự:"}
+                      ? t("tenantAdmin.users.inviteSentDesc", {
+                          fullName: invite.fullName,
+                          email: invite.email,
+                        })
+                      : t("tenantAdmin.users.inviteFallbackDesc")}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Liên kết kích hoạt (hiệu lực 72h):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{t("tenantAdmin.users.activationLinkLabel")}</span>
                   <button
                     type="button"
                     onClick={() => handleCopy(invite.acceptUrl)}
                     className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 font-semibold text-brand-primary shadow-xs border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700"
                   >
                     {copied ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
-                    <span>{copied ? "Đã chép" : "Sao chép link"}</span>
+                    <span>{copied ? t("tenantAdmin.users.copiedButton") : t("tenantAdmin.users.copyLinkButton")}</span>
                   </button>
                 </div>
                 <div className="break-all rounded-md bg-white/80 p-2 font-mono text-[11px] text-slate-800 border border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-800">
@@ -311,7 +311,7 @@ export function UsersPage() {
                   className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline text-xs"
                 >
                   <Eye className="size-3" />
-                  <span>Xem lại thư đã gửi</span>
+                  <span>{t("tenantAdmin.users.viewSentEmailButton")}</span>
                 </button>
                 <button
                   type="button"
@@ -321,7 +321,7 @@ export function UsersPage() {
                   }}
                   className="text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 >
-                  Mời người khác &rarr;
+                  {t("tenantAdmin.users.inviteAnotherButton")}
                 </button>
               </div>
             </div>
@@ -329,34 +329,34 @@ export function UsersPage() {
         </Card>
 
         <Card className="space-y-4 overflow-hidden">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Quản lý nhân viên</h2>
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.users.membersCardTitle")}</h2>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Chọn vai trò đã tạo ở Phân quyền cho từng nhân viên.
+            {t("tenantAdmin.users.membersCardSubtitle")}
           </p>
           {members.isLoading && (
             <div className="py-2" role="status" aria-busy="true">
               <TableSkeleton columns={5} rows={4} />
-              <span className="sr-only">Đang tải danh sách nhân viên…</span>
+              <span className="sr-only">{t("tenantAdmin.users.loadingMembersSr")}</span>
             </div>
           )}
           {members.isError && (
             <p className="text-sm text-status-danger" role="alert">
-              {getApiErrorMessage(members.error, "Không tải được danh sách nhân viên")}
+              {getApiErrorMessage(members.error, t("tenantAdmin.users.loadMembersError"))}
             </p>
           )}
           {!members.isLoading && !members.isError && rows.length === 0 && (
-            <p className="text-sm text-[var(--color-text-secondary)]">Chưa có nhân viên.</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.users.emptyMembers")}</p>
           )}
           {rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[var(--color-surface-container-low)]">
                   <tr>
-                    <th className="px-3 py-3 font-semibold">Họ tên</th>
-                    <th className="px-3 py-3 font-semibold">Email</th>
-                    <th className="px-3 py-3 font-semibold">Vai trò</th>
-                    <th className="px-3 py-3 font-semibold">Trạng thái</th>
-                    <th className="px-3 py-3 font-semibold">Chi tiết</th>
+                    <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.fullName")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.email")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.role")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.status")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.detail")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -369,7 +369,7 @@ export function UsersPage() {
                           className={inputClass}
                           value={row.role}
                           disabled={assignMutation.isPending}
-                          aria-label={`Vai trò của ${row.fullName}`}
+                          aria-label={t("tenantAdmin.users.memberRoleAria", { name: row.fullName })}
                           onChange={(event) => {
                             const next = event.target.value;
                             if (next === row.role) return;
@@ -393,7 +393,7 @@ export function UsersPage() {
                           className="text-sm font-semibold text-brand-primary"
                           onClick={() => setSelectedId(row.id)}
                         >
-                          Xem
+                          {t("tenantAdmin.users.viewButton")}
                         </button>
                       </td>
                     </tr>
@@ -415,13 +415,13 @@ export function UsersPage() {
         />
       )}
 
-      {/* Modal xem trước thư Gmail gửi nhân viên */}
+      {/* Modal previewing staff invitation Gmail */}
       <InviteEmailPreviewModal
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         workspaceName={workspaceName}
         senderEmail={mailSettings.data?.data?.mailUsername || ""}
-        senderName={mailSettings.data?.data?.fromName || `Ban Tuyển Dụng ${workspaceName}`}
+        senderName={mailSettings.data?.data?.fromName || t("tenantAdmin.users.defaultSenderName", { workspace: workspaceName })}
         recipientName={invite?.fullName || formValues.fullName}
         recipientEmail={invite?.email || formValues.email}
         roleName={roleLabel(invite?.role || formValues.role)}
@@ -446,6 +446,34 @@ function EmployeeDetailDialog({
   error: string | null;
   onClose: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
+
+  const statusLabel: Record<string, string> = {
+    ACTIVE: t("tenantAdmin.users.statuses.ACTIVE"),
+    LOCKED: t("tenantAdmin.users.statuses.LOCKED"),
+    DISABLED: t("tenantAdmin.users.statuses.DISABLED"),
+  };
+
+  const workspaceLabel: Record<string, string> = {
+    ADMIN: t("tenantAdmin.users.workspaces.ADMIN"),
+    RECRUITER: t("tenantAdmin.users.workspaces.RECRUITER"),
+    CANDIDATE: t("tenantAdmin.users.workspaces.CANDIDATE"),
+  };
+
+  const assignmentRoleLabel: Record<string, string> = {
+    PRIMARY_RECRUITER: t("tenantAdmin.users.assignmentRoles.PRIMARY_RECRUITER"),
+    CO_RECRUITER: t("tenantAdmin.users.assignmentRoles.CO_RECRUITER"),
+  };
+
+  const jobStatusLabel: Record<string, string> = {
+    DRAFT: t("tenantAdmin.users.jobStatuses.DRAFT"),
+    PUBLISHED: t("tenantAdmin.users.jobStatuses.PUBLISHED"),
+    PAUSED: t("tenantAdmin.users.jobStatuses.PAUSED"),
+    CLOSED: t("tenantAdmin.users.jobStatuses.CLOSED"),
+    ARCHIVED: t("tenantAdmin.users.jobStatuses.ARCHIVED"),
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="presentation" onClick={onClose}>
       <div
@@ -460,49 +488,49 @@ function EmployeeDetailDialog({
             {member.fullName}
           </h2>
           <button type="button" className="text-sm text-[var(--color-text-secondary)]" onClick={onClose}>
-            Đóng
+            {t("tenantAdmin.users.detailDialog.close")}
           </button>
         </div>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Email</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.email")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{member.email}</dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Vai trò</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.role")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{roleName}</dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Workspace</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.workspace")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
               {workspaceLabel[member.workspace ?? ""] ?? member.workspace ?? "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Trạng thái</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.status")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
               {statusLabel[member.status ?? ""] ?? member.status ?? "—"}
             </dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-[var(--color-text-secondary)]">Ngày tham gia</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.joinedAt")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
-              {member.createdAt ? new Date(member.createdAt).toLocaleString("vi-VN") : "—"}
+              {member.createdAt ? formatDateTime(member.createdAt, undefined, locale) : "—"}
             </dd>
           </div>
         </dl>
-        <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">Công việc đang phụ trách</h3>
+        <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.users.detailDialog.assignedJobsTitle")}</h3>
         {loading && (
           <div className="mt-3 space-y-2" role="status" aria-busy="true">
             {Array.from({ length: 3 }, (_, i) => (
               <Skeleton key={i} className="h-12 w-full rounded-lg" />
             ))}
-            <span className="sr-only">Đang tải danh sách công việc…</span>
+            <span className="sr-only">{t("tenantAdmin.users.detailDialog.loadingJobsSr")}</span>
           </div>
         )}
         {error && <p className="mt-2 text-sm text-status-danger">{error}</p>}
         {!loading && !error && jobs.length === 0 && (
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Chưa được phân công job nào.</p>
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.noJobsAssigned")}</p>
         )}
         {jobs.length > 0 && (
           <ul className="mt-2 divide-y divide-[var(--color-border-default)]">

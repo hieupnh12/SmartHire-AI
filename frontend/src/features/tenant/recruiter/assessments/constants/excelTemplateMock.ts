@@ -1,3 +1,5 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
+
 export type ViewId = "all" | "schema";
 
 export type QuestionKind = "TRAC_NGHIEM_DON" | "NHIEU_DAP_AN" | "TU_LUAN_CODE" | "TINH_HUONG_SYSTEM";
@@ -49,20 +51,44 @@ export type DictionaryRow = {
   exampleBad: string;
 };
 
-export const QUESTION_TYPE_OPTIONS: QuestionTypeOption[] = [
-  { value: "TRAC_NGHIEM_DON", label: "Trắc nghiệm đơn", shortLabel: "ĐƠN", group: "single" },
-  { value: "NHIEU_DAP_AN", label: "Nhiều đáp án", shortLabel: "NHIỀU", group: "multi" },
-  { value: "TU_LUAN_CODE", label: "Tự luận code", shortLabel: "CODE", group: "subjective" },
-  { value: "TINH_HUONG_SYSTEM", label: "Tự luận lý thuyết", shortLabel: "LÝ THUYẾT", group: "subjective" },
-];
+export function getQuestionTypeOptions(t: TranslateFn = globalT): QuestionTypeOption[] {
+  return [
+    {
+      value: "TRAC_NGHIEM_DON",
+      label: t("recruiter.assessments.common.questionTypes.singleChoice"),
+      shortLabel: t("recruiter.assessments.common.questionTypes.shortSingle"),
+      group: "single",
+    },
+    {
+      value: "NHIEU_DAP_AN",
+      label: t("recruiter.assessments.common.questionTypes.multipleChoice"),
+      shortLabel: t("recruiter.assessments.common.questionTypes.shortMulti"),
+      group: "multi",
+    },
+    {
+      value: "TU_LUAN_CODE",
+      label: t("recruiter.assessments.common.questionTypes.codingEssay"),
+      shortLabel: t("recruiter.assessments.common.questionTypes.shortCode"),
+      group: "subjective",
+    },
+    {
+      value: "TINH_HUONG_SYSTEM",
+      label: t("recruiter.assessments.common.questionTypes.essayTheory"),
+      shortLabel: t("recruiter.assessments.common.questionTypes.shortTheory"),
+      group: "subjective",
+    },
+  ];
+}
 
-export const DEFAULT_RUBRIC: BankQuestion["rubric"] = [
-  { level: "excellent", text: "[Xuất sắc 9-10đ]: " },
-  { level: "pass", text: "[Đạt 6-8đ]: " },
-  { level: "fail", text: "[Chưa đạt 0-5đ]: " },
-];
+export function getDefaultRubric(t: TranslateFn = globalT): BankQuestion["rubric"] {
+  return [
+    { level: "excellent", text: t("recruiter.assessments.excel.defaultRubric.excellent") },
+    { level: "pass", text: t("recruiter.assessments.excel.defaultRubric.pass") },
+    { level: "fail", text: t("recruiter.assessments.excel.defaultRubric.fail") },
+  ];
+}
 
-export function blankQuestion(kind: QuestionKind = "TRAC_NGHIEM_DON"): BankQuestion {
+export function blankQuestion(kind: QuestionKind = "TRAC_NGHIEM_DON", t: TranslateFn = globalT): BankQuestion {
   return {
     id: "",
     kind,
@@ -81,9 +107,9 @@ export function blankQuestion(kind: QuestionKind = "TRAC_NGHIEM_DON"): BankQuest
     policyNote: "",
     snippet: "",
     language: kind === "TU_LUAN_CODE" ? "Java" : kind === "TINH_HUONG_SYSTEM" ? "Theory" : "",
-    rubric: DEFAULT_RUBRIC.map((item) => ({ ...item })),
+    rubric: getDefaultRubric(t).map((item) => ({ ...item })),
     sample: "",
-    timeLimit: kind.startsWith("TU_") || kind.startsWith("TINH_") ? "15 phút" : "",
+    timeLimit: kind.startsWith("TU_") || kind.startsWith("TINH_") ? t("recruiter.assessments.excel.defaultSubjectiveTimeLimit") : "",
   };
 }
 
@@ -95,86 +121,89 @@ export function isSubjectiveKind(kind: QuestionKind) {
   return kind === "TU_LUAN_CODE" || kind === "TINH_HUONG_SYSTEM";
 }
 
-export function typeMeta(kind: QuestionKind) {
-  return QUESTION_TYPE_OPTIONS.find((item) => item.value === kind) ?? QUESTION_TYPE_OPTIONS[0];
+export function typeMeta(kind: QuestionKind, t: TranslateFn = globalT) {
+  const options = getQuestionTypeOptions(t);
+  return options.find((item) => item.value === kind) ?? options[0];
 }
 
-export const DICTIONARY_ROWS: DictionaryRow[] = [
-  {
-    excelCol: "A",
-    field: "question_content",
-    status: "Bắt buộc (*)",
-    statusTone: "required",
-    dataType: "Text / Markdown",
-    validValues: "Độ dài: 10 - 5.000 ký tự",
-    rule: "Nội dung câu hỏi, hỗ trợ cú pháp Markdown, code blocks và chèn ảnh ![Alt](url).",
-    exampleOk: "Cú pháp chuẩn",
-    exampleBad: "Quá ngắn (<10 ký tự)",
-  },
-  {
-    excelCol: "B",
-    field: "question_type",
-    status: "Bắt buộc (*)",
-    statusTone: "required",
-    dataType: "Enum (Type)",
-    validValues: "TRAC_NGHIEM_DON | NHIEU_DAP_AN | TU_LUAN_CODE | TINH_HUONG_SYSTEM (Tự luận lý thuyết)",
-    rule: "Trắc nghiệm đơn / Nhiều đáp án / Tự luận code / Tự luận lý thuyết — form Excel đổi theo loại.",
-    exampleOk: "TRAC_NGHIEM_DON",
-    exampleBad: "TracNghiem (Sai enum)",
-  },
-  {
-    excelCol: "—",
-    field: "question_id",
-    status: "Tự động",
-    statusTone: "default",
-    dataType: "String (ID)",
-    validValues: "Q001, Q002, …",
-    rule: "Không hiển thị trên form tạo đề. Hệ thống tự gán theo thứ tự dòng (Q001…). Khi lưu API dùng id backend.",
-    exampleOk: "Q001",
-    exampleBad: "Không nhập tay trên UI",
-  },
-  {
-    excelCol: "C - F",
-    field: "option_a ... option_d",
-    status: "A,B Bắt buộc",
-    statusTone: "partial",
-    dataType: "String",
-    validValues: "Tối đa 1.000 ký tự / phương án",
-    rule: "Chỉ dùng cho trắc nghiệm. Tự luận: đáp án mẫu (sample) bắt buộc; starter code / khung lý thuyết tuỳ chọn.",
-    exampleOk: "Điền đủ A,B",
-    exampleBad: "Bỏ trống option_a",
-  },
-  {
-    excelCol: "G",
-    field: "correct_answer / rubric",
-    status: "Bắt buộc (*)",
-    statusTone: "required",
-    dataType: "Key / Rubric",
-    validValues: "^[A-D](,[A-D])*$ hoặc Rubric 3 mức",
-    rule: "Đơn: 'A'. Nhiều: 'A,C'. Tự luận: tiêu chí Rubric 3 mức cho AI chấm.",
-    exampleOk: "A,C",
-    exampleBad: "A, C (có khoảng trắng)",
-  },
-  {
-    excelCol: "H",
-    field: "score_weight",
-    status: "Mặc định 1.0",
-    statusTone: "default",
-    dataType: "Float > 0",
-    validValues: "0.1 <= score <= 100.0",
-    rule: "Trọng số điểm của câu hỏi trong bài test. Mặc định là 1.0 điểm nếu để trống.",
-    exampleOk: "1.5",
-    exampleBad: "-1 (điểm âm)",
-  },
-  {
-    excelCol: "K",
-    field: "explanation_rubric",
-    status: "Khuyến nghị",
-    statusTone: "recommended",
-    dataType: "Text / Rubric",
-    validValues: "Tối đa 3.000 ký tự",
-    rule: "Giải thích chi tiết đáp án hoặc tiêu chí chấm Rubric cho AI Auditor tự động phân loại.",
-    exampleOk: "Tiêu chí 3 mức",
-    exampleBad: "Để trống: Cảnh báo",
-  },
-];
+export function getDictionaryRows(t: TranslateFn = globalT): DictionaryRow[] {
+  return [
+    {
+      excelCol: "A",
+      field: "question_content",
+      status: t("recruiter.assessments.excel.dictionary.statusRequired"),
+      statusTone: "required",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeTextMd"),
+      validValues: t("recruiter.assessments.excel.dictionary.contentValid"),
+      rule: t("recruiter.assessments.excel.dictionary.contentRule"),
+      exampleOk: t("recruiter.assessments.excel.dictionary.contentOk"),
+      exampleBad: t("recruiter.assessments.excel.dictionary.contentBad"),
+    },
+    {
+      excelCol: "B",
+      field: "question_type",
+      status: t("recruiter.assessments.excel.dictionary.statusRequired"),
+      statusTone: "required",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeEnum"),
+      validValues: t("recruiter.assessments.excel.dictionary.typeValid"),
+      rule: t("recruiter.assessments.excel.dictionary.typeRule"),
+      exampleOk: "TRAC_NGHIEM_DON",
+      exampleBad: t("recruiter.assessments.excel.dictionary.typeBad"),
+    },
+    {
+      excelCol: "—",
+      field: "question_id",
+      status: t("recruiter.assessments.excel.dictionary.statusAuto"),
+      statusTone: "default",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeId"),
+      validValues: "Q001, Q002, …",
+      rule: t("recruiter.assessments.excel.dictionary.idRule"),
+      exampleOk: "Q001",
+      exampleBad: t("recruiter.assessments.excel.dictionary.idBad"),
+    },
+    {
+      excelCol: "C - F",
+      field: "option_a ... option_d",
+      status: t("recruiter.assessments.excel.dictionary.statusPartialAb"),
+      statusTone: "partial",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeString"),
+      validValues: t("recruiter.assessments.excel.dictionary.optionsValid"),
+      rule: t("recruiter.assessments.excel.dictionary.optionsRule"),
+      exampleOk: t("recruiter.assessments.excel.dictionary.optionsOk"),
+      exampleBad: t("recruiter.assessments.excel.dictionary.optionsBad"),
+    },
+    {
+      excelCol: "G",
+      field: "correct_answer / rubric",
+      status: t("recruiter.assessments.excel.dictionary.statusRequired"),
+      statusTone: "required",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeKeyRubric"),
+      validValues: t("recruiter.assessments.excel.dictionary.answerValid"),
+      rule: t("recruiter.assessments.excel.dictionary.answerRule"),
+      exampleOk: "A,C",
+      exampleBad: t("recruiter.assessments.excel.dictionary.answerBad"),
+    },
+    {
+      excelCol: "H",
+      field: "score_weight",
+      status: t("recruiter.assessments.excel.dictionary.statusDefault1"),
+      statusTone: "default",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeFloat"),
+      validValues: t("recruiter.assessments.excel.dictionary.scoreValid"),
+      rule: t("recruiter.assessments.excel.dictionary.scoreRule"),
+      exampleOk: "1.5",
+      exampleBad: t("recruiter.assessments.excel.dictionary.scoreBad"),
+    },
+    {
+      excelCol: "K",
+      field: "explanation_rubric",
+      status: t("recruiter.assessments.excel.dictionary.statusRecommended"),
+      statusTone: "recommended",
+      dataType: t("recruiter.assessments.excel.dictionary.dataTypeTextRubric"),
+      validValues: t("recruiter.assessments.excel.dictionary.explanationValid"),
+      rule: t("recruiter.assessments.excel.dictionary.explanationRule"),
+      exampleOk: t("recruiter.assessments.excel.dictionary.explanationOk"),
+      exampleBad: t("recruiter.assessments.excel.dictionary.explanationBad"),
+    },
+  ];
+}

@@ -1,6 +1,6 @@
+import { useMemo, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarClock, CreditCard, Settings, ShieldCheck, UserPlus, UserRoundCog, Users, Zap } from "lucide-react";
-import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
 import { companyApi } from "@/api/tenant/companyApi";
 import { dashboardApi } from "@/api/tenant/dashboardApi";
@@ -9,25 +9,17 @@ import type { CompanyProfile } from "@/features/tenant/admin/company/types";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { formatDate, formatNumber, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import {
   formatPlanDisplayName,
   formatSubscriptionStatusLabel,
 } from "@/features/tenant/admin/billing/utils/billingLabels";
 
-const shortcuts: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { to: "/recruiter", label: "Workspace tuyển dụng", icon: BriefcaseBusiness },
-  { to: "/internal/admin/users", label: "Người dùng", icon: Users },
-  { to: "/internal/admin/roles", label: "Phân quyền", icon: ShieldCheck },
-  { to: "/internal/admin/recruiter-assignments", label: "Quản lý công việc", icon: UserRoundCog },
-  { to: "/internal/admin/billing", label: "Gói & Hóa đơn", icon: CreditCard },
-  { to: "/internal/admin/system", label: "Hệ thống", icon: Settings },
-];
-
-function countText(loading: boolean, failed: boolean, value: number | undefined) {
+function countText(loading: boolean, failed: boolean, value: number | undefined, locale: Locale) {
   if (loading) return null;
   if (failed || value == null) return "—";
-  return value.toLocaleString("vi-VN");
+  return formatNumber(value, undefined, locale);
 }
 
 function MetricCard({
@@ -63,24 +55,51 @@ function MetricCard({
   );
 }
 
-function profileGaps(profile: CompanyProfile) {
+function profileGaps(profile: CompanyProfile, t: TranslateFn) {
   const gaps: Array<{ title: string; detail: string }> = [];
   if (!profile.verified) {
-    gaps.push({ title: "Doanh nghiệp chưa xác thực", detail: "Hồ sơ pháp lý chưa được duyệt" });
+    gaps.push({
+      title: t("tenantAdmin.overview.gapsCard.unverifiedTitle"),
+      detail: t("tenantAdmin.overview.gapsCard.unverifiedDetail"),
+    });
   }
   if (!profile.description?.trim()) {
-    gaps.push({ title: "Thiếu mô tả công ty", detail: "Trang tuyển dụng công khai sẽ trống phần giới thiệu" });
+    gaps.push({
+      title: t("tenantAdmin.overview.gapsCard.noDescriptionTitle"),
+      detail: t("tenantAdmin.overview.gapsCard.noDescriptionDetail"),
+    });
   }
   if (!profile.logoUrl?.trim()) {
-    gaps.push({ title: "Thiếu logo", detail: "Thêm URL logo trong hồ sơ công ty" });
+    gaps.push({
+      title: t("tenantAdmin.overview.gapsCard.noLogoTitle"),
+      detail: t("tenantAdmin.overview.gapsCard.noLogoDetail"),
+    });
   }
   if (!profile.website?.trim()) {
-    gaps.push({ title: "Thiếu website", detail: "Ứng viên không có liên kết tới trang công ty" });
+    gaps.push({
+      title: t("tenantAdmin.overview.gapsCard.noWebsiteTitle"),
+      detail: t("tenantAdmin.overview.gapsCard.noWebsiteDetail"),
+    });
   }
   return gaps;
 }
 
 export function HomePage() {
+  const t = useT();
+  const locale = useLocale();
+
+  const shortcuts = useMemo(
+    () => [
+      { to: "/recruiter", label: t("tenantAdmin.overview.shortcuts.recruitmentWorkspace"), icon: BriefcaseBusiness },
+      { to: "/internal/admin/users", label: t("tenantAdmin.overview.shortcuts.users"), icon: Users },
+      { to: "/internal/admin/roles", label: t("tenantAdmin.overview.shortcuts.roles"), icon: ShieldCheck },
+      { to: "/internal/admin/recruiter-assignments", label: t("tenantAdmin.overview.shortcuts.assignments"), icon: UserRoundCog },
+      { to: "/internal/admin/billing", label: t("tenantAdmin.overview.shortcuts.billing"), icon: CreditCard },
+      { to: "/internal/admin/system", label: t("tenantAdmin.overview.shortcuts.system"), icon: Settings },
+    ],
+    [t],
+  );
+
   const summary = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => dashboardApi.summary(),
@@ -105,7 +124,7 @@ export function HomePage() {
   const profile = company.data?.data;
   const sub = subscription.data?.data;
   const pendingInvoiceCount = (sub?.invoices ?? []).filter((inv) => inv.status === "PENDING").length;
-  const gaps = profile ? profileGaps(profile) : [];
+  const gaps = profile ? profileGaps(profile, t) : [];
   const summaryError = summary.isError ? getApiErrorMessage(summary.error) : null;
   const membersError = members.isError ? getApiErrorMessage(members.error) : null;
 
@@ -113,50 +132,50 @@ export function HomePage() {
     <section className="space-y-5">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-brand-primary">Quản trị doanh nghiệp</p>
+          <p className="text-sm font-semibold text-brand-primary">{t("tenantAdmin.overview.eyebrow")}</p>
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-            Tổng quan
+            {t("tenantAdmin.overview.title")}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-            Tình trạng workspace, hồ sơ công ty và nhịp tuyển dụng cần xử lý.
+            {t("tenantAdmin.overview.subtitle")}
           </p>
         </div>
         <Link
           to="/internal/admin/analytics"
           className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-[var(--radius-md)] bg-brand-primary px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
         >
-          Xem phân tích
+          {t("tenantAdmin.overview.viewAnalytics")}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Thành viên"
+          label={t("tenantAdmin.overview.metrics.membersLabel")}
           loading={members.isLoading}
-          value={countText(members.isLoading, members.isError, members.isSuccess ? memberCount : undefined)}
-          helper="Không tính ứng viên"
+          value={countText(members.isLoading, members.isError, members.isSuccess ? memberCount : undefined, locale)}
+          helper={t("tenantAdmin.overview.metrics.membersHelper")}
           icon={Users}
         />
         <MetricCard
-          label="Vị trí đang tuyển"
+          label={t("tenantAdmin.overview.metrics.openJobsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.openJobs)}
-          helper="Tin đã đăng"
+          value={countText(summary.isLoading, summary.isError, summaryData?.openJobs, locale)}
+          helper={t("tenantAdmin.overview.metrics.openJobsHelper")}
           icon={BriefcaseBusiness}
         />
         <MetricCard
-          label="Ứng viên mới"
+          label={t("tenantAdmin.overview.metrics.newApplicantsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.newApplicants)}
-          helper="Chờ xem xét hồ sơ"
+          value={countText(summary.isLoading, summary.isError, summaryData?.newApplicants, locale)}
+          helper={t("tenantAdmin.overview.metrics.newApplicantsHelper")}
           icon={UserPlus}
         />
         <MetricCard
-          label="Phỏng vấn đã lên lịch"
+          label={t("tenantAdmin.overview.metrics.interviewsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.interviewsScheduled)}
-          helper="Đã đề xuất hoặc xác nhận, từ hiện tại"
+          value={countText(summary.isLoading, summary.isError, summaryData?.interviewsScheduled, locale)}
+          helper={t("tenantAdmin.overview.metrics.interviewsHelper")}
           icon={CalendarClock}
         />
       </div>
@@ -167,8 +186,8 @@ export function HomePage() {
       <div className="grid gap-5 xl:grid-cols-2">
         <Card className="p-0">
           <div className="border-b border-[var(--color-border-default)] px-5 py-4">
-            <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">Hồ sơ công ty</h2>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Thông tin hiển thị trên trang tuyển dụng</p>
+            <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.overview.companyCard.title")}</h2>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.subtitle")}</p>
           </div>
           <div className="space-y-4 p-5">
             {company.isLoading && <Skeleton className="h-16 w-full" />}
@@ -182,21 +201,21 @@ export function HomePage() {
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-brand-primary">
                     <BadgeCheck className="size-3.5" aria-hidden="true" />
-                    {profile.verified ? "Đã xác thực" : "Chưa xác thực"}
+                    {profile.verified ? t("tenantAdmin.overview.companyCard.verified") : t("tenantAdmin.overview.companyCard.unverified")}
                   </span>
                 </div>
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-[var(--color-text-secondary)]">Lĩnh vực</dt>
+                    <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.industry")}</dt>
                     <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{profile.industry?.trim() || "—"}</dd>
                   </div>
                   <div>
-                    <dt className="text-[var(--color-text-secondary)]">Quy mô</dt>
+                    <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.companySize")}</dt>
                     <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{profile.companySize?.trim() || "—"}</dd>
                   </div>
                 </dl>
                 <Link to="/internal/admin/company" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary">
-                  Cập nhật hồ sơ
+                  {t("tenantAdmin.overview.companyCard.updateProfile")}
                   <ArrowRight className="size-3.5" aria-hidden="true" />
                 </Link>
               </>
@@ -206,13 +225,13 @@ export function HomePage() {
 
         <Card className="p-0">
           <div className="border-b border-[var(--color-border-default)] px-5 py-4">
-            <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">Cần xử lý</h2>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Những mục còn thiếu trên hồ sơ công ty</p>
+            <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.overview.gapsCard.title")}</h2>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.gapsCard.subtitle")}</p>
           </div>
           <div className="p-5">
             {company.isLoading && <Skeleton className="h-16 w-full" />}
             {profile && gaps.length === 0 && (
-              <p className="text-sm text-[var(--color-text-secondary)]">Không có việc cần xử lý.</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.gapsCard.empty")}</p>
             )}
             {profile && gaps.length > 0 && (
               <ul className="space-y-2">
@@ -251,27 +270,37 @@ export function HomePage() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
-                  Gói dịch vụ: {formatPlanDisplayName(sub.planName)}
+                  {t("tenantAdmin.overview.subscriptionCard.planTitle", {
+                    plan: formatPlanDisplayName(sub.planName, t),
+                  })}
                 </h2>
                 <StatusPill
                   status={sub.subscriptionStatus}
-                  label={formatSubscriptionStatusLabel(sub.subscriptionStatus)}
+                  label={formatSubscriptionStatusLabel(sub.subscriptionStatus, t)}
                 />
                 {pendingInvoiceCount > 0 && (
                   <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                    {pendingInvoiceCount} hóa đơn chờ thanh toán
+                    {t("tenantAdmin.overview.subscriptionCard.pendingInvoicesBadge", {
+                      count: pendingInvoiceCount,
+                    })}
                   </span>
                 )}
               </div>
               <p className="text-xs sm:text-sm text-[var(--color-text-secondary)]">
                 {sub.hasExplicitSubscription && sub.endsAt
-                  ? `Còn ${sub.daysRemaining} ngày (hết hạn ${new Date(sub.endsAt).toLocaleDateString("vi-VN")}) · ${Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫/năm`
-                  : `Đang áp dụng gói mặc định (${Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫/năm) · Có thể nâng cấp hoặc gia hạn bất kỳ lúc nào`}
+                  ? t("tenantAdmin.overview.subscriptionCard.explicitSummary", {
+                      days: sub.daysRemaining,
+                      date: formatDate(sub.endsAt, undefined, locale),
+                      price: formatNumber(Number(sub.priceYearly || 0), undefined, locale),
+                    })
+                  : t("tenantAdmin.overview.subscriptionCard.defaultSummary", {
+                      price: formatNumber(Number(sub.priceYearly || 0), undefined, locale),
+                    })}
               </p>
             </div>
           ) : (
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Theo dõi gói dịch vụ, hạn mức sử dụng và lịch sử thanh toán của doanh nghiệp.
+              {t("tenantAdmin.overview.subscriptionCard.fallbackText")}
             </p>
           )}
         </div>
@@ -279,7 +308,7 @@ export function HomePage() {
           to="/internal/admin/billing"
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-4 text-sm font-semibold text-brand-primary transition-colors hover:bg-[var(--color-primary-subtle)]"
         >
-          <span>Quản lý gói &amp; Gia hạn</span>
+          <span>{t("tenantAdmin.overview.subscriptionCard.manageButton")}</span>
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </Card>

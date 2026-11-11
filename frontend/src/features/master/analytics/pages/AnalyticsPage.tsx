@@ -1,8 +1,10 @@
 import { PlatformAnalyticsDashboard } from "@/features/master/analytics/components/PlatformAnalyticsDashboard";
 import { useTenants, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs } from "@/api/master/queries";
 import { toast } from "@/stores/toastStore";
+import { useT } from "@/i18n";
 
 export function AnalyticsPage() {
+  const t = useT();
   const { data: tenants = [] } = useTenants();
   const { data: revenue } = useRevenueAnalytics();
   const { data: aiQuota } = useAiQuotaUsage();
@@ -25,7 +27,7 @@ export function AnalyticsPage() {
     link.download = `smarthire-platform-analytics-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    triggerNotification("Đã xuất báo cáo phân tích nền tảng thành công.");
+    triggerNotification(t("master.ops.analytics.exportSuccess"));
   };
 
   return (

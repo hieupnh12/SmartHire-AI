@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CheckCircle2, Circle, FileQuestion, Loader2 } from "lucide-react";
 import type { AiQuestion, RoadmapStep } from "@/api/types/aiInterview";
+import { useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { formatRemaining } from "../hooks/useCountdown";
 import { useElapsed } from "../hooks/useElapsed";
@@ -39,20 +40,27 @@ const answered = (q: AiQuestion) => !!q.answer?.answerText?.trim();
 const pad = (n: number) => String(n).padStart(2, "0");
 const muted = "text-[var(--color-on-surface-variant)]";
 
-function formatDuration(seconds: number) {
+function formatDuration(seconds: number, t: TranslateFn) {
   const m = Math.floor(seconds / 60);
-  return m > 0 ? `${m}m ${seconds % 60}s` : `${seconds}s`;
+  return m > 0
+    ? t("candidate.assess.interviews.roadmap.durationMinutesSeconds", { minutes: m, seconds: seconds % 60 })
+    : t("candidate.assess.interviews.roadmap.durationSeconds", { seconds });
 }
 
 export function InterviewRoadmap({ steps, questions, current, openedAt, durationMinutes, onSelect }: Props) {
+  const t = useT();
   const done = questions.filter(answered).length;
   const percent = questions.length ? Math.round((done / questions.length) * 100) : 0;
   const estimate = durationMinutes && questions.length ? Math.max(1, Math.round(durationMinutes / questions.length)) : null;
   let openNumber = 0;
   return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-5 shadow-[var(--shadow-card)]" aria-labelledby="roadmap-title">
     <div className="flex items-center justify-between gap-2">
-      <h2 id="roadmap-title" className="text-lg font-semibold">Lộ trình phỏng vấn</h2>
-      {questions.length > 0 && <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-brand-primary">{percent}% Hoàn thành</span>}
+      <h2 id="roadmap-title" className="text-lg font-semibold">{t("candidate.assess.interviews.roadmap.title")}</h2>
+      {questions.length > 0 && (
+        <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-brand-primary">
+          {t("candidate.assess.interviews.roadmap.percentCompleted", { percent })}
+        </span>
+      )}
     </div>
     {questions.length > 0 ? <ol className="space-y-3">
       {groupQuestions(questions, steps).map((group, g) => {
@@ -67,12 +75,16 @@ export function InterviewRoadmap({ steps, questions, current, openedAt, duration
         const duration = group.items.reduce((sum, item) => sum + (item.question.answer?.answerDuration ?? 0), 0);
         return <li key={`stage-${g}`}>
             <QuestionItem number={openNumber} title={group.title} state={state} onClick={onSelect && (() => onSelect(target.index))}>
-              {group.items.length > 1 && <span>{completed}/{group.items.length} câu đã lưu · </span>}
+              {group.items.length > 1 && <span>{t("candidate.assess.interviews.roadmap.savedSubCount", { done: completed, total: group.items.length })}</span>}
               {state === "current" && openedAt != null
                 ? <Answering since={openedAt} base={duration} />
                 : state === "done"
-                  ? duration ? `Thời lượng: ${formatDuration(duration)}` : "Đã lưu câu trả lời"
-                  : estimate ? `Ước tính: ~${estimate * group.items.length} phút` : null}
+                  ? duration
+                    ? t("candidate.assess.interviews.roadmap.durationSpent", { duration: formatDuration(duration, t) })
+                    : t("candidate.assess.interviews.roadmap.answerSaved")
+                  : estimate
+                    ? t("candidate.assess.interviews.roadmap.estimateMinutes", { minutes: estimate * group.items.length })
+                    : null}
             </QuestionItem>
           </li>;
       })}
@@ -80,22 +92,33 @@ export function InterviewRoadmap({ steps, questions, current, openedAt, duration
       {steps.map((step, i) => {
         if (step.kind === "MCQ") return <li key={i}><MiniBlock count={step.questionCount} after={openNumber} /></li>;
         openNumber += 1;
-        return <li key={i}><QuestionItem number={openNumber} title={step.title} state="todo">{step.questionCount} câu hỏi</QuestionItem></li>;
+        return (
+          <li key={i}>
+            <QuestionItem number={openNumber} title={step.title} state="todo">
+              {t("candidate.assess.interviews.roadmap.questionCount", { count: step.questionCount })}
+            </QuestionItem>
+          </li>
+        );
       })}
-    </ol> : <p className={cn("text-sm", muted)}>Lộ trình hiển thị khi bộ câu hỏi sẵn sàng.</p>}
+    </ol> : <p className={cn("text-sm", muted)}>{t("candidate.assess.interviews.roadmap.emptyHint")}</p>}
   </section>;
 }
 
 function Answering({ since, base }: { since: number; base: number }) {
+  const t = useT();
   const elapsed = useElapsed(since);
-  return <>Đang trả lời ({formatRemaining(base + elapsed)})...</>;
+  return <>{t("candidate.assess.interviews.roadmap.answeringElapsed", { time: formatRemaining(base + elapsed) })}</>;
 }
 
-const STATE_LABEL = { done: "Đã nộp", current: "Hiện tại", todo: "Chưa làm" } as const;
-
 function QuestionItem({ number, title, state, onClick, children }: {
-  number: number; title: string | null | undefined; state: keyof typeof STATE_LABEL; onClick?: () => void; children?: ReactNode;
+  number: number; title: string | null | undefined; state: "done" | "current" | "todo"; onClick?: () => void; children?: ReactNode;
 }) {
+  const t = useT();
+  const stateLabel = state === "done"
+    ? t("candidate.assess.interviews.roadmap.stateDone")
+    : state === "current"
+      ? t("candidate.assess.interviews.roadmap.stateCurrent")
+      : t("candidate.assess.interviews.roadmap.stateTodo");
   const icon = state === "done"
     ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 fill-emerald-600 text-white" aria-hidden="true" />
     : state === "current"
@@ -110,7 +133,7 @@ function QuestionItem({ number, title, state, onClick, children }: {
       {icon}
       <span className="min-w-0">
         <span className={cn("block text-sm font-semibold", state === "current" ? "text-brand-primary" : state === "todo" && muted)}>
-          {pad(number)}. {title ?? "Câu hỏi phỏng vấn"}
+          {pad(number)}. {title ?? t("candidate.assess.interviews.roadmap.defaultQuestionTitle")}
         </span>
         {children && <span className={cn("block text-xs", state === "current" ? "text-brand-primary" : muted)}>{children}</span>}
       </span>
@@ -118,19 +141,22 @@ function QuestionItem({ number, title, state, onClick, children }: {
     <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-medium",
       state === "done" ? "bg-emerald-50 text-emerald-700"
         : state === "current" ? "bg-[var(--color-primary-soft)] font-semibold text-brand-primary"
-          : cn("bg-[var(--color-surface-container)]", muted))}>{STATE_LABEL[state]}</span>
+          : cn("bg-[var(--color-surface-container)]", muted))}>{stateLabel}</span>
   </button>;
 }
 
 function MiniBlock({ count, after, done, active, onClick }: { count: number; after: number; done?: number; active?: boolean; onClick?: () => void }) {
+  const t = useT();
   return <button type="button" onClick={onClick} disabled={!onClick} aria-current={active ? "step" : undefined}
     className={cn("flex min-h-11 w-full items-start gap-3 rounded-xl border border-transparent bg-[var(--color-primary-soft)] p-3 text-left disabled:cursor-default",
       active && "ring-2 ring-brand-primary")}>
     <FileQuestion className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" />
     <span className="min-w-0">
-      <span className="block text-sm font-semibold text-brand-primary">Mini Assessment (Trắc nghiệm)</span>
+      <span className="block text-sm font-semibold text-brand-primary">{t("candidate.assess.interviews.roadmap.miniBlockTitle")}</span>
       <span className={cn("block text-xs", muted)}>
-        {count} câu hỏi nhanh{after > 0 ? ` ngay sau chặng ${after}` : ""}{done ? ` · đã làm ${done}/${count}` : ""}
+        {t("candidate.assess.interviews.roadmap.miniBlockBase", { count })}
+        {after > 0 ? t("candidate.assess.interviews.roadmap.miniBlockAfter", { after }) : ""}
+        {done ? t("candidate.assess.interviews.roadmap.miniBlockDone", { done, count }) : ""}
       </span>
     </span>
   </button>;

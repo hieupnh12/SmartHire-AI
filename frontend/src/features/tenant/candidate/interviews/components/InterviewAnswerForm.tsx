@@ -1,15 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ux/Button";
 import type { AiAnswer, AiQuestion, SpeechCapture } from "@/api/types/aiInterview";
+import { useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { candidateInterviewApi } from "../api/candidateInterviewApi";
 import { SpeechAnswerControl } from "./SpeechAnswerControl";
 
-const answerSchema = z.object({ answerText: z.string().trim().min(1, "Vui lòng nhập câu trả lời.").max(50000, "Câu trả lời tối đa 50.000 ký tự.") });
+function createAnswerSchema(t: TranslateFn) {
+  return z.object({
+    answerText: z
+      .string()
+      .trim()
+      .min(1, t("candidate.assess.interviews.answerForm.validationRequired"))
+      .max(50000, t("candidate.assess.interviews.answerForm.validationMax")),
+  });
+}
 
 type Props = {
   interviewId: number;
@@ -22,7 +31,10 @@ type Props = {
   recordingEnabled?: boolean;
 };
 
-export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, onDirty, answerDuration, recordingEnabled = false, submitLabel = "Lưu câu trả lời" }: Props) {
+export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, onDirty, answerDuration, recordingEnabled = false, submitLabel }: Props) {
+  const t = useT();
+  const answerSchema = useMemo(() => createAnswerSchema(t), [t]);
+  const resolvedSubmitLabel = submitLabel ?? t("candidate.assess.interviews.answerForm.defaultSubmit");
   const { register, handleSubmit, reset, getValues, setValue, formState: { errors, isDirty } } = useForm<z.infer<typeof answerSchema>>({
     resolver: zodResolver(answerSchema), defaultValues: { answerText: question.answer?.answerText ?? "" },
   });
@@ -39,15 +51,29 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
     {question.responseMode === "speech" && <SpeechAnswerControl language={question.language} disabled={disabled || save.isPending || !!question.answer}
       onBusy={setRecording} onCapture={setCapture} onReset={() => { setCapture(null); setValue("answerText", "", { shouldDirty: true }); }}
       onTranscript={text => setValue("answerText", `${getValues("answerText")} ${text}`.trim(), { shouldDirty: true, shouldValidate: true })} />}
-    <label htmlFor={`answer-${question.id}`} className="sr-only">Câu trả lời của bạn</label>
+    <label htmlFor={`answer-${question.id}`} className="sr-only">{t("candidate.assess.interviews.answerForm.label")}</label>
     <textarea id={`answer-${question.id}`} {...register("answerText")} maxLength={50000} disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}
       aria-invalid={!!errors.answerText} aria-describedby={errors.answerText ? `answer-error-${question.id}` : undefined}
-      placeholder="Nhập câu trả lời chi tiết của bạn tại đây…"
+      placeholder={t("candidate.assess.interviews.answerForm.placeholder")}
       className="min-h-52 w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4 leading-7 placeholder:text-[var(--color-outline)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
-    {capture && <p className="text-xs text-[var(--color-on-surface-variant)]">Đã ghi {(capture.metrics.durationMs / 1000).toFixed(1)} giây. {recordingEnabled ? "Audio và transcript sẽ gửi cùng câu trả lời." : "Chỉ gửi transcript và tín hiệu lời nói; audio không lưu trên server."}</p>}
+    {capture && (
+      <p className="text-xs text-[var(--color-on-surface-variant)]">
+        {recordingEnabled
+          ? t("candidate.assess.interviews.answerForm.capturedWithRecording", { seconds: (capture.metrics.durationMs / 1000).toFixed(1) })
+          : t("candidate.assess.interviews.answerForm.capturedTranscriptOnly", { seconds: (capture.metrics.durationMs / 1000).toFixed(1) })}
+      </p>
+    )}
     {errors.answerText && <p id={`answer-error-${question.id}`} role="alert">{errors.answerText.message}</p>}
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}
-    <Button type="submit" disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}>{save.isPending ? "Đang đánh giá và chuẩn bị câu tiếp theo…" : submitLabel}</Button>
-    <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">{isDirty ? "Có thay đổi chưa lưu" : question.answer ? "Đã lưu câu trả lời trên hệ thống" : ""}</p>
+    <Button type="submit" disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}>
+      {save.isPending ? t("candidate.assess.interviews.answerForm.evaluatingNext") : resolvedSubmitLabel}
+    </Button>
+    <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
+      {isDirty
+        ? t("candidate.assess.interviews.answerForm.dirtyStatus")
+        : question.answer
+          ? t("candidate.assess.interviews.answerForm.savedStatus")
+          : ""}
+    </p>
   </form>;
 }

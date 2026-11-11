@@ -5,14 +5,15 @@ import { useUiStore } from "@/stores/uiStore";
 
 type ShortcutRow = {
   keys: string[];
+  separatorKey?: string;
   separator?: string;
   descKey: string;
 };
 
 const rows: ShortcutRow[] = [
   { keys: ["?"], descKey: "shortcuts.openShortcuts" },
-  { keys: ["g", "h"], separator: "rồi", descKey: "shortcuts.goWelcome" },
-  { keys: ["g", "w"], separator: "rồi", descKey: "shortcuts.goWorkspace" },
+  { keys: ["g", "h"], separatorKey: "shortcuts.then", descKey: "shortcuts.goWelcome" },
+  { keys: ["g", "w"], separatorKey: "shortcuts.then", descKey: "shortcuts.goWorkspace" },
   { keys: ["Alt", "L"], separator: "+", descKey: "shortcuts.switchLang" },
   { keys: ["/"], descKey: "shortcuts.focusSearch" },
   { keys: ["↑", "↓"], separator: "/", descKey: "shortcuts.navigateJobs" },
@@ -92,7 +93,7 @@ export function ShortcutsHelp() {
                   <span key={i} className="inline-flex items-center gap-1.5">
                     {i > 0 && (
                       <span className="text-[11px] text-slate-400 dark:text-slate-500 font-sans font-normal">
-                        {r.separator ?? "+"}
+                        {r.separatorKey ? t(r.separatorKey) : (r.separator ?? "+")}
                       </span>
                     )}
                     <kbd className="inline-flex min-w-6 h-6 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -108,7 +109,7 @@ export function ShortcutsHelp() {
         {/* Footer */}
         <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-3 text-center dark:border-slate-800 dark:bg-slate-900/50">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Nhấn <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-700 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Esc</kbd> hoặc click bên ngoài để đóng
+            {t("shortcuts.footerHint")}
           </p>
         </div>
       </div>

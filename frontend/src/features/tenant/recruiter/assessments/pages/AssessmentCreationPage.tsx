@@ -6,6 +6,7 @@ import {
   Sliders,
   Users,
 } from "lucide-react";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
@@ -16,26 +17,26 @@ export type ConfigSection = "general" | "exercise" | "assign";
 
 const configNavGroups = [
   {
-    groupTitle: "CẤU HÌNH",
+    groupTitleKey: "recruiter.assessments.config.nav.groupConfig",
     items: [
       {
         id: "general" as const,
-        title: "Chung",
+        titleKey: "recruiter.assessments.config.nav.general",
         icon: Settings2,
       },
       {
         id: "exercise" as const,
-        title: "Bài tập",
+        titleKey: "recruiter.assessments.config.nav.exercise",
         icon: Sliders,
       },
     ],
   },
   {
-    groupTitle: "ỨNG VIÊN",
+    groupTitleKey: "recruiter.assessments.config.nav.groupCandidates",
     items: [
       {
         id: "assign" as const,
-        title: "Giao đề",
+        titleKey: "recruiter.assessments.config.nav.assign",
         icon: Users,
       },
     ],
@@ -43,6 +44,7 @@ const configNavGroups = [
 ];
 
 export function AssessmentCreationPage() {
+  const t = useT();
   const job = useRecruitmentJob();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -96,9 +98,9 @@ export function AssessmentCreationPage() {
             )}
           >
             {configNavGroups.map((group) => (
-              <div key={group.groupTitle} className="space-y-1">
+              <div key={group.groupTitleKey} className="space-y-1">
                 <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-slate-400">
-                  {group.groupTitle}
+                  {t(group.groupTitleKey)}
                 </div>
                 <div className="space-y-0.5">
                   {group.items.map((item) => {
@@ -124,7 +126,7 @@ export function AssessmentCreationPage() {
                               : "text-[#667085] group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300",
                           )}
                         />
-                        <span className="flex-1 text-[13px] font-medium leading-tight">{item.title}</span>
+                        <span className="flex-1 text-[13px] font-medium leading-tight">{t(item.titleKey)}</span>
                         {isActive && (
                           <ChevronRight className="size-3.5 shrink-0 text-[var(--color-primary)] self-center ml-auto" />
                         )}

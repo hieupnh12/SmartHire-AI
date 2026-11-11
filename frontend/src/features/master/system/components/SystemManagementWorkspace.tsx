@@ -26,6 +26,7 @@ import { PageSkeleton } from "@/components/ux/Skeleton";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
+import { useT, useLocale, formatNumber } from "@/i18n";
 
 export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
 
@@ -104,6 +105,8 @@ function MetricCard({
 }
 
 function AiUsageReportView() {
+  const t = useT();
+  const locale = useLocale();
   const [months, setMonths] = useState<number>(6);
   const [report, setReport] = useState<AiUsageReportData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -117,7 +120,7 @@ function AiUsageReportView() {
       setReport(data);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || err.message || "Không thể tải báo cáo sử dụng AI"
+        err.response?.data?.message || err.message || t("master.ops.systemWorkspace.usage.loadError")
       );
     } finally {
       setLoading(false);
@@ -169,9 +172,9 @@ function AiUsageReportView() {
   }
 
   const trend = report?.monthlyTrend || [];
-  const maxCv = Math.max(1, ...trend.map((t) => t.cvCount));
-  const maxInt = Math.max(1, ...trend.map((t) => t.interviewHours));
-  const maxReq = Math.max(1, ...trend.map((t) => t.aiRequests));
+  const maxCv = Math.max(1, ...trend.map((item) => item.cvCount));
+  const maxInt = Math.max(1, ...trend.map((item) => item.interviewHours));
+  const maxReq = Math.max(1, ...trend.map((item) => item.aiRequests));
 
   const taskColors: Record<string, string> = {
     CV_PARSING: "bg-blue-500",
@@ -184,9 +187,9 @@ function AiUsageReportView() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        eyebrow="Hệ thống / AI Metering & Cost"
-        title="Báo cáo sử dụng AI"
-        description="Theo dõi thực tế số lượt gọi AI, tổng lượng Token (Prompt + Completion) và đối soát chi phí USD theo từng Tenant & tác vụ."
+        eyebrow={t("master.ops.systemWorkspace.usage.eyebrow")}
+        title={t("master.ops.systemWorkspace.usage.title")}
+        description={t("master.ops.systemWorkspace.usage.description")}
         action={
           <div className="flex items-center gap-2">
             <button
@@ -195,7 +198,7 @@ function AiUsageReportView() {
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <RefreshCw className="size-3.5" />
-              Làm mới
+              {t("master.ops.systemWorkspace.usage.refreshBtn")}
             </button>
             <button
               type="button"
@@ -203,7 +206,7 @@ function AiUsageReportView() {
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <FileDown className="size-3.5" />
-              Xuất CSV
+              {t("master.ops.systemWorkspace.usage.exportCsvBtn")}
             </button>
           </div>
         }
@@ -218,33 +221,41 @@ function AiUsageReportView() {
 
       <section
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Chỉ số sử dụng AI"
+        aria-label={t("master.ops.systemWorkspace.usage.metricsAria")}
       >
         <MetricCard
           icon={BrainCircuit}
-          label="CV đã phân tích"
-          value={(report?.totalCvParses ?? 0).toLocaleString("vi-VN")}
-          detail={`Trong ${months} tháng gần nhất`}
+          label={t("master.ops.systemWorkspace.usage.kpiCvLabel")}
+          value={formatNumber(report?.totalCvParses ?? 0, undefined, locale)}
+          detail={t("master.ops.systemWorkspace.usage.kpiCvDetail", { months })}
         />
         <MetricCard
           icon={Bot}
-          label="Giờ AI interview"
-          value={`${(report?.totalInterviewHours ?? 0).toLocaleString("vi-VN")} giờ`}
-          detail="Tổng thời lượng hội thoại phỏng vấn AI"
+          label={t("master.ops.systemWorkspace.usage.kpiInterviewLabel")}
+          value={t("master.ops.systemWorkspace.usage.kpiInterviewValue", {
+            hours: formatNumber(report?.totalInterviewHours ?? 0, undefined, locale),
+          })}
+          detail={t("master.ops.systemWorkspace.usage.kpiInterviewDetail")}
           tone="violet"
         />
         <MetricCard
           icon={Sparkles}
-          label="Tổng lượt gọi & Token AI"
-          value={(report?.totalAiRequests ?? 0).toLocaleString("vi-VN")}
-          detail={`${(report?.totalTokensConsumed ?? 0).toLocaleString("vi-VN")} tokens · Thành công ${report?.successRatePercent ?? 100}%${report?.avgLatencyMs ? ` · TB ${report.avgLatencyMs}ms` : ""}`}
+          label={t("master.ops.systemWorkspace.usage.kpiRequestsLabel")}
+          value={formatNumber(report?.totalAiRequests ?? 0, undefined, locale)}
+          detail={t("master.ops.systemWorkspace.usage.kpiRequestsDetail", {
+            tokens: formatNumber(report?.totalTokensConsumed ?? 0, undefined, locale),
+            rate: report?.successRatePercent ?? 100,
+            latency: report?.avgLatencyMs
+              ? t("master.ops.systemWorkspace.usage.kpiLatencyPart", { ms: report.avgLatencyMs })
+              : "",
+          })}
           tone="emerald"
         />
         <MetricCard
           icon={Cpu}
-          label="Chi phí API ước tính"
-          value={`$${Number(report?.totalEstimatedCostUsd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
-          detail="Tính theo bảng giá Input/Output 1M Tokens"
+          label={t("master.ops.systemWorkspace.usage.kpiCostLabel")}
+          value={`$${formatNumber(Number(report?.totalEstimatedCostUsd ?? 0), { minimumFractionDigits: 2, maximumFractionDigits: 4 }, locale)}`}
+          detail={t("master.ops.systemWorkspace.usage.kpiCostDetail")}
           tone="amber"
         />
       </section>
@@ -254,20 +265,20 @@ function AiUsageReportView() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-950">
-                Xu hướng tiêu thụ {months} tháng
+                {t("master.ops.systemWorkspace.usage.trendTitle", { months })}
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Biểu đồ tương quan CV Screening, Giờ Phỏng vấn AI và Tổng Request AI theo tháng
+                {t("master.ops.systemWorkspace.usage.trendSubtitle")}
               </p>
             </div>
             <select
-              aria-label="Khoảng thời gian báo cáo"
+              aria-label={t("master.ops.systemWorkspace.usage.rangeAria")}
               value={months}
               onChange={(e) => setMonths(Number(e.target.value))}
               className="min-h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600"
             >
-              <option value={6}>6 tháng gần nhất</option>
-              <option value={12}>12 tháng gần nhất</option>
+              <option value={6}>{t("master.ops.systemWorkspace.usage.range6m")}</option>
+              <option value={12}>{t("master.ops.systemWorkspace.usage.range12m")}</option>
             </select>
           </div>
 
@@ -282,17 +293,24 @@ function AiUsageReportView() {
                     <span
                       className="w-2.5 rounded-t bg-blue-500 sm:w-4 transition-all"
                       style={{ height: `${cvPct}%` }}
-                      title={`CV: ${item.cvCount.toLocaleString("vi-VN")} lượt`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipCv", {
+                        count: formatNumber(item.cvCount, undefined, locale),
+                      })}
                     />
                     <span
                       className="w-2.5 rounded-t bg-violet-400 sm:w-4 transition-all"
                       style={{ height: `${intPct}%` }}
-                      title={`Interview: ${item.interviewHours} giờ`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipInterview", {
+                        hours: item.interviewHours,
+                      })}
                     />
                     <span
                       className="w-2.5 rounded-t bg-cyan-400 sm:w-4 transition-all"
                       style={{ height: `${reqPct}%` }}
-                      title={`Requests: ${item.aiRequests.toLocaleString("vi-VN")} · Cost: $${item.estimatedCostUsd}`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipRequests", {
+                        count: formatNumber(item.aiRequests, undefined, locale),
+                        cost: item.estimatedCostUsd,
+                      })}
                     />
                   </div>
                   <span className="mt-2 text-center text-xs font-medium text-slate-500">
@@ -305,23 +323,23 @@ function AiUsageReportView() {
           <div className="mt-4 flex flex-wrap gap-5 text-xs text-slate-500">
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-blue-500" />
-              CV screening
+              {t("master.ops.systemWorkspace.usage.legendCv")}
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-violet-400" />
-              Giờ AI interview
+              {t("master.ops.systemWorkspace.usage.legendInterview")}
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-cyan-400" />
-              Tổng AI Requests
+              {t("master.ops.systemWorkspace.usage.legendRequests")}
             </span>
           </div>
         </section>
 
         <section className={cn(surface, "p-5 sm:p-6")}>
-          <h2 className="font-semibold text-slate-950">Phân bổ chi phí theo Task</h2>
+          <h2 className="font-semibold text-slate-950">{t("master.ops.systemWorkspace.usage.costByTaskTitle")}</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Chi phí USD thực tế và tỷ trọng theo từng tác vụ AI
+            {t("master.ops.systemWorkspace.usage.costByTaskSubtitle")}
           </p>
           <div className="mt-6 space-y-5">
             {(report?.costByTask || []).map((item) => (
@@ -342,8 +360,10 @@ function AiUsageReportView() {
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  {item.requests.toLocaleString("vi-VN")} requests ·{" "}
-                  {item.totalTokens.toLocaleString("vi-VN")} tokens
+                  {t("master.ops.systemWorkspace.usage.taskRequestsTokens", {
+                    requests: formatNumber(item.requests, undefined, locale),
+                    tokens: formatNumber(item.totalTokens, undefined, locale),
+                  })}
                 </p>
               </div>
             ))}
@@ -353,28 +373,28 @@ function AiUsageReportView() {
 
       <section className={cn(surface, "overflow-hidden")}>
         <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-slate-950">Mức sử dụng & Chi phí theo Tenant</h2>
+          <h2 className="font-semibold text-slate-950">{t("master.ops.systemWorkspace.usage.tenantUsageTitle")}</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Dữ liệu thực tế tổng hợp từ bảng Metering (`tenant_ai_usage_daily` & `tenant_usage_daily`)
+            {t("master.ops.systemWorkspace.usage.tenantUsageSubtitle")}
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Tenant / Gói</th>
-                <th className="px-4 py-3 text-right">CV screening</th>
-                <th className="px-4 py-3 text-right">AI interview</th>
-                <th className="px-4 py-3 text-right">Tokens tiêu thụ</th>
-                <th className="px-4 py-3 text-right">Chi phí API (USD)</th>
-                <th className="px-5 py-3 text-right">Biến động tháng</th>
+                <th className="px-5 py-3">{t("master.ops.systemWorkspace.usage.colTenantPlan")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colCvScreening")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colAiInterview")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colTokens")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colApiCost")}</th>
+                <th className="px-5 py-3 text-right">{t("master.ops.systemWorkspace.usage.colMomChange")}</th>
               </tr>
             </thead>
             <tbody>
               {(report?.tenantUsages || []).length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate-500">
-                    Chưa có dữ liệu tiêu thụ AI của các Tenant.
+                    {t("master.ops.systemWorkspace.usage.emptyTenantUsage")}
                   </td>
                 </tr>
               ) : (
@@ -392,13 +412,17 @@ function AiUsageReportView() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.cvParses.toLocaleString("vi-VN")} lượt
+                      {t("master.ops.systemWorkspace.usage.cvParsesCount", {
+                        count: formatNumber(row.cvParses, undefined, locale),
+                      })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.interviewHours} giờ
+                      {t("master.ops.systemWorkspace.usage.interviewHoursCount", {
+                        hours: row.interviewHours,
+                      })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.totalTokens.toLocaleString("vi-VN")}
+                      {formatNumber(row.totalTokens, undefined, locale)}
                     </td>
                     <td className="px-4 py-4 text-right font-semibold text-slate-900">
                       ${Number(row.estimatedCostUsd).toFixed(4)}
@@ -424,6 +448,8 @@ function AiUsageReportView() {
 }
 
 function AiQuotaManagementView() {
+  const t = useT();
+  const locale = useLocale();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [rows, setRows] = useState<TenantAiQuota[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -439,7 +465,7 @@ function AiQuotaManagementView() {
       setRows(data);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || err.message || "Không thể tải hạn ngạch AI"
+        err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.loadError")
       );
     } finally {
       setLoading(false);
@@ -477,9 +503,9 @@ function AiQuotaManagementView() {
       );
       setSavedId(row.tenantId);
       window.setTimeout(() => setSavedId(null), 2000);
-      toast.success(`Đã lưu hạn mức cho "${row.tenantName}"`);
+      toast.success(t("master.ops.systemWorkspace.quotas.saveSuccess", { name: row.tenantName }));
     } catch (err: any) {
-      toast.error(err.response?.data?.message || err.message || "Lỗi khi lưu hạn mức");
+      toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.saveError"));
     } finally {
       setSavingId(null);
     }
@@ -488,11 +514,15 @@ function AiQuotaManagementView() {
   const handleToggleKillSwitch = (row: TenantAiQuota) => {
     const enablingKill = !row.aiKillSwitch;
     askConfirm({
-      title: enablingKill ? "Khóa khẩn cấp AI" : "Mở khóa AI",
+      title: enablingKill
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockTitle")
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockTitle"),
       description: enablingKill
-        ? `Khóa khẩn cấp toàn bộ tính năng AI (CV Screening & AI Interview) của "${row.tenantName}"? Mọi API AI của tenant này sẽ bị tạm dừng ngay lập tức.`
-        : `Mở khóa lại hạn mức AI theo gói mặc định cho "${row.tenantName}"?`,
-      confirmLabel: enablingKill ? "Khóa khẩn cấp" : "Mở khóa",
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockDesc", { name: row.tenantName })
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockDesc", { name: row.tenantName }),
+      confirmLabel: enablingKill
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockConfirm")
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockConfirm"),
       danger: enablingKill,
       onConfirm: async () => {
         try {
@@ -506,11 +536,11 @@ function AiQuotaManagementView() {
           );
           toast.success(
             enablingKill
-              ? `Đã kích hoạt Kill Switch cho "${row.tenantName}"`
-              : `Đã mở khóa AI cho "${row.tenantName}"`
+              ? t("master.ops.systemWorkspace.quotas.killSwitchLockedToast", { name: row.tenantName })
+              : t("master.ops.systemWorkspace.quotas.killSwitchUnlockedToast", { name: row.tenantName })
           );
         } catch (err: any) {
-          toast.error(err.response?.data?.message || err.message || "Lỗi khi cập nhật Kill Switch");
+          toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.killSwitchError"));
         } finally {
           setSavingId(null);
         }
@@ -520,9 +550,9 @@ function AiQuotaManagementView() {
 
   const handleResetToPlan = (row: TenantAiQuota) => {
     askConfirm({
-      title: "Khôi phục hạn mức",
-      description: `Khôi phục hạn mức AI của "${row.tenantName}" về cấu hình mặc định của gói dịch vụ?`,
-      confirmLabel: "Khôi phục",
+      title: t("master.ops.systemWorkspace.quotas.resetTitle"),
+      description: t("master.ops.systemWorkspace.quotas.resetDesc", { name: row.tenantName }),
+      confirmLabel: t("master.ops.systemWorkspace.quotas.resetConfirm"),
       onConfirm: async () => {
         try {
           setSavingId(row.tenantId);
@@ -534,9 +564,9 @@ function AiQuotaManagementView() {
           );
           setSavedId(row.tenantId);
           window.setTimeout(() => setSavedId(null), 2000);
-          toast.success(`Đã khôi phục hạn mức gốc cho "${row.tenantName}"`);
+          toast.success(t("master.ops.systemWorkspace.quotas.resetSuccess", { name: row.tenantName }));
         } catch (err: any) {
-          toast.error(err.response?.data?.message || err.message || "Lỗi khi khôi phục hạn mức gốc");
+          toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.resetError"));
         } finally {
           setSavingId(null);
         }
@@ -559,9 +589,9 @@ function AiQuotaManagementView() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        eyebrow="Hệ thống / Tenant Quota Override & Kill Switch"
-        title="Quản lý hạn ngạch AI"
-        description="Can thiệp hạn mức AI riêng cho từng Tenant (Top-up / Bonus Quota, giới hạn tốc độ RPM mỗi phút, đặt -1 cho Không giới hạn, hoặc bật Kill Switch khóa AI khẩn cấp). Đồng bộ trực tiếp với Redis Quota Guard."
+        eyebrow={t("master.ops.systemWorkspace.quotas.eyebrow")}
+        title={t("master.ops.systemWorkspace.quotas.title")}
+        description={t("master.ops.systemWorkspace.quotas.description")}
         action={
           <button
             type="button"
@@ -569,7 +599,7 @@ function AiQuotaManagementView() {
             className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <RefreshCw className="size-3.5" />
-            Làm mới
+            {t("master.ops.systemWorkspace.quotas.refreshBtn")}
           </button>
         }
       />
@@ -583,33 +613,33 @@ function AiQuotaManagementView() {
 
       <section
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Tổng quan hạn ngạch AI"
+        aria-label={t("master.ops.systemWorkspace.quotas.metricsAria")}
       >
         <MetricCard
           icon={Gauge}
-          label="Tổng số Tenant"
+          label={t("master.ops.systemWorkspace.quotas.metricTotalTenants")}
           value={String(rows.length)}
-          detail="Đang quản lý qua Redis Quota Guard"
+          detail={t("master.ops.systemWorkspace.quotas.metricTotalTenantsDetail")}
         />
         <MetricCard
           icon={AlertTriangle}
-          label="Sắp chạm ngưỡng"
+          label={t("master.ops.systemWorkspace.quotas.metricNearLimit")}
           value={String(nearLimitCount)}
-          detail="Sử dụng từ 80% hạn mức tháng"
+          detail={t("master.ops.systemWorkspace.quotas.metricNearLimitDetail")}
           tone="amber"
         />
         <MetricCard
           icon={ShieldAlert}
-          label="Đang bật Kill Switch"
+          label={t("master.ops.systemWorkspace.quotas.metricKillSwitched")}
           value={String(killSwitchedCount)}
-          detail="Tenant bị khóa tạm thời tính năng AI"
+          detail={t("master.ops.systemWorkspace.quotas.metricKillSwitchedDetail")}
           tone="violet"
         />
         <MetricCard
           icon={CheckCircle2}
-          label="Đang hoạt động"
+          label={t("master.ops.systemWorkspace.quotas.metricOperational")}
           value={String(Math.max(0, rows.length - killSwitchedCount))}
-          detail="Cho phép gọi API AI bình thường"
+          detail={t("master.ops.systemWorkspace.quotas.metricOperationalDetail")}
           tone="emerald"
         />
       </section>
@@ -618,14 +648,27 @@ function AiQuotaManagementView() {
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-5">
           <div>
             <h2 className="font-semibold text-slate-950">
-              Hạn mức AI, Rate Limit (RPM) & Kill Switch theo Tenant
+              {t("master.ops.systemWorkspace.quotas.tableTitle")}
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Nhập <strong>-1</strong> cho Không giới hạn (Unlimited), <strong>0</strong> để khóa tính năng, hoặc số dương để cấp hạn mức tùy chỉnh (Override).
+              {t("master.ops.systemWorkspace.quotas.tableHint", {
+                unlimited: "__NEG1__",
+                locked: "__ZERO__",
+              })
+                .split(/(__NEG1__|__ZERO__)/g)
+                .map((part, idx) =>
+                  part === "__NEG1__" ? (
+                    <strong key={idx}>-1</strong>
+                  ) : part === "__ZERO__" ? (
+                    <strong key={idx}>0</strong>
+                  ) : (
+                    part
+                  ),
+                )}
             </p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            Đồng bộ thời gian thực với Redis
+            {t("master.ops.systemWorkspace.quotas.redisBadge")}
           </span>
         </div>
 
@@ -633,14 +676,14 @@ function AiQuotaManagementView() {
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Tenant / Gói gốc</th>
-                <th className="px-4 py-3">Đã dùng CV</th>
-                <th className="px-4 py-3">Hạn mức CV (Override)</th>
-                <th className="px-4 py-3">Đã dùng Phỏng vấn</th>
-                <th className="px-4 py-3">Hạn mức Giờ (Override)</th>
-                <th className="px-4 py-3">Rate Limit (RPM/phút)</th>
-                <th className="px-4 py-3 text-right">Chi phí tháng</th>
-                <th className="px-5 py-3 text-right">Can thiệp Admin</th>
+                <th className="px-5 py-3">{t("master.ops.systemWorkspace.quotas.colTenantBase")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colCvUsed")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colCvLimit")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colInterviewUsed")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colInterviewLimit")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colRpmLimit")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.quotas.colMonthlyCost")}</th>
+                <th className="px-5 py-3 text-right">{t("master.ops.systemWorkspace.quotas.colAdminAction")}</th>
               </tr>
             </thead>
             <tbody>
@@ -673,29 +716,33 @@ function AiQuotaManagementView() {
                         <strong className="text-slate-900">{row.tenantName}</strong>
                         {row.aiKillSwitch && (
                           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-700">
-                            AI Locked
+                            {t("master.ops.systemWorkspace.quotas.badgeAiLocked")}
                           </span>
                         )}
                         {!row.aiKillSwitch && isOverridden && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                            Overridden
+                            {t("master.ops.systemWorkspace.quotas.badgeOverridden")}
                           </span>
                         )}
                       </div>
                       <span className="mt-1 block text-xs text-slate-500">
-                        {row.tenantCode} · {row.planName} (Gốc:{" "}
-                        {row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit} CV /{" "}
-                        {row.basePlanInterviewHoursLimit < 0
-                          ? "∞"
-                          : row.basePlanInterviewHoursLimit}
-                        h)
+                        {t("master.ops.systemWorkspace.quotas.baseLimitInfo", {
+                          code: row.tenantCode,
+                          plan: row.planName,
+                          cv: row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit,
+                          hours: row.basePlanInterviewHoursLimit < 0 ? "∞" : row.basePlanInterviewHoursLimit,
+                        })}
                       </span>
                     </td>
 
                     <td className="px-4 py-4">
                       <div className="w-36">
                         <div className="mb-1.5 flex justify-between text-xs">
-                          <span>{row.cvUsed.toLocaleString("vi-VN")} lượt</span>
+                          <span>
+                            {t("master.ops.systemWorkspace.quotas.cvUsedCount", {
+                              count: formatNumber(row.cvUsed, undefined, locale),
+                            })}
+                          </span>
                           <strong
                             className={
                               row.cvLimit === 0
@@ -706,9 +753,9 @@ function AiQuotaManagementView() {
                             }
                           >
                             {row.cvLimit < 0
-                              ? "Unlimited"
+                              ? t("master.ops.systemWorkspace.quotas.unlimited")
                               : row.cvLimit === 0
-                              ? "Khóa (0)"
+                              ? t("master.ops.systemWorkspace.quotas.lockedZero")
                               : `${cvPercent}%`}
                           </strong>
                         </div>
@@ -744,7 +791,9 @@ function AiQuotaManagementView() {
                         onChange={(e) =>
                           updateLocalLimit(row.tenantId, "cvLimit", Number(e.target.value))
                         }
-                        aria-label={`Hạn mức CV của ${row.tenantName}`}
+                        aria-label={t("master.ops.systemWorkspace.quotas.cvLimitAria", {
+                          name: row.tenantName,
+                        })}
                         className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
@@ -763,7 +812,9 @@ function AiQuotaManagementView() {
                         {row.interviewHoursUsed} /{" "}
                         {row.interviewHoursLimit < 0
                           ? "∞"
-                          : `${row.interviewHoursLimit} giờ`}
+                          : t("master.ops.systemWorkspace.quotas.interviewHoursUnit", {
+                              hours: row.interviewHoursLimit,
+                            })}
                       </span>
                     </td>
 
@@ -779,7 +830,9 @@ function AiQuotaManagementView() {
                             Number(e.target.value)
                           )
                         }
-                        aria-label={`Hạn mức giờ phỏng vấn AI của ${row.tenantName}`}
+                        aria-label={t("master.ops.systemWorkspace.quotas.interviewLimitAria", {
+                          name: row.tenantName,
+                        })}
                         className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
@@ -797,12 +850,16 @@ function AiQuotaManagementView() {
                               Number(e.target.value)
                             )
                           }
-                          aria-label={`Giới hạn RPM của ${row.tenantName}`}
+                          aria-label={t("master.ops.systemWorkspace.quotas.rpmLimitAria", {
+                            name: row.tenantName,
+                          })}
                           className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                         />
                         <span className="text-[10px] text-slate-400">
-                          Phút này: {row.currentMinuteRpm ?? 0} req ·{" "}
-                          {(row.currentMinuteTpm ?? 0).toLocaleString("vi-VN")} tok
+                          {t("master.ops.systemWorkspace.quotas.currentMinuteUsage", {
+                            rpm: row.currentMinuteRpm ?? 0,
+                            tpm: formatNumber(row.currentMinuteTpm ?? 0, undefined, locale),
+                          })}
                         </span>
                       </div>
                     </td>
@@ -825,7 +882,9 @@ function AiQuotaManagementView() {
                           )}
                         >
                           <Save className="size-3.5" />
-                          {savedId === row.tenantId ? "Đã lưu" : "Lưu"}
+                          {savedId === row.tenantId
+                            ? t("master.ops.systemWorkspace.quotas.savedBtn")
+                            : t("master.ops.systemWorkspace.quotas.saveBtn")}
                         </button>
 
                         {isOverridden && (
@@ -833,7 +892,7 @@ function AiQuotaManagementView() {
                             type="button"
                             disabled={savingId === row.tenantId}
                             onClick={() => handleResetToPlan(row)}
-                            title="Khôi phục về hạn mức gốc của gói cước"
+                            title={t("master.ops.systemWorkspace.quotas.resetBtnTitle")}
                             className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                           >
                             <RotateCcw className="size-3.5" />
@@ -846,8 +905,8 @@ function AiQuotaManagementView() {
                           onClick={() => handleToggleKillSwitch(row)}
                           title={
                             row.aiKillSwitch
-                              ? "Mở khóa lại AI cho Tenant này"
-                              : "Kill Switch: Khóa khẩn cấp AI của Tenant này"
+                              ? t("master.ops.systemWorkspace.quotas.unlockAiTitle")
+                              : t("master.ops.systemWorkspace.quotas.lockAiTitle")
                           }
                           className={cn(
                             "inline-flex min-h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-semibold transition-colors",
@@ -857,7 +916,9 @@ function AiQuotaManagementView() {
                           )}
                         >
                           <PowerOff className="size-3.5" />
-                          {row.aiKillSwitch ? "Mở AI" : "Kill Switch"}
+                          {row.aiKillSwitch
+                            ? t("master.ops.systemWorkspace.quotas.unlockAiBtn")
+                            : t("master.ops.systemWorkspace.quotas.killSwitchBtn")}
                         </button>
                       </div>
                     </td>

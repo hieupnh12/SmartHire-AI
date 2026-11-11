@@ -1,38 +1,46 @@
 import { CheckCircle2, HelpCircle } from "lucide-react";
+import { formatNumber, useLocale, useT } from "@/i18n";
 import type { PerformanceData } from "../types/recruiterAnalytics";
 
-const metaMap: Record<string, { label: string; tooltip: string }> = {
-  TIME_TO_SHORTLIST: {
-    label: "Time-to-shortlist",
-    tooltip: "Thời gian trung bình từ khi đăng tin/nhận CV đến khi chọn được danh sách ứng viên đạt yêu cầu.",
-  },
-  RESPONSE_TIME: {
-    label: "Thời gian phản hồi",
-    tooltip: "Thời gian trung bình phản hồi lại ứng viên sau khi nộp hồ sơ hoặc hoàn thành vòng phỏng vấn.",
-  },
-  OFFER_ACCEPTANCE: {
-    label: "Offer acceptance",
-    tooltip: "Tỷ lệ ứng viên đồng ý nhận việc sau khi được gửi thư mời tuyển dụng (Offer letter).",
-  },
-  HIRE_RATE: {
-    label: "Tỷ lệ tuyển dụng",
-    tooltip: "Tỷ lệ ứng viên được tuyển thành công trên tổng số ứng viên ứng tuyển.",
-  },
-};
+const KNOWN_METRIC_CODES = new Set([
+  "TIME_TO_SHORTLIST",
+  "RESPONSE_TIME",
+  "OFFER_ACCEPTANCE",
+  "HIRE_RATE",
+]);
 
 export function PerformancePanel({ data }: { data: PerformanceData }) {
-  const display = (m: PerformanceData["metrics"][number]) =>
-    m.value == null ? "—" : `${m.value}${m.unit === "PERCENT" ? "%" : m.unit === "DAYS" ? " ngày" : " giờ"}`;
+  const t = useT();
+  const locale = useLocale();
+  const display = (m: PerformanceData["metrics"][number]) => {
+    if (m.value == null) return "—";
+    const formatted = formatNumber(m.value, {}, locale);
+    if (m.unit === "PERCENT") return `${formatted}%`;
+    if (m.unit === "DAYS") return t("recruiter.ops.analytics.unitDays", { value: formatted });
+    return t("recruiter.ops.analytics.unitHours", { value: formatted });
+  };
 
   return (
     <div className="space-y-4">
       {/* 1. Grid 4 chỉ số hiệu suất phẳng */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {data.metrics.map((m) => {
-          const meta = metaMap[m.code] ?? { label: m.code, tooltip: m.code };
+          const hasMeta = KNOWN_METRIC_CODES.has(m.code);
+          const meta = hasMeta
+            ? {
+                label: t(`recruiter.ops.analytics.metrics.${m.code}.label`),
+                tooltip: t(`recruiter.ops.analytics.metrics.${m.code}.tooltip`),
+              }
+            : { label: m.code, tooltip: m.code };
           const isPassed =
             m.value != null &&
             (m.comparison === "LTE" ? m.value <= m.target : m.value >= m.target);
+          const unitSuffix =
+            m.unit === "PERCENT"
+              ? "%"
+              : m.unit === "DAYS"
+                ? t("recruiter.ops.analytics.targetUnitDays")
+                : t("recruiter.ops.analytics.targetUnitHours");
 
           return (
             <div
@@ -52,8 +60,11 @@ export function PerformancePanel({ data }: { data: PerformanceData }) {
 
               <div className="mt-2.5 flex items-center justify-between border-t border-[var(--color-border-default)]/60 pt-2 text-[11px]">
                 <span className="text-[var(--color-outline)]">
-                  Mục tiêu {m.comparison === "LTE" ? "≤" : "≥"} {m.target}
-                  {m.unit === "PERCENT" ? "%" : m.unit === "DAYS" ? " ngày" : "h"}
+                  {t("recruiter.ops.analytics.targetLabel", {
+                    op: m.comparison === "LTE" ? "≤" : "≥",
+                    target: formatNumber(m.target, {}, locale),
+                    unit: unitSuffix,
+                  })}
                 </span>
                 {m.value != null && (
                   <span
@@ -61,7 +72,7 @@ export function PerformancePanel({ data }: { data: PerformanceData }) {
                       isPassed ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"
                     }
                   >
-                    {isPassed ? "Đạt ✓" : "Chưa đạt"}
+                    {isPassed ? t("recruiter.ops.analytics.statusAchieved") : t("recruiter.ops.analytics.statusMissed")}
                   </span>
                 )}
               </div>
@@ -78,7 +89,10 @@ export function PerformancePanel({ data }: { data: PerformanceData }) {
           </span>
           <div>
             <h2 className="text-sm font-bold text-[var(--color-on-surface)]">
-              Đạt {data.achievedTargets}/{data.totalTargets} mục tiêu tuyển dụng
+              {t("recruiter.ops.analytics.performanceSummary", {
+                achieved: data.achievedTargets,
+                total: data.totalTargets,
+              })}
             </h2>
             {data.recommendation && (
               <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">

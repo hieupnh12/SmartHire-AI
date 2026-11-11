@@ -3,9 +3,11 @@ import { authApi, jobApi, dashboardApi } from "@/api";
 import { getApiErrorMessage } from "@/lib/axios";
 import { CompanyEmailSettingsCard } from "@/features/tenant/admin/company/components/CompanyEmailSettingsCard";
 import { Card } from "@/components/ux/Card";
+import { useT } from "@/i18n";
 import { Activity } from "lucide-react";
 
 export function SystemPage() {
+  const t = useT();
   const health = useQuery({
     queryKey: ["admin", "system-health"],
     queryFn: async () => {
@@ -23,24 +25,24 @@ export function SystemPage() {
     <section className="space-y-6">
       <div>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">
-          Cấu hình Gmail
+          {t("tenantAdmin.system.title")}
         </h1>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Thiết lập tài khoản Gmail của công ty để gửi thư mời nhân viên, lịch phỏng vấn và kết quả tuyển dụng.
+          {t("tenantAdmin.system.subtitle")}
         </p>
       </div>
 
-      {/* Main Feature: Cấu hình Gmail gửi thư */}
+      {/* Main Feature: Gmail Configuration */}
       <CompanyEmailSettingsCard />
 
       {/* System Health Section */}
       <Card className="p-5 space-y-3">
         <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] pb-2 text-sm font-semibold text-[var(--color-text-primary)]">
           <Activity className="size-4 text-brand-primary" />
-          <span>Trạng thái hạ tầng hệ thống (Infra Health)</span>
+          <span>{t("tenantAdmin.system.infraTitle")}</span>
         </div>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          Kiểm tra kết nối tới cơ sở dữ liệu HikariCP, Redis Cache và RabbitMQ.
+          {t("tenantAdmin.system.infraDesc")}
         </p>
         {health.isError && (
           <p className="text-status-danger text-xs">{getApiErrorMessage(health.error)}</p>
@@ -59,7 +61,7 @@ export function SystemPage() {
                       row.ok ? "text-status-success" : "text-status-danger"
                     }`}
                   >
-                    {row.ok ? "● Đang hoạt động" : "● Lỗi kết nối"}
+                    {row.ok ? t("tenantAdmin.system.statusHealthy") : t("tenantAdmin.system.statusError")}
                   </span>
                 </div>
               </li>

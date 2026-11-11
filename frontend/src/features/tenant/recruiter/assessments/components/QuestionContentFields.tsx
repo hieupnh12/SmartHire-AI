@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ZodError } from "zod";
 import {
@@ -19,233 +19,120 @@ import { questionBankApi } from "@/api/tenant/questionBankApi";
 import type { CodingContent, EssayCategory, EssayRubric, SampleResult } from "@/api/types/assessment";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
+import { formatDateTime, t as globalT, useLocale, useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useOptionalRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { MonacoCodeEditor } from "./MonacoCodeEditor";
-import { applyHarnessTemplate, harnessTemplateOptions, type HarnessTemplateId } from "../utils/codingHarnessTemplates";
-import { codingSchema, contentError, type CodingLanguage } from "../utils/questionContentValidation";
+import { applyHarnessTemplate, getHarnessTemplateOptions, type HarnessTemplateId } from "../utils/codingHarnessTemplates";
+import { createCodingSchema, contentError, type CodingLanguage } from "../utils/questionContentValidation";
 
-export const ESSAY_ARCHETYPES: Record<
-  EssayCategory,
-  {
-    label: string;
-    shortLabel: string;
-    badge: string;
+export type EssayArchetypeDefinition = {
+  label: string;
+  shortLabel: string;
+  badge: string;
+  description: string;
+  summaryWeights: string;
+  criteria: Array<{
+    name: string;
+    guide: string;
     description: string;
-    summaryWeights: string;
-    criteria: Array<{
-      name: string;
-      guide: string;
-      description: string;
-      weight: number;
-      keywords?: string[];
-    }>;
-  }
-> = {
-  ESSAY_CONCEPTUAL: {
-    label: "Khái niệm & Nguyên lý (Conceptual)",
-    shortLabel: "Khái niệm",
-    badge: "50% • 30% • 20%",
-    description: "Đánh giá tính chuẩn xác của khái niệm, cơ chế hoạt động và ví dụ minh họa thực tế.",
-    summaryWeights: "Tính chính xác (50%) • Bản chất hoạt động (30%) • Ví dụ thực tế (20%)",
-    criteria: [
-      {
-        name: "Tính chính xác của khái niệm / cơ chế",
-        guide: "Trình bày đúng định nghĩa cốt lõi, không nhầm lẫn thuật ngữ, nêu đúng bản chất kỹ thuật.",
-        description: "Đúng định nghĩa, thuật ngữ chuẩn xác, nêu rõ bản chất vận hành.",
-        weight: 50,
-        keywords: ["định nghĩa", "nguyên lý", "cơ chế", "thuật ngữ"],
-      },
-      {
-        name: "Giải thích cách hoạt động & tương tác",
-        guide: "Làm rõ cách các thành phần phối hợp, luồng xử lý hoặc cấu trúc bên dưới (under the hood).",
-        description: "Làm rõ luồng xử lý bên trong, cấu trúc dữ liệu hoặc vòng đời tương tác.",
-        weight: 30,
-        keywords: ["luồng xử lý", "vòng đời", "tương tác", "cấu trúc"],
-      },
-      {
-        name: "Ví dụ minh họa & Ứng dụng thực tế",
-        guide: "Đưa ra kịch bản thực tế, đoạn mã minh họa hoặc trường hợp sử dụng phù hợp.",
-        description: "Minh họa bằng use-case cụ thể hoặc đoạn code ngắn làm sáng tỏ khái niệm.",
-        weight: 20,
-        keywords: ["ví dụ", "thực tế", "use-case", "minh họa"],
-      },
-    ],
-  },
-  ESSAY_SYSTEM_DESIGN: {
-    label: "Kiến trúc hệ thống (System Design)",
-    shortLabel: "Kiến trúc",
-    badge: "40% • 30% • 30%",
-    description: "Đánh giá khả năng phân rã kiến trúc, xử lý mở rộng (scalability) và cân nhắc đánh đổi (trade-offs).",
-    summaryWeights: "Phân rã kiến trúc (40%) • Khả năng mở rộng & chịu lỗi (30%) • Phân tích đánh đổi (30%)",
-    criteria: [
-      {
-        name: "Thiết kế kiến trúc & Phân chia trách nhiệm",
-        guide: "Sơ đồ module, luồng dữ liệu giữa các dịch vụ, database, cache, message broker rõ ràng.",
-        description: "Phân định ranh giới các dịch vụ, luồng dữ liệu và lưu trữ mạch lạc.",
-        weight: 40,
-        keywords: ["kiến trúc", "module", "service", "database", "luồng dữ liệu"],
-      },
-      {
-        name: "Khả năng mở rộng (Scalability) & Chịu lỗi (Resilience)",
-        guide: "Chiến lược horizontal scaling, caching, partitioning, circuit breaker, failover.",
-        description: "Phương án chịu tải cao, tính sẵn sàng (HA) và xử lý sự cố.",
-        weight: 30,
-        keywords: ["mở rộng", "cache", "partitioning", "failover", "chịu lỗi"],
-      },
-      {
-        name: "Phân tích đánh đổi (Trade-off Analysis)",
-        guide: "So sánh các phương án (CAP theorem, sync vs async, SQL vs NoSQL) và lập luận chọn lựa.",
-        description: "Biện luận vì sao chọn giải pháp này thay vì phương án khác, nêu rõ mặt hạn chế.",
-        weight: 30,
-        keywords: ["đánh đổi", "trade-off", "so sánh", "ưu nhược điểm", "lập luận"],
-      },
-    ],
-  },
-  ESSAY_SCENARIO: {
-    label: "Tình huống & Khắc phục sự cố (Troubleshooting)",
-    shortLabel: "Tình huống",
-    badge: "40% • 40% • 20%",
-    description: "Xử lý sự cố production: khoanh vùng nguyên nhân gốc (root cause), giải pháp tức thời và dài hạn.",
-    summaryWeights: "Khoanh vùng nguyên nhân (40%) • Giải pháp xử lý (40%) • Phòng ngừa tái diễn (20%)",
-    criteria: [
-      {
-        name: "Phương pháp xác định nguyên nhân gốc (Root Cause Analysis)",
-        guide: "Trình tự điều tra từ logs, metrics, profiling, giả thuyết logic và cô lập vấn đề.",
-        description: "Quy trình điều tra bài bản, sử dụng công cụ quan sát (logs/traces/metrics).",
-        weight: 40,
-        keywords: ["root cause", "logs", "metrics", "truy vết", "cô lập sự cố"],
-      },
-      {
-        name: "Giải pháp khắc phục (Immediate Mitigation & Resolution)",
-        guide: "Biện pháp cấp cứu tức thì để phục hồi dịch vụ (rollback, hotfix, scale) và sửa dứt điểm.",
-        description: "Xử lý sự cố nhanh chóng, giảm thiểu downtime và khôi phục hoạt động.",
-        weight: 40,
-        keywords: ["khắc phục", "rollback", "hotfix", "giảm tải", "xử lý"],
-      },
-      {
-        name: "Biện pháp phòng ngừa dài hạn (Prevention & Post-mortem)",
-        guide: "Kế hoạch bổ sung alerting, automated test, health check, thay đổi quy trình release.",
-        description: "Bài học kinh nghiệm, cải tiến hệ thống và quy trình để không tái diễn.",
-        weight: 20,
-        keywords: ["phòng ngừa", "post-mortem", "alerting", "test tự động", "cải tiến"],
-      },
-    ],
-  },
-  ESSAY_TRADE_OFF: {
-    label: "Phân tích & So sánh giải pháp (Trade-off Analysis)",
-    shortLabel: "So sánh giải pháp",
-    badge: "35% • 35% • 30%",
-    description: "So sánh đa chiều giữa các công nghệ/mô hình và đưa ra khuyến nghị phù hợp bối cảnh dự án.",
-    summaryWeights: "Tiêu chí so sánh (35%) • Phân tích sâu từng phương án (35%) • Kết luận theo ngữ cảnh (30%)",
-    criteria: [
-      {
-        name: "Xác lập tiêu chí so sánh đa chiều",
-        guide: "Liệt kê rõ các góc nhìn: hiệu năng, chi phí vận hành, độ phức tạp bảo trì, cộng đồng hỗ trợ.",
-        description: "Khung so sánh toàn diện bao quát cả kỹ thuật lẫn vận hành.",
-        weight: 35,
-        keywords: ["tiêu chí", "hiệu năng", "chi phí", "bảo trì", "độ phức tạp"],
-      },
-      {
-        name: "Phân tích điểm mạnh / yếu của từng phương án",
-        guide: "Mổ xẻ ưu - nhược điểm có dẫn chứng cụ thể, không thiên vị cảm tính.",
-        description: "Khách quan, có bằng chứng thực tế cho từng công nghệ / mô hình.",
-        weight: 35,
-        keywords: ["ưu điểm", "nhược điểm", "phân tích", "bằng chứng", "khách quan"],
-      },
-      {
-        name: "Khuyến nghị lựa chọn gắn với bối cảnh cụ thể",
-        guide: "Đưa ra quyết định cuối cùng dựa trên ràng buộc của bài toán (quy mô, ngân sách, nhân sự).",
-        description: "Đề xuất rõ ràng kèm điều kiện áp dụng, giải thích thuyết phục.",
-        weight: 30,
-        keywords: ["khuyến nghị", "bối cảnh", "ràng buộc", "quyết định", "kết luận"],
-      },
-    ],
-  },
-  ESSAY_ARCHITECTURE: {
-    label: "Kiến trúc hệ thống (System Design)",
-    shortLabel: "Kiến trúc",
-    badge: "40% • 30% • 30%",
-    description: "Đánh giá khả năng phân rã kiến trúc, xử lý mở rộng (scalability) và cân nhắc đánh đổi (trade-offs).",
-    summaryWeights: "Phân rã kiến trúc (40%) • Khả năng mở rộng & chịu lỗi (30%) • Phân tích đánh đổi (30%)",
-    criteria: [
-      {
-        name: "Thiết kế kiến trúc & Phân chia trách nhiệm",
-        guide: "Sơ đồ module, luồng dữ liệu giữa các dịch vụ, database, cache, message broker rõ ràng.",
-        description: "Phân định ranh giới các dịch vụ, luồng dữ liệu và lưu trữ mạch lạc.",
-        weight: 40,
-        keywords: ["kiến trúc", "module", "service", "database", "luồng dữ liệu"],
-      },
-      {
-        name: "Khả năng mở rộng (Scalability) & Chịu lỗi (Resilience)",
-        guide: "Chiến lược horizontal scaling, caching, partitioning, circuit breaker, failover.",
-        description: "Phương án chịu tải cao, tính sẵn sàng (HA) và xử lý sự cố.",
-        weight: 30,
-        keywords: ["mở rộng", "cache", "partitioning", "failover", "chịu lỗi"],
-      },
-      {
-        name: "Phân tích đánh đổi (Trade-off Analysis)",
-        guide: "So sánh các phương án (CAP theorem, sync vs async, SQL vs NoSQL) và lập luận chọn lựa.",
-        description: "Biện luận vì sao chọn giải pháp này thay vì phương án khác, nêu rõ mặt hạn chế.",
-        weight: 30,
-        keywords: ["đánh đổi", "trade-off", "so sánh", "ưu nhược điểm", "lập luận"],
-      },
-    ],
-  },
-  ESSAY_COMPARISON: {
-    label: "Phân tích & So sánh giải pháp (Trade-off Analysis)",
-    shortLabel: "So sánh giải pháp",
-    badge: "35% • 35% • 30%",
-    description: "So sánh đa chiều giữa các công nghệ/mô hình và đưa ra khuyến nghị phù hợp bối cảnh dự án.",
-    summaryWeights: "Tiêu chí so sánh (35%) • Phân tích sâu từng phương án (35%) • Kết luận theo ngữ cảnh (30%)",
-    criteria: [
-      {
-        name: "Xác lập tiêu chí so sánh đa chiều",
-        guide: "Liệt kê rõ các góc nhìn: hiệu năng, chi phí vận hành, độ phức tạp bảo trì, cộng đồng hỗ trợ.",
-        description: "Khung so sánh toàn diện bao quát cả kỹ thuật lẫn vận hành.",
-        weight: 35,
-        keywords: ["tiêu chí", "hiệu năng", "chi phí", "bảo trì", "độ phức tạp"],
-      },
-      {
-        name: "Phân tích điểm mạnh / yếu của từng phương án",
-        guide: "Mổ xẻ ưu - nhược điểm có dẫn chứng cụ thể, không thiên vị cảm tính.",
-        description: "Khách quan, có bằng chứng thực tế cho từng công nghệ / mô hình.",
-        weight: 35,
-        keywords: ["ưu điểm", "nhược điểm", "phân tích", "bằng chứng", "khách quan"],
-      },
-      {
-        name: "Khuyến nghị lựa chọn gắn với bối cảnh cụ thể",
-        guide: "Đưa ra quyết định cuối cùng dựa trên ràng buộc của bài toán (quy mô, ngân sách, nhân sự).",
-        description: "Đề xuất rõ ràng kèm điều kiện áp dụng, giải thích thuyết phục.",
-        weight: 30,
-        keywords: ["khuyến nghị", "bối cảnh", "ràng buộc", "quyết định", "kết luận"],
-      },
-    ],
-  },
+    weight: number;
+    keywords?: string[];
+  }>;
 };
 
-export const defaultRubricTemplate: EssayRubric = {
-  category: "ESSAY_CONCEPTUAL",
-  referenceAnswer: "",
-  criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
-};
+function splitKeywords(raw: string): string[] {
+  return raw
+    .split(/[,、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
-export const rubricExample = JSON.stringify(defaultRubricTemplate, null, 2);
+function buildArchetype(
+  t: TranslateFn,
+  key: "ESSAY_CONCEPTUAL" | "ESSAY_SYSTEM_DESIGN" | "ESSAY_SCENARIO" | "ESSAY_TRADE_OFF",
+  weights: [number, number, number],
+): EssayArchetypeDefinition {
+  const base = `recruiter.assessments.coding.archetypes.${key}`;
+  return {
+    label: t(`${base}.label`),
+    shortLabel: t(`${base}.shortLabel`),
+    badge: t(`${base}.badge`),
+    description: t(`${base}.description`),
+    summaryWeights: t(`${base}.summaryWeights`),
+    criteria: [
+      {
+        name: t(`${base}.c1Name`),
+        guide: t(`${base}.c1Guide`),
+        description: t(`${base}.c1Desc`),
+        weight: weights[0],
+        keywords: splitKeywords(t(`${base}.c1Keywords`)),
+      },
+      {
+        name: t(`${base}.c2Name`),
+        guide: t(`${base}.c2Guide`),
+        description: t(`${base}.c2Desc`),
+        weight: weights[1],
+        keywords: splitKeywords(t(`${base}.c2Keywords`)),
+      },
+      {
+        name: t(`${base}.c3Name`),
+        guide: t(`${base}.c3Guide`),
+        description: t(`${base}.c3Desc`),
+        weight: weights[2],
+        keywords: splitKeywords(t(`${base}.c3Keywords`)),
+      },
+    ],
+  };
+}
 
-export const codingExample = JSON.stringify({
-  title: "Tổng hai số",
-  constraints: "−10^9 ≤ a, b ≤ 10^9\nKết quả vừa trong kiểu số nguyên 32-bit.",
-  category: "CODING_ALGORITHM",
-  timeLimitMs: 2000,
-  memoryMb: 256,
-  starterCode: { python: "def solve(a, b):\n    return a + b" },
-  harness: { python: "{{SOURCE}}\na, b = map(int, input().split())\nprint(solve(a, b))" },
-  testCases: [
-    { input: "1 2", expectedOutput: "3", sample: true, explanation: "1 + 2 = 3.", weight: 0 },
-    { input: "-2 5", expectedOutput: "3", sample: false, weight: 50 },
-    { input: "10 20", expectedOutput: "30", sample: false, weight: 50 }
-  ]
-}, null, 2);
+export function getEssayArchetypes(t: TranslateFn = globalT): Record<EssayCategory, EssayArchetypeDefinition> {
+  const conceptual = buildArchetype(t, "ESSAY_CONCEPTUAL", [50, 30, 20]);
+  const systemDesign = buildArchetype(t, "ESSAY_SYSTEM_DESIGN", [40, 30, 30]);
+  const scenario = buildArchetype(t, "ESSAY_SCENARIO", [40, 40, 20]);
+  const tradeOff = buildArchetype(t, "ESSAY_TRADE_OFF", [35, 35, 30]);
+  return {
+    ESSAY_CONCEPTUAL: conceptual,
+    ESSAY_SYSTEM_DESIGN: systemDesign,
+    ESSAY_SCENARIO: scenario,
+    ESSAY_TRADE_OFF: tradeOff,
+    ESSAY_ARCHITECTURE: systemDesign,
+    ESSAY_COMPARISON: tradeOff,
+  };
+}
+
+export function getDefaultRubricTemplate(t: TranslateFn = globalT): EssayRubric {
+  return {
+    category: "ESSAY_CONCEPTUAL",
+    referenceAnswer: "",
+    criteria: getEssayArchetypes(t).ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+  };
+}
+
+export function getRubricExample(t: TranslateFn = globalT): string {
+  return JSON.stringify(getDefaultRubricTemplate(t), null, 2);
+}
+
+export function getCodingExample(t: TranslateFn = globalT): string {
+  return JSON.stringify(
+    {
+      title: t("recruiter.assessments.coding.example.title"),
+      constraints: t("recruiter.assessments.coding.example.constraints"),
+      category: "CODING_ALGORITHM",
+      timeLimitMs: 2000,
+      memoryMb: 256,
+      starterCode: { python: "def solve(a, b):\n    return a + b" },
+      harness: { python: "{{SOURCE}}\na, b = map(int, input().split())\nprint(solve(a, b))" },
+      testCases: [
+        { input: "1 2", expectedOutput: "3", sample: true, explanation: t("recruiter.assessments.coding.example.explanation"), weight: 0 },
+        { input: "-2 5", expectedOutput: "3", sample: false, weight: 50 },
+        { input: "10 20", expectedOutput: "30", sample: false, weight: 50 },
+      ],
+    },
+    null,
+    2,
+  );
+}
 
 export function handleCodeKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>, currentValue: string, onUpdate: (val: string) => void) {
   if (event.key === "Tab") {
@@ -347,10 +234,12 @@ export function CodingStarterFields({
   jobSkills?: Array<{ name: string } | string>;
   questionSkill?: string | null;
 }) {
+  const t = useT();
   const jobFromContext = useOptionalRecruitmentJob();
   const rawSkills = jobSkills ?? jobFromContext?.skills ?? [];
   const jobLanguages = getJobLanguages(rawSkills);
   const questionLang = resolveLanguageFromSkill(questionSkill);
+  const defaultCodingJson = useMemo(() => getCodingExample(t), [t]);
 
   const parse = <T,>(fallback: string): T => {
     try {
@@ -360,7 +249,7 @@ export function CodingStarterFields({
     }
   };
 
-  const coding = parse<CodingContent>(codingExample);
+  const coding = parse<CodingContent>(defaultCodingJson);
   const currentLanguages = Object.keys(coding.starterCode ?? {});
 
   const addLanguage = (langId: string) => {
@@ -380,17 +269,17 @@ export function CodingStarterFields({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--color-on-surface)]">
             <Code2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            Mã khởi đầu cho ứng viên (Starter Code)
+            {t("recruiter.assessments.coding.starterHeading")}
           </h3>
           {questionLang && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300">
               <Sparkles className="size-3" />
-              Kỹ năng câu hỏi: {questionLang.label}
+              {t("recruiter.assessments.coding.questionSkillBadge", { label: questionLang.label })}
             </span>
           )}
         </div>
         <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-          Chỉ nhập khung hàm hoặc gợi ý ban đầu, không điền lời giải chuẩn. Nhấn Tab để thụt dòng.
+          {t("recruiter.assessments.coding.starterHint")}
         </p>
       </div>
 
@@ -401,13 +290,13 @@ export function CodingStarterFields({
               {language}
               {jobLanguages.some(jl => jl.id === language) && (
                 <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
-                  Kỹ năng Job
+                  {t("recruiter.assessments.coding.jobSkillBadge")}
                 </span>
               )}
             </span>
             <button
               type="button"
-              aria-label={`Xóa ngôn ngữ ${language.toUpperCase()}`}
+              aria-label={t("recruiter.assessments.coding.removeLangAria", { lang: language.toUpperCase() })}
               className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error-container)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
               onClick={() => {
                 const starterCode = { ...coding.starterCode };
@@ -418,7 +307,7 @@ export function CodingStarterFields({
               }}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Xóa ngôn ngữ
+              {t("recruiter.assessments.coding.removeLangBtn")}
             </button>
           </div>
 
@@ -434,7 +323,7 @@ export function CodingStarterFields({
                 })
               );
             }}
-            placeholder={`// Nhập khung hàm bắt đầu cho ngôn ngữ ${language.toUpperCase()}...`}
+            placeholder={t("recruiter.assessments.coding.starterPlaceholder", { lang: language.toUpperCase() })}
           />
         </div>
       ))}
@@ -443,7 +332,7 @@ export function CodingStarterFields({
         <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
           <Code2 className="mx-auto size-8 text-slate-400" />
           <p className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-            Chưa có ngôn ngữ nào được cấu hình cho bài lập trình.
+            {t("recruiter.assessments.coding.noLanguagesConfigured")}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {(questionLang ? [questionLang] : jobLanguages.length > 0 ? jobLanguages : ALL_SUPPORTED_LANGUAGES.slice(0, 3)).map((l) => (
@@ -454,7 +343,7 @@ export function CodingStarterFields({
                 onClick={() => addLanguage(l.id)}
               >
                 <Plus className="size-3.5" />
-                Thêm {l.label}
+                {t("recruiter.assessments.coding.addLanguageBtn", { label: l.label })}
               </button>
             ))}
           </div>
@@ -463,7 +352,7 @@ export function CodingStarterFields({
 
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--color-border-default)]">
         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-          Thêm ngôn ngữ hỗ trợ:
+          {t("recruiter.assessments.coding.addSupportedLangLabel")}
         </label>
         <div className="flex flex-wrap items-center gap-1.5">
           {jobLanguages
@@ -476,7 +365,7 @@ export function CodingStarterFields({
                 onClick={() => addLanguage(l.id)}
               >
                 <Plus className="size-3" />
-                {l.label} (Job)
+                {t("recruiter.assessments.coding.jobLangSuffix", { label: l.label })}
               </button>
             ))}
 
@@ -485,7 +374,7 @@ export function CodingStarterFields({
             value=""
             onChange={(e) => addLanguage(e.target.value)}
           >
-            <option value="">+ Chọn ngôn ngữ khác...</option>
+            <option value="">{t("recruiter.assessments.coding.selectOtherLangOption")}</option>
             {ALL_SUPPORTED_LANGUAGES.filter((l) => !currentLanguages.includes(l.id)).map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label}
@@ -507,6 +396,9 @@ export function AiRubricCriteriaEditor({
   onChange: (jsonText: string) => void;
   referenceAnswer?: string;
 }) {
+  const t = useT();
+  const essayArchetypes = useMemo(() => getEssayArchetypes(t), [t]);
+  const defaultRubricTemplate = useMemo(() => getDefaultRubricTemplate(t), [t]);
   const parse = (): EssayRubric => {
     try {
       if (value?.trim()) return JSON.parse(value) as EssayRubric;
@@ -514,12 +406,12 @@ export function AiRubricCriteriaEditor({
     return defaultRubricTemplate;
   };
   const rubric = parse();
-  const activeCategory: EssayCategory = rubric.category && rubric.category in ESSAY_ARCHETYPES
+  const activeCategory: EssayCategory = rubric.category && rubric.category in essayArchetypes
     ? rubric.category
     : "ESSAY_CONCEPTUAL";
   const criteria = Array.isArray(rubric.criteria) && rubric.criteria.length > 0
     ? rubric.criteria
-    : ESSAY_ARCHETYPES[activeCategory].criteria.map((c) => ({ ...c }));
+    : essayArchetypes[activeCategory].criteria.map((c) => ({ ...c }));
 
   const update = (patch: Partial<EssayRubric>) => {
     const updated: EssayRubric = {
@@ -535,7 +427,7 @@ export function AiRubricCriteriaEditor({
   };
 
   const applyArchetype = (cat: EssayCategory) => {
-    const archetype = ESSAY_ARCHETYPES[cat];
+    const archetype = essayArchetypes[cat];
     const newCriteria = archetype.criteria.map((c) => ({
       name: c.name,
       guide: c.guide,
@@ -574,9 +466,9 @@ export function AiRubricCriteriaEditor({
   const addCriterion = () => {
     const remainingWeight = Math.max(0, 100 - totalWeight);
     const newCrit = {
-      name: `Tiêu chí ${criteria.length + 1}`,
-      guide: "Mô tả kỳ vọng ứng viên trả lời để AI chấm đúng hướng.",
-      description: "Tiêu chuẩn đánh giá",
+      name: t("recruiter.assessments.coding.newCriterionName", { index: criteria.length + 1 }),
+      guide: t("recruiter.assessments.coding.newCriterionGuide"),
+      description: t("recruiter.assessments.coding.newCriterionDesc"),
       weight: remainingWeight || 10,
       keywords: [],
     };
@@ -607,21 +499,21 @@ export function AiRubricCriteriaEditor({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--color-on-surface)]">
             <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            Mô hình Rubric mẫu cho AI chấm tự luận
+            {t("recruiter.assessments.coding.rubricEditorHeading")}
           </h3>
           <span className="text-xs text-[var(--color-on-surface-variant)]">
-            Chọn mô hình chuẩn hoặc tùy chỉnh từng tiêu chí
+            {t("recruiter.assessments.coding.rubricEditorHint")}
           </span>
         </div>
         <p className="mt-1 text-xs text-[var(--color-on-surface-variant)] leading-relaxed">
-          Mỗi dạng câu hỏi tự luận có cấu trúc kỳ vọng riêng. Chọn mô hình phù hợp giúp AI bám sát tiêu chuẩn và chấm điểm chuẩn xác.
+          {t("recruiter.assessments.coding.rubricEditorSubtitle")}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {(["ESSAY_CONCEPTUAL", "ESSAY_SYSTEM_DESIGN", "ESSAY_SCENARIO", "ESSAY_TRADE_OFF"] as const).map(
           (key) => {
-            const arch = ESSAY_ARCHETYPES[key];
+            const arch = essayArchetypes[key];
             const Icon = archetypeIcons[key];
             const isSelected = activeCategory === key ||
               (key === "ESSAY_SYSTEM_DESIGN" && activeCategory === "ESSAY_ARCHITECTURE") ||
@@ -651,7 +543,7 @@ export function AiRubricCriteriaEditor({
                   </div>
                   {isSelected && (
                     <span className="flex items-center gap-1 text-[11px] font-bold text-[var(--color-primary)]">
-                      <Check className="size-3.5" /> Đang chọn
+                      <Check className="size-3.5" /> {t("recruiter.assessments.coding.selectedBadge")}
                     </span>
                   )}
                 </div>
@@ -682,8 +574,8 @@ export function AiRubricCriteriaEditor({
           {!isWeightValid && <AlertTriangle className="size-4 shrink-0" />}
           <div>
             <p className="text-xs font-semibold">
-              Tổng trọng số: <span className="font-bold">{totalWeight}%</span> / 100%
-              {isWeightValid ? " — Cân bằng hợp lệ" : " — Chưa đủ 100%, hãy điều chỉnh"}
+              {t("recruiter.assessments.coding.totalWeightText")}<span className="font-bold">{totalWeight}%</span> / 100%
+              {isWeightValid ? t("recruiter.assessments.coding.weightBalanced") : t("recruiter.assessments.coding.weightUnbalanced")}
             </p>
             <div className="mt-1 h-1.5 w-44 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
               <div
@@ -699,21 +591,21 @@ export function AiRubricCriteriaEditor({
           className="inline-flex items-center gap-1.5 rounded-lg border border-current/20 bg-white/70 px-2.5 py-1 text-xs font-semibold hover:bg-white dark:bg-black/30 dark:hover:bg-black/50"
         >
           <RotateCcw className="size-3" />
-          Chia đều trọng số
+          {t("recruiter.assessments.coding.distributeWeightsBtn")}
         </button>
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-            Danh sách tiêu chí đánh giá ({criteria.length})
+            {t("recruiter.assessments.coding.criteriaListHeading", { count: criteria.length })}
           </h4>
           <button
             type="button"
             onClick={addCriterion}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] hover:underline"
           >
-            <Plus className="size-3.5" /> Thêm tiêu chí
+            <Plus className="size-3.5" /> {t("recruiter.assessments.coding.addCriterionBtn")}
           </button>
         </div>
 
@@ -731,7 +623,7 @@ export function AiRubricCriteriaEditor({
                   type="text"
                   value={crit.name ?? crit.description}
                   onChange={(e) => updateCriterion(idx, { name: e.target.value, description: e.target.value })}
-                  placeholder="Tên tiêu chí đánh giá..."
+                  placeholder={t("recruiter.assessments.coding.criterionNamePlaceholder")}
                   className={cn(assessmentInput, "h-8 py-1 text-xs font-semibold flex-1")}
                 />
               </div>
@@ -753,7 +645,7 @@ export function AiRubricCriteriaEditor({
                     type="button"
                     onClick={() => removeCriterion(idx)}
                     className="grid size-8 place-items-center rounded-lg text-[var(--color-error)] hover:bg-[var(--color-error-container)]"
-                    aria-label={`Xóa tiêu chí ${idx + 1}`}
+                    aria-label={t("recruiter.assessments.coding.deleteCriterionAria", { index: idx + 1 })}
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -765,13 +657,13 @@ export function AiRubricCriteriaEditor({
               rows={2}
               value={crit.guide ?? ""}
               onChange={(e) => updateCriterion(idx, { guide: e.target.value })}
-              placeholder="Hướng dẫn cho AI: Ứng viên cần nêu được ý gì để đạt điểm tối đa ở tiêu chí này?"
+              placeholder={t("recruiter.assessments.coding.criterionGuidePlaceholder")}
               className={cn(assessmentInput, "text-xs resize-y")}
             />
 
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-[11px] font-medium text-[var(--color-on-surface-variant)]">
-                Từ khóa gợi ý AI:
+                {t("recruiter.assessments.coding.aiKeywordsLabel")}
               </span>
               {(crit.keywords ?? []).map((kw, kidx) => (
                 <span
@@ -794,7 +686,7 @@ export function AiRubricCriteriaEditor({
               ))}
               <input
                 type="text"
-                placeholder="+ Thêm từ khóa (Enter)..."
+                placeholder={t("recruiter.assessments.coding.addKeywordPlaceholder")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -836,11 +728,17 @@ export function QuestionContentFields({
   jobSkills?: Array<{ name: string } | string>;
   questionId?: number;
 }) {
+  const t = useT();
+  const locale = useLocale();
+  const codingSchema = useMemo(() => createCodingSchema(t), [t]);
+  const harnessTemplateOptions = useMemo(() => getHarnessTemplateOptions(t), [t]);
+  const defaultCodingJson = useMemo(() => getCodingExample(t), [t]);
+
   let error: string | undefined;
   try {
     if (value.trim()) JSON.parse(value);
   } catch {
-    error = "JSON không hợp lệ. Kiểm tra dấu ngoặc và dấu phẩy.";
+    error = t("recruiter.assessments.coding.invalidJsonError");
   }
   const parse = <T,>(fallback: string): T => {
     try {
@@ -858,7 +756,7 @@ export function QuestionContentFields({
   const rawSkills = jobSkills ?? jobFromContext?.skills ?? [];
   const jobLanguages = getJobLanguages(rawSkills);
 
-  const coding = parse<CodingContent>(codingExample);
+  const coding = parse<CodingContent>(defaultCodingJson);
   const languages = Object.keys(coding.starterCode ?? {});
   const [verifyLanguage, setVerifyLanguage] = useState(languages[0] ?? "python");
   const [solution, setSolution] = useState(
@@ -882,9 +780,9 @@ export function QuestionContentFields({
       setVerifyMessage(
         allOk
           ? questionId
-            ? `Lời giải mẫu đạt ${ok}/${results.length} test. Đã ghi nhận verify — có thể xuất bản đề.`
-            : `Lời giải mẫu đạt ${ok}/${results.length} test. Lưu câu hỏi rồi chạy lại verify để ghi nhận trước khi xuất bản.`
-          : `Lời giải mẫu đạt ${ok}/${results.length} test. Sửa harness, test hoặc lời giải trước khi xuất bản.`
+            ? t("recruiter.assessments.coding.verifyPassedSaved", { ok, total: results.length })
+            : t("recruiter.assessments.coding.verifyPassedUnsaved", { ok, total: results.length })
+          : t("recruiter.assessments.coding.verifyFailed", { ok, total: results.length })
       );
     },
     onError: () => setVerifyMessage(undefined),
@@ -893,7 +791,7 @@ export function QuestionContentFields({
   const applyTemplate = () => {
     if (!templateId) return;
     const targets = (languages.length ? languages : ["python"]) as CodingLanguage[];
-    const generated = applyHarnessTemplate(templateId, targets);
+    const generated = applyHarnessTemplate(templateId, targets, t);
     if (!Object.keys(generated.starterCode).length) return;
     update({
       starterCode: { ...coding.starterCode, ...generated.starterCode },
@@ -928,45 +826,50 @@ export function QuestionContentFields({
 
   return (
     <fieldset className="space-y-5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-5">
-      <legend className="px-2 text-sm font-medium">{executionOnly ? "Thiết lập chạy bài" : "Bài lập trình"}</legend>
+      <legend className="px-2 text-sm font-medium">
+        {executionOnly ? t("recruiter.assessments.coding.legendExecutionOnly") : t("recruiter.assessments.coding.legendCodingProblem")}
+      </legend>
       {executionOnly && (
         <p className="text-sm text-[var(--color-on-surface-variant)]">
-          Testcase kiểm tra kết quả chạy code. Rubric ở phần 1 mô tả chất lượng lời giải. Mã khởi đầu và đáp án mẫu chỉ nhập ở phần 1.
+          {t("recruiter.assessments.coding.executionOnlyHint")}
         </p>
       )}
 
       {coding.verifiedAt && (
         <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Đã verify lời giải mẫu lúc {new Date(coding.verifiedAt).toLocaleString("vi-VN")}{questionId ? "" : " (làm mới sau khi lưu)"}.
+          {t("recruiter.assessments.coding.verifiedAtNotice", {
+            time: formatDateTime(coding.verifiedAt, undefined, locale),
+            unsavedNote: questionId ? "" : t("recruiter.assessments.coding.verifiedAtUnsavedSuffix"),
+          })}
         </p>
       )}
       {!executionOnly && !questionId && (
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          Lưu câu hỏi trước, rồi chạy verify để ghi nhận điều kiện xuất bản.
+          {t("recruiter.assessments.coding.saveBeforeVerifyHint")}
         </p>
       )}
 
       {!executionOnly && (
         <>
           <label className="block text-sm">
-            Tên bài toán
+            {t("recruiter.assessments.coding.problemTitleLabel")}
             <input
               className={assessmentInput}
               maxLength={255}
               value={coding.title ?? ""}
               onChange={(event) => update({ title: event.target.value })}
-              placeholder="Ví dụ: Tổng hai số"
+              placeholder={t("recruiter.assessments.coding.problemTitlePlaceholder")}
             />
           </label>
           <label className="block text-sm">
-            Constraints
+            {t("recruiter.assessments.coding.constraintsLabel")}
             <textarea
               rows={3}
               maxLength={5000}
               className={assessmentInput}
               value={coding.constraints ?? ""}
               onChange={(event) => update({ constraints: event.target.value })}
-              placeholder={"Ví dụ:\n1 ≤ n ≤ 10^5\n−10^9 ≤ a_i ≤ 10^9"}
+              placeholder={t("recruiter.assessments.coding.constraintsPlaceholder")}
             />
           </label>
         </>
@@ -974,24 +877,24 @@ export function QuestionContentFields({
 
       <details className="rounded-xl border border-[var(--color-border-default)] p-4" open={executionOnly ? undefined : true}>
         <summary className="cursor-pointer text-sm font-semibold text-[var(--color-primary)]">
-          Cấu hình chạy nâng cao · giới hạn tài nguyên & chương trình gọi hàm (Harness)
+          {t("recruiter.assessments.coding.advancedSummary")}
         </summary>
         <div className="mt-4 space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm">
-              Phân loại bài
+              {t("recruiter.assessments.coding.categoryLabel")}
               <select
                 className={assessmentInput}
                 value={coding.category}
                 onChange={(event) => update({ category: event.target.value as CodingContent["category"] })}
               >
-                <option value="CODING_ALGORITHM">Thuật toán</option>
-                <option value="CODING_OOP">Hướng đối tượng</option>
-                <option value="SQL_QUERY">Truy vấn SQL</option>
+                <option value="CODING_ALGORITHM">{t("recruiter.assessments.coding.categoryAlgorithm")}</option>
+                <option value="CODING_OOP">{t("recruiter.assessments.coding.categoryOop")}</option>
+                <option value="SQL_QUERY">{t("recruiter.assessments.coding.categorySql")}</option>
               </select>
             </label>
             <label className="text-sm">
-              Giới hạn thời gian (ms)
+              {t("recruiter.assessments.coding.timeLimitLabel")}
               <input
                 type="number"
                 min={100}
@@ -1002,7 +905,7 @@ export function QuestionContentFields({
               />
             </label>
             <label className="text-sm">
-              Bộ nhớ (MB)
+              {t("recruiter.assessments.coding.memoryLimitLabel")}
               <input
                 type="number"
                 min={32}
@@ -1016,13 +919,13 @@ export function QuestionContentFields({
 
           <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4">
             <label className="min-w-56 flex-1 text-sm">
-              Mẫu starter + harness
+              {t("recruiter.assessments.coding.templateSelectLabel")}
               <select
                 className={assessmentInput}
                 value={templateId}
                 onChange={(event) => setTemplateId(event.target.value as HarnessTemplateId | "")}
               >
-                <option value="">Chọn mẫu I/O</option>
+                <option value="">{t("recruiter.assessments.coding.templateDefaultOption")}</option>
                 {harnessTemplateOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label} — {option.hint}
@@ -1031,10 +934,10 @@ export function QuestionContentFields({
               </select>
             </label>
             <Button type="button" variant="secondary" disabled={!templateId} onClick={applyTemplate}>
-              Áp dụng cho ngôn ngữ đang có
+              {t("recruiter.assessments.coding.applyTemplateBtn")}
             </Button>
             <p className="basis-full text-xs text-[var(--color-on-surface-variant)]">
-              Ghi đè starter/harness của các ngôn ngữ đã thêm (bỏ trống ngôn ngữ thì mặc định Python). Có thể chỉnh tay sau khi áp dụng.
+              {t("recruiter.assessments.coding.applyTemplateHint")}
             </p>
           </div>
 
@@ -1043,7 +946,7 @@ export function QuestionContentFields({
               <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-3">
                 <h4 className="flex items-center gap-2 text-sm font-semibold">
                   <Code2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  Chương trình gọi hàm (Harness Code)
+                  {t("recruiter.assessments.coding.harnessTitle")}
                 </h4>
                 <span className="rounded-md bg-[var(--color-primary-soft)] px-3 py-1 font-mono text-xs font-semibold uppercase text-[var(--color-primary)]">
                   {language}
@@ -1052,36 +955,36 @@ export function QuestionContentFields({
               <div className={executionOnly ? "space-y-4" : "grid gap-4 lg:grid-cols-2"}>
                 {!executionOnly && (
                   <div className="space-y-2 text-xs font-medium">
-                    <span>Mã khởi đầu · Hiển thị cho ứng viên</span>
+                    <span>{t("recruiter.assessments.coding.starterFieldLabel")}</span>
                     <MonacoCodeEditor
                       height="200px"
                       language={language}
                       value={starter}
                       onChange={(val) => update({ starterCode: { ...coding.starterCode, [language]: val } })}
-                      placeholder={`// Khung hàm gợi ý ban đầu (${language.toUpperCase()})...`}
+                      placeholder={t("recruiter.assessments.coding.starterFieldPlaceholder", { lang: language.toUpperCase() })}
                     />
                   </div>
                 )}
                 <div className="space-y-2 text-xs font-medium">
-                  <span>Harness · Bọc mã nguồn kiểm thử (chứa {"{{SOURCE}}"})</span>
+                  <span>{t("recruiter.assessments.coding.harnessFieldLabel")}</span>
                   <MonacoCodeEditor
                     height="200px"
                     language={language}
                     value={coding.harness?.[language] ?? ""}
                     onChange={(val) => update({ harness: { ...coding.harness, [language]: val } })}
-                    placeholder={`// Bọc code và thay thế {{SOURCE}} bằng mã ứng viên...`}
+                    placeholder={t("recruiter.assessments.coding.harnessFieldPlaceholder")}
                   />
                 </div>
               </div>
               <p className="text-xs text-[var(--color-on-surface-variant)]">
-                Đoạn này đọc input, chèn mã ứng viên tại <code>{"{{SOURCE}}"}</code> và in kết quả ra stdout để so khớp với testcase.
+                {t("recruiter.assessments.coding.harnessHelp")}
               </p>
             </div>
           ))}
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Thêm ngôn ngữ hỗ trợ
+              {t("recruiter.assessments.coding.addLanguageToSupportLabel")}
               <select
                 className={cn(assessmentInput, "mt-1")}
                 value=""
@@ -1095,14 +998,14 @@ export function QuestionContentFields({
                   }
                 }}
               >
-                <option value="">+ Chọn ngôn ngữ để thêm...</option>
+                <option value="">{t("recruiter.assessments.coding.selectLangToAddOption")}</option>
                 {jobLanguages.filter((l) => !(l.id in (coding.starterCode ?? {}))).length > 0 && (
-                  <optgroup label="Ngôn ngữ cấu hình trong Job (Ưu tiên)">
+                  <optgroup label={t("recruiter.assessments.coding.jobLangOptgroup")}>
                     {jobLanguages
                       .filter((l) => !(l.id in (coding.starterCode ?? {})))
                       .map((l) => (
                         <option key={l.id} value={l.id}>
-                          ★ {l.label} (Cấu hình theo Job)
+                          {t("recruiter.assessments.coding.jobLangOption", { label: l.label })}
                         </option>
                       ))}
                   </optgroup>
@@ -1110,7 +1013,7 @@ export function QuestionContentFields({
                 {ALL_SUPPORTED_LANGUAGES.filter(
                   (l) => !(l.id in (coding.starterCode ?? {})) && !jobLanguages.some((jl) => jl.id === l.id)
                 ).length > 0 && (
-                  <optgroup label={jobLanguages.length > 0 ? "Các ngôn ngữ khác (mở rộng)" : "Danh sách ngôn ngữ"}>
+                  <optgroup label={jobLanguages.length > 0 ? t("recruiter.assessments.coding.otherLangOptgroup") : t("recruiter.assessments.coding.allLangOptgroup")}>
                     {ALL_SUPPORTED_LANGUAGES.filter(
                       (l) => !(l.id in (coding.starterCode ?? {})) && !jobLanguages.some((jl) => jl.id === l.id)
                     ).map((l) => (
@@ -1130,10 +1033,10 @@ export function QuestionContentFields({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="flex items-center gap-2 text-sm font-semibold">
             <FlaskConical className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            Bộ kiểm thử ({coding.testCases?.length ?? 0} Test cases)
+            {t("recruiter.assessments.coding.testSuiteHeading", { count: coding.testCases?.length ?? 0 })}
           </h4>
           <span className="text-xs text-[var(--color-on-surface-variant)]">
-            {sampleTests.length} công khai · {hiddenTests.length} ẩn
+            {t("recruiter.assessments.coding.testSuiteCounts", { sample: sampleTests.length, hidden: hiddenTests.length })}
           </span>
         </div>
 
@@ -1148,7 +1051,10 @@ export function QuestionContentFields({
           >
             <div>
               <p className="text-xs font-semibold">
-                Tổng trọng số test ẩn: {hiddenTotalWeight}% / 100% {isWeightValid ? "— Hợp lệ" : "— Cần điều chỉnh để tổng đúng 100%"}
+                {t("recruiter.assessments.coding.hiddenTotalWeight", {
+                  total: hiddenTotalWeight,
+                  status: isWeightValid ? t("recruiter.assessments.coding.hiddenWeightValid") : t("recruiter.assessments.coding.hiddenWeightInvalid"),
+                })}
               </p>
               <progress className="mt-1 h-1.5 w-48 rounded-full accent-[var(--color-primary)]" max={100} value={Math.min(hiddenTotalWeight, 100)} />
             </div>
@@ -1157,7 +1063,7 @@ export function QuestionContentFields({
               className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
               onClick={autoDistributeWeights}
             >
-              Tự động chia đều trọng số cho các test ẩn
+              {t("recruiter.assessments.coding.autoDistributeHiddenBtn")}
             </button>
           </div>
         )}
@@ -1165,7 +1071,7 @@ export function QuestionContentFields({
         {(coding.testCases ?? []).map((test, index) => (
           <div key={index} className="grid gap-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4 sm:grid-cols-2">
             <div className="flex items-center justify-between gap-2 sm:col-span-2">
-              <span className="text-sm font-semibold">Test case {String(index + 1).padStart(2, "0")}</span>
+              <span className="text-sm font-semibold">{t("recruiter.assessments.coding.testCaseTitle", { index: String(index + 1).padStart(2, "0") })}</span>
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
@@ -1175,13 +1081,15 @@ export function QuestionContentFields({
                       : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   )}
                 >
-                  {test.sample ? "Công khai cho ứng viên" : `Test ẩn (Trọng số: ${test.weight ?? 0}%)`}
+                  {test.sample
+                    ? t("recruiter.assessments.coding.samplePublicBadge")
+                    : t("recruiter.assessments.coding.hiddenWeightedBadge", { weight: test.weight ?? 0 })}
                 </span>
               </div>
             </div>
 
             <label className="text-sm">
-              Input {index + 1}
+              {t("recruiter.assessments.coding.inputLabel", { index: index + 1 })}
               <textarea
                 rows={2}
                 className={cn(assessmentInput, "font-mono text-xs")}
@@ -1195,7 +1103,7 @@ export function QuestionContentFields({
             </label>
 
             <label className="text-sm">
-              Output mong đợi
+              {t("recruiter.assessments.coding.expectedOutputLabel")}
               <textarea
                 rows={2}
                 className={cn(assessmentInput, "font-mono text-xs")}
@@ -1210,7 +1118,7 @@ export function QuestionContentFields({
 
             {test.sample && (
               <label className="text-sm sm:col-span-2">
-                Giải thích ví dụ
+                {t("recruiter.assessments.coding.sampleExplanationLabel")}
                 <textarea
                   rows={2}
                   maxLength={5000}
@@ -1221,7 +1129,7 @@ export function QuestionContentFields({
                       testCases: coding.testCases.map((item, i) => (i === index ? { ...item, explanation: event.target.value } : item)),
                     })
                   }
-                  placeholder="Ví dụ: Vì sao output đúng với input này."
+                  placeholder={t("recruiter.assessments.coding.sampleExplanationPlaceholder")}
                 />
               </label>
             )}
@@ -1246,12 +1154,12 @@ export function QuestionContentFields({
                     })
                   }
                 />
-                Công khai cho ứng viên (chỉ để chạy thử, không tính điểm)
+                {t("recruiter.assessments.coding.publicCheckboxLabel")}
               </label>
 
               {!test.sample && (
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  <span>Trọng số tính điểm (%):</span>
+                  <span>{t("recruiter.assessments.coding.weightPercentLabel")}</span>
                   <div className="relative">
                     <input
                       type="number"
@@ -1278,7 +1186,7 @@ export function QuestionContentFields({
                 onClick={() => update({ testCases: coding.testCases.filter((_, i) => i !== index) })}
               >
                 <Trash2 className="size-3.5" />
-                Xóa test
+                {t("recruiter.assessments.coding.deleteTestBtn")}
               </button>
             </div>
           </div>
@@ -1296,18 +1204,18 @@ export function QuestionContentFields({
           }}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Thêm test case
+          {t("recruiter.assessments.coding.addTestCaseBtn")}
         </button>
       </div>
 
       <section className="space-y-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4">
-        <h4 className="text-sm font-semibold">Kiểm chứng lời giải mẫu</h4>
+        <h4 className="text-sm font-semibold">{t("recruiter.assessments.coding.verifySectionTitle")}</h4>
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          Chạy lời giải đúng trên toàn bộ sample + hidden trước khi lưu vào ngân hàng hoặc xuất bản đề. Cần sandbox Judge đã cấu hình.
+          {t("recruiter.assessments.coding.verifySectionDesc")}
         </p>
         <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto]">
           <label className="text-sm">
-            Ngôn ngữ
+            {t("recruiter.assessments.coding.verifyLangLabel")}
             <select
               className={assessmentInput}
               value={verifyLanguage}
@@ -1327,7 +1235,7 @@ export function QuestionContentFields({
             </select>
           </label>
           <label className="text-sm sm:col-span-2">
-            Lời giải mẫu
+            {t("recruiter.assessments.coding.verifySolutionLabel")}
             <textarea
               rows={6}
               spellCheck={false}
@@ -1351,11 +1259,11 @@ export function QuestionContentFields({
           }}
         >
           <Play className="size-4" aria-hidden="true" />
-          {verify.isPending ? "Đang chạy…" : "Chạy lời giải trên mọi test"}
+          {verify.isPending ? t("recruiter.assessments.coding.verifyRunningBtn") : t("recruiter.assessments.coding.verifyRunBtn")}
         </Button>
         {verify.isError &&
           (verify.error instanceof ZodError ? (
-            <FieldError message={contentError(verify.error)} />
+            <FieldError message={contentError(verify.error, t)} />
           ) : (
             <AssessmentError error={verify.error} />
           ))}
@@ -1375,7 +1283,11 @@ export function QuestionContentFields({
           <ul className="space-y-1 text-xs">
             {verify.data.map((result, index) => (
               <li key={index} className={passed(result) ? "text-emerald-700" : "text-[var(--color-status-danger)]"}>
-                Test {index + 1}: {passed(result) ? "Passed" : "Failed"} · {result.status?.description}
+                {t("recruiter.assessments.coding.testResultLine", {
+                  index: index + 1,
+                  status: passed(result) ? t("recruiter.assessments.coding.testPassedWord") : t("recruiter.assessments.coding.testFailedWord"),
+                  description: result.status?.description ?? "",
+                })}
               </li>
             ))}
           </ul>
@@ -1383,8 +1295,8 @@ export function QuestionContentFields({
       </section>
 
       {!value.trim() && (
-        <button type="button" className="ml-3 text-sm text-[var(--color-primary)]" onClick={() => onChange(codingExample)}>
-          Sử dụng mẫu đang hiển thị
+        <button type="button" className="ml-3 text-sm text-[var(--color-primary)]" onClick={() => onChange(defaultCodingJson)}>
+          {t("recruiter.assessments.coding.useDisplayedExampleBtn")}
         </button>
       )}
       <FieldError message={error} />

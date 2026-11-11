@@ -1,5 +1,5 @@
+import { formatDateTime, t as globalT, useI18nStore, useT, type Locale, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { applicationStatusLabel } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
 export const STATUS_TABS = [
   "",
@@ -41,20 +41,38 @@ export const ACTION_TOAST = {
   restore: "Đã khôi phục hồ sơ",
 } as const;
 
-export function sourceLabel(source: string | null | undefined) {
+export function getActionToast(action: keyof typeof ACTION_TOAST, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.applicants.actionToasts.${action}`;
+  const label = translate(key);
+  return label === key ? ACTION_TOAST[action] : label;
+}
+
+export function getApplicantStatusLabel(status: string, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.applicationStatuses.${status}`;
+  const label = translate(key);
+  return label === key ? status : label;
+}
+
+export function sourceLabel(source: string | null | undefined, translate: TranslateFn = globalT) {
   if (!source) return "—";
-  return SOURCE_LABEL[source] ?? source;
+  const key = `recruiter.ops.sources.${source}`;
+  const label = translate(key);
+  return label === key ? (SOURCE_LABEL[source] ?? source) : label;
 }
 
 export function splitApplicantTags(value: string | null | undefined) {
   return (value ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
 }
 
-export function formatApplicantDateTime(value: string) {
-  return new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+export function formatApplicantDateTime(
+  value: string,
+  locale: Locale = useI18nStore.getState().locale,
+) {
+  return formatDateTime(value, { dateStyle: "short", timeStyle: "short" }, locale);
 }
 
 export function ApplicantStatusPill({ status }: { status: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -63,7 +81,7 @@ export function ApplicantStatusPill({ status }: { status: string }) {
       )}
     >
       <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-      {applicationStatusLabel(status)}
+      {getApplicantStatusLabel(status, t)}
     </span>
   );
 }

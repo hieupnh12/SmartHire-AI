@@ -1,31 +1,38 @@
+import { useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "@/api/tenant/authApi";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT, type TranslateFn } from "@/i18n";
 import { useAuthStore } from "../stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 
-const schema = z
-  .object({
-    fullName: z.string().min(2),
-    email: z.string().email(),
-    password: z.string().min(8),
-    confirmPassword: z.string().min(8),
-    role: z.enum(["CANDIDATE", "RECRUITER"]),
-  })
-  .refine((v) => v.password === v.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+function createSchema(t: TranslateFn) {
+  return z
+    .object({
+      fullName: z.string().min(2, t("auth.validation.fullNameMin2")),
+      email: z.string().email(t("auth.validation.emailInvalid")),
+      password: z.string().min(8, t("auth.validation.passwordMin8")),
+      confirmPassword: z.string().min(8, t("auth.validation.confirmPasswordMin8")),
+      role: z.enum(["CANDIDATE", "RECRUITER"]),
+    })
+    .refine((v) => v.password === v.confirmPassword, {
+      message: t("auth.validation.passwordsMismatch"),
+      path: ["confirmPassword"],
+    });
+}
 
-type Form = z.infer<typeof schema>;
+type Form = z.infer<ReturnType<typeof createSchema>>;
 
 export function RegisterPage() {
+  const t = useT();
   const navigate = useNavigate();
   const setTokens = useAuthStore((s) => s.setTokens);
   const setUser = useAuthStore((s) => s.setUser);
+  const schema = useMemo(() => createSchema(t), [t]);
 
   const {
     register,
@@ -73,16 +80,19 @@ export function RegisterPage() {
         onSubmit={handleSubmit((data) => mutation.mutate(data))}
         className="w-full max-w-md space-y-4 rounded-lg bg-surface-card p-8 shadow-sm"
       >
-        <h1 className="font-display text-2xl font-bold text-brand-primary">Create account</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="font-display text-2xl font-bold text-brand-primary">{t("auth.registerTitle")}</h1>
+          <LanguageSwitcher variant="icon" />
+        </div>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          <code>POST /api/v1/auth/register</code> · land in role workspace
+          {t("auth.registerPage.roleHint")}
         </p>
         {(
           [
-            ["fullName", "Full name", "text"],
-            ["email", "Email", "email"],
-            ["password", "Password", "password"],
-            ["confirmPassword", "Confirm password", "password"],
+            ["fullName", t("auth.fullName"), "text"],
+            ["email", t("auth.email"), "email"],
+            ["password", t("auth.password"), "password"],
+            ["confirmPassword", t("auth.confirmPassword"), "password"],
           ] as const
         ).map(([name, label, type]) => (
           <div key={name}>
@@ -98,13 +108,13 @@ export function RegisterPage() {
           </div>
         ))}
         <div>
-          <label className="mb-1 block text-sm">I am a</label>
+          <label className="mb-1 block text-sm">{t("auth.role")}</label>
           <select
             className="w-full rounded-md border border-[var(--color-border-default)] px-3 py-2"
             {...register("role")}
           >
-            <option value="CANDIDATE">Candidate</option>
-            <option value="RECRUITER">Recruiter</option>
+            <option value="CANDIDATE">{t("auth.candidate")}</option>
+            <option value="RECRUITER">{t("auth.recruiter")}</option>
           </select>
         </div>
         {mutation.isError && (
@@ -115,11 +125,11 @@ export function RegisterPage() {
           disabled={mutation.isPending}
           className="w-full rounded-md bg-brand-primary px-4 py-2.5 font-medium text-[var(--color-text-inverse)] hover:bg-brand-primary-hover disabled:opacity-60"
         >
-          {mutation.isPending ? "Creating…" : "Register"}
+          {mutation.isPending ? t("auth.creating") : t("auth.registerPage.registerButton")}
         </button>
         <p className="text-center text-sm">
           <Link className="text-brand-secondary" to="/login">
-            Back to login
+            {t("auth.registerPage.backToLogin")}
           </Link>
         </p>
       </form>

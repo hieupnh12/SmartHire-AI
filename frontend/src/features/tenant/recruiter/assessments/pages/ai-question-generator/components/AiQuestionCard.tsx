@@ -1,5 +1,6 @@
 import { AlertTriangle, Sparkles, Trash2 } from "lucide-react";
 import { assessmentInput } from "@/components/ux/assessmentUi";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { QuestionRequest } from "@/api/types/assessment";
 import {
@@ -38,10 +39,11 @@ export function AiQuestionCard({
   onPatchDraft,
   onPatchOption,
 }: AiQuestionCardProps) {
+  const t = useT();
   const q = item.question;
   const dups = similarIds(item.authoringMetadata);
   const rubric = asRubric(q.rubricJson);
-  const code = codingSummary(q.coding);
+  const code = codingSummary(q.coding, t);
   const modelName = (() => {
     const meta = item.authoringMetadata as Record<string, unknown> | undefined;
     if (typeof meta?.model === "string" && meta.model.trim() && meta.model !== "Coding AI Engine") {
@@ -92,7 +94,7 @@ export function AiQuestionCard({
               className="size-4 rounded border-slate-300 accent-[var(--color-primary)]"
             />
             <span className="font-bold text-sm text-slate-900 dark:text-white">
-              Câu #{index + 1}
+              {t("recruiter.assessments.common.questionHashNumber", { index: index + 1 })}
             </span>
           </label>
 
@@ -108,22 +110,22 @@ export function AiQuestionCard({
                 )}
               >
                 {isLatestBatch && <Sparkles className="size-2.5 text-[var(--color-primary)]" />}
-                <span>Đợt {item.batch}</span>
+                <span>{t("recruiter.assessments.common.batchLabel", { batch: item.batch })}</span>
                 {isLatestBatch && (
                   <span className="rounded bg-[var(--color-primary)] px-1 py-0.2 text-[9px] font-bold text-white">
-                    MỚI
+                    {t("recruiter.assessments.aiStudio.newBadge")}
                   </span>
                 )}
               </span>
             )}
             <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
               {q.questionType === "MCQ"
-                ? "Trắc nghiệm 1 ĐA"
+                ? t("recruiter.assessments.common.questionTypes.badgeSingle")
                 : q.questionType === "MULTIPLE_CHOICE"
-                  ? "Nhiều ĐA đúng"
+                  ? t("recruiter.assessments.common.questionTypes.badgeMulti")
                   : q.questionType === "ESSAY"
-                    ? "Tự luận Rubric"
-                    : "Bài code"}
+                    ? t("recruiter.assessments.common.questionTypes.badgeEssay")
+                    : t("recruiter.assessments.common.questionTypes.badgeCode")}
             </span>
             <span
               className={cn(
@@ -135,14 +137,18 @@ export function AiQuestionCard({
                     : "bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-950 dark:text-amber-300",
               )}
             >
-              {q.difficulty}
+              {q.difficulty === "Easy"
+                ? t("recruiter.assessments.common.difficulty.easyShort")
+                : q.difficulty === "Hard"
+                  ? t("recruiter.assessments.common.difficulty.hardShort")
+                  : t("recruiter.assessments.common.difficulty.mediumShort")}
             </span>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {q.skill}
             </span>
             {modelName && (
               <span
-                title={`Mô hình AI: ${modelName}`}
+                title={t("recruiter.assessments.aiStudio.modelTooltip", { model: modelName })}
                 className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs"
               >
                 <Sparkles className="size-3 text-[var(--color-primary)]" />
@@ -154,7 +160,7 @@ export function AiQuestionCard({
 
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
-            <span>Điểm:</span>
+            <span>{t("recruiter.assessments.aiStudio.pointsLabel")}</span>
             <input
               type="number"
               min={1}
@@ -174,7 +180,7 @@ export function AiQuestionCard({
             type="button"
             onClick={() => onRemove(item.id)}
             disabled={busy}
-            title="Loại bỏ câu này khỏi danh sách"
+            title={t("recruiter.assessments.aiStudio.removeCardTooltip")}
             className="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
           >
             <Trash2 className="size-4" />
@@ -187,11 +193,11 @@ export function AiQuestionCard({
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60">
           <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <span>
-            AI phát hiện nội dung có thể trùng với câu hỏi đã có:{" "}
+            {t("recruiter.assessments.aiStudio.duplicateBannerPrefix")}
             <strong>
               {dups.map((id) => `#QB-${String(id).padStart(3, "0")}`).join(", ")}
             </strong>
-            . Vui lòng chỉnh sửa nội dung hoặc đáp án để tránh lặp lại.
+            {t("recruiter.assessments.aiStudio.duplicateBannerSuffix")}
           </span>
         </div>
       )}
@@ -199,7 +205,7 @@ export function AiQuestionCard({
       {/* Nội dung câu hỏi (Editable Textarea) */}
       <div className="space-y-1">
         <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-          Nội dung đề bài
+          {t("recruiter.assessments.aiStudio.questionBodyLabel")}
         </label>
         <textarea
           rows={3}
@@ -218,12 +224,12 @@ export function AiQuestionCard({
         <div className="space-y-2 pt-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Các lựa chọn đáp án ({q.options?.length ?? 0})
+              {t("recruiter.assessments.aiStudio.optionsHeading", { count: q.options?.length ?? 0 })}
             </span>
             <span className="text-[11px] text-slate-400">
               {q.questionType === "MCQ"
-                ? "Tích chọn 1 đáp án đúng (Radio)"
-                : "Tích chọn các đáp án đúng (Checkbox)"}
+                ? t("recruiter.assessments.aiStudio.radioHint")
+                : t("recruiter.assessments.aiStudio.checkboxHint")}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -262,7 +268,7 @@ export function AiQuestionCard({
                   />
                   {isCorrect && (
                     <span className="shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
-                      Đáp án đúng
+                      {t("recruiter.assessments.aiStudio.correctOptionTag")}
                     </span>
                   )}
                 </div>
@@ -276,7 +282,7 @@ export function AiQuestionCard({
       {q.questionType === "ESSAY" && rubric && (
         <div className="space-y-1.5 rounded-xl border border-amber-200/60 bg-amber-50/30 p-3.5 dark:border-amber-900/60 dark:bg-amber-950/20">
           <span className="text-xs font-bold text-amber-900 dark:text-amber-300">
-            Đáp án chuẩn tham khảo (Reference Answer cho AI chấm)
+            {t("recruiter.assessments.aiStudio.referenceAnswerHeading")}
           </span>
           <textarea
             rows={2}
@@ -304,11 +310,11 @@ export function AiQuestionCard({
               {code.title}
             </span>
             <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-              {code.sample} test mẫu · {code.hidden} test ẩn
+              {t("recruiter.assessments.aiStudio.codingTestsSummary", { sample: code.sample, hidden: code.hidden })}
             </span>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            Ngôn ngữ hỗ trợ: <strong className="text-slate-900 dark:text-white">{code.langs}</strong>
+            {t("recruiter.assessments.aiStudio.supportedLanguagesPrefix")}<strong className="text-slate-900 dark:text-white">{code.langs}</strong>
           </p>
         </div>
       )}
@@ -316,7 +322,7 @@ export function AiQuestionCard({
       {/* Lời giải thích chi tiết */}
       <div className="space-y-1">
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-          Giải thích đáp án & Kiến thức cần nhớ
+          {t("recruiter.assessments.aiStudio.explanationHeading")}
         </label>
         <textarea
           rows={2}
@@ -326,7 +332,7 @@ export function AiQuestionCard({
             "text-xs leading-relaxed bg-slate-50/50 focus:bg-white resize-y",
           )}
           value={q.explanation ?? ""}
-          placeholder="Thêm giải thích để ứng viên hoặc hội đồng phỏng vấn đối chiếu..."
+          placeholder={t("recruiter.assessments.aiStudio.explanationPlaceholder")}
           onChange={(e) => onPatchDraft(item.id, { explanation: e.target.value })}
         />
       </div>

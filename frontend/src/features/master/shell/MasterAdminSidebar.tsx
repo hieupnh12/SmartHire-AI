@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTenants } from "@/api/master/queries";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export function ToggleMenuIcon({ className = "size-5" }: { className?: string }) {
@@ -78,6 +79,7 @@ export function MasterAdminSidebar({
   isMobileOpen,
   onMobileClose,
 }: MasterSidebarProps) {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const { data: tenants = [] } = useTenants();
@@ -86,7 +88,7 @@ export function MasterAdminSidebar({
     {
       type: "single",
       id: "overview",
-      label: "Tổng quan",
+      label: t("master.shell.sidebar.overview"),
       path: "/admin/dashboard",
       activePaths: ["/admin/dashboard"],
       icon: House,
@@ -94,7 +96,7 @@ export function MasterAdminSidebar({
     {
       type: "single",
       id: "analytics",
-      label: "Thống kê",
+      label: t("master.shell.sidebar.analytics"),
       path: "/admin/analytics",
       activePaths: ["/admin/analytics"],
       icon: BarChart3,
@@ -102,27 +104,27 @@ export function MasterAdminSidebar({
     {
       type: "group",
       id: "tenants",
-      label: "Doanh nghiệp",
+      label: t("master.shell.sidebar.tenantsGroup"),
       icon: Building2,
       badge: tenants.length > 0 ? tenants.length : undefined,
       children: [
         {
           id: "tenant-directory",
-          label: "Danh bạ doanh nghiệp",
+          label: t("master.shell.sidebar.tenantDirectory"),
           path: "/admin/tenants/directory",
           activePaths: ["/admin/tenants/directory", "/admin/tenants/overview"],
           icon: Building2,
         },
         {
           id: "leads",
-          label: "Yêu cầu tư vấn",
+          label: t("master.shell.sidebar.leads"),
           path: "/admin/leads",
           activePaths: ["/admin/leads"],
           icon: PhoneCall,
         },
         {
           id: "tenant-provisioning",
-          label: "Cấp phát tài nguyên",
+          label: t("master.shell.sidebar.provisioning"),
           path: "/admin/tenants/provisioning",
           activePaths: ["/admin/tenants/provisioning"],
           icon: Sliders,
@@ -132,33 +134,33 @@ export function MasterAdminSidebar({
     {
       type: "group",
       id: "commerce",
-      label: "Gói & thanh toán",
+      label: t("master.shell.sidebar.commerceGroup"),
       icon: CreditCard,
       children: [
         {
           id: "contracts",
-          label: "Hợp đồng & ký số",
+          label: t("master.shell.sidebar.contracts"),
           path: "/admin/contracts",
           activePaths: ["/admin/contracts"],
           icon: FileSignature,
         },
         {
           id: "invoices",
-          label: "Hóa đơn thanh toán",
+          label: t("master.shell.sidebar.invoices"),
           path: "/admin/invoices",
           activePaths: ["/admin/invoices"],
           icon: ReceiptText,
         },
         {
           id: "subscriptions",
-          label: "Gói dịch vụ SaaS",
+          label: t("master.shell.sidebar.saasPlans"),
           path: "/admin/subscriptions/plans",
           activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview"],
           icon: CreditCard,
         },
         {
           id: "allocations",
-          label: "Phân bổ gói dịch vụ",
+          label: t("master.shell.sidebar.allocations"),
           path: "/admin/subscriptions/allocations",
           activePaths: ["/admin/subscriptions/allocations"],
           icon: ArrowUpDown,
@@ -168,40 +170,40 @@ export function MasterAdminSidebar({
     {
       type: "group",
       id: "system",
-      label: "Hệ thống",
+      label: t("master.shell.sidebar.systemGroup"),
       icon: ShieldCheck,
       children: [
         {
           id: "logs",
-          label: "Nhật ký hệ thống",
+          label: t("master.shell.sidebar.logs"),
           path: "/admin/system/logs",
           activePaths: ["/admin/system/logs"],
           icon: FileText,
         },
         {
           id: "ai-usage",
-          label: "Báo cáo sử dụng AI",
+          label: t("master.shell.sidebar.aiUsage"),
           path: "/admin/system/ai-usage",
           activePaths: ["/admin/system/ai-usage"],
           icon: BrainCircuit,
         },
         {
           id: "ai-quotas",
-          label: "Hạn ngạch AI",
+          label: t("master.shell.sidebar.aiQuotas"),
           path: "/admin/system/ai-quotas",
           activePaths: ["/admin/system/ai-quotas"],
           icon: Sliders,
         },
         {
           id: "ai-config",
-          label: "Cấu hình AI",
+          label: t("master.shell.sidebar.aiConfig"),
           path: "/admin/system/ai-config",
           activePaths: ["/admin/system/ai-config"],
           icon: Cpu,
         },
       ],
     },
-  ], [tenants.length]);
+  ], [tenants.length, t]);
 
   // Determine which group is active according to the current location.pathname
   const activeGroupId = useMemo(() => {
@@ -252,7 +254,7 @@ export function MasterAdminSidebar({
         isMobileOpen ? "translate-x-0 z-50 shadow-2xl" : "-translate-x-full",
         isOpen ? "md:translate-x-0" : "md:-translate-x-full"
       )}
-      aria-label="Điều hướng quản trị nền tảng"
+      aria-label={t("master.shell.sidebar.navAria")}
     >
       {/* Brand Header at top of Sidebar (Desktop & Mobile) - seamless with sidebar */}
       <div className="flex h-16 shrink-0 items-center justify-between px-5">
@@ -267,7 +269,7 @@ export function MasterAdminSidebar({
           type="button"
           onClick={onMobileClose}
           className="grid size-9 place-items-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden"
-          aria-label="Đóng thanh điều hướng"
+          aria-label={t("master.shell.sidebar.closeNavAria")}
         >
           <X className="size-5" />
         </button>

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { t } from "@/i18n";
 
 export interface TenantThemeConfig {
   code: string;
@@ -40,7 +41,7 @@ export function getTenantTheme(code: string): TenantThemeConfig {
   return {
     code: cleanCode,
     name: `${cleanCode.toUpperCase()}`,
-    tagline: "Dẫn đầu Giải pháp Công nghệ",
+    tagline: t("ux.tenantDefaultTagline"),
     ...preset,
   };
 }
