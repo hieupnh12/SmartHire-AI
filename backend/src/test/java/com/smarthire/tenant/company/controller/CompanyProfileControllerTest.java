@@ -5,7 +5,15 @@ import com.smarthire.common.exception.GlobalExceptionHandler;
 import com.smarthire.tenant.company.dto.CompanyProfileResponse;
 import com.smarthire.tenant.company.dto.UpdateCompanyProfileRequest;
 import com.smarthire.tenant.company.service.CompanyDirectoryService;
+import com.smarthire.master.billing.dto.CheckoutResponse;
+import com.smarthire.tenant.company.dto.RenewSubscriptionRequest;
+import com.smarthire.tenant.company.dto.TenantSubscriptionQuotaResponse;
 import com.smarthire.tenant.company.service.CompanyProfileService;
+import com.smarthire.tenant.company.service.TenantSubscriptionQuotaService;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.math.BigDecimal;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,12 +39,16 @@ class CompanyProfileControllerTest {
     @Mock
     private CompanyDirectoryService companyDirectoryService;
 
+    @Mock
+    private TenantSubscriptionQuotaService subscriptionQuotaService;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         CompanyProfileController controller = new CompanyProfileController(companyProfileService, companyDirectoryService);
+        ReflectionTestUtils.setField(controller, "subscriptionQuotaService", subscriptionQuotaService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -110,5 +122,47 @@ class CompanyProfileControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void renewAndAutoRenewAndInvoiceEndpoints_ReturnOk() throws Exception {
+        TenantSubscriptionQuotaResponse quotaRes = TenantSubscriptionQuotaResponse.builder()
+                .tenantCode("acme")
+                .planCode("PROFESSIONAL")
+                .planName("Professional")
+                .autoRenew(false)
+                .build();
+        when(subscriptionQuotaService.renewSubscription(any(RenewSubscriptionRequest.class))).thenReturn(quotaRes);
+        when(subscriptionQuotaService.updateAutoRenew(false)).thenReturn(quotaRes);
+        when(subscriptionQuotaService.cancelPendingInvoice(12L)).thenReturn(quotaRes);
+        when(subscriptionQuotaService.getInvoiceCheckoutDetails(12L)).thenReturn(
+                CheckoutResponse.builder()
+                        .invoiceId(12L)
+                        .invoiceNumber("INV-202611-0012")
+                        .amountVnd(BigDecimal.valueOf(36000000))
+                        .status("PENDING")
+                        .build()
+        );
+
+        mockMvc.perform(post("/api/v1/tenant/company/subscription/renew")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"years\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.planCode").value("PROFESSIONAL"));
+
+        mockMvc.perform(patch("/api/v1/tenant/company/subscription/auto-renew")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"autoRenew\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.autoRenew").value(false));
+
+        mockMvc.perform(get("/api/v1/tenant/company/subscription/invoices/12/checkout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.invoiceNumber").value("INV-202611-0012"));
+
+        mockMvc.perform(post("/api/v1/tenant/company/subscription/invoices/12/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

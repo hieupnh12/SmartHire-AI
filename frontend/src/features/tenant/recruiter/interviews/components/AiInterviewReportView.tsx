@@ -1,52 +1,342 @@
+import { AlertTriangle, CheckCircle2, FileCheck2, Sparkles, XCircle } from "lucide-react";
 import { AVAILABLE_INTERVIEW_PROCESS } from "../utils/interviewProcessSettings";
 import { COMPETENCY_LABELS, type AiInterviewReport, type AiQuestion, type CompetencyKey } from "@/api/types/aiInterview";
+import { cn } from "@/lib/utils";
+import { formatInterviewScore } from "./aiInterviewUi";
 
-function parse(json: string | null | undefined): AiInterviewReport | null {
+const CRITERION_LABELS: Record<string, string> = {
+  TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn",
+  PROBLEM_SOLVING: "Giải quyết vấn đề",
+  REASONING: "Lập luận",
+  COMMUNICATION: "Kỹ năng giao tiếp",
+};
+
+export function parseAiInterviewReport(json: string | null | undefined): AiInterviewReport | null {
   if (!json) return null;
-  try { return JSON.parse(json) as AiInterviewReport; } catch { return null; }
+  try {
+    return JSON.parse(json) as AiInterviewReport;
+  } catch {
+    return null;
+  }
 }
 
-export function AiInterviewReportView({ reportJson, questions }: { reportJson: string | null | undefined; questions: AiQuestion[] }) {
-  const report = parse(reportJson);
+export function AiInterviewReportView({
+  reportJson,
+  questions,
+  section = "all",
+  bare = false,
+  passingScore,
+}: {
+  reportJson: string | null | undefined;
+  questions: AiQuestion[];
+  section?: "all" | "summary" | "metrics";
+  bare?: boolean;
+  passingScore?: number | null;
+}) {
+  const report = parseAiInterviewReport(reportJson);
   if (!report) return null;
-  const visibleSkills = Object.entries(report.skills).filter(([, entry]) => entry.questionIds?.some(id => questions.some(question => question.id === id)));
+
+  const visibleSkills = Object.entries(report.skills ?? {}).filter(([, entry]) =>
+    entry.questionIds?.some((id) => questions.some((question) => question.id === id))
+  );
   const questionNumber = new Map(questions.map((q, index) => [q.id, index + 1]));
-  return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] p-4" aria-labelledby="ai-report-title">
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 id="ai-report-title" className="font-semibold">Báo cáo AI Interview</h3>
-      <p className="text-sm">Điểm tổng <strong className="text-lg">{report.overallScore}/100</strong></p>
+  const visibleCompetencies = (Object.entries(report.competencies ?? {}) as [CompetencyKey, number][])
+    .filter(([key]) => key === AVAILABLE_INTERVIEW_PROCESS);
+  const criteriaEntries = Object.entries(report.communicationCriteria ?? {});
+  const showSummary = section === "all" || section === "summary";
+  const showMetrics = section === "all" || section === "metrics";
+
+  const pct = Math.min(Math.max(Number(report.overallScore ?? 0), 0), 100);
+  const passed = passingScore != null ? report.overallScore >= passingScore : report.overallScore >= 50;
+
+  const content = (
+    <div className="space-y-5">
+      {!bare && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-[var(--color-primary)] shadow-2xs">
+              <FileCheck2 className="size-4.5" aria-hidden="true" />
+            </div>
+            <div>
+              <h3 id="ai-report-title" className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Báo cáo đánh giá AI Interview
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Tổng hợp điểm năng lực, phản hồi chi tiết và bằng chứng trích xuất từ câu trả lời.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-hover)]">
+              Điểm tổng: <strong className="text-sm font-extrabold">{formatInterviewScore(report.overallScore)}/100</strong>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Summary & Qualitative Insights (matches CV Screening AI Card) */}
+      {showSummary && (
+        <div className="space-y-4">
+          {report.evaluationMode === "POST_SESSION" && (report.summary || report.strengths || report.weaknesses) && (
+            <div className="space-y-3 rounded-2xl bg-[var(--color-primary-subtle)] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+                  <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                  Nhận xét của AI
+                </div>
+                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
+                  Đánh giá chuyên sâu
+                </span>
+              </div>
+
+              {report.summary && (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-on-surface)]">
+                  {report.summary}
+                </p>
+              )}
+
+              {(report.strengths || report.weaknesses) && (
+                <div className="grid gap-3 border-t border-[var(--color-primary)]/15 pt-3 sm:grid-cols-2">
+                  {report.strengths && (
+                    <div className="space-y-1.5">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                        Điểm mạnh nổi bật
+                      </p>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-on-surface)]">
+                        {report.strengths}
+                      </p>
+                    </div>
+                  )}
+                  {report.weaknesses && (
+                    <div className="space-y-1.5">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+                        <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+                        Rủi ro / Cần kiểm chứng
+                      </p>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-on-surface)]">
+                        {report.weaknesses}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Evidence Citations per Criterion */}
+          {report.evaluationMode === "POST_SESSION" && criteriaEntries.length > 0 && (
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Đánh giá &amp; bằng chứng theo từng tiêu chí
+              </h4>
+              <dl className="grid gap-3 sm:grid-cols-2">
+                {criteriaEntries.map(([criterion, score]) => {
+                  const evidenceList = report.criteriaEvidence?.[criterion] ?? [];
+                  return (
+                    <div key={criterion} className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3.5 shadow-2xs">
+                      <dt className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        <span>
+                          {CRITERION_LABELS[criterion] ?? criterion}
+                          {report.criterionWeights?.[criterion] != null && (
+                            <span className="font-normal text-slate-400"> ({report.criterionWeights[criterion]}%)</span>
+                          )}
+                        </span>
+                        <span className="rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 font-bold tabular-nums text-[var(--color-primary-hover)]">
+                          {score}/100
+                        </span>
+                      </dt>
+                      {evidenceList.length > 0 ? (
+                        evidenceList.map((evidence, index) => (
+                          <dd
+                            key={index}
+                            className="mt-2 border-t border-slate-100 pt-2 text-[11px] italic leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400 whitespace-pre-wrap"
+                          >
+                            <span className="not-italic font-semibold text-[var(--color-primary-hover)]">Tin #{evidence.messageId}:</span> “{evidence.quote}”
+                          </dd>
+                        ))
+                      ) : (
+                        <dd className="mt-2 border-t border-slate-100 pt-2 text-[11px] italic text-slate-400 dark:border-slate-800">
+                          Chưa có trích dẫn tin nhắn cụ thể cho tiêu chí này.
+                        </dd>
+                      )}
+                    </div>
+                  );
+                })}
+              </dl>
+            </div>
+          )}
+
+          {/* Non-POST_SESSION Criteria Summary */}
+          {report.evaluationMode !== "POST_SESSION" && criteriaEntries.length > 0 && (
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Tiêu chí nội dung trong Communication
+              </h4>
+              <ul className="grid gap-2.5 sm:grid-cols-2">
+                {criteriaEntries.map(([key, score]) => (
+                  <li
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-[var(--color-surface-alt)] p-3 text-xs"
+                  >
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {CRITERION_LABELS[key] ?? key}
+                    </span>
+                    <span className="rounded-md border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)] px-2 py-0.5 font-bold tabular-nums text-[var(--color-primary-hover)]">
+                      {score}/100
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quantitative Metrics & Breakdown (matches CV Thành phần điểm tab) */}
+      {showMetrics && (
+        <div className="space-y-5">
+          {bare && (
+            <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
+                    Điểm tổng AI Interview
+                  </p>
+                  <p className="mt-1 text-4xl font-bold tracking-tight tabular-nums">
+                    {formatInterviewScore(report.overallScore)}
+                    <span className="text-base font-normal text-[var(--color-on-surface-variant)]"> /100</span>
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1 text-xs font-semibold",
+                    passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
+                  )}
+                >
+                  {passed ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <XCircle className="size-4" aria-hidden="true" />}
+                  {passed ? "Đạt" : "Chưa đạt"}
+                </span>
+              </div>
+
+              <div className="relative mt-4 h-2.5 w-full overflow-visible rounded-full bg-[var(--color-surface-container-high)]">
+                <div className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500" style={{ width: `${pct}%` }} />
+                {passingScore != null && (
+                  <div
+                    className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--color-on-surface)]"
+                    style={{ left: `${Math.min(Math.max(passingScore, 0), 100)}%` }}
+                    title={`Ngưỡng ${formatInterviewScore(passingScore)}`}
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
+                <span>
+                  {passed
+                    ? "Đạt chuẩn AI Interview → sẵn sàng đánh giá vòng tiếp theo."
+                    : passingScore != null
+                      ? `Điểm tổng (${formatInterviewScore(report.overallScore)}) thấp hơn ngưỡng đạt (${formatInterviewScore(passingScore)}).`
+                      : "Chưa đạt ngưỡng đánh giá."}
+                </span>
+                {passingScore != null && <span className="tabular-nums">Ngưỡng đạt: {formatInterviewScore(passingScore)}</span>}
+              </div>
+            </div>
+          )}
+
+          {criteriaEntries.length > 0 && (
+            <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Điểm thành phần theo tiêu chí
+              </h4>
+              <div className="space-y-3.5">
+                {criteriaEntries.map(([key, score]) => {
+                  const val = Math.min(100, Math.max(0, Number(score) || 0));
+                  const weight = report.criterionWeights?.[key];
+                  return (
+                    <div key={key} className="space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {CRITERION_LABELS[key] ?? key}
+                          {weight != null && <span className="ml-1 font-normal text-slate-400">(Trọng số {weight}%)</span>}
+                        </span>
+                        <span className="font-bold tabular-nums text-[var(--color-primary-hover)]">{score}/100</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container-high)]" aria-hidden="true">
+                        <div className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500" style={{ width: `${val}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {visibleCompetencies.length > 0 && (
+            <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Điểm theo nhóm năng lực
+              </h4>
+              <ul className="space-y-2.5">
+                {visibleCompetencies.map(([key, score]) => (
+                  <li key={key} className="space-y-1.5 rounded-xl border border-slate-200/70 bg-[var(--color-surface-alt)] p-3 text-xs">
+                    <div className="flex justify-between gap-3 font-semibold text-slate-800 dark:text-slate-200">
+                      <span>
+                        {COMPETENCY_LABELS[key] ?? key}
+                        {report.weights?.[key] != null && <span className="font-normal text-slate-400"> ({report.weights[key]}%)</span>}
+                      </span>
+                      <span className="tabular-nums font-bold text-[var(--color-primary-hover)]">{score}/100</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true">
+                      <div
+                        className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {visibleSkills.length > 0 && (
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Điểm theo Job Skill <span className="font-normal normal-case text-slate-400">(tham khảo, không cộng vào điểm tổng)</span>
+              </h4>
+              <ul className="overflow-hidden divide-y divide-slate-100 rounded-xl border border-slate-200/70 bg-white text-xs shadow-2xs dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+                {visibleSkills.map(([skill, entry]) => {
+                  const evidence = (entry.questionIds ?? []).map((id) => questionNumber.get(id)).filter((n): n is number => n != null);
+                  return (
+                    <li key={skill} className="flex flex-wrap items-center justify-between gap-2 p-3 transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">{skill}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {evidence.length ? `Bằng chứng: câu ${evidence.join(", ")}` : "Không có câu hỏi kiểm tra"}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                        {entry.score == null ? "Chưa đủ dữ liệu" : `${entry.score}/100`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
-    {report.evaluationMode !== "POST_SESSION" && report.communicationCriteria && Object.keys(report.communicationCriteria).length > 0 && <div className="space-y-2">
-      <h4 className="text-sm font-medium">Tiêu chí nội dung trong Communication</h4>
-      <ul className="grid gap-2 sm:grid-cols-2">{Object.entries(report.communicationCriteria).map(([key, score]) => <li key={key} className="flex justify-between gap-3 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
-        <span>{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[key] ?? key}</span><strong>{score}/100</strong>
-      </li>)}</ul>
-    </div>}
-    <div className="space-y-2">
-      <h4 className="text-sm font-medium">Điểm theo nhóm năng lực</h4>
-      <ul className="space-y-2">{(Object.entries(report.competencies) as [CompetencyKey, number][]).filter(([key]) => key === AVAILABLE_INTERVIEW_PROCESS).map(([key, score]) => <li key={key} className="space-y-1 text-sm">
-        <div className="flex justify-between gap-3"><span>{COMPETENCY_LABELS[key] ?? key}{report.weights?.[key] != null ? ` (${report.weights[key]}%)` : ""}</span><span className="font-semibold tabular-nums">{score}/100</span></div>
-        <div className="h-2 rounded-full bg-[var(--color-surface-container)]" aria-hidden="true"><div className="h-2 rounded-full bg-brand-primary" style={{ width: `${Math.min(100, Math.max(0, score))}%` }} /></div>
-      </li>)}</ul>
-    </div>
-    {report.evaluationMode === "POST_SESSION" && <div className="space-y-3 text-sm">
-      <p className="whitespace-pre-wrap">{report.summary}</p>
-      <p><strong>Điểm mạnh:</strong> {report.strengths}</p><p><strong>Cần cải thiện:</strong> {report.weaknesses}</p>
-      <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(report.communicationCriteria ?? {}).map(([criterion, score]) => <div key={criterion} className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-        <dt className="font-medium">{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[criterion] ?? criterion}{report.criterionWeights?.[criterion] != null ? ` (${report.criterionWeights[criterion]}%)` : ""}</dt><dd className="font-semibold">{score}/100</dd>
-        {(report.criteriaEvidence?.[criterion] ?? []).map((evidence, index) => <dd key={index} className="mt-2 whitespace-pre-wrap text-xs text-[var(--color-on-surface-variant)]">Tin #{evidence.messageId}: “{evidence.quote}”</dd>)}
-      </div>)}</dl>
-    </div>}
-    {visibleSkills.length > 0 && <div className="space-y-2">
-      <h4 className="text-sm font-medium">Điểm theo Job Skill <span className="font-normal text-[var(--color-on-surface-variant)]">(tham khảo, không cộng vào điểm tổng)</span></h4>
-      <ul className="divide-y divide-[var(--color-border-default)] text-sm">{visibleSkills.map(([skill, entry]) => {
-        const evidence = (entry.questionIds ?? []).map(id => questionNumber.get(id)).filter((n): n is number => n != null);
-        return <li key={skill} className="flex flex-wrap items-start justify-between gap-2 py-2">
-          <div className="min-w-0"><p className="font-medium">{skill}</p>
-            <p className="text-xs text-[var(--color-on-surface-variant)]">{evidence.length ? `Bằng chứng: câu ${evidence.join(", ")}` : "Không có câu hỏi kiểm tra"}</p></div>
-          <span className="shrink-0 font-semibold tabular-nums">{entry.score == null ? "Chưa đủ dữ liệu" : `${entry.score}/100`}</span>
-        </li>;
-      })}</ul>
-    </div>}
-  </section>;
+  );
+
+  if (bare) return content;
+
+  return (
+    <section
+      className="space-y-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 sm:p-6"
+      aria-labelledby="ai-report-title"
+    >
+      {content}
+    </section>
+  );
 }

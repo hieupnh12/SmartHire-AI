@@ -19,9 +19,12 @@ import com.smarthire.domain.tenant.repository.AiAnswerRecordingRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.InterviewMessageRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
+import com.smarthire.master.billing.dto.CheckoutResponse;
+import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.quota.QuotaType;
 import com.smarthire.multitenancy.quota.TenantQuotaRedisService;
+import com.smarthire.tenant.company.dto.RenewSubscriptionRequest;
 import com.smarthire.tenant.company.dto.SubscriptionChangePreviewResponse;
 import com.smarthire.tenant.company.dto.SubscriptionChangeRequest;
 import com.smarthire.tenant.company.dto.TenantSubscriptionQuotaResponse;
@@ -31,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -42,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -50,6 +55,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class TenantSubscriptionQuotaService {
+
+    private static final Set<String> NON_PENDING_FALLBACK_STATUSES = Set.of(
+            "SUSPENDED", "CANCELED", "CANCELLED", "EXPIRED"
+    );
 
     private final TenantInfoRepository tenantInfoRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
@@ -66,10 +75,7 @@ public class TenantSubscriptionQuotaService {
     private InvoiceLineItemRepository invoiceLineItemRepository;
 
     public TenantSubscriptionQuotaResponse getCurrentSubscriptionAndQuotas() {
-        String tenantCode = TenantContext.getCurrentTenant();
-        if (tenantCode == null || tenantCode.isBlank()) {
-            throw new BusinessException("Missing tenant context", HttpStatus.BAD_REQUEST, "MISSING_TENANT_CONTEXT");
-        }
+        String tenantCode = requireTenantCode();
 
         Optional<TenantInfo> tenantOpt = tenantInfoRepository.findByCode(tenantCode);
         TenantInfo tenant = tenantOpt.orElse(null);
@@ -93,11 +99,11 @@ public class TenantSubscriptionQuotaService {
                 : (plan != null ? plan.getCode() : "STARTER");
         String planName = (activeSub != null && activeSub.getPlanNameSnapshot() != null)
                 ? activeSub.getPlanNameSnapshot()
-                : (plan != null ? plan.getName() : "Starter");
+                : (plan != null ? plan.getName() : "Gói Khởi Đầu");
         Integer planVersion = (activeSub != null && activeSub.getPlanVersionSnapshot() != null)
                 ? activeSub.getPlanVersionSnapshot()
                 : (plan != null && plan.getVersion() != null ? plan.getVersion() : 1);
-        String description = plan != null ? plan.getDescription() : "Gói khởi đầu dành cho doanh nghiệp nhỏ và startup.";
+        String description = plan != null ? plan.getDescription() : "Gói khởi đầu dành cho doanh nghiệp nhỏ và công ty mới thành lập.";
         BigDecimal priceYearly = (activeSub != null && activeSub.getContractedPriceYearly() != null)
                 ? activeSub.getContractedPriceYearly()
                 : (plan != null && plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.valueOf(24_000_000L));
@@ -109,7 +115,8 @@ public class TenantSubscriptionQuotaService {
         LocalDateTime endsAt = activeSub != null && activeSub.getEndsAt() != null
                 ? activeSub.getEndsAt()
                 : startsAt.plusYears(1);
-        boolean autoRenew = activeSub == null || activeSub.isAutoRenew();
+        boolean hasExplicitSubscription = activeSub != null;
+        boolean autoRenew = activeSub != null && activeSub.isAutoRenew();
         long daysRemaining = Math.max(0L, Duration.between(now, endsAt).toDays());
 
         String nextPlanCode = null;
@@ -168,6 +175,7 @@ public class TenantSubscriptionQuotaService {
                 .description(description)
                 .priceYearly(priceYearly)
                 .subscriptionStatus(subscriptionStatus)
+                .hasExplicitSubscription(hasExplicitSubscription)
                 .autoRenew(autoRenew)
                 .startsAt(startsAt)
                 .endsAt(endsAt)
@@ -215,10 +223,7 @@ public class TenantSubscriptionQuotaService {
      * Previews Upgrade (with Proration credit for unused days) or Downgrade (scheduled at end of billing cycle).
      */
     public SubscriptionChangePreviewResponse previewPlanChange(String targetPlanCode) {
-        String tenantCode = TenantContext.getCurrentTenant();
-        if (tenantCode == null || tenantCode.isBlank()) {
-            throw new BusinessException("Missing tenant context", HttpStatus.BAD_REQUEST, "MISSING_TENANT_CONTEXT");
-        }
+        String tenantCode = requireTenantCode();
         if (targetPlanCode == null || targetPlanCode.isBlank()) {
             throw new BusinessException("Target plan code is required", HttpStatus.BAD_REQUEST, "TARGET_PLAN_REQUIRED");
         }
@@ -237,7 +242,7 @@ public class TenantSubscriptionQuotaService {
                 : (currentPlan != null ? currentPlan.getCode() : "STARTER");
         String currentPlanName = (activeSub != null && activeSub.getPlanNameSnapshot() != null)
                 ? activeSub.getPlanNameSnapshot()
-                : (currentPlan != null ? currentPlan.getName() : "Starter");
+                : (currentPlan != null ? currentPlan.getName() : "Gói Khởi Đầu");
         BigDecimal currentPrice = (activeSub != null && activeSub.getContractedPriceYearly() != null)
                 ? activeSub.getContractedPriceYearly()
                 : (currentPlan != null && currentPlan.getPriceYearly() != null ? currentPlan.getPriceYearly() : BigDecimal.ZERO);
@@ -271,7 +276,9 @@ public class TenantSubscriptionQuotaService {
             changeType = "UPGRADE";
             effectiveTiming = "IMMEDIATE";
             effectiveDate = now;
-            if (activeSub != null && ("ACTIVE".equalsIgnoreCase(activeSub.getStatus()) || "PAST_DUE".equalsIgnoreCase(activeSub.getStatus())) && remainingDays > 0) {
+            if (activeSub != null
+                    && ("ACTIVE".equalsIgnoreCase(activeSub.getStatus()) || "PAST_DUE".equalsIgnoreCase(activeSub.getStatus()))
+                    && remainingDays > 0) {
                 proratedCredit = currentPrice
                         .multiply(BigDecimal.valueOf(remainingDays))
                         .divide(BigDecimal.valueOf(Math.max(totalDays, remainingDays)), 0, RoundingMode.HALF_UP);
@@ -314,15 +321,12 @@ public class TenantSubscriptionQuotaService {
     }
 
     /**
-     * Executes an Upgrade (immediate activation with Proration credit & invoice) or schedules a Downgrade for end of cycle.
+     * Executes an Upgrade (creates PENDING upgrade subscription + proration invoice until payment is confirmed;
+     * or activates immediately if netAmountDue == 0) or schedules a Downgrade for end of cycle.
      */
     public TenantSubscriptionQuotaResponse executePlanChange(SubscriptionChangeRequest request) {
-        String tenantCode = TenantContext.getCurrentTenant();
-        if (tenantCode == null || tenantCode.isBlank()) {
-            throw new BusinessException("Missing tenant context", HttpStatus.BAD_REQUEST, "MISSING_TENANT_CONTEXT");
-        }
-        TenantInfo tenant = tenantInfoRepository.findByCode(tenantCode)
-                .orElseThrow(() -> new BusinessException("Doanh nghiệp không tồn tại: " + tenantCode, HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
+        String tenantCode = requireTenantCode();
+        TenantInfo tenant = requireTenant(tenantCode);
 
         SubscriptionChangePreviewResponse preview = previewPlanChange(request.getTargetPlanCode());
         if (!preview.isAllowed()) {
@@ -342,47 +346,55 @@ public class TenantSubscriptionQuotaService {
         LocalDateTime now = LocalDateTime.now();
 
         if ("UPGRADE".equals(preview.getChangeType())) {
-            Long oldSubId = null;
-            if (activeSub != null) {
-                oldSubId = activeSub.getId();
+            cancelStaleSelfServePendingInvoices(tenant.getId(), "SUPERSEDED_BY_PLAN_UPGRADE");
+
+            BigDecimal netDue = preview.getNetAmountDue() != null ? preview.getNetAmountDue() : BigDecimal.ZERO;
+            boolean requiresPayment = netDue.compareTo(BigDecimal.ZERO) > 0;
+            Long oldSubId = activeSub != null ? activeSub.getId() : null;
+            LocalDateTime newEndsAt = now.plusYears(1);
+
+            if (!requiresPayment && activeSub != null) {
                 activeSub.setStatus("CANCELED");
                 activeSub.setCanceledAt(now);
                 activeSub.setCancelReason("UPGRADED_TO_" + targetPlan.getCode());
                 subscriptionRepository.save(activeSub);
             }
 
-            LocalDateTime newEndsAt = now.plusYears(1);
             TenantSubscription upgradedSub = TenantSubscription.builder()
                     .tenantId(tenant.getId())
                     .planId(targetPlan.getId())
-                    .status("ACTIVE")
+                    .status(requiresPayment ? "PENDING" : "ACTIVE")
                     .startsAt(now)
                     .endsAt(newEndsAt)
-                    .autoRenew(true)
+                    .autoRenew(activeSub == null || activeSub.isAutoRenew())
                     .proratedCreditAmount(preview.getProratedCreditAmount())
                     .upgradedFromSubscriptionId(oldSubId)
                     .build();
             upgradedSub.applyPlanSnapshot(targetPlan);
             upgradedSub = subscriptionRepository.save(upgradedSub);
 
-            String invoiceNumber = "INV-" + now.format(DateTimeFormatter.ofPattern("yyyyMM"))
-                    + "-" + ThreadLocalRandom.current().nextInt(1000, 9999);
+            String invoiceNumber = generateInvoiceNumber(now);
+            String notes = "Nâng cấp gói " + preview.getCurrentPlanName() + " -> " + targetPlan.getName()
+                    + " (Khấu trừ bù trừ " + preview.getRemainingDays() + "/" + preview.getTotalCycleDays()
+                    + " ngày: -" + preview.getProratedCreditAmount() + " VNĐ)";
+            if (StringUtils.hasText(request.getNotes())) {
+                notes += " | " + request.getNotes().trim();
+            }
+
             Invoice upgradeInvoice = Invoice.builder()
                     .invoiceNumber(invoiceNumber)
                     .tenantId(tenant.getId())
                     .subscriptionId(upgradedSub.getId())
-                    .amount(preview.getNetAmountDue())
+                    .amount(netDue)
                     .subtotal(preview.getTargetPriceYearly())
-                    .taxRate(BigDecimal.ZERO)
                     .currency("VND")
-                    .status("PENDING")
+                    .status(requiresPayment ? "PENDING" : "PAID")
+                    .paidAt(requiresPayment ? null : now)
                     .dueDate(now.plusDays(7))
                     .billingPeriodStart(now)
                     .billingPeriodEnd(newEndsAt)
-                    .paymentGateway("BANK_TRANSFER")
-                    .notes("Nâng cấp gói " + preview.getCurrentPlanName() + " -> " + targetPlan.getName()
-                            + " (Khấu trừ Proration " + preview.getRemainingDays() + "/" + preview.getTotalCycleDays()
-                            + " ngày: -" + preview.getProratedCreditAmount() + " VNĐ)")
+                    .paymentGateway(requiresPayment ? "BANK_TRANSFER" : "PRORATION_CREDIT")
+                    .notes(notes)
                     .build();
             upgradeInvoice = invoiceRepository.save(upgradeInvoice);
 
@@ -411,8 +423,11 @@ public class TenantSubscriptionQuotaService {
                 invoiceLineItemRepository.saveAll(items);
             }
 
-            quotaRedisService.evictCache(tenantCode);
+            if (!requiresPayment) {
+                quotaRedisService.evictCache(tenantCode);
+            }
         } else if ("DOWNGRADE".equals(preview.getChangeType())) {
+            cancelStaleSelfServePendingInvoices(tenant.getId(), "SUPERSEDED_BY_DOWNGRADE_SCHEDULE");
             if (activeSub == null) {
                 TenantSubscription newSub = TenantSubscription.builder()
                         .tenantId(tenant.getId())
@@ -435,11 +450,201 @@ public class TenantSubscriptionQuotaService {
         return getCurrentSubscriptionAndQuotas();
     }
 
-    public TenantSubscriptionQuotaResponse cancelScheduledDowngrade() {
-        String tenantCode = TenantContext.getCurrentTenant();
-        if (tenantCode == null || tenantCode.isBlank()) {
-            throw new BusinessException("Missing tenant context", HttpStatus.BAD_REQUEST, "MISSING_TENANT_CONTEXT");
+    /**
+     * Generates a renewal invoice for 1..5 years on the tenant's current plan (or activates Starter when in FALLBACK_STARTER).
+     * Active/PAST_DUE/SUSPENDED/EXPIRED subscriptions extend seamlessly on payment without losing remaining days.
+     */
+    public TenantSubscriptionQuotaResponse renewSubscription(RenewSubscriptionRequest request) {
+        String tenantCode = requireTenantCode();
+        TenantInfo tenant = requireTenant(tenantCode);
+
+        int years = request != null && request.getYears() != null
+                ? Math.max(1, Math.min(5, request.getYears()))
+                : 1;
+
+        TenantSubscription activeSub = resolveCurrentTenantSubscription(tenant);
+        if (activeSub != null && activeSub.getNextPlanId() != null) {
+            throw new BusinessException(
+                    "Doanh nghiệp đang có lịch hạ cấp gói vào cuối chu kỳ. Vui lòng hủy lịch hạ cấp trước khi gia hạn gói hiện tại.",
+                    HttpStatus.BAD_REQUEST,
+                    "SCHEDULED_DOWNGRADE_CONFLICT"
+            );
         }
+
+        cancelStaleSelfServePendingInvoices(tenant.getId(), "SUPERSEDED_BY_RENEWAL_ORDER");
+
+        LocalDateTime now = LocalDateTime.now();
+        SubscriptionPlan plan = resolveCurrentOrStarterPlan(activeSub);
+        if (plan == null) {
+            throw new BusinessException("Không tìm thấy gói cước hiện hành để gia hạn", HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND");
+        }
+
+        String planName = (activeSub != null && StringUtils.hasText(activeSub.getPlanNameSnapshot()))
+                ? activeSub.getPlanNameSnapshot()
+                : plan.getName();
+        BigDecimal unitPriceYearly = (activeSub != null && activeSub.getContractedPriceYearly() != null)
+                ? activeSub.getContractedPriceYearly()
+                : (plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO);
+
+        boolean createNewSub = activeSub == null
+                || "CANCELED".equalsIgnoreCase(activeSub.getStatus())
+                || "CANCELLED".equalsIgnoreCase(activeSub.getStatus());
+
+        LocalDateTime baseStart = (!createNewSub && activeSub.getEndsAt() != null && activeSub.getEndsAt().isAfter(now))
+                ? activeSub.getEndsAt()
+                : now;
+        LocalDateTime periodEnd = baseStart.plusYears(years);
+
+        BigDecimal totalAmount = unitPriceYearly.multiply(BigDecimal.valueOf(years));
+        boolean requiresPayment = totalAmount.compareTo(BigDecimal.ZERO) > 0;
+
+        Long targetSubId;
+        if (createNewSub) {
+            TenantSubscription pendingSub = TenantSubscription.builder()
+                    .tenantId(tenant.getId())
+                    .planId(plan.getId())
+                    .status(requiresPayment ? "PENDING" : "ACTIVE")
+                    .startsAt(now)
+                    .endsAt(periodEnd)
+                    .autoRenew(activeSub == null || activeSub.isAutoRenew())
+                    .upgradedFromSubscriptionId(activeSub != null ? activeSub.getId() : null)
+                    .build();
+            pendingSub.applyPlanSnapshot(plan);
+            pendingSub = subscriptionRepository.save(pendingSub);
+            targetSubId = pendingSub.getId();
+        } else {
+            targetSubId = activeSub.getId();
+            if (!requiresPayment) {
+                if (activeSub.getStartsAt() == null || !baseStart.isAfter(now)) {
+                    activeSub.setStartsAt(now);
+                }
+                activeSub.setEndsAt(periodEnd);
+                activeSub.setStatus("ACTIVE");
+                activeSub.setGracePeriodEndsAt(null);
+                subscriptionRepository.save(activeSub);
+            }
+        }
+
+        String notes = "Gia hạn gói " + planName + " (" + years + " năm)";
+        if (request != null && StringUtils.hasText(request.getNotes())) {
+            notes += " | " + request.getNotes().trim();
+        }
+
+        Invoice renewalInvoice = Invoice.builder()
+                .invoiceNumber(generateInvoiceNumber(now))
+                .tenantId(tenant.getId())
+                .subscriptionId(targetSubId)
+                .amount(totalAmount)
+                .subtotal(totalAmount)
+                .currency("VND")
+                .status(requiresPayment ? "PENDING" : "PAID")
+                .paidAt(requiresPayment ? null : now)
+                .dueDate(now.plusDays(7))
+                .billingPeriodStart(baseStart)
+                .billingPeriodEnd(periodEnd)
+                .paymentGateway(requiresPayment ? "BANK_TRANSFER" : "FREE_PLAN")
+                .notes(notes)
+                .build();
+        renewalInvoice = invoiceRepository.save(renewalInvoice);
+
+        if (invoiceLineItemRepository != null && renewalInvoice != null && renewalInvoice.getId() != null) {
+            InvoiceLineItem item = InvoiceLineItem.builder()
+                    .invoiceId(renewalInvoice.getId())
+                    .description("Gia hạn gói " + planName + " (" + years + " năm)")
+                    .quantity(years)
+                    .unitPrice(unitPriceYearly)
+                    .totalPrice(totalAmount)
+                    .itemType("SUBSCRIPTION_RENEWAL")
+                    .build();
+            invoiceLineItemRepository.save(item);
+        }
+
+        if (!requiresPayment) {
+            quotaRedisService.evictCache(tenantCode);
+        }
+
+        return getCurrentSubscriptionAndQuotas();
+    }
+
+    public TenantSubscriptionQuotaResponse updateAutoRenew(boolean autoRenew) {
+        String tenantCode = requireTenantCode();
+        TenantInfo tenant = tenantInfoRepository.findByCode(tenantCode).orElse(null);
+        TenantSubscription activeSub = resolveCurrentTenantSubscription(tenant);
+        if (activeSub == null) {
+            throw new BusinessException(
+                    "Doanh nghiệp chưa có gói thuê bao trả phí. Vui lòng gia hạn hoặc nâng cấp gói để bật tự động gia hạn.",
+                    HttpStatus.BAD_REQUEST,
+                    "NO_EXPLICIT_SUBSCRIPTION"
+            );
+        }
+        activeSub.setAutoRenew(autoRenew);
+        subscriptionRepository.save(activeSub);
+        return getCurrentSubscriptionAndQuotas();
+    }
+
+    public CheckoutResponse getInvoiceCheckoutDetails(Long invoiceId) {
+        String tenantCode = requireTenantCode();
+        TenantInfo tenant = requireTenant(tenantCode);
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        if (!tenant.getId().equals(invoice.getTenantId())) {
+            throw new BusinessException("Không có quyền truy cập hóa đơn này", HttpStatus.FORBIDDEN, "FORBIDDEN");
+        }
+
+        SubscriptionPlan plan = null;
+        if (invoice.getSubscriptionId() != null) {
+            TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+            if (sub != null) {
+                plan = planRepository.findById(sub.getPlanId()).orElse(null);
+                if (plan == null && StringUtils.hasText(sub.getPlanNameSnapshot())) {
+                    plan = SubscriptionPlan.builder()
+                            .id(sub.getPlanId())
+                            .code(sub.getPlanCodeSnapshot() != null ? sub.getPlanCodeSnapshot() : "CUSTOM")
+                            .name(sub.getPlanNameSnapshot())
+                            .priceYearly(sub.getContractedPriceYearly())
+                            .build();
+                }
+            }
+        }
+        return MasterBillingService.toCheckoutResponse(invoice, tenant, plan);
+    }
+
+    public TenantSubscriptionQuotaResponse cancelPendingInvoice(Long invoiceId) {
+        String tenantCode = requireTenantCode();
+        TenantInfo tenant = requireTenant(tenantCode);
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        if (!tenant.getId().equals(invoice.getTenantId())) {
+            throw new BusinessException("Không có quyền hủy hóa đơn này", HttpStatus.FORBIDDEN, "FORBIDDEN");
+        }
+        if (!"PENDING".equalsIgnoreCase(invoice.getStatus())) {
+            throw new BusinessException("Chỉ có thể hủy hóa đơn ở trạng thái chờ thanh toán (PENDING)", HttpStatus.BAD_REQUEST, "INVALID_INVOICE_STATE");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        invoice.setStatus("CANCELLED");
+        String cancelNote = "Đã hủy bởi quản trị viên doanh nghiệp";
+        invoice.setNotes(StringUtils.hasText(invoice.getNotes()) ? invoice.getNotes() + " | " + cancelNote : cancelNote);
+        invoiceRepository.save(invoice);
+
+        if (invoice.getSubscriptionId() != null) {
+            subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
+                if ("PENDING".equalsIgnoreCase(sub.getStatus())) {
+                    sub.setStatus("CANCELED");
+                    sub.setCanceledAt(now);
+                    sub.setCancelReason("CANCELED_BY_TENANT_ADMIN");
+                    subscriptionRepository.save(sub);
+                }
+            });
+        }
+
+        return getCurrentSubscriptionAndQuotas();
+    }
+
+    public TenantSubscriptionQuotaResponse cancelScheduledDowngrade() {
+        String tenantCode = requireTenantCode();
         TenantInfo tenant = tenantInfoRepository.findByCode(tenantCode).orElse(null);
         TenantSubscription activeSub = resolveCurrentTenantSubscription(tenant);
         if (activeSub != null && activeSub.getNextPlanId() != null) {
@@ -447,6 +652,77 @@ public class TenantSubscriptionQuotaService {
             subscriptionRepository.save(activeSub);
         }
         return getCurrentSubscriptionAndQuotas();
+    }
+
+    private String requireTenantCode() {
+        String tenantCode = TenantContext.getCurrentTenant();
+        if (tenantCode == null || tenantCode.isBlank()) {
+            throw new BusinessException("Missing tenant context", HttpStatus.BAD_REQUEST, "MISSING_TENANT_CONTEXT");
+        }
+        return tenantCode;
+    }
+
+    private TenantInfo requireTenant(String tenantCode) {
+        return tenantInfoRepository.findByCode(tenantCode)
+                .orElseThrow(() -> new BusinessException("Doanh nghiệp không tồn tại: " + tenantCode, HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
+    }
+
+    private SubscriptionPlan resolveCurrentOrStarterPlan(TenantSubscription activeSub) {
+        SubscriptionPlan plan = activeSub != null && activeSub.getPlanId() != null
+                ? planRepository.findById(activeSub.getPlanId()).orElse(null)
+                : null;
+        if (plan == null) {
+            plan = planRepository.findByCode("STARTER").orElse(null);
+        }
+        return plan;
+    }
+
+    private void cancelStaleSelfServePendingInvoices(Long tenantId, String reason) {
+        if (tenantId == null) {
+            return;
+        }
+        List<Invoice> existingInvoices = invoiceRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        if (existingInvoices == null || existingInvoices.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (Invoice inv : existingInvoices) {
+            if (!"PENDING".equalsIgnoreCase(inv.getStatus()) || inv.getContractId() != null) {
+                continue;
+            }
+            boolean isSelfServePlanChangeOrRenewal = false;
+            if (invoiceLineItemRepository != null && inv.getId() != null) {
+                List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(inv.getId());
+                if (items != null) {
+                    isSelfServePlanChangeOrRenewal = items.stream().anyMatch(item ->
+                            "SUBSCRIPTION_UPGRADE".equalsIgnoreCase(item.getItemType())
+                                    || "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()));
+                }
+            }
+            if (!isSelfServePlanChangeOrRenewal && inv.getNotes() != null) {
+                String lower = inv.getNotes().toLowerCase();
+                isSelfServePlanChangeOrRenewal = lower.contains("nâng cấp") || lower.contains("gia hạn");
+            }
+            if (!isSelfServePlanChangeOrRenewal) {
+                continue;
+            }
+
+            inv.setStatus("CANCELLED");
+            String note = "Hủy tự động (" + reason + ")";
+            inv.setNotes(StringUtils.hasText(inv.getNotes()) ? inv.getNotes() + " | " + note : note);
+            invoiceRepository.save(inv);
+
+            if (inv.getSubscriptionId() != null) {
+                subscriptionRepository.findById(inv.getSubscriptionId()).ifPresent(sub -> {
+                    if ("PENDING".equalsIgnoreCase(sub.getStatus())) {
+                        sub.setStatus("CANCELED");
+                        sub.setCanceledAt(now);
+                        sub.setCancelReason(reason);
+                        subscriptionRepository.save(sub);
+                    }
+                });
+            }
+        }
     }
 
     private TenantSubscription resolveCurrentTenantSubscription(TenantInfo tenant) {
@@ -463,8 +739,19 @@ public class TenantSubscriptionQuotaService {
                             if (allSubs == null || allSubs.isEmpty()) {
                                 return null;
                             }
-                            return allSubs.get(0);
+                            return allSubs.stream()
+                                    .filter(s -> s.getStatus() != null && TenantQuotaRedisService.OPERATIONAL_SUBSCRIPTION_STATUSES.contains(s.getStatus().toUpperCase()))
+                                    .findFirst()
+                                    .orElseGet(() -> allSubs.stream()
+                                            .filter(s -> s.getStatus() != null && NON_PENDING_FALLBACK_STATUSES.contains(s.getStatus().toUpperCase()))
+                                            .findFirst()
+                                            .orElse(null));
                         }));
+    }
+
+    private String generateInvoiceNumber(LocalDateTime now) {
+        return "INV-" + now.format(DateTimeFormatter.ofPattern("yyyyMM"))
+                + "-" + ThreadLocalRandom.current().nextInt(1000, 9999);
     }
 
     private long countActiveJobsSafely() {
@@ -528,19 +815,30 @@ public class TenantSubscriptionQuotaService {
             Map<Long, SubscriptionPlan> planMap = planRepository.findAll().stream()
                     .collect(Collectors.toMap(SubscriptionPlan::getId, Function.identity(), (a, b) -> a));
 
+            List<Long> invoiceIds = rawInvoices.stream().map(Invoice::getId).toList();
+            Map<Long, List<InvoiceLineItem>> lineItemsByInvoice = (invoiceLineItemRepository != null && !invoiceIds.isEmpty())
+                    ? invoiceLineItemRepository.findByInvoiceIdIn(invoiceIds).stream()
+                            .collect(Collectors.groupingBy(InvoiceLineItem::getInvoiceId))
+                    : Collections.emptyMap();
+
             List<TenantInvoiceItem> result = new ArrayList<>();
             for (Invoice inv : rawInvoices) {
+                String invPlanCode = null;
                 String invPlanName = null;
                 if (inv.getSubscriptionId() != null) {
                     TenantSubscription sub = subscriptionRepository.findById(inv.getSubscriptionId()).orElse(null);
                     if (sub != null) {
-                        if (sub.getPlanNameSnapshot() != null) {
-                            invPlanName = sub.getPlanNameSnapshot();
-                        } else if (planMap.containsKey(sub.getPlanId())) {
-                            invPlanName = planMap.get(sub.getPlanId()).getName();
+                        invPlanCode = sub.getPlanCodeSnapshot();
+                        invPlanName = sub.getPlanNameSnapshot();
+                        if ((invPlanName == null || invPlanCode == null) && planMap.containsKey(sub.getPlanId())) {
+                            SubscriptionPlan p = planMap.get(sub.getPlanId());
+                            if (invPlanCode == null) invPlanCode = p.getCode();
+                            if (invPlanName == null) invPlanName = p.getName();
                         }
                     }
                 }
+                String invoiceType = resolveInvoiceType(inv, lineItemsByInvoice.get(inv.getId()));
+
                 result.add(TenantInvoiceItem.builder()
                         .id(inv.getId())
                         .invoiceNumber(inv.getInvoiceNumber())
@@ -551,7 +849,11 @@ public class TenantSubscriptionQuotaService {
                         .paidAt(inv.getPaidAt())
                         .billingPeriodStart(inv.getBillingPeriodStart())
                         .billingPeriodEnd(inv.getBillingPeriodEnd())
+                        .planCode(invPlanCode)
                         .planName(invPlanName)
+                        .invoiceType(invoiceType)
+                        .paymentGateway(inv.getPaymentGateway())
+                        .notes(inv.getNotes())
                         .build());
             }
             return result;
@@ -559,5 +861,28 @@ public class TenantSubscriptionQuotaService {
             log.debug("Failed to load tenant invoices: {}", e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    private String resolveInvoiceType(Invoice inv, List<InvoiceLineItem> items) {
+        if (items != null && !items.isEmpty()) {
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_UPGRADE".equalsIgnoreCase(i.getItemType()))) {
+                return "UPGRADE";
+            }
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(i.getItemType()))) {
+                return "RENEWAL";
+            }
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION".equalsIgnoreCase(i.getItemType()))) {
+                return "SUBSCRIPTION";
+            }
+        }
+        if (inv.getContractId() != null) {
+            return "B2B_CONTRACT";
+        }
+        if (inv.getNotes() != null) {
+            String lower = inv.getNotes().toLowerCase();
+            if (lower.contains("nâng cấp")) return "UPGRADE";
+            if (lower.contains("gia hạn")) return "RENEWAL";
+        }
+        return "SUBSCRIPTION";
     }
 }

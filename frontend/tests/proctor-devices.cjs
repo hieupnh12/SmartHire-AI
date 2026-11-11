@@ -18,36 +18,49 @@ function setup(failure, surface = "monitor", secure = true) {
   return { api: exported, calls, acquired };
 }
 (async () => {
+  // Test 1: AI interview default (capture = "none") with camera
   const success = setup();
-  const session = await success.api.prepareProctorDevices(true);
-  assert.deepEqual(success.calls, ["screen", "microphone", "camera"]);
+  const session = await success.api.prepareProctorDevices(true, "none");
+  assert.deepEqual(success.calls, ["microphone", "camera"]);
   assert.equal(session.camera.getVideoTracks().length, 1);
   assert.equal(session.camera.getAudioTracks().length, 1);
+  assert.equal(session.screen, undefined);
   success.api.stopProctorSession(session);
   assert.ok(success.acquired.every(s => s.getTracks().every(t => t.readyState === "ended")));
+
+  // Test 2: AI interview audio-only (capture = "none", enableCamera = false)
   const withoutCamera = setup();
-  const audioOnly = await withoutCamera.api.prepareProctorDevices();
-  assert.deepEqual(withoutCamera.calls, ["screen", "microphone"]);
+  const audioOnly = await withoutCamera.api.prepareProctorDevices(false, "none");
+  assert.deepEqual(withoutCamera.calls, ["microphone"]);
   assert.equal(audioOnly.camera.getVideoTracks().length, 0);
   assert.equal(audioOnly.camera.getAudioTracks().length, 1);
+  assert.equal(audioOnly.screen, undefined);
   withoutCamera.api.stopProctorSession(audioOnly);
+
+  // Test 3: Camera failure fallback when camera optional
   const cameraFailure = setup("camera");
-  const fallback = await cameraFailure.api.prepareProctorDevices(true);
+  const fallback = await cameraFailure.api.prepareProctorDevices(true, "none");
   assert.equal(fallback.camera.getVideoTracks().length, 0);
   assert.equal(fallback.camera.getAudioTracks().length, 1);
-  assert.ok(fallback.screen.getTracks().every(t => t.readyState === "live"));
+  assert.equal(fallback.screen, undefined);
   cameraFailure.api.stopProctorSession(fallback);
-  for (const step of ["screen", "microphone"]) {
-    const failed = setup(step);
-    await assert.rejects(failed.api.prepareProctorDevices(), error => error.message.includes(step === "screen" ? "chia sẻ màn hình" : step) && !error.message.includes("Could not start video source"));
-    assert.ok(failed.acquired.every(s => s.getTracks().every(t => t.readyState === "ended")));
-  }
-  const tab = setup(null, "browser");
-  await assert.rejects(tab.api.prepareProctorDevices(), /toàn bộ màn hình/);
-  assert.deepEqual(tab.calls, ["screen"]);
-  assert.equal(tab.acquired[0].getTracks()[0].readyState, "ended");
+
+  // Test 4: Assessment mode with monitor screen capture
+  const assessmentSetup = setup(null, "monitor");
+  const assessmentSession = await assessmentSetup.api.prepareProctorDevices(false, "monitor");
+  assert.deepEqual(assessmentSetup.calls, ["screen", "microphone"]);
+  assert.ok(assessmentSession.screen.getTracks().every(t => t.readyState === "live"));
+  assessmentSetup.api.stopProctorSession(assessmentSession);
+
+  // Test 5: Failed microphone rejected
+  const micFailure = setup("microphone");
+  await assert.rejects(micFailure.api.prepareProctorDevices(false, "none"), error => error.message.includes("microphone"));
+  assert.ok(micFailure.acquired.every(s => s.getTracks().every(t => t.readyState === "ended")));
+
+  // Test 6: Insecure context rejected
   const insecure = setup(null, "monitor", false);
-  await assert.rejects(insecure.api.prepareProctorDevices(), /HTTPS/);
+  await assert.rejects(insecure.api.prepareProctorDevices(false, "none"), /HTTPS/);
   assert.equal(insecure.calls.length, 0);
-  console.log("Proctor devices: optional camera, camera failure fallback, required mic/screen, cleanup and HTTPS checks passed.");
+
+  console.log("Proctor devices: optional camera, camera failure fallback, capture none (AI interview), capture monitor (assessment), cleanup and HTTPS checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

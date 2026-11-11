@@ -25,4 +25,6 @@ public class VnPayVerifyReturnResponse {
     private String transactionNo;
     private String bankCode;
     private String payDate;
+    private String paymentPurpose;
+    private String planName;
 }

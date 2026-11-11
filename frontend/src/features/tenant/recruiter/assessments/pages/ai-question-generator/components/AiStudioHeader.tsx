@@ -82,7 +82,7 @@ export function AiStudioHeader({
                 }
                 onChange={toggleSelectAll}
                 disabled={filteredDrafts.length === 0 || isSaving}
-                className="size-3.5 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                className="size-3.5 rounded border-slate-300 accent-[var(--color-primary)]"
               />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                 Chọn tất cả ({filteredDrafts.length})
@@ -91,7 +91,7 @@ export function AiStudioHeader({
           )}
 
           {/* Badge: Đã chọn x / y câu */}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap">
+          <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20 whitespace-nowrap">
             Đã chọn {selectedCount} / {drafts.length} câu
           </span>
 

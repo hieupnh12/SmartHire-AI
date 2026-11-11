@@ -10,18 +10,27 @@ import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { button, input, muted, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { downloadInterview } from "@/components/ux/humanInterviewUtilities";
+import { toast } from "@/stores/toastStore";
 import { HumanInterviewCard } from "./HumanInterviewCard";
 
 const schema = z.object({ start: z.string().min(1, "Chọn thời gian bắt đầu."), end: z.string().min(1, "Chọn thời gian kết thúc."), reason: z.string().trim().min(1, "Nhập lý do đổi lịch.").max(2000) }).refine(v => { const start = new Date(v.start).getTime(), end = new Date(v.end).getTime(); return start > Date.now() && end-start >= 900000 && end-start <= 14400000; }, { message: "Chọn lịch tương lai dài 15–240 phút.", path: ["start"] });
-type Notice = { tone: "success" | "error"; text: string };
 const errorBox = "rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]";
 const fieldError = "mt-1 text-xs text-[var(--color-error)]";
 
 export function HumanInterviewActions() {
-  const client = useQueryClient(); const [notice,setNotice] = useState<Notice | null>(null); const [editing,setEditing] = useState<number | null>(null);
+  const client = useQueryClient();
+  const [editing, setEditing] = useState<number | null>(null);
   const rows = useQuery({ queryKey: ["human-interviews","mine"], queryFn: api.mine });
   const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { start:"",end:"",reason:"" } });
-  const mutation = useMutation({ mutationFn: (fn:()=>Promise<unknown>)=>fn(), onSuccess:()=>{void client.invalidateQueries({queryKey:["human-interviews"]});setEditing(null);setNotice({tone:"success",text:"Đã cập nhật lịch phỏng vấn."});}, onError:e=>setNotice({tone:"error",text:getApiErrorMessage(e)}) });
+  const mutation = useMutation({
+    mutationFn: (fn:()=>Promise<unknown>)=>fn(),
+    onSuccess: () => {
+      void client.invalidateQueries({queryKey:["human-interviews"]});
+      setEditing(null);
+      toast.success("Đã cập nhật lịch phỏng vấn.");
+    },
+    onError: e => toast.error(getApiErrorMessage(e)),
+  });
   const { upcoming, past } = useMemo(() => {
     const now = Date.now(); const all = rows.data ?? [];
     return {
@@ -34,7 +43,7 @@ export function HumanInterviewActions() {
   const renderList = (items: typeof upcoming) => <ul className="grid gap-4 lg:grid-cols-2">{items.map(row => <HumanInterviewCard key={row.id} row={row} busy={mutation.isPending}
     onConfirm={() => mutation.mutate(() => api.confirm(row.id))}
     onReschedule={() => { form.reset(); setEditing(row.id); }}
-    onDownload={() => void api.calendar(row.id).then(blob => downloadInterview(blob, `interview-${row.id}.ics`)).catch(e => setNotice({ tone: "error", text: getApiErrorMessage(e) }))} />)}</ul>;
+    onDownload={() => void api.calendar(row.id).then(blob => downloadInterview(blob, `interview-${row.id}.ics`)).catch(e => toast.error(getApiErrorMessage(e)))} />)}</ul>;
 
   return <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="interview-schedules-title">
     <header className="rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_58%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
@@ -48,7 +57,6 @@ export function HumanInterviewActions() {
       </div>
     </header>
 
-    {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={notice.tone === "error" ? errorBox : "rounded-xl bg-[var(--color-primary-subtle)] p-4 text-sm text-[var(--color-primary-hover)]"}>{notice.text}</p>}
     {rows.isPending && <LoadingState className="grid gap-4 lg:grid-cols-2" label="Đang tải lịch phỏng vấn">{[0,1].map(i => <SkeletonCard key={i} className="min-h-64" />)}</LoadingState>}
     {rows.isError && <div role="alert" className={`${errorBox} flex flex-wrap items-center justify-between gap-3`}><span>{getApiErrorMessage(rows.error)}</span><button type="button" className={button} onClick={() => void rows.refetch()}>Thử lại</button></div>}
     {rows.isSuccess && rows.data.length === 0 && <EmptyState title="Chưa có lịch phỏng vấn" description="Khi nhà tuyển dụng mời bạn phỏng vấn trực tiếp, lịch hẹn sẽ xuất hiện tại đây." />}

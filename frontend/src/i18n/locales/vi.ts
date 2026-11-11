@@ -85,6 +85,7 @@ export const vi: Messages = {
     notifications: "Thông báo",
     users: "Người dùng",
     company: "Công ty",
+    billing: "Gói & Hóa đơn",
     landingPage: "Trang Tuyển Dụng",
     system: "Hệ thống",
     mailConfig: "Cấu hình Gmail",

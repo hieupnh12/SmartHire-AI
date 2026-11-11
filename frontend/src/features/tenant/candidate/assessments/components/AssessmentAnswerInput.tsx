@@ -7,9 +7,9 @@ import { Skeleton } from "@/components/ux/Skeleton";
 import { hasAnswer } from "../utils/hasAnswer";
 import { CandidateEssayWorkspace } from "./CandidateEssayWorkspace";
 
-export function AssessmentAnswerInput({ submissionId, question, answer, onChange, locked, number, draftSavedAt, draftError, onSave, saving }: {
+export function AssessmentAnswerInput({ submissionId, question, answer, onChange, locked, number, draftSavedAt, draftError, onSave, saving, isDemo = false }: {
   submissionId: number; question: CandidateQuestion; answer?: SavedAnswer; onChange: (answer: SavedAnswer) => void; locked: boolean;
-  number?: number; draftSavedAt?: number; draftError?: boolean; onSave?: () => Promise<void>; saving?: boolean;
+  number?: number; draftSavedAt?: number; draftError?: boolean; onSave?: () => Promise<void>; saving?: boolean; isDemo?: boolean;
 }) {
   const questionId = question.id;
   if (question.questionType === "CODING") {
@@ -36,6 +36,7 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
             locked={locked}
             onSave={onSave}
             saving={saving}
+            isDemo={isDemo}
           />
         </Suspense>
       </div>

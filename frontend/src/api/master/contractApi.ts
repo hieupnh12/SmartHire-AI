@@ -56,9 +56,7 @@ export interface ContractItem {
   partyBEmail?: string;
   partyBBankAccount?: string;
 
-  // Thuế & Tổng tiền
-  taxRate?: number;
-  taxAmount?: number;
+  // Tổng tiền
   totalAmount?: number;
   amountInWords?: string;
 
@@ -121,7 +119,6 @@ export interface CreateContractPayload {
   partyBEmail?: string;
   partyBBankAccount?: string;
 
-  taxRate?: number;
   termsAndConditions?: string;
   notes?: string;
 }

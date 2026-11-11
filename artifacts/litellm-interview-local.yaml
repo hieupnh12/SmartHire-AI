@@ -1,7 +1,21 @@
 model_list:
+  - model_name: smarthire-llama
+    litellm_params:
+      model: ollama/qwen2.5:3b
+      api_base: http://localhost:11434
+  - model_name: granite4.2:8b
+    litellm_params:
+      model: ollama/qwen2.5:3b
+      api_base: http://localhost:11434
+  - model_name: qwen3.5:4b
+    litellm_params:
+      model: ollama/qwen2.5:3b
+      api_base: http://localhost:11434
   - model_name: vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M
     litellm_params:
-      model: ollama/vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M
+      model: ollama/qwen2.5:3b
       api_base: http://localhost:11434
+
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+

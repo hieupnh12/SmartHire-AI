@@ -6,6 +6,7 @@ import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.CvAnalysis;
 import com.smarthire.domain.tenant.entity.CvExtraction;
 import com.smarthire.domain.tenant.entity.CvSkill;
+import com.smarthire.domain.tenant.entity.GithubAnalysis;
 import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.tenant.cv.dto.CvModels.AnalysisView;
 import com.smarthire.tenant.cv.dto.CvModels.CvDetail;
@@ -28,6 +29,13 @@ public class CvMapper {
     }
 
     public CvSummary summary(Cv cv, MatchScore score) {
+        return summary(cv, score, null);
+    }
+
+    public CvSummary summary(Cv cv, MatchScore score, GithubAnalysis githubAnalysis) {
+        String githubStatus = githubAnalysis == null ? null : githubAnalysis.getStatus().name();
+        java.math.BigDecimal githubScore = githubAnalysis == null ? null : githubAnalysis.getScore();
+        String githubTrust = trustLevel(githubAnalysis);
         return new CvSummary(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
@@ -38,7 +46,20 @@ public class CvMapper {
                 score == null ? null : score.getScore(),
                 cv.getErrorCode(),
                 cv.getCreatedAt(),
-                cv.getBuilderData() != null);
+                cv.getBuilderData() != null,
+                githubStatus,
+                githubScore,
+                githubTrust);
+    }
+
+    private String trustLevel(GithubAnalysis analysis) {
+        if (analysis == null || analysis.getResultJson() == null || analysis.getResultJson().isBlank()) return null;
+        try {
+            String level = mapper.readTree(analysis.getResultJson()).path("authenticity").path("overallTrustLevel").asText("");
+            return level.isBlank() ? null : level;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     public CvDetail detail(Cv cv, CvExtraction extraction, List<CvSkill> skillRows, CvAnalysis analysis,

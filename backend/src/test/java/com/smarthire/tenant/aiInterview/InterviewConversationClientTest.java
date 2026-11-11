@@ -291,7 +291,7 @@ class InterviewConversationClientTest {
                 .andExpect(jsonPath("$.contents[0].parts[1].inlineData.mimeType").value("audio/webm"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"I use dependency injection\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent"))
-                .andExpect(jsonPath("$.contents[0].parts[0].text").value("Read the following interview message naturally and verbatim in Vietnamese. Do not translate it:\nChào bạn"))
+                .andExpect(jsonPath("$.contents[0].parts[0].text").value("Chào bạn"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"inlineData\":{\"mimeType\":\"audio/L16;codec=pcm;rate=24000\",\"data\":\"AAAAAA==\"}}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
         assertThat(client.transcribe(new byte[]{1, 2}, "audio/webm", "English")).isEqualTo("I use dependency injection");
         byte[] wave = client.speech("Chào bạn", "Vietnamese"); assertThat(wave).hasSize(48);

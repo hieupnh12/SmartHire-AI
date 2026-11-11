@@ -784,6 +784,62 @@ class MasterAiConfigServiceTest {
         assertThat(result.getSupportsJson()).isTrue();
         assertThat(result.getInputPricePer1mTokens()).isEqualByComparingTo(BigDecimal.ZERO);
     }
+
+    @Test
+    void githubAnalysis_UsesActiveGeminiKeyAndValidModelsWhenNoDbRowExists() {
+        when(redisService.get(anyString())).thenReturn(Optional.empty());
+        when(modelConfigRepository.findByTaskType("GITHUB_ANALYSIS")).thenReturn(Optional.empty());
+        AiProviderKey geminiKey = AiProviderKey.builder()
+                .provider("GEMINI").apiKeyEncrypted("v1:enc-gem").status("ACTIVE").isDefault(true).build();
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE"))
+                .thenReturn(Optional.of(geminiKey));
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:enc-gem")).thenReturn("admin-gemini-key");
+        when(redisService.exists(anyString())).thenReturn(false);
+
+        List<DynamicAiConfigProvider.ResolvedAiConfig> chain = configProvider.resolveExecutionChain("GITHUB_ANALYSIS");
+
+        assertThat(chain).extracting(DynamicAiConfigProvider.ResolvedAiConfig::modelName)
+                .containsExactly("gemini-2.5-flash", "gemini-3.5-flash-lite");
+        assertThat(chain).allMatch(c -> "admin-gemini-key".equals(c.apiKey()));
+    }
+
+    @Test
+    void githubAnalysis_UpgradesRetiredGeminiModelsFromDbRow() {
+        when(redisService.get(anyString())).thenReturn(Optional.empty());
+        AiModelConfig obsolete = AiModelConfig.builder()
+                .taskType("GITHUB_ANALYSIS").provider("GEMINI").modelName("gemini-1.5-flash")
+                .isActive(true)
+                .fallbackChain("[{\"provider\":\"GEMINI\",\"model\":\"gemini-2.0-flash\"}]")
+                .build();
+        when(modelConfigRepository.findByTaskType("GITHUB_ANALYSIS")).thenReturn(Optional.of(obsolete));
+        AiProviderKey geminiKey = AiProviderKey.builder()
+                .provider("GEMINI").apiKeyEncrypted("v1:enc-gem").status("ACTIVE").isDefault(true).build();
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE"))
+                .thenReturn(Optional.of(geminiKey));
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:enc-gem")).thenReturn("admin-gemini-key");
+        when(redisService.exists(anyString())).thenReturn(false);
+
+        List<DynamicAiConfigProvider.ResolvedAiConfig> chain = configProvider.resolveExecutionChain("GITHUB_ANALYSIS");
+
+        assertThat(chain).extracting(DynamicAiConfigProvider.ResolvedAiConfig::modelName)
+                .containsExactly("gemini-2.5-flash", "gemini-3.5-flash-lite");
+    }
+
+    @Test
+    void getAllTaskConfigs_IncludesDefaultGithubAnalysisWhenAbsentFromDb() {
+        AiModelConfig cvParsing = AiModelConfig.builder()
+                .id(1L).taskType("CV_PARSING").taskName("Trích xuất hồ sơ CV")
+                .provider("GEMINI").modelName("gemini-2.5-flash").isActive(true).build();
+        when(modelConfigRepository.findAll()).thenReturn(List.of(cvParsing));
+
+        List<AiModelConfigDto> all = aiConfigService.getAllTaskConfigs();
+
+        assertThat(all).extracting(AiModelConfigDto::getTaskType)
+                .containsExactly("CV_PARSING", "GITHUB_ANALYSIS");
+        AiModelConfigDto github = all.get(1);
+        assertThat(github.getModelName()).isEqualTo("gemini-2.5-flash");
+        assertThat(github.getFailoverModel()).isEqualTo("gemini-3.5-flash-lite");
+    }
 }
 
 

@@ -173,8 +173,10 @@ public class SubmissionService {
         if (!expire(submission) && submission.getStatus() == TestSubmissionStatus.IN_PROGRESS) {
             requirePlayable(submission.getApplication(), submission.getTest());
             grade(submission, false);
-        } else if (submission.getStatus() != TestSubmissionStatus.GRADED
-                && submission.getStatus() != TestSubmissionStatus.SUBMITTED
+        } else if (!submission.getStatus().isFinished()
+                && !submission.getStatus().isPendingOrSubmitted()
+                && !submission.getStatus().isGrading()
+                && submission.getStatus() != TestSubmissionStatus.FAILED
                 && submission.getStatus() != TestSubmissionStatus.EXPIRED) {
             throw conflict("Submission cannot be submitted in its current state", "SUBMISSION_CLOSED");
         }
@@ -223,6 +225,10 @@ public class SubmissionService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private CodingJudge judge;
+    @org.springframework.beans.factory.annotation.Autowired
+    private CodingLocalRunner localRunner;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<AssessmentGradingService> gradingService;
     public record SampleRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
             @jakarta.validation.constraints.NotBlank String language) {}
     public record CustomRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
@@ -231,12 +237,14 @@ public class SubmissionService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
         CodingProblem problem = codingProblemForRun(id, questionId, body.language());
-        try {
-            return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
-                    .map(c -> judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput())).toList();
-        } catch (RuntimeException failure) {
-            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
-        }
+        return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
+                .map(c -> {
+                    try {
+                        return judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput());
+                    } catch (Exception ex) {
+                        return localRunner.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput());
+                    }
+                }).toList();
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public com.fasterxml.jackson.databind.JsonNode runCustom(long id, long questionId, CustomRun body) {
@@ -252,8 +260,8 @@ public class SubmissionService {
         answer.setCustomRunCount(answer.getCustomRunCount() + 1);
         try {
             return judge.run(problem, body.language(), body.source(), body.input(), null);
-        } catch (RuntimeException failure) {
-            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
+        } catch (Exception ex) {
+            return localRunner.run(problem, body.language(), body.source(), body.input(), null);
         }
     }
     private CodingProblem codingProblemForRun(long id, long questionId, String language) {
@@ -457,14 +465,22 @@ public class SubmissionService {
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
                         answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
                         answer.getSelectedOptions().stream().map(row -> row.getOption().getId()).sorted().toList(),
-                        answer.getAnswerText(), answer.getLanguage())).toList();
+                        answer.getAnswerText(), answer.getLanguage(),
+                        answer.getScore(), answer.getSuggestedScore(), answer.getEvaluationJson())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
+        boolean sanitizeForCandidate = submission.getStatus() != TestSubmissionStatus.IN_PROGRESS && !access.staff();
+        var questionDtos = paper.stream().map(q -> {
+            if (sanitizeForCandidate) {
+                return new SubmissionResponse.CandidateQuestion(q.getId(), null, q.getQuestionType(), q.getPoints(), q.getQuestionOrder(), java.util.List.of(), null);
+            }
+            return mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()));
+        }).toList();
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),
                 submission.getTest().getTitle(), submission.getStatus(), submission.getStartedAt(), expiresAt,
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
-                paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
+                questionDtos, saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
     }
 
     private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {

@@ -1,19 +1,24 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  ArrowUpRight,
-  AudioLines,
   Ban,
   Bot,
   Building2,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Copy,
   Download,
+  Eye,
   FileText,
   Filter,
+  History,
   Inbox,
   Kanban,
   LayoutList,
@@ -33,18 +38,17 @@ import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
-import { Skeleton } from "@/components/ux/Skeleton";
+import { TableSkeleton } from "@/components/ux/Skeleton";
 import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
+import { AiInterviewSubNav, type AiInterviewTab } from "../components/AiInterviewSubNav";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
-import { AiInterviewDetailDrawer } from "../components/AiInterviewDetailDrawer";
 import {
   AI_INTERVIEW_STATUSES,
   AiStatusBadge,
   aiStatusLabel,
-  aiStatusTone,
   formatDateTime,
 } from "../components/aiInterviewUi";
 import { CreateAiInterviewDialog } from "../components/CreateAiInterviewDialog";
@@ -53,7 +57,27 @@ import { useJobAiInterviews, type AiInterviewRow } from "../hooks/useJobAiInterv
 type QuickTab = "ALL" | "QUESTIONS_READY" | "IN_PROGRESS" | "SCORING" | "SCORED";
 type TimeRange = "all" | "7" | "30" | "90";
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const DAY_MS = 86_400_000;
+
+function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const showStartEllipsis = current > 4;
+  const showEndEllipsis = current < total - 3;
+
+  if (!showStartEllipsis && showEndEllipsis) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", total];
+  }
+
+  if (showStartEllipsis && !showEndEllipsis) {
+    return [1, "ellipsis-start", total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
+}
 
 function initials(name: string) {
   return name
@@ -75,44 +99,71 @@ function scheduleOf(row: AiInterviewRow) {
   return { label: formatDateTime(row.createdAt), hint: "Ngày tạo phiên" };
 }
 
-function downloadCsv(rows: AiInterviewRow[], jobTitle: string) {
-  const header = ["Ma phien", "Ung vien", "Email", "Don", "Trang thai", "Diem", "Tao luc", "Bat dau", "Hoan tat"];
+function exportCsv(rows: AiInterviewRow[], jobTitle: string) {
+  if (rows.length === 0) {
+    toast.warning("Không có dữ liệu phiên phỏng vấn để xuất");
+    return;
+  }
+  const headers = ["Mã phiên", "Ứng viên", "Email", "Mã đơn", "Trạng thái", "Điểm AI", "Ngày tạo", "Bắt đầu", "Hoàn tất"];
   const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = rows.map((r) => [
     `AI-${r.id}`,
     candidateName(r),
     r.application?.candidateEmail ?? "",
     r.applicationId,
-    aiStatusLabel[r.status],
-    r.overallScore ?? "",
-    r.createdAt,
-    r.startedAt ?? "",
-    r.completedAt ?? "",
+    aiStatusLabel[r.status] ?? r.status,
+    r.overallScore != null ? r.overallScore : "",
+    r.createdAt ? new Date(r.createdAt).toLocaleDateString("vi-VN") : "",
+    r.startedAt ? new Date(r.startedAt).toLocaleDateString("vi-VN") : "",
+    r.completedAt ? new Date(r.completedAt).toLocaleDateString("vi-VN") : "",
   ].map(escape).join(","));
-  const blob = new Blob(["\uFEFF" + [header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+
+  const csvContent = "\uFEFF" + [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `ai-interviews-${jobTitle.replace(/\s+/g, "-").toLowerCase()}.csv`;
+  link.download = `Danh_sach_phong_van_AI_${jobTitle.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
+  toast.success("Xuất file CSV thành công", `Đã xuất ${rows.length} phiên phỏng vấn`);
 }
 
 function ScoreCell({ row }: { row: AiInterviewRow }) {
   if (row.status === "SCORING") {
-    return <span className="text-xs italic text-[var(--color-on-surface-variant)]">Đang tổng hợp điểm...</span>;
+    return <span className="text-xs italic text-[var(--color-primary)]">Đang tổng hợp điểm...</span>;
   }
   if (row.overallScore == null) {
-    return <span className="text-xs italic text-[var(--color-outline)]">Chưa có điểm</span>;
+    return <span className="text-xs italic text-slate-400 dark:text-slate-500">Chưa có điểm</span>;
   }
   const pct = Math.min(Math.max(row.overallScore, 0), 100);
+  const isPassed = row.passingScore != null ? row.overallScore >= row.passingScore : row.overallScore >= 50;
+
   return (
     <div className="flex w-36 flex-col gap-1.5">
-      <span className="text-base font-bold text-[var(--color-on-surface)]">
-        {row.overallScore.toFixed(1)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">/100</span>
-      </span>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
-        <div className="h-full rounded-full bg-[var(--color-primary-container)]" style={{ width: `${pct}%` }} />
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+          {row.overallScore.toFixed(1)} <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">/100</span>
+        </span>
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+            isPassed
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+              : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+          )}
+        >
+          {isPassed ? "Đạt" : "Chưa đạt"}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-500",
+            isPassed ? "bg-emerald-500" : "bg-rose-500"
+          )}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -139,7 +190,10 @@ function ActionMenu({
 
   if (!open) return null;
   return (
-    <div ref={ref} className="absolute right-0 top-10 z-30 flex w-52 flex-col rounded-xl bg-[var(--color-surface-card)] py-1.5 shadow-xl">
+    <div
+      ref={ref}
+      className="absolute right-0 top-10 z-40 flex w-52 flex-col rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95"
+    >
       {items.map((item) => {
         const Icon = item.icon;
         return (
@@ -149,16 +203,18 @@ function ActionMenu({
             disabled={item.disabled}
             title={item.title}
             className={cn(
-              "flex items-center gap-2 px-3.5 py-2 text-left text-sm font-medium hover:bg-[var(--color-surface-container)] disabled:cursor-not-allowed disabled:opacity-50",
-              item.danger ? "text-[#ba1a1a] hover:bg-[#ffdad6]" : "text-[var(--color-on-surface)]",
+              "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+              item.danger
+                ? "text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             )}
             onClick={() => {
               item.onClick();
               onClose();
             }}
           >
-            <Icon className="size-[18px]" aria-hidden="true" />
-            {item.label}
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            <span>{item.label}</span>
           </button>
         );
       })}
@@ -168,25 +224,83 @@ function ActionMenu({
 
 export function AiInterviewsPage() {
   const job = useRecruitmentJob();
+  const navigate = useNavigate();
+  const location = useLocation();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const [params, setParams] = useSearchParams();
   const { interviews, applicants, rows } = useJobAiInterviews(job.id);
+
+  const activeSubNavTab = (params.get("tab") as AiInterviewTab) || "sessions";
+
   const [tab, setTab] = useState<QuickTab>("ALL");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AiInterviewStatus | "all">("all");
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [menuId, setMenuId] = useState<number | null>(null);
-  const [pageSize, setPageSize] = useState(20);
-  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [page, setPage] = useState<number>(1);
+  const [jumpVal, setJumpVal] = useState("");
+  const [isTableTransitioning, setIsTableTransitioning] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [activeDropdown, setActiveDropdown] = useState<"status" | "time" | "export" | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState("");
+  const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
+
+  const toggleExpandCandidate = (key: string) => {
+    setExpandedCandidates((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const openSessionDetail = (interviewId: number) => {
+    navigate(`/recruiter/jobs/${job.id}/ai-interviews/${interviewId}`, {
+      state: { backSearch: location.search },
+    });
+  };
+
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
     queryFn: companyApi.getSubscription,
   });
   const sub = subQuery.data?.data;
+
+  // Redirect direct URL parameters (e.g. from RankingDetail) to the dedicated detail page
+  useEffect(() => {
+    const appId = params.get("applicationId");
+    const intId = params.get("interviewId");
+    if (intId && /^\d+$/.test(intId)) {
+      navigate(`/recruiter/jobs/${job.id}/ai-interviews/${intId}`, { replace: true });
+      return;
+    }
+    if (appId && rows.length > 0) {
+      const match = rows.find((r) => String(r.applicationId) === appId);
+      if (match) {
+        navigate(`/recruiter/jobs/${job.id}/ai-interviews/${match.id}`, { replace: true });
+      }
+    }
+  }, [params, rows, job.id, navigate]);
+
+  // Click outside listener for dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-dropdown-root]")) {
+        setActiveDropdown(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const counts = useMemo(() => {
     const by = (s: AiInterviewStatus) => rows.filter((r) => r.status === s).length;
@@ -198,7 +312,6 @@ export function AiInterviewsPage() {
       scored: by("SCORED") + by("PASSED") + by("FAILED"),
     };
   }, [rows]);
-  const completionRate = counts.all ? Math.round((counts.scored / counts.all) * 100) : 0;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -217,17 +330,116 @@ export function AiInterviewsPage() {
     });
   }, [rows, tab, statusFilter, timeRange, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
-  const detailRow = rows.find((r) => r.id === detailId);
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(startIndex, startIndex + pageSize),
+    [filtered, startIndex, pageSize],
+  );
+  const pageItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
+
+  const candidateCompletedGroups = useMemo(() => {
+    const completedRows = rows.filter(
+      (r) =>
+        r.status === "SCORED" ||
+        r.status === "PASSED" ||
+        r.status === "FAILED" ||
+        r.overallScore != null ||
+        r.status === "SCORING"
+    );
+
+    const map = new Map<string, AiInterviewRow[]>();
+    for (const row of completedRows) {
+      const key = String(row.applicationId || (row.candidateId ? `c-${row.candidateId}` : `int-${row.id}`));
+      const list = map.get(key) || [];
+      list.push(row);
+      map.set(key, list);
+    }
+
+    const groups: {
+      key: string;
+      applicationId: number;
+      candidateId: number | null;
+      candidateName: string;
+      candidateEmail: string;
+      attempts: AiInterviewRow[];
+      latestAttempt: AiInterviewRow;
+    }[] = [];
+
+    for (const [key, groupRows] of map.entries()) {
+      groupRows.sort((a, b) => {
+        const timeA = a.completedAt ? new Date(a.completedAt).getTime() : a.id;
+        const timeB = b.completedAt ? new Date(b.completedAt).getTime() : b.id;
+        return timeB - timeA;
+      });
+
+      const latest = groupRows[0];
+      groups.push({
+        key,
+        applicationId: latest.applicationId,
+        candidateId: latest.candidateId ?? null,
+        candidateName: candidateName(latest),
+        candidateEmail: latest.application?.candidateEmail ?? "—",
+        attempts: groupRows,
+        latestAttempt: latest,
+      });
+    }
+
+    groups.sort((a, b) => {
+      const timeA = a.latestAttempt.completedAt ? new Date(a.latestAttempt.completedAt).getTime() : a.latestAttempt.id;
+      const timeB = b.latestAttempt.completedAt ? new Date(b.latestAttempt.completedAt).getTime() : b.latestAttempt.id;
+      return timeB - timeA;
+    });
+
+    return groups;
+  }, [rows]);
+
+  const filteredTrackingGroups = useMemo(() => {
+    if (!trackingSearch.trim()) return candidateCompletedGroups;
+    const q = trackingSearch.toLowerCase().trim();
+    return candidateCompletedGroups.filter(
+      (g) =>
+        g.candidateName.toLowerCase().includes(q) ||
+        g.candidateEmail.toLowerCase().includes(q) ||
+        String(g.applicationId).includes(q)
+    );
+  }, [candidateCompletedGroups, trackingSearch]);
+  const triggerTableTransition = (action: () => void) => {
+    setIsTableTransitioning(true);
+    action();
+    setTimeout(() => {
+      setIsTableTransitioning(false);
+    }, 200);
+  };
+
+  const goToPage = (nextPage: number, nextSize: number = pageSize) => {
+    const calcTotalPages = Math.max(1, Math.ceil(totalItems / nextSize));
+    const target = Math.max(1, Math.min(nextPage, calcTotalPages));
+    triggerTableTransition(() => {
+      setPage(target);
+      if (nextSize !== pageSize) {
+        setPageSize(nextSize);
+      }
+    });
+  };
 
   const resetFilters = () => {
     setTab("ALL");
     setQuery("");
     setStatusFilter("all");
     setTimeRange("all");
-    setPage(0);
+    setPage(1);
+  };
+
+  const pageIds = pageRows.map((row) => row.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const toggleAllPage = () => {
+    setSelected((prev) => (allPageSelected ? prev.filter((id) => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]));
+  };
+  const toggleOne = (id: number) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
   const confirmDelete = (row: AiInterviewRow) =>
@@ -243,91 +455,37 @@ export function AiInterviewsPage() {
       },
     });
 
-
-  const pills: { id: QuickTab; label: string; dot?: "live" }[] = [
-    { id: "ALL", label: `Tất cả (${counts.all})` },
-    { id: "QUESTIONS_READY", label: `Đã có câu hỏi (${counts.ready})` },
-    { id: "IN_PROGRESS", label: `Đang diễn ra (${counts.live})`, dot: "live" },
-    { id: "SCORING", label: `Đang chấm (${counts.scoring})` },
-    { id: "SCORED", label: `Đã chấm xong (${counts.scored})` },
+  const tabsConfig: { id: QuickTab; label: string; count: number; live?: boolean }[] = [
+    { id: "ALL", label: "Tất cả", count: counts.all },
+    { id: "QUESTIONS_READY", label: "Đã có câu hỏi", count: counts.ready },
+    { id: "IN_PROGRESS", label: "Đang diễn ra", count: counts.live, live: true },
+    { id: "SCORING", label: "Đang chấm", count: counts.scoring },
+    { id: "SCORED", label: "Đã chấm xong", count: counts.scored },
   ];
 
-  return (
-    <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 text-[var(--color-on-surface)]">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary-container)]" />
-            <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">Phỏng vấn AI</h1>
-            {sub && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold",
-                  !sub.aiInterviewAllowed
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-teal-200 bg-teal-50 text-teal-800"
-                )}
-              >
-                <span>Gói {sub.planName}:</span>
-                <strong>
-                  {!sub.aiInterviewEnabled
-                    ? "Không bao gồm AI Voice (0h)"
-                    : sub.maxAiInterviewHours < 0
-                    ? `${(sub.usedAiInterviewSeconds / 3600).toFixed(1)}h / ∞`
-                    : `${(sub.usedAiInterviewSeconds / 3600).toFixed(1)}/${sub.maxAiInterviewHours}h`}
-                </strong>
-              </span>
-            )}
-          </div>
-          <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
-            Quản lý phiên phỏng vấn AI của vị trí, câu hỏi, câu trả lời và feedback của ứng viên.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
-          <button
-            type="button"
-            onClick={() => setConfigOpen(open => !open)} aria-expanded={configOpen} aria-controls="ai-interview-config"
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-container-low)] px-4 text-sm font-medium text-[var(--color-on-surface)] shadow-sm transition-colors hover:bg-[var(--color-surface-container)]"
-          >
-            <SlidersHorizontal className="size-[19px] text-[var(--color-on-surface-variant)]" aria-hidden="true" />
-            Cấu hình AI Interview
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(sub && !sub.aiInterviewAllowed)}
-            title={
-              sub && !sub.aiInterviewEnabled
-                ? `Gói ${sub.planName} không bao gồm tính năng Phỏng vấn AI Voice`
-                : sub && !sub.aiInterviewAllowed
-                ? "Đã hết hạn mức thời lượng Phỏng vấn AI Voice trong tháng"
-                : undefined
-            }
-            onClick={() => setCreating(true)}
-            className={cn(
-              "inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-semibold shadow-md transition-all",
-              sub && !sub.aiInterviewAllowed
-                ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-                : "bg-[var(--color-primary-container)] text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)] active:scale-95"
-            )}
-          >
-            {sub && !sub.aiInterviewAllowed ? (
-              <>
-                <Ban className="size-4" aria-hidden="true" />
-                {!sub.aiInterviewEnabled ? "Tính năng khóa theo gói" : "Đã hết hạn mức AI Voice"}
-              </>
-            ) : (
-              <>
-                <PlusCircle className="size-5" aria-hidden="true" />
-                Tạo phỏng vấn mới
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+  const handleSubNavChange = (nextTab: AiInterviewTab) => {
+    const nextParams = new URLSearchParams(params);
+    if (nextTab === "sessions") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", nextTab);
+    }
+    setParams(nextParams);
+  };
 
+  return (
+    <section className="flex flex-col gap-3.5 text-[var(--color-on-surface)]">
+      {/* 1. Assessment-Style Sub Navigation Bar */}
+      <AiInterviewSubNav
+        jobId={job.id}
+        activeTab={activeSubNavTab}
+        onTabChange={handleSubNavChange}
+      />
+
+      {/* Subscription Alert Warning */}
       {sub && !sub.aiInterviewAllowed && (
-        <div role="alert" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <Ban className="size-5 shrink-0 text-amber-600" aria-hidden="true" />
+        <div role="alert" className="flex items-center gap-3 rounded-2xl border border-amber-200/90 bg-amber-50/80 p-4 text-amber-900 shadow-2xs dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <Ban className="size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <p className="text-xs sm:text-sm">
             {!sub.aiInterviewEnabled ? (
               <>
@@ -348,416 +506,1095 @@ export function AiInterviewsPage() {
         </div>
       )}
 
-      {configOpen && <AiInterviewConfigPanel jobId={job.id} />}
-
       <AssessmentError error={interviews.error} retry={() => void interviews.refetch()} />
       <AssessmentError error={applicants.error} retry={() => void applicants.refetch()} />
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Tổng số phiên" value={String(counts.all)} trend="Trong vị trí đang mở" hint={job.title} icon={LayoutList} blob="primary" />
-        <KpiCard
-          label="Đang diễn ra"
-          value={String(counts.live)}
-          trend="Trạng thái IN_PROGRESS"
-          trendTone="tertiary"
-          hint="Phiên của vị trí đang mở"
-          icon={AudioLines}
-          blob="secondary"
-          live={counts.live > 0}
-        />
-        <KpiCard
-          label="Đã chấm điểm"
-          value={String(counts.scored)}
-          trend="Chờ recruiter xem"
-          trendTone="error"
-          hint="Chưa có cờ đã duyệt trong API"
-          icon={FileText}
-          blob="error"
-        />
-        <div className="group relative flex items-center justify-between overflow-hidden rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm transition-shadow hover:shadow-md">
-          <div className="z-10 flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-on-surface-variant)]">Tỷ lệ hoàn tất phiên</span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold tracking-tight">{completionRate}%</span>
-              <span className="inline-flex items-center text-[11px] font-semibold text-[var(--color-primary)]">
-                <ArrowUpRight className="size-3.5" aria-hidden="true" /> {counts.scored} phiên
-              </span>
-            </div>
-            <span className="text-xs text-[var(--color-on-surface-variant)]">Đã chấm / tổng số phiên</span>
-          </div>
-          <div className="relative z-10 flex size-12 items-center justify-center">
-            <svg className="size-12 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
-              <path className="text-[var(--color-surface-container-high)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5" />
-              <path className="text-[var(--color-primary-container)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${completionRate}, 100`} strokeLinecap="round" strokeWidth="3.5" />
-            </svg>
-            <span className="absolute text-[11px] font-bold">{completionRate}%</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm">
-        <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
-          <label className="relative flex max-w-2xl flex-1 items-center">
-            <span className="sr-only">Tìm phiên phỏng vấn AI</span>
-            <Search className="pointer-events-none absolute left-3.5 size-5 text-[var(--color-outline)]" aria-hidden="true" />
-            <input
-              className="h-11 w-full rounded-xl bg-[var(--color-surface)] pl-11 pr-4 text-sm text-[var(--color-on-surface)] shadow-[0_0_0_1px_var(--color-outline-variant)] outline-none transition-all placeholder:text-[var(--color-outline)] focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
-              placeholder="Tìm theo ứng viên, email, mã phiên (#AI-...) hoặc mã đơn"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(0);
-              }}
-            />
-          </label>
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            <div className="flex items-center rounded-xl bg-[var(--color-surface-container-low)] p-1 shadow-sm">
-              {(["table", "kanban"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setViewMode(mode)}
-                  className={cn(
-                    "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors",
-                    viewMode === mode
-                      ? "bg-[var(--color-surface-card)] text-[var(--color-on-surface)] shadow-sm"
-                      : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
-                  )}
-                >
-                  {mode === "table" ? <LayoutList className="size-4 text-[var(--color-primary)]" aria-hidden="true" /> : <Kanban className="size-4" aria-hidden="true" />}
-                  {mode === "table" ? "Bảng" : "Kanban"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              disabled={filtered.length === 0}
-              onClick={() => downloadCsv(filtered, job.title)}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--color-surface-container-low)] px-3.5 text-xs font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)] disabled:opacity-50"
-            >
-              <Download className="size-[18px] text-[var(--color-on-surface-variant)]" aria-hidden="true" />
-              Xuất CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfigOpen(open => !open)} aria-expanded={configOpen} aria-controls="ai-interview-config"
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--color-surface-container-low)] px-3.5 text-xs font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)]"
-            >
-              <Bot className="size-[18px] text-[var(--color-primary)]" aria-hidden="true" />
-              Cài đặt tự động hóa
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <div className="flex items-center gap-1 pr-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-            <Filter className="size-4" aria-hidden="true" />
-            Bộ lọc:
-          </div>
-          <select
-            aria-label="Lọc theo trạng thái"
-            className="h-9 cursor-pointer rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as AiInterviewStatus | "all");
-              setPage(0);
-            }}
-          >
-            <option value="all">Trạng thái: Tất cả ({counts.all})</option>
-            {AI_INTERVIEW_STATUSES.map((s) => (
-              <option key={s} value={s}>{aiStatusLabel[s]}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Khung thời gian"
-            className="h-9 cursor-pointer rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
-            value={timeRange}
-            onChange={(e) => {
-              setTimeRange(e.target.value as TimeRange);
-              setPage(0);
-            }}
-          >
-            <option value="all">Thời gian tạo: Tất cả</option>
-            <option value="7">7 ngày qua</option>
-            <option value="30">30 ngày qua</option>
-            <option value="90">90 ngày qua</option>
-          </select>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="inline-flex h-9 items-center gap-1 rounded-lg px-3 text-xs font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-[#ffdad6]/30 hover:text-[#ba1a1a]"
-          >
-            <X className="size-4" aria-hidden="true" />
-            Đặt lại
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {pills.map((pill) => (
-            <button
-              key={pill.id}
-              type="button"
-              aria-pressed={tab === pill.id}
-              onClick={() => {
-                setTab(pill.id);
-                setPage(0);
-              }}
-              className={cn(
-                "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-all",
-                pill.id === "ALL"
-                  ? "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"
-                  : aiStatusTone[pill.id],
-                tab === pill.id
-                  ? "font-semibold ring-2 ring-current ring-offset-2 ring-offset-[var(--color-surface-card)]"
-                  : "hover:brightness-95",
-              )}
-            >
-              {pill.dot === "live" && <span className="size-1.5 rounded-full bg-current" />}
-              {pill.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {viewMode === "table" ? (
-        <div className="flex flex-col overflow-hidden rounded-3xl bg-[var(--color-surface-card)] shadow-sm">
-          <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="h-12 select-none bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-                  <th className="py-3 pl-6 pr-4">Phiên &amp; Mã</th>
-                  <th className="px-4 py-3">Ứng viên</th>
-                  <th className="px-4 py-3">Vị trí</th>
-                  <th className="px-4 py-3">Hình thức AI</th>
-                  <th className="px-4 py-3">Thời gian</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Đánh giá AI</th>
-                  <th className="py-3 pr-4 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-surface-container-low)]">
-                {interviews.isPending &&
-                  Array.from({ length: 5 }, (_, rowIndex) => (
-                    <tr key={rowIndex} className="border-b border-[var(--color-surface-container-low)]">
-                      <td className="py-4 pl-6 pr-4"><Skeleton className="h-5 w-40" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-4 w-28" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-4 w-24" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-4 w-32" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
-                      <td className="px-4 py-4"><Skeleton className="h-4 w-16" /></td>
-                      <td className="py-4 pr-4 text-right"><Skeleton className="ml-auto h-8 w-20 rounded-lg" /></td>
-                    </tr>
-                  ))}
-                {pageRows.map((row) => {
-                  const schedule = scheduleOf(row);
-                  const name = candidateName(row);
-                  return (
-                    <tr key={row.id} className="group transition-colors hover:bg-[var(--color-surface-container-low)]/60">
-                      <td className="py-4 pl-6 pr-4">
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.id)}
-                            className="text-left text-base font-semibold tracking-tight transition-colors hover:text-[var(--color-primary)]"
-                          >
-                            AI Interview · {job.title}
-                          </button>
-                          <div className="flex items-center gap-2 font-mono text-[13px] text-[var(--color-on-surface-variant)]">
-                            <Tag className="size-3.5" aria-hidden="true" />
-                            <span>#AI-{row.id}</span>
-                            <span>•</span>
-                            <span>Ngưỡng đạt {row.passingScore ?? "—"}/100</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex size-10 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] shadow-sm">
-                            {initials(name)}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-semibold leading-tight">{name}</span>
-                            <span className="text-xs leading-tight text-[var(--color-on-surface-variant)]">{row.application?.candidateEmail ?? "—"}</span>
-                            <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[var(--color-primary)]">
-                              <FileText className="size-3" aria-hidden="true" />
-                              Đơn #{row.applicationId}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold">{row.application?.jobTitle ?? job.title}</span>
-                          <span className="inline-flex items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
-                            <Building2 className="size-3.5" aria-hidden="true" />
-                            {[row.application?.jobDepartment, row.application?.jobLocation].filter(Boolean).join(" · ") || "—"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-container)] px-2.5 py-1 text-xs font-semibold text-[var(--color-on-surface-variant)]">
-                          <Type className="size-3.5" aria-hidden="true" />
-                          Văn bản
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-medium">{schedule.label}</span>
-                          <span className="text-xs text-[var(--color-on-surface-variant)]">{schedule.hint}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <AiStatusBadge status={row.status} />
-                      </td>
-                      <td className="px-4 py-4">
-                        <ScoreCell row={row} />
-                      </td>
-                      <td className="py-4 pr-4 text-right">
-                        <div className="relative flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.id)}
-                            className="inline-flex h-9 items-center gap-1 rounded-lg bg-[var(--color-primary-container)] px-3 text-xs font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
-                          >
-                            {row.status === "SCORED" ? "Xem feedback" : "Chi tiết"}
-                            <ArrowRight className="size-4" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            className="flex size-9 items-center justify-center rounded-lg text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container)]"
-                            aria-label="Thêm thao tác"
-                            onClick={() => setMenuId(menuId === row.id ? null : row.id)}
-                          >
-                            <MoreVertical className="size-5" aria-hidden="true" />
-                          </button>
-                          <ActionMenu
-                            open={menuId === row.id}
-                            onClose={() => setMenuId(null)}
-                            items={[
-                              {
-                                label: "Sao chép mã phiên",
-                                icon: Copy,
-                                onClick: () => {
-                                  void navigator.clipboard.writeText(`AI-${row.id}`);
-                                  toast.success("Đã sao chép mã phiên");
-                                },
-                              },
-                              {
-                                label: "Xoá phiên này", icon: Ban, danger: true,
-                                disabled: !!row.startedAt || !["CREATED", "QUESTIONS_READY", "ERROR"].includes(row.status),
-                                title: "Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi.",
-                                onClick: () => confirmDelete(row),
-                              },
-                            ]}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {interviews.isSuccess && filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]">
-                      {rows.length === 0 ? "Vị trí này chưa có phiên phỏng vấn AI. Bấm “Tạo phỏng vấn mới” để bắt đầu." : "Không có phiên phù hợp bộ lọc."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-col items-center justify-between gap-2 px-4 py-3.5 sm:flex-row">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
-              <span>
-                Hiển thị{" "}
-                <span className="font-semibold text-[var(--color-on-surface)]">
-                  {filtered.length === 0 ? 0 : safePage * pageSize + 1} - {safePage * pageSize + pageRows.length}
-                </span>{" "}
-                trên <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> phiên
-              </span>
-              <span className="text-[var(--color-outline-variant)]">•</span>
-              <label className="flex items-center gap-1.5">
-                <span>Dòng mỗi trang:</span>
-                <select
-                  className="h-8 rounded-md bg-[var(--color-surface-container-low)] px-2 text-[11px] font-medium text-[var(--color-on-surface)] outline-none"
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(0);
-                  }}
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                </select>
-              </label>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={safePage === 0}
-                onClick={() => setPage(safePage - 1)}
-                className="flex size-8 items-center justify-center rounded-lg bg-[var(--color-surface-container-low)] text-[var(--color-on-surface)] disabled:opacity-50"
-                aria-label="Trang trước"
-              >
-                <ChevronLeft className="size-[18px]" aria-hidden="true" />
-              </button>
-              <span className="px-2 text-sm font-medium">{safePage + 1} / {pageCount}</span>
-              <button
-                type="button"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(safePage + 1)}
-                className="flex size-8 items-center justify-center rounded-lg bg-[var(--color-surface-container-low)] text-[var(--color-on-surface)] disabled:opacity-50"
-                aria-label="Trang sau"
-              >
-                <ChevronRight className="size-[18px]" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-3xl bg-[var(--color-surface-card)] p-8 text-center shadow-sm">
-          <ListFilter className="mx-auto size-8 text-[var(--color-outline)]" aria-hidden="true" />
-          <p className="mt-3 text-sm font-semibold">Kanban view</p>
-          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">Chế độ Kanban đang được chuẩn bị — hãy dùng Bảng để quản lý phiên.</p>
+      {/* TAB CONTENT: CẤU HÌNH (CONFIG) */}
+      {activeSubNavTab === "config" && (
+        <div className="animate-in fade-in-50 duration-200">
+          <AiInterviewConfigPanel jobId={job.id} onOpenDetail={openSessionDetail} />
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[var(--color-surface-container-low)] via-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-6 shadow-sm">
-        <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
-          <div className="flex max-w-xl flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-[22px] text-[var(--color-primary)]" aria-hidden="true" />
-              <h3 className="text-xl font-bold tracking-tight">Quy trình thiết lập phỏng vấn AI</h3>
-            </div>
-            <p className="text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
-              Tạo phiên cho hồ sơ đạt CV, sinh câu hỏi và tự cập nhật trạng thái. AI chấm bài, trả feedback và chuyển vòng theo ngưỡng của Job.
-            </p>
-          </div>
-          <div className="grid w-full flex-1 grid-cols-2 gap-3 md:grid-cols-4 lg:w-auto lg:max-w-3xl">
-            {[
-              { n: 1, icon: Upload, title: "Chọn đơn ứng tuyển", desc: job.title },
-              { n: 2, icon: SlidersHorizontal, title: "Thêm câu hỏi", desc: "Sinh bằng AI hoặc bổ sung thủ công" },
-              { n: 3, icon: Inbox, title: "Ứng viên trả lời", desc: "Câu trả lời lưu theo từng câu" },
-              { n: 4, icon: Verified, title: "Feedback & điểm", desc: "AI đánh giá, tự chuyển vòng" },
-            ].map((step) => {
-              const StepIcon = step.icon;
-              return (
-                <div key={step.n} className="flex flex-col gap-1 rounded-xl bg-[var(--color-surface-card)]/80 p-3 shadow-sm backdrop-blur-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="flex size-6 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-[11px] font-bold text-[var(--color-on-primary)]">{step.n}</span>
-                    <StepIcon className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  </div>
-                  <span className="mt-1 text-xs font-semibold text-[var(--color-on-surface)]">{step.title}</span>
-                  <span className="text-xs leading-tight text-[var(--color-on-surface-variant)]">{step.desc}</span>
+      {/* TAB CONTENT: THEO DÕI KẾT QUẢ / NỘP BÀI (TRACKING) */}
+      {activeSubNavTab === "tracking" && (
+        <div className="flex flex-col gap-4 animate-in fade-in-50 duration-200">
+          {/* Subscription Usage Card if available */}
+          {sub && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+                  <Bot className="size-5" />
                 </div>
-              );
-            })}
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Hạn mức thời lượng AI Voice · Gói {sub.planName}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {!sub.aiInterviewEnabled
+                      ? "Gói dịch vụ không bao gồm AI Voice"
+                      : sub.maxAiInterviewHours < 0
+                      ? "Hạn mức phỏng vấn AI không giới hạn"
+                      : `Đã sử dụng ${(sub.usedAiInterviewSeconds / 3600).toFixed(1)} / ${sub.maxAiInterviewHours} giờ`}
+                  </p>
+                </div>
+              </div>
+              {sub.aiInterviewEnabled && sub.maxAiInterviewHours > 0 && (
+                <div className="w-full sm:w-60">
+                  <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    <span>Thời lượng đã dùng</span>
+                    <span>{Math.round(((sub.usedAiInterviewSeconds / 3600) / sub.maxAiInterviewHours) * 100)}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all"
+                      style={{
+                        width: `${Math.min(100, Math.round(((sub.usedAiInterviewSeconds / 3600) / sub.maxAiInterviewHours) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Scored / Completed Interviews Overview */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Kết quả phỏng vấn ứng viên đã hoàn tất
+                  </h3>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    {candidateCompletedGroups.length} ứng viên
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Mỗi ứng viên hiển thị điểm số lần phỏng vấn gần nhất. Nhấn vào điểm hoặc nút phiên để xem chi tiết từng lần làm.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {candidateCompletedGroups.length > 3 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={trackingSearch}
+                      onChange={(e) => setTrackingSearch(e.target.value)}
+                      placeholder="Tìm ứng viên..."
+                      className="h-8 w-44 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    />
+                    {trackingSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTrackingSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSubNavChange("sessions")}
+                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer shrink-0"
+                >
+                  Xem toàn bộ phiên →
+                </button>
+              </div>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+              {candidateCompletedGroups.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Chưa có phiên phỏng vấn nào hoàn tất và được chấm điểm.
+                </div>
+              ) : filteredTrackingGroups.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Không tìm thấy ứng viên phù hợp với từ khóa "{trackingSearch}".
+                </div>
+              ) : (
+                filteredTrackingGroups.map((group) => {
+                  const hasMultipleAttempts = group.attempts.length > 1;
+                  const isExpanded = !!expandedCandidates[group.key];
+                  const latest = group.latestAttempt;
+
+                  return (
+                    <div key={group.key} className="flex flex-col transition-colors">
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                        {/* Candidate Info */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
+                            {initials(group.candidateName)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                {group.candidateName}
+                              </p>
+                              {hasMultipleAttempts && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpandCandidate(group.key)}
+                                  className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
+                                  title="Nhấn để xem các phiên và điểm của từng lần"
+                                >
+                                  <span>{group.attempts.length} lần phỏng vấn</span>
+                                  <ChevronDown className={cn("size-3 transition-transform duration-200", isExpanded && "rotate-180")} />
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                              {group.candidateEmail} • Đơn #{group.applicationId}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Scores & Actions */}
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={cn(
+                              "flex flex-col items-end",
+                              hasMultipleAttempts && "cursor-pointer group/score"
+                            )}
+                            onClick={() => hasMultipleAttempts && toggleExpandCandidate(group.key)}
+                            title={hasMultipleAttempts ? "Nhấn để xem các phiên và điểm của từng lần" : undefined}
+                          >
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">
+                              {hasMultipleAttempts ? "Điểm gần nhất" : "Điểm phỏng vấn"}
+                            </span>
+                            <ScoreCell row={latest} />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {hasMultipleAttempts && (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandCandidate(group.key)}
+                                className={cn(
+                                  "inline-flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-semibold transition-all cursor-pointer",
+                                  isExpanded
+                                    ? "border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
+                                    : "border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)] text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+                                )}
+                              >
+                                <History className="size-3.5" />
+                                <span className="hidden sm:inline">Các phiên</span>
+                                <span>({group.attempts.length})</span>
+                                <ChevronDown className={cn("size-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => openSessionDetail(latest.id)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                              <Eye className="size-3.5 text-[var(--color-primary)]" />
+                              <span>{hasMultipleAttempts ? "Báo cáo gần nhất" : "Xem báo cáo"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded Attempts History Accordion */}
+                      {hasMultipleAttempts && isExpanded && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/40 animate-in fade-in-50 duration-150">
+                          <div className="mb-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <History className="size-3.5 text-[var(--color-primary)]" />
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Lịch sử các phiên phỏng vấn của {group.candidateName}
+                              </span>
+                              <span className="rounded-full bg-slate-200/70 dark:bg-slate-700 px-2 py-0.2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                {group.attempts.length} phiên
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 hidden sm:inline">
+                              Xếp theo thứ tự từ mới nhất đến cũ nhất
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 bg-white dark:divide-slate-800/80 dark:border-slate-800 dark:bg-slate-900 overflow-hidden shadow-2xs">
+                            {group.attempts.map((attempt, index) => {
+                              const isLatest = index === 0;
+                              return (
+                                <div
+                                  key={attempt.id}
+                                  className="flex flex-wrap items-center justify-between gap-3 p-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="flex size-6 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                      #{group.attempts.length - index}
+                                    </span>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
+                                          Phiên #AI-{attempt.id}
+                                        </span>
+                                        {isLatest && (
+                                          <span className="rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2 py-0.2 text-[10px] font-bold text-[var(--color-primary-hover)]">
+                                            Lần làm gần nhất
+                                          </span>
+                                        )}
+                                        <AiStatusBadge status={attempt.status} />
+                                      </div>
+                                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                        Hoàn tất lúc: {attempt.completedAt ? formatDateTime(attempt.completedAt) : formatDateTime(attempt.createdAt)}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4">
+                                    <ScoreCell row={attempt} />
+                                    <button
+                                      type="button"
+                                      onClick={() => openSessionDetail(attempt.id)}
+                                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    >
+                                      <Eye className="size-3 text-[var(--color-primary)]" />
+                                      <span>Xem báo cáo</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
+      {/* TAB CONTENT: PHIÊN PHỎNG VẤN (SESSIONS) */}
+      {activeSubNavTab === "sessions" && (
+        <>
+          {/* Multi-Select Floating / Top Batch Action Bar */}
+          {selected.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
+                  {selected.length}
+                </span>
+                <span className="font-medium">Đã chọn {selected.length} phiên phỏng vấn</span>
+                <button
+                  type="button"
+                  className="text-xs text-[var(--color-primary)] hover:underline cursor-pointer"
+                  onClick={() => setSelected(pageRows.map((row) => row.id))}
+                >
+                  Chọn toàn bộ {pageRows.length} phiên trên trang
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedRows = filtered.filter((r) => selected.includes(r.id));
+                    exportCsv(selectedRows, job.title);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  <Download className="size-3.5" /> Xuất file CSV ({selected.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected([])}
+                  className="inline-flex items-center gap-1 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="size-3.5" /> Bỏ chọn
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Main Data Card with Toolbar, Tabs, Table & Pagination */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+            {/* Sub-status Quick Tabs (Segmented Control matching Assessment) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3 bg-white dark:bg-slate-900">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none rounded-xl bg-slate-100/70 p-1 dark:bg-slate-800/60 shrink-0">
+                {tabsConfig.map((item) => {
+                  const active = tab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setTab(item.id);
+                        setPage(1);
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
+                        active
+                          ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
+                          : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      )}
+                    >
+                      {item.live && (
+                        <span className="size-1.5 rounded-full bg-sky-500 animate-pulse" />
+                      )}
+                      <span>{item.label}</span>
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.2 text-[10px] font-mono",
+                          active
+                            ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
+                            : "bg-slate-200/70 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400"
+                        )}
+                      >
+                        {item.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {/* View Mode Toggle */}
+                <div className="flex items-center rounded-xl bg-slate-100/70 p-0.5 dark:bg-slate-800/60">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition-colors cursor-pointer",
+                      viewMode === "table"
+                        ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-slate-100"
+                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                    )}
+                    aria-label="Xem dạng bảng"
+                  >
+                    <LayoutList className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                    <span>Bảng</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("kanban")}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-medium transition-colors cursor-pointer",
+                      viewMode === "kanban"
+                        ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-slate-100"
+                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                    )}
+                    aria-label="Xem dạng Kanban"
+                  >
+                    <Kanban className="size-3.5 text-slate-500" aria-hidden="true" />
+                    <span>Kanban</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Toolbar: Search, Filters & Primary Create Action */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3 bg-white dark:bg-slate-900">
+              <div className="flex min-w-[280px] flex-1 flex-wrap items-center gap-2">
+                {/* Search Input */}
+                <div className="relative min-w-[220px] max-w-sm flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                    placeholder="Tìm theo ứng viên, email, mã #AI-..."
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setPage(1);
+                    }}
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Xóa tìm kiếm"
+                      onClick={() => {
+                        setQuery("");
+                        setPage(1);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown Panel: Trạng thái chi tiết */}
+                <div className="relative" data-dropdown-root>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDropdown(activeDropdown === "status" ? null : "status")}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
+                      statusFilter !== "all"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
+                        : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                    )}
+                    aria-expanded={activeDropdown === "status"}
+                  >
+                    <Filter className="size-3.5 text-slate-400" />
+                    <span>
+                      {statusFilter === "all" ? "Tất cả trạng thái" : aiStatusLabel[statusFilter]}
+                    </span>
+                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "status" && "rotate-180")} />
+                  </button>
+
+                  {activeDropdown === "status" && (
+                    <div className="absolute left-0 top-full mt-1.5 z-40 w-56 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                      <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Lọc theo trạng thái
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter("all");
+                          setPage(1);
+                          setActiveDropdown(null);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
+                          statusFilter === "all"
+                            ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
+                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        )}
+                      >
+                        <span>Tất cả trạng thái</span>
+                        <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
+                          {counts.all}
+                        </span>
+                      </button>
+                      {AI_INTERVIEW_STATUSES.map((s) => {
+                        const rowCount = rows.filter((r) => r.status === s).length;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              setStatusFilter(s);
+                              setPage(1);
+                              setActiveDropdown(null);
+                            }}
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
+                              statusFilter === s
+                                ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
+                                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={cn("size-2 rounded-full", s === "SCORED" || s === "PASSED" ? "bg-emerald-500" : s === "IN_PROGRESS" ? "bg-sky-500" : s === "QUESTIONS_READY" ? "bg-amber-500" : s === "FAILED" || s === "ERROR" ? "bg-rose-500" : "bg-slate-400")} />
+                              <span>{aiStatusLabel[s]}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
+                                {rowCount}
+                              </span>
+                              {statusFilter === s && <Check className="size-3.5 text-[var(--color-primary)]" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dropdown Panel: Khung thời gian */}
+                <div className="relative" data-dropdown-root>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDropdown(activeDropdown === "time" ? null : "time")}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
+                      timeRange !== "all"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
+                        : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                    )}
+                    aria-expanded={activeDropdown === "time"}
+                  >
+                    <span>
+                      {timeRange === "all" ? "Tất cả thời gian" : timeRange === "7" ? "7 ngày qua" : timeRange === "30" ? "30 ngày qua" : "90 ngày qua"}
+                    </span>
+                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "time" && "rotate-180")} />
+                  </button>
+
+                  {activeDropdown === "time" && (
+                    <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                      <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Thời gian tạo phiên
+                      </p>
+                      {[
+                        { value: "all", label: "Tất cả thời gian" },
+                        { value: "7", label: "7 ngày qua" },
+                        { value: "30", label: "30 ngày qua" },
+                        { value: "90", label: "90 ngày qua" },
+                      ].map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => {
+                            setTimeRange(item.value as TimeRange);
+                            setPage(1);
+                            setActiveDropdown(null);
+                          }}
+                          className={cn(
+                            "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
+                            timeRange === item.value
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
+                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          )}
+                        >
+                          <span>{item.label}</span>
+                          {timeRange === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                {/* Dropdown Panel: Xuất file */}
+                <div className="relative" data-dropdown-root>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDropdown(activeDropdown === "export" ? null : "export")}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                    aria-expanded={activeDropdown === "export"}
+                  >
+                    <Download className="size-3.5 text-slate-500" />
+                    <span>Xuất file</span>
+                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "export" && "rotate-180")} />
+                  </button>
+
+                  {activeDropdown === "export" && (
+                    <div className="absolute right-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportCsv(filtered, job.title);
+                          setActiveDropdown(null);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Download className="size-4 text-emerald-600" />
+                        <div className="text-left">
+                          <p className="font-semibold">Xuất toàn bộ bộ lọc</p>
+                          <p className="text-[10px] text-slate-400">{filtered.length} phiên</p>
+                        </div>
+                      </button>
+                      {selected.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const selectedRows = filtered.filter((r) => selected.includes(r.id));
+                            exportCsv(selectedRows, job.title);
+                            setActiveDropdown(null);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
+                        >
+                          <Download className="size-4 text-[var(--color-primary)]" />
+                          <div className="text-left">
+                            <p className="font-semibold">Xuất phiên đã chọn</p>
+                            <p className="text-[10px] text-slate-400">{selected.length} phiên đã chọn</p>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Primary Action Button: Tạo phỏng vấn mới (matching Assessment) */}
+                <button
+                  type="button"
+                  disabled={Boolean(sub && !sub.aiInterviewAllowed)}
+                  title={
+                    sub && !sub.aiInterviewEnabled
+                      ? `Gói ${sub.planName} không bao gồm tính năng Phỏng vấn AI Voice`
+                      : sub && !sub.aiInterviewAllowed
+                      ? "Đã hết hạn mức thời lượng Phỏng vấn AI Voice trong tháng"
+                      : undefined
+                  }
+                  onClick={() => setCreating(true)}
+                  className={cn(
+                    "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer",
+                    sub && !sub.aiInterviewAllowed
+                      ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none dark:bg-slate-800 dark:text-slate-400"
+                      : "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                  )}
+                >
+                  {sub && !sub.aiInterviewAllowed ? (
+                    <>
+                      <Ban className="size-3.5" aria-hidden="true" />
+                      <span>{!sub.aiInterviewEnabled ? "Khóa theo gói" : "Hết hạn mức"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="size-3.5" aria-hidden="true" />
+                      <span>Tạo phỏng vấn mới</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Active Filter Chips Bar */}
+            {(query || statusFilter !== "all" || timeRange !== "all" || tab !== "ALL") && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
+                <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
+                {query && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    Từ khóa: "{query}"
+                    <button
+                      type="button"
+                      onClick={() => setQuery("")}
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label="Xóa từ khóa tìm kiếm"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {statusFilter !== "all" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    Trạng thái: {aiStatusLabel[statusFilter]}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter("all")}
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label="Xóa lọc trạng thái"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {timeRange !== "all" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    Thời gian: {timeRange} ngày qua
+                    <button
+                      type="button"
+                      onClick={() => setTimeRange("all")}
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label="Xóa lọc thời gian"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {tab !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    Tab: {tabsConfig.find((t) => t.id === tab)?.label}
+                    <button
+                      type="button"
+                      onClick={() => setTab("ALL")}
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label="Về tab tất cả"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
+                >
+                  Xóa tất cả bộ lọc
+                </button>
+              </div>
+            )}
+
+            {/* Loading skeleton */}
+            {interviews.isPending && (
+              <div className="p-4">
+                <TableSkeleton columns={9} rows={5} className="min-w-0 w-full border-0" />
+              </div>
+            )}
+
+            {/* Empty state */}
+            {interviews.isSuccess && !pageRows.length && (
+              <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+                <div className="grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)] shadow-2xs">
+                  <Bot className="size-6" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    {rows.length === 0 ? "Chưa có phiên phỏng vấn AI nào" : "Không có phiên phù hợp bộ lọc"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+                    {rows.length === 0
+                      ? "Tạo phiên phỏng vấn tự động cho ứng viên đã qua vòng lọc CV."
+                      : "Thử thay đổi từ khóa tìm kiếm hoặc đặt lại các bộ lọc."}
+                  </p>
+                </div>
+                {rows.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCreating(true)}
+                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition-colors cursor-pointer"
+                  >
+                    <PlusCircle className="size-4" aria-hidden="true" />
+                    Tạo phỏng vấn mới
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Data View */}
+            {viewMode === "table" ? (
+              pageRows.length > 0 && (
+                <>
+                  <div
+                    className={cn(
+                      "overflow-x-auto transition-opacity duration-200",
+                      isTableTransitioning && "opacity-50 pointer-events-none"
+                    )}
+                  >
+                    <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
+                      <thead>
+                        <tr className="h-11 bg-slate-50/80 dark:bg-slate-800/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/70 dark:border-slate-800">
+                          <th className="w-10 px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
+                              checked={allPageSelected}
+                              onChange={toggleAllPage}
+                              aria-label="Chọn tất cả phiên trên trang"
+                            />
+                          </th>
+                          <th className="px-4 py-2">Phiên &amp; Mã</th>
+                          <th className="px-4 py-2">Ứng viên</th>
+                          <th className="px-4 py-2">Vị trí</th>
+                          <th className="px-4 py-2">Hình thức AI</th>
+                          <th className="px-4 py-2">Thời gian</th>
+                          <th className="px-4 py-2">Trạng thái</th>
+                          <th className="px-4 py-2">Đánh giá AI</th>
+                          <th className="px-4 py-2 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                        {pageRows.map((row) => {
+                          const schedule = scheduleOf(row);
+                          const name = candidateName(row);
+                          const isRowSelected = selected.includes(row.id);
+
+                          return (
+                            <tr
+                              key={row.id}
+                              className={cn(
+                                "group transition-colors",
+                                isRowSelected
+                                  ? "bg-[var(--color-primary-subtle)]/50"
+                                  : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                              )}
+                            >
+                              <td className="w-10 px-3 py-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
+                                  checked={isRowSelected}
+                                  onChange={() => toggleOne(row.id)}
+                                  aria-label={`Chọn phiên ${row.id}`}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-col gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-[var(--color-primary)] dark:text-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    AI Interview · {job.title}
+                                  </button>
+                                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                                    <Tag className="size-3" aria-hidden="true" />
+                                    <span>#AI-{row.id}</span>
+                                    <span>•</span>
+                                    <span>Đạt {row.passingScore ?? "—"}/100</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs">
+                                    {initials(name)}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100 truncate text-xs">
+                                      {name}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                                      {row.application?.candidateEmail ?? "—"}
+                                    </span>
+                                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-primary-hover)]">
+                                      <FileText className="size-2.5" aria-hidden="true" />
+                                      Đơn #{row.applicationId}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
+                                    {row.application?.jobTitle ?? job.title}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                    <Building2 className="size-3" aria-hidden="true" />
+                                    {[row.application?.jobDepartment, row.application?.jobLocation].filter(Boolean).join(" · ") || "—"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                  <Type className="size-3 text-slate-400" aria-hidden="true" />
+                                  Văn bản
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{schedule.label}</span>
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{schedule.hint}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <AiStatusBadge status={row.status} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <ScoreCell row={row} />
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="relative flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="inline-flex h-8 items-center gap-1 rounded-xl bg-[var(--color-primary-soft)] px-2.5 text-xs font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
+                                  >
+                                    <span>{row.status === "SCORED" || row.status === "PASSED" || row.status === "FAILED" ? "Xem feedback" : "Chi tiết"}</span>
+                                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="flex size-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                    aria-label="Thêm thao tác"
+                                    onClick={() => setMenuId(menuId === row.id ? null : row.id)}
+                                  >
+                                    <MoreVertical className="size-4" aria-hidden="true" />
+                                  </button>
+                                  <ActionMenu
+                                    open={menuId === row.id}
+                                    onClose={() => setMenuId(null)}
+                                    items={[
+                                      {
+                                        label: "Sao chép mã phiên",
+                                        icon: Copy,
+                                        onClick: () => {
+                                          void navigator.clipboard.writeText(`AI-${row.id}`);
+                                          toast.success("Đã sao chép mã phiên");
+                                        },
+                                      },
+                                      {
+                                        label: "Xoá phiên này",
+                                        icon: Ban,
+                                        danger: true,
+                                        disabled: !!row.startedAt || !["CREATED", "QUESTIONS_READY", "ERROR"].includes(row.status),
+                                        title: "Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi.",
+                                        onClick: () => confirmDelete(row),
+                                      },
+                                    ]}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination matching AssessmentsPage */}
+                  <div className="flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>
+                        Hiển thị{" "}
+                        <strong className="text-slate-900 dark:text-slate-100 font-semibold">
+                          {totalItems === 0 ? 0 : startIndex + 1} - {Math.min(startIndex + pageSize, totalItems)}
+                        </strong>{" "}
+                        trên{" "}
+                        <strong className="text-slate-900 dark:text-slate-100 font-semibold">{totalItems}</strong> phiên
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>Dòng mỗi trang:</span>
+                        <select
+                          className="h-8 rounded-lg border border-slate-200 bg-slate-50/60 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                          value={pageSize}
+                          onChange={(e) => {
+                            const newSize = Number(e.target.value);
+                            goToPage(1, newSize);
+                          }}
+                        >
+                          {PAGE_SIZE_OPTIONS.map((size) => (
+                            <option key={size} value={size}>
+                              {size}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        aria-label="Về trang đầu"
+                        onClick={() => goToPage(1)}
+                        disabled={currentPage <= 1}
+                        className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        <ChevronsLeft className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Trang trước"
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                        className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {pageItems.map((item, index) => {
+                          if (item === "ellipsis-start" || item === "ellipsis-end") {
+                            return (
+                              <span key={`${item}-${index}`} className="px-1 text-slate-400">
+                                …
+                              </span>
+                            );
+                          }
+                          const isCurrent = item === currentPage;
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => goToPage(item)}
+                              className={cn(
+                                "flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition-colors cursor-pointer",
+                                isCurrent
+                                  ? "bg-[var(--color-primary)] text-white shadow-2xs"
+                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                              )}
+                            >
+                              {item}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        aria-label="Trang sau"
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages}
+                        className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        <ChevronRight className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Đến trang cuối"
+                        onClick={() => goToPage(totalPages)}
+                        disabled={currentPage >= totalPages}
+                        className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        <ChevronsRight className="size-4" />
+                      </button>
+
+                      <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700">
+                        <span className="text-[11px] text-slate-400">Nhảy tới:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalPages}
+                          value={jumpVal}
+                          onChange={(e) => setJumpVal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const p = parseInt(jumpVal, 10);
+                              if (!isNaN(p)) {
+                                goToPage(p);
+                                setJumpVal("");
+                              }
+                            }
+                          }}
+                          placeholder={String(currentPage)}
+                          className="h-8 w-12 rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-center text-xs outline-none focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )
+            ) : (
+              <div className="p-12 text-center">
+                <ListFilter className="mx-auto size-8 text-slate-300 dark:text-slate-600" aria-hidden="true" />
+                <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Chế độ Kanban</p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Chế độ Kanban đang được phát triển — hãy chuyển sang dạng Bảng để quản lý phiên.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Workflow Explanation Box */}
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-center">
+              <div className="flex max-w-md flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+                    <Sparkles className="size-4" aria-hidden="true" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Quy trình thiết lập phỏng vấn AI
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Tạo phiên cho hồ sơ đạt vòng CV, sinh câu hỏi chuyên biệt và tự cập nhật trạng thái. AI phỏng vấn giọng nói/văn bản, tự chấm điểm và chuyển vòng.
+                </p>
+              </div>
+
+              <div className="grid w-full flex-1 grid-cols-2 gap-2.5 sm:grid-cols-4 lg:w-auto">
+                {[
+                  { n: 1, icon: Upload, title: "Chọn hồ sơ ứng tuyển", desc: job.title },
+                  { n: 2, icon: SlidersHorizontal, title: "Sinh câu hỏi AI", desc: "Tự động hoặc tùy chỉnh" },
+                  { n: 3, icon: Inbox, title: "Ứng viên trả lời", desc: "Lưu bản ghi & transcript" },
+                  { n: 4, icon: Verified, title: "Feedback & chuyển vòng", desc: "AI đánh giá & phân loại" },
+                ].map((step) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <div
+                      key={step.n}
+                      className="flex flex-col gap-1 rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="flex size-5 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
+                          {step.n}
+                        </span>
+                        <StepIcon className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                      </div>
+                      <span className="mt-1 text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {step.title}
+                      </span>
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate leading-tight">
+                        {step.desc}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Dialogs */}
       {creating && (
         <CreateAiInterviewDialog
           jobId={job.id}
@@ -766,73 +1603,10 @@ export function AiInterviewsPage() {
           onClose={() => setCreating(false)}
           onCreated={(created) => {
             setCreating(false);
-            setDetailId(created.id);
+            openSessionDetail(created.id);
           }}
         />
       )}
-      {detailId != null && (
-        <AiInterviewDetailDrawer
-          interviewId={detailId}
-          jobId={job.id}
-          candidateName={detailRow ? candidateName(detailRow) : `Phiên #AI-${detailId}`}
-          onClose={() => setDetailId(null)}
-        />
-      )}
     </section>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  trend,
-  trendTone = "primary",
-  hint,
-  icon: Icon,
-  blob,
-  live,
-}: {
-  label: string;
-  value: string;
-  trend: string;
-  trendTone?: "primary" | "tertiary" | "error";
-  hint: string;
-  icon: typeof LayoutList;
-  blob: "primary" | "secondary" | "error";
-  live?: boolean;
-}) {
-  const trendClass =
-    trendTone === "error" ? "text-[#ba1a1a]" : trendTone === "tertiary" ? "text-[var(--color-tertiary)]" : "text-[var(--color-primary)]";
-  const iconClass =
-    blob === "error" ? "text-[#ba1a1a]" : blob === "secondary" ? "text-[var(--color-tertiary-container)]" : "text-[var(--color-primary)]";
-  const blobClass =
-    blob === "error" ? "bg-[#ffdad6]/20" : blob === "secondary" ? "bg-[var(--color-secondary-container)]/30" : "bg-[var(--color-surface-container-low)]";
-
-  return (
-    <div className="group relative flex items-center justify-between overflow-hidden rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm transition-shadow hover:shadow-md">
-      <div className={cn("absolute -bottom-4 -right-4 size-24 rounded-full opacity-40 transition-transform group-hover:scale-110", blobClass)} />
-      <div className="z-10 flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-on-surface-variant)]">{label}</span>
-          {live && (
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-tertiary-container)] opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-[var(--color-tertiary-container)]" />
-            </span>
-          )}
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-bold tracking-tight">{value}</span>
-          <span className={cn("inline-flex items-center text-[11px] font-semibold", trendClass)}>
-            {trendTone === "primary" && <ArrowUpRight className="size-3.5" aria-hidden="true" />}
-            {trend}
-          </span>
-        </div>
-        <span className="text-xs text-[var(--color-on-surface-variant)]">{hint}</span>
-      </div>
-      <div className={cn("z-10 flex size-12 items-center justify-center rounded-xl bg-[var(--color-surface-container-low)]", iconClass)}>
-        <Icon className="size-6" aria-hidden="true" />
-      </div>
-    </div>
   );
 }

@@ -44,7 +44,7 @@ export function ContractDetailModal({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {selectedContract.status !== "SIGNED" && (
+            {!["SIGNED", "REJECTED", "TERMINATED"].includes(selectedContract.status) && (
               <button
                 onClick={() => handleSendContract(selectedContract)}
                 className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -55,7 +55,7 @@ export function ContractDetailModal({
               </button>
             )}
 
-            {handleSyncEsign && selectedContract.externalSignatureRequestId && (
+            {handleSyncEsign && selectedContract.externalSignatureRequestId && !["SIGNED", "REJECTED", "TERMINATED"].includes(selectedContract.status) && (
               <button
                 onClick={() => handleSyncEsign(selectedContract)}
                 className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -142,31 +142,15 @@ export function ContractDetailModal({
           {/* Financial Summary */}
           <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-1.5 text-[11px]">
             <div className="font-bold text-slate-900 uppercase">GIÁ TRỊ HỢP ĐỒNG & THANH TOÁN:</div>
-            <div className="grid grid-cols-1 gap-2 font-mono sm:grid-cols-3">
-              <div>
-                <span className="text-slate-500 block">Giá gốc:</span>
-                <span className="font-bold text-slate-900">{selectedContract.contractValue.toLocaleString("vi-VN")} ₫</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">
-                  {(selectedContract.taxRate ?? 0) === 0
-                    ? "Thuế GTGT (Không chịu thuế):"
-                    : `Thuế VAT (${selectedContract.taxRate}%):`}
-                </span>
-                <span className="font-bold text-slate-700">
-                  {(selectedContract.taxRate ?? 0) === 0
-                    ? "0 ₫ (TT 219/2013/TT-BTC)"
-                    : `${(selectedContract.taxAmount || 0).toLocaleString("vi-VN")} ₫`}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Tổng thanh toán:</span>
-                <span className="font-bold text-emerald-600 text-xs">{(selectedContract.totalAmount || selectedContract.contractValue).toLocaleString("vi-VN")} ₫</span>
-              </div>
+            <div className="flex items-center justify-between font-mono">
+              <span className="text-slate-500">Tổng giá trị hợp đồng:</span>
+              <span className="font-bold text-emerald-600 text-sm">{(selectedContract.totalAmount || selectedContract.contractValue).toLocaleString("vi-VN")} ₫</span>
             </div>
-            <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-100">
-              (Bằng chữ: {selectedContract.amountInWords || "Không chịu thuế giá trị gia tăng"})
-            </div>
+            {selectedContract.amountInWords && (
+              <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-100">
+                (Bằng chữ: {selectedContract.amountInWords})
+              </div>
+            )}
           </div>
 
           {/* Dropbox Sign / Cryptographic Integrity Metadata */}

@@ -229,7 +229,7 @@ export function AutomaticAssessmentCandidateAssigner() {
               content="Tạo tự động bốc câu từ ngân hàng và gắn sẵn một hồ sơ — đó là đề AI. Đề muốn giao chỉ gồm đề Thường: soạn từ Ngân hàng câu hỏi, đã xuất bản và chưa giao cho ai."
               side="top"
             >
-              <span className="inline-flex cursor-help items-center text-[#667085] hover:text-[#0066FF] transition-colors">
+              <span className="inline-flex cursor-help items-center text-[#667085] hover:text-[var(--color-primary)] transition-colors">
                 <HelpCircle className="size-3.5" aria-hidden="true" />
               </span>
             </Tooltip>
@@ -237,7 +237,7 @@ export function AutomaticAssessmentCandidateAssigner() {
 
           {configQuery.isPending ? (
             <div className="flex items-center gap-1.5 text-xs text-[#667085]">
-              <RefreshCw className="size-3 animate-spin text-[#0066FF]" />
+              <RefreshCw className="size-3 animate-spin text-[var(--color-primary)]" />
               Đang tải...
             </div>
           ) : config ? (
@@ -262,7 +262,7 @@ export function AutomaticAssessmentCandidateAssigner() {
             placeholder="Tìm ứng viên theo tên, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[13px] text-[#101828] placeholder:text-[#667085] focus:border-[#0066FF] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[13px] text-[#101828] placeholder:text-[#667085] focus:border-[var(--color-primary)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
       </div>
@@ -300,7 +300,7 @@ export function AutomaticAssessmentCandidateAssigner() {
             value={activeTemplateId ?? ""}
             onChange={(event) => setTemplateId(event.target.value ? Number(event.target.value) : null)}
             disabled={templateTests.length === 0 || sendTemplateMutation.isPending}
-            className="h-9 max-w-md rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-[#101828] focus:border-[#0066FF] focus:outline-none disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="h-9 max-w-md rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-[#101828] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           >
             {templateTests.length === 0 ? (
               <option value="">Chưa có đề Thường đã xuất bản và chưa giao</option>
@@ -317,7 +317,7 @@ export function AutomaticAssessmentCandidateAssigner() {
           {templateTests.length === 0 ? (
             <>
               Soạn đề ở{" "}
-              <Link to={`${basePath}/excel-template`} className="font-semibold text-[#0066FF] hover:underline">Ngân hàng câu hỏi</Link>
+              <Link to={`${basePath}/excel-template`} className="font-semibold text-[var(--color-primary)] hover:underline">Ngân hàng câu hỏi</Link>
               , rồi xuất bản. Đề Thường đã xuất bản và chưa giao cho ai mới hiện ở đây. Đề AI từ Tạo tự động không chọn được.
             </>
           ) : (
@@ -330,7 +330,7 @@ export function AutomaticAssessmentCandidateAssigner() {
         <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800">
           {applicantsQuery.isPending ? (
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 p-8 text-center">
-              <RefreshCw className="size-6 animate-spin text-[#0066FF]" />
+              <RefreshCw className="size-6 animate-spin text-[var(--color-primary)]" />
               <p className="text-[12px] text-[#667085]">Đang tải danh sách ứng viên...</p>
             </div>
           ) : filteredApplications.length === 0 ? (
@@ -354,7 +354,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                         checked={allSelectableSelected}
                         disabled={selectableApplications.length === 0 || assignMutation.isPending || sendTemplateMutation.isPending}
                         onChange={toggleSelectAll}
-                        className="size-4 rounded accent-[#0066FF]"
+                        className="size-4 rounded accent-[var(--color-primary)]"
                         aria-label="Chọn tất cả ứng viên chưa có bài"
                       />
                     </th>
@@ -374,7 +374,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                         key={app.id}
                         className={cn(
                           "transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40",
-                          isSelected && "bg-blue-50/40 dark:bg-blue-950/20",
+                          isSelected && "bg-[var(--color-primary-subtle)]",
                         )}
                       >
                         <td className="px-4 py-3 text-center">
@@ -383,7 +383,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                             checked={isSelected}
                             disabled={hasTest || assignMutation.isPending || sendTemplateMutation.isPending}
                             onChange={() => toggleSelectOne(app.id)}
-                            className="size-4 rounded accent-[#0066FF] disabled:opacity-30"
+                            className="size-4 rounded accent-[var(--color-primary)] disabled:opacity-30"
                             aria-label={`Chọn ứng viên ${app.candidateName}`}
                           />
                         </td>
@@ -396,7 +396,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                             className={cn(
                               "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
                               app.status === "ASSESSMENT"
-                                ? "bg-blue-50 text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300"
+                                ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
                                 : "bg-slate-100 text-[#475467] dark:bg-slate-800 dark:text-slate-300",
                             )}
                           >
@@ -444,7 +444,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                                 disabled={assignMutation.isPending || sendTemplateMutation.isPending || !!status?.bankError || !config}
                                 title={status?.bankError ? "Ngân hàng câu hỏi chưa đủ để tạo đề tự động" : "Bốc câu từ ngân hàng và tạo đề riêng"}
                                 onClick={() => assignMutation.mutate([app.id])}
-                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[12px] font-semibold text-[#0066FF] transition-colors hover:bg-blue-100 disabled:opacity-40 cursor-pointer dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
+                                className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-2.5 py-1 text-[12px] font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-40 cursor-pointer"
                               >
                                 <Sparkles className="size-3" />
                                 Tạo tự động

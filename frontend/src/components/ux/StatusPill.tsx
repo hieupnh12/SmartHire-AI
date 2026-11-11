@@ -24,6 +24,13 @@ const tones: Record<string, string> = {
   WITHDRAWN: "bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)]",
   PASSED: "bg-emerald-50 text-emerald-700",
   FAILED: "bg-red-50 text-red-700",
+  ACTIVE: "bg-emerald-50 text-emerald-700",
+  PAID: "bg-emerald-50 text-emerald-700",
+  FALLBACK_STARTER: "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)]",
+  PAST_DUE: "bg-amber-50 text-amber-700",
+  OVERDUE: "bg-amber-50 text-amber-700",
+  SUSPENDED: "bg-red-50 text-red-700",
+  EXPIRED: "bg-red-50 text-red-700",
 };
 
 export function StatusPill({ status, label }: { status: string; label: string }) {

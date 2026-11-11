@@ -75,7 +75,7 @@ export function AiConfigSidebar({
     <aside className="sticky top-4 flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/60">
       <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800">
         <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-          <Sliders className="size-3.5 text-[#0066FF]" /> Cấu hình tham số sinh
+          <Sliders className="size-3.5 text-[var(--color-primary)]" /> Cấu hình tham số sinh
         </span>
         {batchCount > 0 && (
           <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
@@ -160,7 +160,7 @@ export function AiConfigSidebar({
                 className={cn(
                   "flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition-all cursor-pointer",
                   isSelected
-                    ? "border-[#0066FF] bg-blue-50/80 text-[#0066FF] ring-2 ring-[#0066FF]/20 dark:bg-blue-950/40 dark:text-blue-300"
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)] ring-2 ring-[var(--color-primary)]/20"
                     : "border-slate-200/80 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
                 )}
               >
@@ -191,7 +191,7 @@ export function AiConfigSidebar({
                 className={cn(
                   "rounded-lg py-1.5 text-xs font-semibold transition-all border",
                   difficulty === d.id
-                    ? "border-[#0066FF] bg-blue-50 text-[#0066FF] shadow-2xs dark:bg-blue-950 dark:text-blue-300"
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] shadow-2xs"
                     : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800",
                 )}
               >
@@ -206,7 +206,7 @@ export function AiConfigSidebar({
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
               Số lượng câu muốn sinh
             </span>
-            <span className="text-xs font-bold text-[#0066FF]">{count} câu</span>
+            <span className="text-xs font-bold text-[var(--color-primary)]">{count} câu</span>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -216,7 +216,7 @@ export function AiConfigSidebar({
               value={count}
               disabled={busy}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="flex-1 accent-[#0066FF] cursor-pointer"
+              className="flex-1 accent-[var(--color-primary)] cursor-pointer"
             />
             <input
               type="number"
@@ -276,7 +276,7 @@ export function AiConfigSidebar({
               checked={includeJd}
               disabled={busy}
               onChange={(e) => setIncludeJd(e.target.checked)}
-              className="size-3.5 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+              className="size-3.5 rounded border-slate-300 accent-[var(--color-primary)]"
             />
             <span className="text-xs text-slate-600 dark:text-slate-300">
               Áp dụng ngữ cảnh JD công việc
@@ -287,8 +287,8 @@ export function AiConfigSidebar({
 
       {/* 5. Chế độ sinh (Khi đã có câu hỏi nháp) */}
       {draftsCount > 0 && (
-        <div className="space-y-2 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/20">
-          <span className="block text-xs font-bold text-blue-900 dark:text-blue-300">
+        <div className="space-y-2 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)] p-3.5">
+          <span className="block text-xs font-bold text-[var(--color-primary-hover)]">
             Chế độ sinh câu hỏi tiếp theo
           </span>
           <div className="grid grid-cols-2 gap-2">
@@ -299,8 +299,8 @@ export function AiConfigSidebar({
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                 generationMode === "APPEND"
-                  ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                  : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-2xs"
+                  : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)]",
               )}
             >
               <Plus className="size-3.5" />
@@ -313,15 +313,15 @@ export function AiConfigSidebar({
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                 generationMode === "REPLACE"
-                  ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                  : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-2xs"
+                  : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)]",
               )}
             >
               <RotateCcw className="size-3.5" />
               <span>Làm mới (Ghi đè)</span>
             </button>
           </div>
-          <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+          <p className="text-[11px] text-slate-600 dark:text-slate-300">
             {generationMode === "APPEND"
               ? "Giữ nguyên các câu hiện có và đưa đợt sinh mới lên trên đầu danh sách nháp."
               : "Xóa toàn bộ câu nháp cũ và thay thế bằng đợt sinh mới."}

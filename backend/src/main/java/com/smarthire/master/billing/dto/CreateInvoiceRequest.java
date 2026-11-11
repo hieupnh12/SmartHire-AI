@@ -25,7 +25,6 @@ public class CreateInvoiceRequest {
     private BigDecimal amount;
 
     private BigDecimal subtotal;
-    private BigDecimal taxRate;
     private String currency;
     private LocalDateTime dueDate;
     private LocalDateTime billingPeriodStart;

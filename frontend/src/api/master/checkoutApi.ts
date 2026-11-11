@@ -53,6 +53,10 @@ export interface PublicSubscriptionPlan {
   maxCvParses: number;
   maxAiInterviewHours?: number;
   maxStorageGb?: number;
+  maxProctoringHours?: number;
+  videoRetentionDays?: number;
+  version?: number;
+  custom?: boolean;
   featuresJson?: string;
   status: string;
 }
@@ -82,6 +86,8 @@ export interface VnPayVerifyReturnData {
   transactionNo?: string;
   bankCode?: string;
   payDate?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface PayPalVerifyReturnData {
@@ -95,6 +101,8 @@ export interface PayPalVerifyReturnData {
   contactEmail?: string;
   amountVnd: number;
   transactionNo?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface InvoiceStatusResponse {
@@ -106,6 +114,33 @@ export interface InvoiceStatusResponse {
   subdomain?: string;
   paidAt?: string;
   isPaid: boolean;
+}
+
+export interface PublicOrderLookupItem {
+  invoiceId: number;
+  invoiceNumber: string;
+  tenantId?: number;
+  tenantCode?: string;
+  subdomain: string;
+  workspaceName: string;
+  adminFullName: string;
+  adminEmail: string;
+  adminPhone?: string;
+  planCode: string;
+  planName: string;
+  billingCycle: "MONTHLY" | "YEARLY";
+  amountVnd: number;
+  currency: string;
+  status: "PENDING" | "PAID" | "CANCELLED" | "OVERDUE";
+  createdAt: string;
+  dueDate?: string;
+  paidAt?: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  transferSyntax: string;
+  qrUrl: string;
+  canPay: boolean;
 }
 
 export const checkoutApi = {
@@ -129,6 +164,22 @@ export const checkoutApi = {
     return res.data.data;
   },
 
+  lookupOrders: async (queryOrEmail: string): Promise<PublicOrderLookupItem[]> => {
+    const res = await axios.get<ApiResponse<PublicOrderLookupItem[]>>(`${baseURL}/public/checkout/orders`, {
+      params: { query: queryOrEmail },
+    });
+    return res.data.data;
+  },
+
+  getOrderDetails: async (invoiceIdOrNumber: string | number): Promise<CheckoutResponseData> => {
+    const isNum = typeof invoiceIdOrNumber === "number" || /^\d+$/.test(String(invoiceIdOrNumber));
+    const url = isNum
+      ? `${baseURL}/public/checkout/order/${invoiceIdOrNumber}`
+      : `${baseURL}/public/checkout/order-by-number/${invoiceIdOrNumber}`;
+    const res = await axios.get<ApiResponse<CheckoutResponseData>>(url);
+    return res.data.data;
+  },
+
   createVnPayUrl: async (payload: VnPayCreatePaymentPayload): Promise<VnPayPaymentData> => {
     const res = await axios.post<ApiResponse<VnPayPaymentData>>(`${baseURL}/public/checkout/vnpay/create-url`, payload);
     return res.data.data;
@@ -144,4 +195,3 @@ export const checkoutApi = {
     return res.data.data;
   },
 };
-

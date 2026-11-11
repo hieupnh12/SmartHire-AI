@@ -1,10 +1,16 @@
 import { FileQuestion } from "lucide-react";
+import { useSeo } from "@/hooks/useSeo";
 
 interface TenantNotFoundPageProps {
   subdomain: string;
 }
 
 export function TenantNotFoundPage({ subdomain }: TenantNotFoundPageProps) {
+  useSeo({
+    title: "404 - Không tìm thấy trang | SmartHire AI",
+    robots: "noindex, nofollow",
+  });
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center text-center p-4">
       <FileQuestion className="w-16 h-16 text-slate-400 mb-6 stroke-[1.5]" />

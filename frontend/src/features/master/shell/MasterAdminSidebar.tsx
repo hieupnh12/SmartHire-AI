@@ -19,6 +19,7 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { useTenants } from "@/api/master/queries";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { cn } from "@/lib/utils";
 
 export function ToggleMenuIcon({ className = "size-5" }: { className?: string }) {
@@ -258,14 +259,9 @@ export function MasterAdminSidebar({
         <button
           type="button"
           onClick={() => handleNavigate("/admin/dashboard")}
-          className="flex items-center gap-2.5 text-left focus-visible:outline-none select-none transition-opacity hover:opacity-85"
+          className="group flex items-center text-left focus-visible:outline-none select-none"
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white shadow-xs">
-            <BrainCircuit className="size-4.5 text-white" />
-          </div>
-          <span className="text-base font-bold tracking-tight text-slate-950 font-display">
-            SmartHire<span className="text-blue-600">.Ai</span>
-          </span>
+          <SmartHireLogo className="h-9" />
         </button>
         <button
           type="button"

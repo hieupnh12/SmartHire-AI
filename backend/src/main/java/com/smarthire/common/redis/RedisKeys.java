@@ -48,11 +48,21 @@ public final class RedisKeys {
         return "lock:github:analyze:" + cvId;
     }
 
+    public static String githubUserProfile(String owner) {
+        String normalized = owner == null ? "" : owner.trim().toLowerCase();
+        return "cache:github:user:" + normalized;
+    }
+
     public static String masterRefreshSession(String tokenId) {
         return "auth:master:refresh:" + tokenId;
     }
 
     public static String interviewVoiceTicket(String ticket) { return "interview:voice:ticket:" + ticket; }
+
+    public static String interviewSpeech(String tenant, Long messageId) {
+        String t = (tenant == null ? "default" : tenant.trim().toLowerCase());
+        return "cache:interview:speech:" + t + ":" + messageId;
+    }
 
     public static String aiTaskConfig(String taskType) {
         return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());

@@ -58,10 +58,6 @@ public class CreateContractRequest {
     private String partyBEmail;
     private String partyBBankAccount;
 
-    // --- THUẾ & GIÁ TRỊ THANH TOÁN ---
-    @Builder.Default
-    private BigDecimal taxRate = BigDecimal.valueOf(10.00);
-
     private String termsAndConditions;
 
     private String notes;

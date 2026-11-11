@@ -1,6 +1,6 @@
 export type TestStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type TestOrigin = "AUTHORED" | "GENERATED";
-export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "EXPIRED";
+export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "PENDING" | "GRADING" | "COMPLETED" | "GRADED" | "FAILED" | "EXPIRED";
 export type QuestionDifficulty = "Easy" | "Medium" | "Hard";
 export type JobTest = {
   id: number;
@@ -53,6 +53,9 @@ export type SavedAnswer = {
   selectedOptionIds?: number[] | null;
   answerText?: string | null;
   language?: string | null;
+  score?: number | null;
+  suggestedScore?: number | null;
+  evaluation?: Record<string, unknown> | null;
 };
 export type Submission = {
   id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;
@@ -97,9 +100,11 @@ export type CodingContent = {
   harness: Record<string, string> | null;
   testCases: { input: string; expectedOutput: string; sample: boolean; weight?: number; explanation?: string }[];
 };
-export type GradingReview = { questionId: number; prompt: string; type: string; points: number; answerText: string | null;
+export type GradingReview = {
+  questionId: number; prompt: string; type: string; points: number; answerText: string | null;
   language: string | null; rubric: EssayRubric | null; evaluation: Record<string, unknown> | null;
-  suggestedScore: number | null; score: number | null; reviewedAt: string | null };
+  suggestedScore: number | null; score: number | null; reviewedAt: string | null
+};
 export type SampleResult = { status: { id: number; description: string }; stdout?: string; stderr?: string; compile_output?: string };
 
 export type ProctorEventSummary = {

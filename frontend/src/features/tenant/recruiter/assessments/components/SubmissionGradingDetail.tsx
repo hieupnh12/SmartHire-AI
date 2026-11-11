@@ -36,6 +36,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
+import { localizeAiComment } from "@/features/tenant/candidate/assessments/utils/aiLocalization";
 
 // --- Safe Data Helpers ---
 function safeObject<T = Record<string, unknown>>(value: unknown): T {
@@ -395,7 +396,7 @@ export function SubmissionGradingDetail({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Loader2 className="size-4 animate-spin text-[#0066FF]" />
+              <Loader2 className="size-4 animate-spin text-[var(--color-primary)]" />
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đang tải bài làm...</span>
             </div>
           </div>
@@ -532,7 +533,7 @@ export function SubmissionGradingDetail({
               disabled={busy}
               onClick={() => retry.mutate()}
               title="Yêu cầu AI chấm lại các câu chưa có kết quả"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[var(--color-primary)] disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               <RefreshCw className={cn("size-3.5", retry.isPending && "animate-spin")} />
               Chấm AI lại
@@ -565,7 +566,7 @@ export function SubmissionGradingDetail({
                       ? "Chỉ gửi được email khi mọi câu hỏi đã được chốt điểm"
                       : "Gửi thông báo điểm chính thức tới ứng viên"
               }
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[var(--color-primary)] disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               <Mail className="size-3.5 text-slate-500" />
               Gửi email kết quả
@@ -609,7 +610,7 @@ export function SubmissionGradingDetail({
                       className={cn(
                         "size-4 shrink-0",
                         isActive
-                          ? "text-[#0066FF] dark:text-blue-400"
+                          ? "text-[var(--color-primary)]"
                           : tab.allGraded && tab.count > 0 && (tab.key === "ESSAY" || tab.key === "CODING")
                             ? "text-emerald-600 dark:text-emerald-400"
                             : "text-slate-400 dark:text-slate-500",
@@ -666,9 +667,9 @@ export function SubmissionGradingDetail({
                     },
                   });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] border border-[var(--color-primary)]/25 transition-all cursor-pointer"
               >
-                <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                <Sparkles className="size-3.5 text-[var(--color-primary)]" />
                 Áp dụng điểm AI (${unreviewedEssay.length} câu)
               </button>
             )}
@@ -691,9 +692,9 @@ export function SubmissionGradingDetail({
                     },
                   });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] border border-[var(--color-primary)]/25 transition-all cursor-pointer"
               >
-                <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                <Sparkles className="size-3.5 text-[var(--color-primary)]" />
                 Áp dụng điểm AI (${unreviewedCoding.length} câu)
               </button>
             )}
@@ -844,7 +845,7 @@ export function SubmissionGradingDetail({
               );
               if (decisions) update.mutate(decisions);
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)] transition-all cursor-pointer"
           >
             <Check className="size-3.5" />
             Lưu tất cả ({dirtyEntries.length})
@@ -913,11 +914,11 @@ function QuestionReviewCard({
           </span>
 
           {isEssay ? (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/60">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60">
               <FileText className="size-3.5" /> TỰ LUẬN
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
               <Code2 className="size-3.5" /> LẬP TRÌNH (CODING)
             </span>
           )}
@@ -1007,9 +1008,9 @@ function QuestionReviewCard({
               disabled={busy}
               onClick={() => onQuickApprove(review)}
               title="Chấp nhận điểm AI và xác nhận ngay"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer"
             >
-              <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+              <Sparkles className="size-3.5 text-[var(--color-primary)]" />
               Nhận điểm AI ({display(review.suggestedScore)} đ)
             </button>
           )}
@@ -1030,7 +1031,7 @@ function QuestionReviewCard({
                 "w-28 rounded-xl border bg-white px-2.5 py-1.5 text-xs font-semibold text-[#101828] focus:outline-none focus:ring-2 dark:bg-slate-800 dark:text-white",
                 hasError
                   ? "border-rose-500 focus:ring-rose-500/20"
-                  : "border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-700",
+                  : "border-slate-300 focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20 dark:border-slate-700",
               )}
             />
             <span className="pointer-events-none absolute right-2.5 text-[11px] font-semibold text-slate-400">
@@ -1046,7 +1047,7 @@ function QuestionReviewCard({
               const d = decisionFor(review);
               if (d) onApprove(d);
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-400 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[var(--color-primary)] dark:bg-white dark:text-slate-900 dark:hover:bg-[var(--color-primary)] dark:hover:text-white transition-all cursor-pointer"
           >
             <Check className="size-3.5" />
             Lưu điểm
@@ -1127,7 +1128,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
           <button
             type="button"
             onClick={() => setShowRef(!showRef)}
-            className="flex w-full items-center justify-between font-semibold text-slate-700 hover:text-blue-600 dark:text-slate-300 transition-colors cursor-pointer"
+            className="flex w-full items-center justify-between font-semibold text-slate-700 hover:text-[var(--color-primary)] dark:text-slate-300 transition-colors cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <Eye className="size-3.5 text-slate-400" />
@@ -1187,11 +1188,11 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
 
       {/* General AI Summary Comment */}
       {Boolean(evaluation.general_comment) && (
-        <div className="flex items-start gap-2.5 rounded-xl bg-violet-50/70 p-3.5 text-xs text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
-          <Sparkles className="size-4 shrink-0 text-violet-600 dark:text-violet-400 mt-0.5" />
+        <div className="flex items-start gap-2.5 rounded-xl bg-[var(--color-primary-soft)]/70 p-3.5 text-xs text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
+          <Sparkles className="size-4 shrink-0 text-[var(--color-primary)] mt-0.5" />
           <div className="space-y-1 min-w-0">
             <span className="font-bold block">Tổng kết đánh giá từ AI:</span>
-            <p className="leading-relaxed whitespace-pre-wrap">{safeText(evaluation.general_comment)}</p>
+            <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
           </div>
         </div>
       )}
@@ -1241,7 +1242,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
           <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
-            <Terminal className="size-4 text-blue-600" />
+            <Terminal className="size-4 text-[var(--color-primary)]" />
             <span>Kết quả thực thi Sandbox Test Cases</span>
           </div>
 
@@ -1291,7 +1292,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
                             Công khai
                           </span>
                         ) : (
-                          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          <span className="rounded bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
                             Ẩn (Tính điểm)
                           </span>
                         )}
@@ -1327,7 +1328,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       {Object.keys(codeReview).length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
-            <Sparkles className="size-4 text-violet-600" />
+            <Sparkles className="size-4 text-[var(--color-primary)]" />
             <span>Phân tích chất lượng mã nguồn từ AI</span>
           </div>
 
@@ -1353,9 +1354,9 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
           </div>
 
           {Boolean(codeReview.general_comment) && (
-            <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
+            <div className="rounded-xl bg-[var(--color-primary-soft)]/70 p-3 text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
               <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-              <p className="leading-relaxed whitespace-pre-wrap">{safeText(codeReview.general_comment)}</p>
+              <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(codeReview.general_comment))}</p>
             </div>
           )}
         </div>
@@ -1363,9 +1364,9 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
 
       {/* Fallback AI comment when codeReview object is empty */}
       {Boolean(evaluation.general_comment) && Object.keys(codeReview).length === 0 && (
-        <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
+        <div className="rounded-xl bg-[var(--color-primary-soft)]/70 p-3 text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
           <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-          <p className="leading-relaxed whitespace-pre-wrap">{safeText(evaluation.general_comment)}</p>
+          <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
         </div>
       )}
 
@@ -1377,7 +1378,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
             <strong>{display(testsPercent)}%</strong> × {display(testWeight * 100)}% (Test){" "}
             + <strong>{display(aiPercent)}%</strong> × {display(aiWeight * 100)}% (AI Review)
           </span>
-          <span className="font-bold text-blue-600 dark:text-blue-400">
+          <span className="font-bold text-[var(--color-primary)]">
             = {display(formulaPercent)}% → Điểm gợi ý: {display(review.suggestedScore)}/{review.points} đ
           </span>
         </div>
@@ -1401,7 +1402,7 @@ function IntegrityTimelineSection({
     <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex items-center gap-2.5 font-bold text-sm text-[#101828] dark:text-white">
-          <ShieldCheck className="size-4 text-blue-600" />
+          <ShieldCheck className="size-4 text-[var(--color-primary)]" />
           <span>Nhật ký giám sát &amp; Tín hiệu toàn vẹn (Proctoring Log)</span>
         </div>
         <div className="flex items-center gap-2">
@@ -1444,7 +1445,7 @@ function IntegrityTimelineSection({
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
                     Câu #{String(qId)}
                   </span>
-                  <span className="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                  <span className="rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 font-bold text-[var(--color-primary-hover)]">
                     {runCount} lượt run
                   </span>
                 </div>

@@ -170,7 +170,6 @@ public class MasterBillingService {
                 .contractId(request.getContractId())
                 .amount(request.getAmount())
                 .subtotal(request.getSubtotal() != null ? request.getSubtotal() : request.getAmount())
-                .taxRate(request.getTaxRate())
                 .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND")
                 .status("PENDING")
                 .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDateTime.now().plusDays(14))
@@ -233,11 +232,7 @@ public class MasterBillingService {
 
         if ("PAID".equals(nextStatus)) {
             invoice.setPaidAt(request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now());
-            if (invoice.getSubscriptionId() != null) {
-                subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
-                    activatePaidSubscription(sub);
-                });
-            }
+            applyPaidSubscriptionForInvoice(invoice);
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 pendingTenant.setStatus("PROVISIONING");
@@ -249,6 +244,9 @@ public class MasterBillingService {
                         pendingTenant.getId(),
                         invoice.getSubscriptionId()
                 ));
+            } else if (pendingTenant != null && "SUSPENDED".equalsIgnoreCase(pendingTenant.getStatus())) {
+                pendingTenant.setStatus("ACTIVE");
+                tenantRepository.save(pendingTenant);
             }
         }
 
@@ -340,7 +338,6 @@ public class MasterBillingService {
                 .subscriptionId(sub.getId())
                 .amount(amountVnd)
                 .subtotal(amountVnd)
-                .taxRate(BigDecimal.ZERO)
                 .currency("VND")
                 .status("PENDING")
                 .dueDate(LocalDateTime.now().plusDays(7))
@@ -469,28 +466,7 @@ public class MasterBillingService {
             }
         });
 
-        return CheckoutResponse.builder()
-                .invoiceId(savedInvoice.getId())
-                .invoiceNumber(savedInvoice.getInvoiceNumber())
-                .tenantId(tenant.getId())
-                .tenantCode(tenant.getCode())
-                .subdomain(tenant.getSubdomain())
-                .planName(plan.getName())
-                .planCode(plan.getCode())
-                .billingCycle(request.getBillingCycle().toUpperCase())
-                .amountVnd(amountVnd)
-                .currency("VND")
-                .status("PENDING")
-                .bankName(bankName)
-                .accountNumber(accountNumber)
-                .accountName(accountName)
-                .transferSyntax(transferSyntax)
-                .qrUrl(qrUrl)
-                .termsAccepted(true)
-                .termsVersion(policyVersion)
-                .termsAcceptedAt(acceptedAt)
-                .createdAt(savedInvoice.getCreatedAt())
-                .build();
+        return buildCheckoutResponse(savedInvoice, tenant, plan);
     }
 
     @Transactional(transactionManager = "masterTransactionManager")
@@ -521,9 +497,7 @@ public class MasterBillingService {
         }
         Invoice saved = invoiceRepository.save(invoice);
 
-        if (saved.getSubscriptionId() != null) {
-            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(this::activatePaidSubscription);
-        }
+        applyPaidSubscriptionForInvoice(saved);
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
         if (tenant != null && quotaRedisService != null) {
@@ -540,11 +514,64 @@ public class MasterBillingService {
                     tenant.getId(),
                     saved.getSubscriptionId()
             ));
+        } else if (tenant != null && "SUSPENDED".equalsIgnoreCase(tenant.getStatus())) {
+            tenant.setStatus("ACTIVE");
+            tenantRepository.save(tenant);
         }
         return saved;
     }
 
-    private void activatePaidSubscription(TenantSubscription sub) {
+    private void applyPaidSubscriptionForInvoice(Invoice invoice) {
+        if (invoice == null || invoice.getSubscriptionId() == null) {
+            return;
+        }
+        TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+        if (sub == null) {
+            return;
+        }
+        List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+        boolean isRenewal = items != null && items.stream()
+                .anyMatch(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()));
+        if (isRenewal && !"PENDING".equalsIgnoreCase(sub.getStatus())) {
+            int years = items.stream()
+                    .filter(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                    .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                    .findFirst()
+                    .orElse(1);
+            renewExistingSubscription(sub, years);
+            return;
+        }
+        int fallbackYears = items == null ? 1 : items.stream()
+                .filter(item -> "SUBSCRIPTION".equalsIgnoreCase(item.getItemType())
+                        || "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                .findFirst()
+                .orElse(1);
+        activatePaidSubscription(sub, fallbackYears);
+    }
+
+    private void renewExistingSubscription(TenantSubscription sub, int years) {
+        if (sub == null) {
+            return;
+        }
+        if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
+            planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        boolean hadRemainingTerm = sub.getEndsAt() != null && sub.getEndsAt().isAfter(now);
+        LocalDateTime baseEnd = hadRemainingTerm ? sub.getEndsAt() : now;
+        if (!hadRemainingTerm || sub.getStartsAt() == null) {
+            sub.setStartsAt(now);
+        }
+        sub.setEndsAt(baseEnd.plusYears(Math.max(1, years)));
+        sub.setStatus("ACTIVE");
+        sub.setGracePeriodEndsAt(null);
+        sub.setCanceledAt(null);
+        sub.setCancelReason(null);
+        subscriptionRepository.save(sub);
+    }
+
+    private void activatePaidSubscription(TenantSubscription sub, int fallbackYears) {
         if (sub == null) {
             return;
         }
@@ -572,9 +599,10 @@ public class MasterBillingService {
                 }
             }
         }
-        long years = (sub.getStartsAt() != null && sub.getEndsAt() != null)
+        long calculatedYears = (sub.getStartsAt() != null && sub.getEndsAt() != null)
                 ? Math.max(1L, Math.round(java.time.temporal.ChronoUnit.DAYS.between(sub.getStartsAt(), sub.getEndsAt()) / 365.0))
                 : 1L;
+        long years = Math.max(calculatedYears, Math.max(1L, fallbackYears));
         sub.setStartsAt(now);
         sub.setEndsAt(now.plusYears(years));
         sub.setStatus("ACTIVE");
@@ -625,6 +653,179 @@ public class MasterBillingService {
                 tenant != null ? tenant.getSubdomain() : null,
                 tenant != null ? tenant.getStatus() : null
         );
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public CheckoutResponse getCheckoutOrder(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+        SubscriptionPlan plan = null;
+        if (invoice.getSubscriptionId() != null) {
+            TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+            if (sub != null) {
+                plan = planRepository.findById(sub.getPlanId()).orElse(null);
+            }
+        }
+        return buildCheckoutResponse(invoice, tenant, plan);
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public CheckoutResponse getCheckoutOrderByInvoiceNumber(String invoiceNumber) {
+        Invoice invoice = invoiceRepository.findByInvoiceNumber(invoiceNumber.trim())
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceNumber, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+        SubscriptionPlan plan = null;
+        if (invoice.getSubscriptionId() != null) {
+            TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+            if (sub != null) {
+                plan = planRepository.findById(sub.getPlanId()).orElse(null);
+            }
+        }
+        return buildCheckoutResponse(invoice, tenant, plan);
+    }
+
+    public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        return toCheckoutResponse(invoice, tenant, plan);
+    }
+
+    public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        BigDecimal amountVnd = invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO;
+        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
+        String accountNumber = "07744348801";
+        String accountName = "NGUYEN NHAT SINH";
+        String transferSyntax = "SH " + invoice.getInvoiceNumber();
+        String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
+        String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
+                + amountVnd.toBigInteger()
+                + "&addInfo=" + encodedSyntax
+                + "&accountName=" + encodedAccount;
+
+        String planName = plan != null ? plan.getName() : "Gói dịch vụ";
+        String planCode = plan != null ? plan.getCode() : "CUSTOM";
+
+        return CheckoutResponse.builder()
+                .invoiceId(invoice.getId())
+                .invoiceNumber(invoice.getInvoiceNumber())
+                .tenantId(tenant != null ? tenant.getId() : null)
+                .tenantCode(tenant != null ? tenant.getCode() : null)
+                .subdomain(tenant != null ? tenant.getSubdomain() : null)
+                .planName(planName)
+                .planCode(planCode)
+                .billingCycle("YEARLY")
+                .amountVnd(amountVnd)
+                .currency(StringUtils.hasText(invoice.getCurrency()) ? invoice.getCurrency() : "VND")
+                .status(invoice.getStatus())
+                .bankName(bankName)
+                .accountNumber(accountNumber)
+                .accountName(accountName)
+                .transferSyntax(transferSyntax)
+                .qrUrl(qrUrl)
+                .termsAccepted(invoice.isTermsAccepted())
+                .termsVersion(invoice.getTermsVersion())
+                .termsAcceptedAt(invoice.getTermsAcceptedAt())
+                .createdAt(invoice.getCreatedAt())
+                .build();
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public List<PublicOrderLookupResponse> lookupOrders(String rawQuery) {
+        if (!StringUtils.hasText(rawQuery)) {
+            return List.of();
+        }
+        String query = rawQuery.trim();
+        List<Invoice> matchingInvoices = new java.util.ArrayList<>();
+
+        if (query.contains("@")) {
+            List<TenantInfo> tenants = tenantRepository.findByEmailIgnoreCase(query);
+            if (!tenants.isEmpty()) {
+                List<Long> tenantIds = tenants.stream().map(TenantInfo::getId).toList();
+                matchingInvoices.addAll(invoiceRepository.findByTenantIdInOrderByCreatedAtDesc(tenantIds));
+            }
+        } else {
+            String cleanInvoiceNum = query.replace("SH ", "").trim();
+            invoiceRepository.findByInvoiceNumber(cleanInvoiceNum).ifPresent(matchingInvoices::add);
+
+            if (matchingInvoices.isEmpty()) {
+                tenantRepository.findBySubdomain(query.toLowerCase()).ifPresent(t -> {
+                    matchingInvoices.addAll(invoiceRepository.findByTenantIdOrderByCreatedAtDesc(t.getId()));
+                });
+            }
+        }
+
+        matchingInvoices.sort((a, b) -> {
+            if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+
+        Map<Long, TenantInfo> tenantMap = tenantRepository.findAllById(
+                matchingInvoices.stream().map(Invoice::getTenantId).filter(java.util.Objects::nonNull).distinct().toList()
+        ).stream().collect(Collectors.toMap(TenantInfo::getId, Function.identity(), (a, b) -> a));
+
+        Map<Long, TenantSubscription> subMap = subscriptionRepository.findAllById(
+                matchingInvoices.stream().map(Invoice::getSubscriptionId).filter(java.util.Objects::nonNull).distinct().toList()
+        ).stream().collect(Collectors.toMap(TenantSubscription::getId, Function.identity(), (a, b) -> a));
+
+        Map<Long, SubscriptionPlan> planMap = planRepository.findAll().stream()
+                .collect(Collectors.toMap(SubscriptionPlan::getId, Function.identity(), (a, b) -> a));
+
+        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
+        String accountNumber = "07744348801";
+        String accountName = "NGUYEN NHAT SINH";
+
+        return matchingInvoices.stream().map(inv -> {
+            TenantInfo tenant = tenantMap.get(inv.getTenantId());
+            TenantSubscription sub = inv.getSubscriptionId() != null ? subMap.get(inv.getSubscriptionId()) : null;
+            SubscriptionPlan plan = sub != null ? planMap.get(sub.getPlanId()) : null;
+
+            String planName = sub != null && StringUtils.hasText(sub.getPlanNameSnapshot())
+                    ? sub.getPlanNameSnapshot()
+                    : (plan != null ? plan.getName() : "Gói dịch vụ");
+            String planCode = sub != null && StringUtils.hasText(sub.getPlanCodeSnapshot())
+                    ? sub.getPlanCodeSnapshot()
+                    : (plan != null ? plan.getCode() : "CUSTOM");
+
+            BigDecimal amountVnd = inv.getAmount() != null ? inv.getAmount() : BigDecimal.ZERO;
+            String transferSyntax = "SH " + inv.getInvoiceNumber();
+            String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
+            String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+            String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
+                    + amountVnd.toBigInteger()
+                    + "&addInfo=" + encodedSyntax
+                    + "&accountName=" + encodedAccount;
+
+            boolean canPay = "PENDING".equalsIgnoreCase(inv.getStatus());
+
+            return PublicOrderLookupResponse.builder()
+                    .invoiceId(inv.getId())
+                    .invoiceNumber(inv.getInvoiceNumber())
+                    .tenantId(tenant != null ? tenant.getId() : null)
+                    .tenantCode(tenant != null ? tenant.getCode() : null)
+                    .subdomain(tenant != null ? tenant.getSubdomain() : null)
+                    .workspaceName(tenant != null ? tenant.getName() : null)
+                    .adminFullName(tenant != null ? tenant.getContactName() : null)
+                    .adminEmail(tenant != null ? tenant.getContactEmail() : null)
+                    .adminPhone(tenant != null ? tenant.getContactPhone() : null)
+                    .planCode(planCode)
+                    .planName(planName)
+                    .billingCycle("YEARLY")
+                    .amountVnd(amountVnd)
+                    .currency(StringUtils.hasText(inv.getCurrency()) ? inv.getCurrency() : "VND")
+                    .status(inv.getStatus())
+                    .createdAt(inv.getCreatedAt())
+                    .dueDate(inv.getDueDate())
+                    .paidAt(inv.getPaidAt())
+                    .bankName(bankName)
+                    .accountNumber(accountNumber)
+                    .accountName(accountName)
+                    .transferSyntax(transferSyntax)
+                    .qrUrl(qrUrl)
+                    .canPay(canPay)
+                    .build();
+        }).toList();
     }
 
     /**

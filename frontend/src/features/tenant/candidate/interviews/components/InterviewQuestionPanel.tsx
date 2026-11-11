@@ -4,6 +4,7 @@ import type { AiAnswer, AiQuestion } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { InterviewAnswerForm } from "./InterviewAnswerForm";
 import { McqAnswerForm } from "./McqAnswerForm";
+import { getBrowserVoices, resolveBestVoice, prepareCleanSpeechText } from "../utils/speechVoiceUtils";
 
 type Props = {
   interviewId: number;
@@ -57,9 +58,15 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
       </div>
     </div>
 
-    {question.responseMode === "speech" && "speechSynthesis" in window && <Button variant="secondary" onClick={() => {
-      window.speechSynthesis.cancel(); const speech = new SpeechSynthesisUtterance(question.questionText);
-      speech.lang = question.language === "English" ? "en-US" : question.language === "Japanese" ? "ja-JP" : "vi-VN";
+    {question.responseMode === "speech" && "speechSynthesis" in window && <Button variant="secondary" onClick={async () => {
+      window.speechSynthesis.cancel();
+      const voices = await getBrowserVoices();
+      const resolved = resolveBestVoice(question.language, voices);
+      const cleanText = prepareCleanSpeechText(question.questionText);
+      const speech = new SpeechSynthesisUtterance(cleanText);
+      speech.lang = resolved.lang;
+      if (resolved.voice) speech.voice = resolved.voice;
+      speech.rate = resolved.rate;
       window.speechSynthesis.speak(speech);
     }}><Volume2 className="size-4" aria-hidden="true" />Nghe câu hỏi</Button>}
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Bot, BriefcaseBusiness, CalendarDays, ChevronDown, ClipboardList, MapPin } from "lucide-react";
+import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CalendarDays, ChevronDown, ClipboardList, MapPin, XCircle } from "lucide-react";
 import type { RoundItemView } from "@/api/types/applicant";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { PageSkeleton, SkeletonCard } from "@/components/ux/Skeleton";
@@ -9,9 +9,11 @@ import { StatusPill } from "@/components/ux/StatusPill";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
+import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 import { OfferResponsePanel } from "../components/OfferResponsePanel";
 import { RoundEvaluation, ROUND_TITLES, type RoundKey } from "../components/RoundEvaluations";
+import { WithdrawDialog } from "../components/WithdrawDialog";
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: "Đã nộp", IN_REVIEW: "Đang xem xét", ASSESSMENT: "Bài đánh giá", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp",
@@ -33,6 +35,18 @@ export function ApplicationDetailPage() {
     enabled: Boolean(applicationId),
   });
   const [openRound, setOpenRound] = useState<RoundKey | null>(null);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const queryClient = useQueryClient();
+  const withdraw = useMutation({
+    mutationFn: (reason?: string) => applicantApi.withdraw(applicationId!, reason),
+    onSuccess: () => {
+      toast.success("Đã rút đơn ứng tuyển thành công.");
+      setShowWithdraw(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applicants.detail(applicationId!) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applicants.mine });
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
 
   if (!applicationId) return <ErrorMessage>Đường dẫn đơn ứng tuyển không hợp lệ.</ErrorMessage>;
   if (detail.isPending) return <PageSkeleton variant="detail" />;
@@ -54,7 +68,17 @@ export function ApplicationDetailPage() {
           </div>
           <div className="mt-6"><ApplicationPipeline status={application.status} /></div>
         </div>
-        <div className="flex flex-wrap gap-2 border-t border-[var(--color-border-default)] px-5 py-4 sm:px-7"><Link to={`/jobs/${application.jobId}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-alt)]"><BriefcaseBusiness className="size-4" aria-hidden="true" />Xem công việc</Link>{application.status === "ASSESSMENT" && <Link to={`/assessments?applicationId=${application.id}`} className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Làm bài đánh giá</Link>}{application.status === "INTERVIEW" && <Link to="/interviews" className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Xem phỏng vấn AI</Link>}</div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-default)] px-5 py-4 sm:px-7">
+          <Link to={`/jobs/${application.jobId}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-alt)]"><BriefcaseBusiness className="size-4" aria-hidden="true" />Xem công việc</Link>
+          {application.status === "ASSESSMENT" && <Link to={`/assessments?applicationId=${application.id}`} className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Làm bài đánh giá</Link>}
+          {application.status === "INTERVIEW" && <Link to="/interviews" className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Xem phỏng vấn AI</Link>}
+          {application.status === "HUMAN_INTERVIEW" && <Link to="/interview-schedules" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white"><CalendarClock className="size-4" aria-hidden="true" />Lịch phỏng vấn trực tiếp</Link>}
+          {application.withdrawable && (
+            <button type="button" onClick={() => setShowWithdraw(true)} disabled={withdraw.isPending} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
+              <XCircle className="size-4" aria-hidden="true" />Rút đơn
+            </button>
+          )}
+        </div>
       </header>
 
       {application.status === "OFFER" && <OfferResponsePanel applicationId={application.id} jobTitle={application.jobTitle} />}
@@ -75,6 +99,12 @@ export function ApplicationDetailPage() {
         <h2 className="text-lg font-semibold">Lịch sử đơn ứng tuyển</h2>
         {application.history.length === 0 ? <p className="mt-4 text-sm text-[var(--color-on-surface-variant)]">Chưa có cập nhật mới.</p> : <ol className="mt-5 space-y-0">{application.history.map((item, index) => <li key={`${item.toStatus}-${item.createdAt}-${index}`} className="relative flex gap-4 pb-6 last:pb-0"><span className="relative z-10 mt-1.5 size-3 shrink-0 rounded-full bg-[var(--color-primary)] ring-4 ring-[var(--color-primary-subtle)]" aria-hidden="true" />{index < application.history.length - 1 && <span className="absolute left-[5px] top-4 h-full w-px bg-[var(--color-border-default)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-sm font-semibold">{STATUS_LABELS[item.toStatus] ?? item.toStatus}</p><time className="text-xs text-[var(--color-on-surface-variant)]" dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time></div>{item.note && <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{item.note}</p>}</div></li>)}</ol>}
       </section>
+
+      <WithdrawDialog
+        jobTitle={showWithdraw ? application.jobTitle : null}
+        onClose={() => setShowWithdraw(false)}
+        onConfirm={(reason) => withdraw.mutateAsync(reason)}
+      />
     </section>
   );
 }

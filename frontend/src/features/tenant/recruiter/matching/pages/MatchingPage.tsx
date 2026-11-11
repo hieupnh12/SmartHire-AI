@@ -11,7 +11,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -19,8 +19,7 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { cn } from "@/lib/utils";
-import { createRankingSocket } from "@/lib/ws";
-import { RankingDetail } from "../components/RankingDetail";
+import { closeSocketSafely, createRankingSocket } from "@/lib/ws";
 import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
 import { applicationStatusLabel, button, labels, scoreText } from "../components/rankingUi";
 import { useRankingStore } from "../stores/useRankingStore";
@@ -453,6 +452,7 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
 }
 
 export function RankingPage() {
+  const navigate = useNavigate();
   const state = useRankingStore();
   const { id } = useParams<{ id: string }>();
   const token = useAuthStore((store) => store.accessToken);
@@ -503,16 +503,22 @@ export function RankingPage() {
 
   useEffect(() => {
     if (!token || isPreview) return;
-    const socket = createRankingSocket(token, (event) => {
-      if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
-    });
-    return () => socket?.close();
+    let socket: WebSocket | null = null;
+    // Defer past StrictMode's immediate unmount/remount to avoid churning an in-flight handshake.
+    const connectTimer = window.setTimeout(() => {
+      socket = createRankingSocket(token, (event) => {
+        if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
+      });
+    }, 50);
+    return () => {
+      window.clearTimeout(connectTimer);
+      closeSocketSafely(socket);
+    };
   }, [client, isPreview, jobId, tenantKey, token]);
 
   const cohorts = board?.cohorts ?? [];
   const filtered = board?.rows ?? [];
   const page = board?.page.number ?? 0;
-  const selected = board?.rows.find((row) => row.applicationId === state.selectedId);
   const summary = board?.summary;
 
   return (
@@ -593,7 +599,11 @@ export function RankingPage() {
                   key={row.applicationId}
                   row={row}
                   showRank
-                  onOpen={() => state.select(row.applicationId)}
+                  onOpen={() => {
+                    navigate(`/recruiter/jobs/${board?.jobId ?? jobId}/rank/${row.applicationId}`, {
+                      state: { row, jobTitle: board?.jobTitle },
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -647,7 +657,11 @@ export function RankingPage() {
                           "cursor-pointer transition-colors hover:bg-slate-50/80",
                           isTop1 && "bg-amber-50/20",
                         )}
-                        onClick={() => state.select(row.applicationId)}
+                        onClick={() => {
+                          navigate(`/recruiter/jobs/${board?.jobId ?? jobId}/rank/${row.applicationId}`, {
+                            state: { row, jobTitle: board?.jobTitle },
+                          });
+                        }}
                       >
                         {/* Hạng */}
                         <td className="py-3.5 pl-6 pr-3">
@@ -730,7 +744,9 @@ export function RankingPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              state.select(row.applicationId);
+                              navigate(`/recruiter/jobs/${board?.jobId ?? jobId}/rank/${row.applicationId}`, {
+                                state: { row, jobTitle: board?.jobTitle },
+                              });
                             }}
                             className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand-primary/10 px-3 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white"
                           >
@@ -811,19 +827,6 @@ export function RankingPage() {
             </div>
           </div>
         </>
-      )}
-
-      {state.selectedId && (
-        <RankingDetail
-          key={`${tenantKey}:${state.selectedId}`}
-          applicationId={state.selectedId}
-          previewRow={isPreview ? selected : undefined}
-          fallbackRow={!isPreview ? selected : undefined}
-          jobId={board?.jobId ?? jobId}
-          jobTitle={board?.jobTitle ?? ""}
-          tenantKey={tenantKey}
-          onClose={() => state.select(null)}
-        />
       )}
     </section>
   );

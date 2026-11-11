@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { CheckoutResponseData } from "@/api/master/checkoutApi";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 
 export function CheckoutSuccessPage() {
   const location = useLocation();
@@ -32,12 +33,8 @@ export function CheckoutSuccessPage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200/80 shadow-2xs py-4">
         <div className="max-w-4xl mx-auto px-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <img
-              src="/logo-smarthrie.png"
-              alt="SmartHire AI"
-              className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
-            />
+          <Link to="/" className="flex items-center group">
+            <SmartHireLogo className="h-9 sm:h-10" />
           </Link>
           <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
             <ShieldCheck className="w-4 h-4" />

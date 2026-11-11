@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LockKeyhole, LogOut, MessageSquareText, RefreshCw, RotateCcw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LogOut, MessageSquareText, RefreshCw, RotateCcw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi, AlertTriangle, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
@@ -28,8 +28,18 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const navigate = useNavigate();
   const askConfirm = useUiStore(s => s.askConfirm);
   const key = [...scope, id];
-  const session = useQuery({ queryKey: key, queryFn: () => candidateInterviewApi.get(id), enabled: !!scope[2],
-    refetchInterval: query => query.state.data?.conversational && !query.state.data.startedAt && !query.state.data.completedAt ? 2000 : 15000 });
+  const session = useQuery({
+    queryKey: key,
+    queryFn: () => candidateInterviewApi.get(id),
+    enabled: !!scope[2],
+    refetchInterval: query => {
+      const d = query.state.data;
+      if (!d) return false;
+      if (d.conversational && !d.startedAt && !d.completedAt) return 2000;
+      if (d.status === "SCORING") return 3000;
+      return 15000;
+    },
+  });
   const [conversationBusy, setConversationBusy] = useState(false);
   const [conversationDirty, setConversationDirty] = useState(false);
   const onConversationActivity = useCallback((pending: boolean, draft: boolean) => { setConversationBusy(pending); setConversationDirty(draft); }, []);
@@ -145,52 +155,149 @@ export function AiInterviewRoom({ id }: { id: number }) {
 
   const content = <section className="mx-auto max-w-[1600px] space-y-4 pb-10 text-[var(--color-on-surface)]">
     <>
+      {/* Header with enhanced Visual Hierarchy */}
       <header className={`${card} ${inProgress ? "sticky top-2 z-20" : ""} flex flex-col gap-4 bg-white/95 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between`}>
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm"><ClipboardCheck className="size-5" aria-hidden="true" /></span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-base font-semibold sm:text-lg">{data.jobTitle ?? "AI Interview"}</h1>
-              <span className="rounded bg-[var(--color-surface-container)] px-2 py-0.5 font-mono text-xs text-[var(--color-on-surface-variant)]">#AI-{data.id}</span>
+        <div className="flex flex-wrap items-start sm:items-center gap-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md">
+            <ClipboardCheck className="size-6" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-on-surface)]">
+                {data.jobTitle ?? "AI Interview"}
+              </h1>
+              <span className="rounded-lg bg-[var(--color-surface-container-high)] px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-on-surface-variant)] border border-[var(--color-border-subtle)]">
+                #AI-{data.id}
+              </span>
             </div>
-            <p className="text-sm text-[var(--color-on-surface-variant)]">Phỏng vấn với SmartHire AI · {interviewStatus[data.status]}{data.attemptNumber ? ` · Lượt ${data.attemptNumber}/${data.maxAttempts ?? data.attemptNumber}` : ""}</p>
+
+            {/* Separated badges & status row (Clear Visual Hierarchy) */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Attempt count badge */}
+              {data.attemptNumber && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                  <RotateCcw className="size-3 text-blue-500" aria-hidden="true" />
+                  Lượt thi: {data.attemptNumber}/{data.maxAttempts ?? data.attemptNumber}
+                </span>
+              )}
+
+              {/* System status tag */}
+              {data.status === "ERROR" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200/80">
+                  <AlertTriangle className="size-3.5 text-amber-600" aria-hidden="true" />
+                  Lỗi xử lý · Chờ nhà tuyển dụng thử lại
+                </span>
+              ) : data.status === "PASSED" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-300">
+                  <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden="true" />
+                  Đạt vòng phỏng vấn
+                </span>
+              ) : data.status === "FAILED" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800 border border-rose-300">
+                  <AlertCircle className="size-3.5 text-rose-600" aria-hidden="true" />
+                  Chưa đạt ngưỡng điểm
+                </span>
+              ) : data.status === "SCORING" || !!data.completedAt ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 border border-indigo-200">
+                  <Sparkles className="size-3.5 text-indigo-500" aria-hidden="true" />
+                  Đã nộp · Chờ đánh giá
+                </span>
+              ) : inProgress ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
+                  </span>
+                  Đang phỏng vấn
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 border border-slate-200">
+                  {interviewStatus[data.status] ?? "Sẵn sàng"}
+                </span>
+              )}
+
+              <span className="text-xs text-[var(--color-on-surface-variant)] hidden sm:inline">
+                · Phỏng vấn trực tuyến cùng SmartHire AI
+              </span>
+            </div>
           </div>
         </div>
+
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          {!inProgress && <Link to="/interviews" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]"><ArrowLeft className="size-4" aria-hidden="true" />Về danh sách</Link>}
+          {!inProgress && (
+            <Link to="/interviews" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm font-semibold hover:bg-[var(--color-surface-container-low)] transition-colors">
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Về danh sách
+            </Link>
+          )}
+
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold ${inProgress ? "bg-emerald-50 text-emerald-700" : data.status === "ERROR" ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]"}`}>
-            <Wifi className="size-4" aria-hidden="true" />{inProgress ? "Phiên đang hoạt động" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · chờ chấm lại" : "Đề thi cần khôi phục") : data.completedAt ? "Đã nộp bài" : "Phòng thi chưa bắt đầu"}
+            <Wifi className="size-4" aria-hidden="true" />
+            {inProgress ? "Phiên đang hoạt động" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · Chờ chấm lại" : "Đề thi cần khôi phục") : data.completedAt ? "Đã nộp bài" : "Phòng thi chưa bắt đầu"}
           </span>
-          {inProgress && remaining != null ? <div role="timer" aria-label={`Thời gian còn lại ${formatRemaining(remaining)}`}
-            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 ${remaining <= 300 ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)]"}`}>
-            <Timer className="size-5 text-brand-primary" aria-hidden="true" />
-            <div className="text-right">
-              <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời gian còn lại</span>
-              <span className="font-mono text-base font-semibold tabular-nums">{timeUp ? "Hết giờ · đang nộp…" : formatRemaining(remaining)}
-                {data.durationMinutes && !timeUp ? <span className="text-sm font-normal text-[var(--color-on-surface-variant)]"> / {formatRemaining(data.durationMinutes * 60)}</span> : null}</span>
+
+          {inProgress && remaining != null ? (
+            <div role="timer" aria-label={`Thời gian còn lại ${formatRemaining(remaining)}`}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-2 ${remaining <= 300 ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)]"}`}>
+              <Timer className="size-5 text-brand-primary" aria-hidden="true" />
+              <div className="text-right">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời gian còn lại</span>
+                <span className="font-mono text-base font-semibold tabular-nums">
+                  {timeUp ? "Hết giờ · đang nộp…" : formatRemaining(remaining)}
+                  {data.durationMinutes && !timeUp ? <span className="text-sm font-normal text-[var(--color-on-surface-variant)]"> / {formatRemaining(data.durationMinutes * 60)}</span> : null}
+                </span>
+              </div>
             </div>
-          </div> : <div className="flex items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3.5 py-2" aria-label={`Thời lượng ${data.durationMinutes ?? 30} phút`}>
-            <Timer className="size-5 text-brand-primary" aria-hidden="true" />
-            <div className="text-right"><span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời lượng bài</span><span className="font-mono text-base font-semibold tabular-nums">{formatRemaining((data.durationMinutes ?? 30) * 60)}</span></div>
-          </div>}
-          {inProgress && <Button className="bg-[color:var(--color-error-container)] text-[color:var(--color-on-error-container)] shadow-none hover:bg-[color:var(--color-error-container)] hover:opacity-90" disabled={!canSubmit} onClick={submit}>
-            <LogOut className="size-4" aria-hidden="true" />{complete.isPending ? "Đang nộp…" : "Kết thúc"}
-          </Button>}
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3.5 py-2" aria-label={`Thời lượng ${data.durationMinutes ?? 30} phút`}>
+              <Timer className="size-5 text-brand-primary" aria-hidden="true" />
+              <div className="text-right">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời lượng bài</span>
+                <span className="font-mono text-base font-semibold tabular-nums">{formatRemaining((data.durationMinutes ?? 30) * 60)}</span>
+              </div>
+            </div>
+          )}
+
+          {inProgress && (
+            <Button className="bg-[color:var(--color-error-container)] text-[color:var(--color-on-error-container)] shadow-none hover:bg-[color:var(--color-error-container)] hover:opacity-90" disabled={!canSubmit} onClick={submit}>
+              <LogOut className="size-4" aria-hidden="true" />
+              {complete.isPending ? "Đang nộp…" : "Kết thúc"}
+            </Button>
+          )}
         </div>
       </header>
+
       {error && <p role="alert">{getApiErrorMessage(error)}</p>}
 
-      <section className="grid gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 md:grid-cols-3" aria-label="Tiến trình tuyển dụng">
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3"><CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-bold">VÒNG 1: CV SCREENING</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Đã hoàn tất · bạn đã được mời phỏng vấn</p></div></div>
-        <div className="flex items-center gap-3 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)] p-3"><Bot className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-xs font-bold text-[var(--color-primary)]">VÒNG 2: AI INTERVIEW</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">{inProgress ? "Đang thực hiện · câu trả lời được lưu theo từng câu" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · đang chờ chấm lại" : "Đang chờ khôi phục bộ câu hỏi") : data.completedAt ? "Đã nộp bài" : "Phòng thi đang chờ bắt đầu"}</p></div></div>
-        <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3"><LockKeyhole className="size-5 shrink-0 text-[var(--color-outline)]" aria-hidden="true" /><div><p className="text-xs font-semibold text-[var(--color-on-surface-variant)]">VÒNG 3: ASSESSMENT</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Mở theo kết quả của AI Interview</p></div></div>
-      </section>
-
-      {inProgress && !data.conversational && <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />}
+      {inProgress && !data.conversational && (
+        <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />
+      )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-8">
-          {data.conversational && (inProgress || !!data.completedAt) && <ConversationRoom id={id} active={!!inProgress} disabled={busy || timeUp} voiceEnabled={!!data.voiceEnabled} recordingEnabled={!!data.recordingEnabled} onActivity={onConversationActivity} />}
+          {/* RESULT CARD: Rendered FIRST after submission so candidates don't have to scroll past chat (Issue 1) */}
+          {data.completedAt && (
+            <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />
+          )}
+
+          {data.conversational && inProgress && (
+            <ConversationRoom
+              id={id}
+              active={!!inProgress}
+              disabled={busy || timeUp}
+              voiceEnabled={!!data.voiceEnabled}
+              recordingEnabled={!!data.recordingEnabled}
+              reportJson={data.reportJson}
+              status={data.status}
+              onActivity={onConversationActivity}
+              onComplete={() => {
+                if (!complete.isPending && inProgress) {
+                  complete.mutate();
+                }
+              }}
+            />
+          )}
+
           {inProgress && !data.conversational && questions.length > 0 && <>
             <InterviewQuestionPanel recordingEnabled={data.recordingEnabled} interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
               onSelect={setSelected} onSaved={saved} onDirty={onDirty} answerDuration={answerDuration} />
@@ -199,31 +306,36 @@ export function AiInterviewRoom({ id }: { id: number }) {
               <Button disabled={!canSubmit} onClick={submit}>{complete.isPending ? "Đang nộp…" : "Nộp bài phỏng vấn"}</Button>
             </div>
           </>}
-          {!inProgress && !data.completedAt && <InvitationCard
-            data={data}
-            busy={busy}
-            onReady={async (proctor) => {
-              if (data.conversational) {
-                setProctorSession(proctor);
-                start.mutate();
-                return;
-              }
-              try {
-                await start.mutateAsync();
-                setProctorSession(proctor);
-              } catch (cause) {
-                throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Vui lòng kiểm tra thiết bị và thử lại.`);
-              }
-            }}
-          />}
-          {data.completedAt && <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />}
-          {data.completedAt && questions.map((question, i) => <article key={question.id} className={`${card} space-y-3`}>
-            <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {i + 1}{question.stageTitle ? ` · ${question.stageTitle}` : ""}</p>
-            <h3 className="font-semibold">{question.questionText}</h3>
-            <p className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{submittedAnswer(question)}</p>
-            {question.correctOptions?.length ? <p className="text-sm">Đáp án đúng: {question.correctOptions.map(option => String.fromCharCode(65 + option)).join(", ")}</p> : question.correctOption != null && <p className="text-sm">Đáp án đúng: {String.fromCharCode(65 + question.correctOption)}</p>}
-            {question.explanation && <p className="whitespace-pre-wrap text-sm">Giải thích: {question.explanation}</p>}
-          </article>)}
+
+          {!inProgress && !data.completedAt && (
+            <InvitationCard
+              data={data}
+              busy={busy}
+              onReady={async (proctor) => {
+                if (data.conversational) {
+                  setProctorSession(proctor);
+                  start.mutate();
+                  return;
+                }
+                try {
+                  await start.mutateAsync();
+                  setProctorSession(proctor);
+                } catch (cause) {
+                  throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Vui lòng kiểm tra thiết bị và thử lại.`);
+                }
+              }}
+            />
+          )}
+
+          {data.completedAt && questions.map((question, i) => (
+            <article key={question.id} className={`${card} space-y-3`}>
+              <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {i + 1}{question.stageTitle ? ` · ${question.stageTitle}` : ""}</p>
+              <h3 className="font-semibold">{question.questionText}</h3>
+              <p className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{submittedAnswer(question)}</p>
+              {question.correctOptions?.length ? <p className="text-sm">Đáp án đúng: {question.correctOptions.map(option => String.fromCharCode(65 + option)).join(", ")}</p> : question.correctOption != null && <p className="text-sm">Đáp án đúng: {String.fromCharCode(65 + question.correctOption)}</p>}
+              {question.explanation && <p className="whitespace-pre-wrap text-sm">Giải thích: {question.explanation}</p>}
+            </article>
+          ))}
         </div>
         <aside className="flex flex-col gap-4 lg:sticky lg:top-32 lg:col-span-4">
           {inProgress && !data.conversational && <InterviewerCard question={questions[index]} done={done} total={questions.length} />}
@@ -337,17 +449,162 @@ function InvitationCard({ data, busy, onReady }: {
 function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateInterview; busy: boolean; retrying: boolean; onRetry: () => void }) {
   const finished = ["SCORED", "PASSED", "FAILED"].includes(data.status);
   const failedScoring = data.status === "ERROR";
-  return <section className={`${card} space-y-3`} aria-live="polite">
-    <h2 className="text-xl font-semibold">{finished ? "Kết quả AI Interview" : failedScoring ? "Đã nộp bài · Chưa chấm được" : "Đã nộp bài"}</h2>
-    <p className="text-sm">Đã nộp lúc {new Date(data.completedAt!).toLocaleString("vi-VN")}.{finished || failedScoring ? "" : " Câu trả lời đang được đánh giá; trang sẽ tự cập nhật."}</p>
-    {failedScoring && <p role="alert">Bài làm của bạn đã được lưu nhưng hệ thống chưa chấm được. Nhà tuyển dụng sẽ chấm lại; bạn không cần làm lại. Lỗi hệ thống không tính vào số lần làm.</p>}
-    {data.overallScore != null && <p>Điểm AI: <strong className="text-lg">{data.overallScore}/100</strong> · Ngưỡng đạt: {data.passingScore ?? "—"}/100</p>}
-    {data.status === "PASSED" && <Link className="inline-flex min-h-11 items-center text-brand-primary underline" to="/assessments">Đến vòng Assessment</Link>}
-    {data.status === "FAILED" && (data.canRetry
-      ? <div className="space-y-2"><p>Bạn chưa đạt nhưng vẫn còn lượt làm lại trước hạn. Lần làm mới có bộ câu hỏi mới.</p>
-          <Button disabled={busy} onClick={onRetry}><RotateCcw className="size-4" aria-hidden="true" />{retrying ? "Đang tạo lượt mới…" : "Làm lại AI Interview"}</Button></div>
-      : <p>Bạn chưa đạt ngưỡng và không còn lượt làm lại.</p>)}
-  </section>;
+  const isPassed = data.status === "PASSED";
+  const isFailed = data.status === "FAILED";
+  const isScoring = data.status === "SCORING" || (!finished && !failedScoring);
+
+  return (
+    <section
+      className={`${card} space-y-5 border ${
+        failedScoring
+          ? "border-amber-200/70 bg-[#fffdfa]"
+          : isPassed
+          ? "border-emerald-200/70 bg-[#fafffd]"
+          : isFailed
+          ? "border-rose-200/70 bg-[#fffbfb]"
+          : "border-blue-200/70 bg-[#fbfdff]"
+      }`}
+      aria-live="polite"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`flex size-8 items-center justify-center rounded-lg ${
+                failedScoring
+                  ? "bg-amber-100 text-amber-700"
+                  : isPassed
+                  ? "bg-emerald-100 text-emerald-700"
+                  : isFailed
+                  ? "bg-rose-100 text-rose-700"
+                  : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              {failedScoring ? (
+                <AlertTriangle className="size-4" aria-hidden="true" />
+              ) : isPassed ? (
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+              ) : isFailed ? (
+                <AlertCircle className="size-4" aria-hidden="true" />
+              ) : (
+                <Clock className="size-4" aria-hidden="true" />
+              )}
+            </span>
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+              {finished
+                ? "Kết quả đánh giá AI Interview"
+                : failedScoring
+                ? "Trạng thái bài thi: Đã nộp · Chờ chấm lại"
+                : "Trạng thái bài thi: Đã nộp thành công"}
+            </h2>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Thời điểm nộp bài: <strong>{new Date(data.completedAt!).toLocaleString("vi-VN")}</strong>
+          </p>
+        </div>
+
+        <div>
+          {failedScoring && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200/70">
+              <AlertTriangle className="size-3 text-amber-600" />
+              Chờ nhà tuyển dụng chấm lại
+            </span>
+          )}
+          {isScoring && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 animate-pulse">
+              <RefreshCw className="size-3 text-blue-600 animate-spin" />
+              AI đang phân tích & chấm điểm
+            </span>
+          )}
+          {isPassed && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
+              <CheckCircle2 className="size-3 text-emerald-600" />
+              Đạt tiêu chuẩn
+            </span>
+          )}
+          {isFailed && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800 border border-rose-200">
+              <AlertCircle className="size-3 text-rose-600" />
+              Chưa đạt ngưỡng
+            </span>
+          )}
+        </div>
+      </div>
+
+      {failedScoring && (
+        <div className="rounded-xl border border-amber-200/70 bg-amber-50/40 p-4 text-sm text-slate-700 leading-relaxed shadow-xs">
+          <p className="font-semibold flex items-center gap-2 text-amber-900 mb-1.5 text-sm">
+            <ShieldCheck className="size-4 text-amber-600" />
+            Bài làm của bạn đã được ghi nhận và bảo vệ an toàn
+          </p>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Toàn bộ câu trả lời và dữ liệu hội thoại đã được lưu trữ đầy đủ. Dịch vụ AI chấm điểm tạm thời gặp gián đoạn nên bài thi sẽ được nhà tuyển dụng kích hoạt chấm lại. <strong className="text-slate-800 font-semibold">Bạn không cần phải làm lại bài và số lượt thi của bạn hoàn toàn không bị ảnh hưởng.</strong>
+          </p>
+        </div>
+      )}
+
+      {isScoring && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-950 leading-relaxed">
+          <p className="text-xs sm:text-sm text-blue-900/90">
+            Hệ thống đang tiến hành đánh giá chi tiết theo 4 tiêu chí cốt lõi: <em>Kiến thức kỹ thuật, Khả năng giải quyết vấn đề, Tư duy lập luận</em> và <em>Kỹ năng giao tiếp</em>. Trang sẽ tự động hiển thị bảng điểm khi quá trình chấm hoàn tất.
+          </p>
+        </div>
+      )}
+
+      {data.overallScore != null && (
+        <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Điểm tổng kết</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-extrabold text-[var(--color-primary)]">{data.overallScore}</span>
+                <span className="text-sm font-semibold text-[var(--color-on-surface-variant)]">/ 100 điểm</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-xs text-[var(--color-on-surface-variant)] block">Ngưỡng điểm đạt</span>
+              <span className="text-base font-bold text-[var(--color-on-surface)]">{data.passingScore ?? 70}/100</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {data.status === "PASSED" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <p className="text-sm text-emerald-800 font-medium">
+            Chúc mừng bạn đã vượt qua vòng AI Interview! Bạn có thể tiếp tục làm bài kiểm tra Assessment.
+          </p>
+          <Link
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-700 transition-colors"
+            to="/assessments"
+          >
+            <span>Đến vòng Assessment</span>
+            <ArrowLeft className="size-4 rotate-180" aria-hidden="true" />
+          </Link>
+        </div>
+      )}
+
+      {data.status === "FAILED" && (
+        <div className="pt-2">
+          {data.canRetry ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--color-on-surface-variant)]">
+                Bạn chưa đạt ngưỡng điểm yêu cầu cho vị trí này, tuy nhiên bạn vẫn còn lượt làm bài trước thời hạn.
+              </p>
+              <Button disabled={busy} onClick={onRetry} className="gap-2">
+                <RotateCcw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+                {retrying ? "Đang tạo lượt mới…" : "Làm lại AI Interview"}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--color-on-surface-variant)]">
+              Bạn chưa đạt ngưỡng điểm và đã sử dụng hết số lượt làm bài phỏng vấn cho vị trí này.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function submittedAnswer(question: AiQuestion) {

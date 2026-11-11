@@ -83,6 +83,7 @@ public class DropboxSignClient {
         private final String signatureRequestId;
         private final boolean complete;
         private final boolean declined;
+        private final boolean canceled;
         private final String detailsUrl;
         private final String signatureId;
         private final String signerName;
@@ -206,6 +207,7 @@ public class DropboxSignClient {
         String sigReqId = sigReq.path("signature_request_id").asText(null);
         boolean isComplete = sigReq.path("is_complete").asBoolean(false);
         boolean isDeclined = sigReq.path("is_declined").asBoolean(false);
+        boolean isCanceled = sigReq.path("is_canceled").asBoolean(false);
         String detailsUrl = sigReq.path("details_url").asText(null);
 
         String signatureId = null;
@@ -233,6 +235,7 @@ public class DropboxSignClient {
                 .signatureRequestId(sigReqId)
                 .complete(isComplete)
                 .declined(isDeclined)
+                .canceled(isCanceled)
                 .detailsUrl(detailsUrl)
                 .signatureId(signatureId)
                 .signerName(signerName)

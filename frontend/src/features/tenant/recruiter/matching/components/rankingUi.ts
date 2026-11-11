@@ -4,6 +4,7 @@ const buttonBase = "inline-flex min-h-11 cursor-pointer items-center justify-cen
 export const button = `${buttonBase} border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] text-[var(--color-on-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary-hover)]`;
 export const primary = `${buttonBase} border border-transparent bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)] hover:shadow-md`;
 export const detailAction = `${buttonBase} border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] text-[var(--color-on-surface)] hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary-hover)] hover:text-[var(--color-on-primary)] hover:shadow-md`;
+export const stickyDetailSidebar = "lg:sticky lg:top-[132px] lg:self-start lg:max-h-[calc(100dvh-9.5rem)] lg:overflow-y-auto";
 export const muted = "text-sm text-[var(--color-on-surface-variant)]";
 export const labels: Record<string, string> = {
   skills: "CV Screening", experience: "Kinh nghiệm", assessment: "Assessment", interview: "AI Interview",

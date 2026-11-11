@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { BrainCircuit, Building2, ArrowRight, Menu, X } from "lucide-react";
+import { Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useLandingModal } from "../context/LandingModalContext";
 
 export function LandingHeader() {
-  const { openWorkspaceModal, openDemoModal } = useLandingModal();
+  const { openWorkspaceModal, openDemoModal, openOrderLookupModal } = useLandingModal();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+
+  const isPricingPage = location.pathname === "/pricing" || location.pathname === "/packages";
 
   const navLinks = [
     { label: "Giải pháp AI", to: "/solutions" },
@@ -29,17 +32,10 @@ export function LandingHeader() {
         <Link
           to="/"
           onClick={handleLogoClick}
-          className="flex items-center gap-3.5 select-none shrink-0 group"
+          className="flex items-center select-none shrink-0 group"
           aria-label="Về trang chủ SmartHire.AI"
         >
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/25 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
-            <BrainCircuit className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
-          </div>
+          <SmartHireLogo className="h-10 sm:h-11" />
         </Link>
 
         {/* Navigation Links - Desktop */}
@@ -65,6 +61,21 @@ export function LandingHeader() {
 
         {/* Action CTAs & Mobile Hamburger */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {/* Order Lookup button - prominently visible when viewing Pricing */}
+          {isPricingPage && (
+            <button
+              type="button"
+              onClick={openOrderLookupModal}
+              className="group flex min-h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/80 px-3 sm:px-4 text-sm font-semibold text-blue-700 shadow-2xs transition-all hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300 active:scale-95"
+              title="Tra cứu đơn hàng đã đặt nhưng chưa thanh toán"
+              aria-label="Tra cứu đơn hàng"
+            >
+              <PackageSearch className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">Tra cứu đơn hàng</span>
+              <span className="sm:hidden">Tra cứu</span>
+            </button>
+          )}
+
           <button
             onClick={openWorkspaceModal}
             className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 sm:px-4"
@@ -116,6 +127,20 @@ export function LandingHeader() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2">
+            {isPricingPage && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openOrderLookupModal();
+                }}
+                className="w-full py-2.5 px-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-100"
+              >
+                <PackageSearch className="w-4 h-4 text-blue-600" />
+                <span>Tra cứu đơn hàng đã đặt</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setMobileMenuOpen(false);

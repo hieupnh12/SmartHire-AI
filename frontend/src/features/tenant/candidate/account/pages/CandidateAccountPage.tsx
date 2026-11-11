@@ -13,6 +13,9 @@ import type { AccountProfile } from "@/features/tenant/auth/types";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
+import { getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantTheme } from "@/lib/tenantTheme";
+import { MobileAppSyncCard } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(1, "Họ tên không được để trống").max(255, "Họ tên tối đa 255 ký tự"),
@@ -33,6 +36,8 @@ const inputClass = "min-h-11 w-full rounded-lg border border-[var(--color-border
 const PROFILE_KEY = ["auth", "account-profile"] as const;
 
 export function CandidateAccountPage() {
+  const tenantCode = getTenantIdFromWindow() || "acme";
+  const theme = getTenantTheme(tenantCode);
   const profile = useQuery({ queryKey: PROFILE_KEY, queryFn: authApi.profile });
 
   return <section className="mx-auto max-w-3xl space-y-6 text-[var(--color-on-surface)]" aria-labelledby="account-title">
@@ -47,6 +52,7 @@ export function CandidateAccountPage() {
 
     {profile.data && <>
       <ProfileSection profile={profile.data} />
+      <MobileAppSyncCard tenantName={theme.name} tenantCode={tenantCode} />
       <PasswordSection hasPassword={profile.data.hasPassword} />
       <Link to="/notifications?tab=settings" className="flex items-center gap-4 rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-[var(--shadow-card)] transition-colors hover:bg-[var(--color-surface-alt)]">
         <SectionIcon icon={Bell} />

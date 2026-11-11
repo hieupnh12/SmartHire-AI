@@ -177,10 +177,33 @@ public class MasterAiConfigService {
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiModelConfigDto> getAllTaskConfigs() {
-        return modelConfigRepository.findAll().stream()
+        List<AiModelConfigDto> configs = modelConfigRepository.findAll().stream()
                 .sorted(java.util.Comparator.comparing(AiModelConfig::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .map(this::toModelConfigDto)
                 .collect(Collectors.toList());
+        if (configs.stream().noneMatch(c -> "GITHUB_ANALYSIS".equalsIgnoreCase(c.getTaskType()))) {
+            configs.add(buildDefaultGithubAnalysisDto());
+        }
+        return configs;
+    }
+
+    private AiModelConfigDto buildDefaultGithubAnalysisDto() {
+        AiFallbackStep defaultStep = new AiFallbackStep("GEMINI", "gemini-3.5-flash-lite", 60, new BigDecimal("0.20"));
+        String chainJson = "[{\"provider\":\"GEMINI\",\"model\":\"gemini-3.5-flash-lite\",\"timeoutSeconds\":60,\"temperature\":0.20}]";
+        return AiModelConfigDto.builder()
+                .taskType("GITHUB_ANALYSIS")
+                .taskName("Phân tích bằng chứng GitHub")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .temperature(new BigDecimal("0.20"))
+                .maxTokens(4096)
+                .timeoutSeconds(60)
+                .failoverProvider("GEMINI")
+                .failoverModel("gemini-3.5-flash-lite")
+                .fallbackChain(chainJson)
+                .fallbackSteps(List.of(defaultStep))
+                .isActive(true)
+                .build();
     }
 
     @Transactional("masterTransactionManager")

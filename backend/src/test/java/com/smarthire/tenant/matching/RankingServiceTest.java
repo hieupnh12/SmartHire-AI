@@ -2,6 +2,7 @@ package com.smarthire.tenant.matching;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.CvStatus;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -94,17 +95,17 @@ class RankingServiceTest {
         assertThatThrownBy(() -> service.select(2, new Selection(999L, null, null))).isInstanceOf(IllegalArgumentException.class);
         verify(data, never()).save(any());
     }
-    @Test void multipleSourcesRequireExplicitSelection() throws Exception {
+    @Test void multipleSourcesAutoPickBestAvailableSource() throws Exception {
         Job job = job(); when(data.job(1, false)).thenReturn(job);
         Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(candidate());
         when(data.applications(1)).thenReturn(List.of(app));
-        Cv first = new Cv(); first.setId(10L); Cv second = new Cv(); second.setId(11L);
+        Cv first = new Cv(); first.setId(10L); first.setStatus(CvStatus.UPLOADED);
+        Cv second = new Cv(); second.setId(11L); second.setStatus(CvStatus.ANALYZED);
         when(data.cvs(2)).thenReturn(List.of(first, second));
         RankingConfig config = new RankingConfig(); config.setConfigJson(mapper.writeValueAsString(new Config(new Weights(35,15,30,20),Map.of("other",100),24,1)));
         when(data.config(1)).thenReturn(config);
         var row = service.board(1).rows().getFirst();
-        assertThat(row.result().components().getFirst().state()).isEqualTo("SELECT_SOURCE");
-        assertThat(row.result().score()).isNull(); verify(data, never()).skills(anyLong());
+        assertThat(row.sources().cvId()).isEqualTo(11L);
     }
     private Job job() {
         User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter");

@@ -8,12 +8,13 @@ import {
   ExternalLink,
   ArrowRight,
   ShieldCheck,
-  BrainCircuit,
   Receipt,
   RotateCcw,
   Mail,
 } from "lucide-react";
 import { checkoutApi, VnPayVerifyReturnData } from "@/api/master/checkoutApi";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { getTenantIdFromWindow } from "@/lib/tenant";
 
 export function VnPayReturnPage() {
   const [searchParams] = useSearchParams();
@@ -47,26 +48,35 @@ export function VnPayReturnPage() {
       });
   }, [searchParams]);
 
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const baseDomain = isLocalhost ? "localhost:5173" : "smarthire.ai";
-  const protocol = isLocalhost ? "http" : "https";
-  
+  const currentWindowTenant = getTenantIdFromWindow();
+  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.endsWith(".localhost");
+  const baseDomain = isLocalhost ? `localhost:${window.location.port || "5173"}` : "smarthire.top";
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+
+  const isUpgrade = result?.paymentPurpose === "UPGRADE";
+  const isRenewal = result?.paymentPurpose === "RENEWAL";
+  const isSelfServeTenantPayment = isUpgrade || isRenewal;
+
+  const isSameSubdomainHost = Boolean(
+    currentWindowTenant &&
+      (!result?.subdomain || currentWindowTenant.toLowerCase() === result.subdomain.toLowerCase()),
+  );
+
   const workspaceUrl = result?.subdomain
     ? `${protocol}://${result.subdomain}.${baseDomain}/internal/login`
     : "#";
+
+  const billingUrl = result?.subdomain
+    ? `${protocol}://${result.subdomain}.${baseDomain}/internal/admin/billing`
+    : "/internal/admin/billing";
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased pb-24">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
+          <Link to="/" className="flex items-center group">
+            <SmartHireLogo className="h-9" />
           </Link>
 
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-100/80 px-3 py-1.5 rounded-full border border-slate-200">
@@ -97,12 +107,21 @@ export function VnPayReturnPage() {
               <p className="text-sm text-rose-600 mt-2 font-medium">{errorMsg}</p>
             </div>
             <div className="flex items-center justify-center gap-4 pt-4">
-              <Link
-                to="/pricing"
-                className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
-              >
-                Quay lại Bảng giá
-              </Link>
+              {currentWindowTenant ? (
+                <Link
+                  to="/internal/admin/billing"
+                  className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                >
+                  Quay lại Quản lý Gói &amp; Hóa đơn
+                </Link>
+              ) : (
+                <Link
+                  to="/pricing"
+                  className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                >
+                  Quay lại Bảng giá
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -118,10 +137,18 @@ export function VnPayReturnPage() {
                 Thanh Toán VNPay Thành Công
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Không Gian Làm Việc Đã Được Kích Hoạt!
+                {isUpgrade
+                  ? "Nâng Cấp Gói Dịch Vụ Thành Công!"
+                  : isRenewal
+                    ? "Gia Hạn Bản Quyền Thành Công!"
+                    : "Không Gian Làm Việc Đã Được Kích Hoạt!"}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-                Cảm ơn quý doanh nghiệp đã lựa chọn SmartHire-AI. Hệ thống đã tự động cấp phát cơ sở dữ liệu riêng biệt và kích hoạt dịch vụ thành công.
+                {isUpgrade
+                  ? `Gói ${result.planName || "dịch vụ mới"} và hạn mức nâng cấp đã được kích hoạt ngay cho không gian làm việc ${result.workspaceName || result.subdomain || "của bạn"}.`
+                  : isRenewal
+                    ? `Bản quyền gói ${result.planName || "dịch vụ"} cho không gian làm việc ${result.workspaceName || result.subdomain || "của bạn"} đã được gia hạn thành công.`
+                    : "Cảm ơn quý doanh nghiệp đã lựa chọn SmartHire-AI. Hệ thống đã tự động cấp phát cơ sở dữ liệu riêng biệt và kích hoạt dịch vụ thành công."}
               </p>
             </div>
 
@@ -154,6 +181,12 @@ export function VnPayReturnPage() {
                   <span className="text-[11px] text-slate-400 block">Thời gian thanh toán</span>
                   <span className="font-medium text-slate-800">{result.payDate || "Ngay lập tức"}</span>
                 </div>
+                {result.planName && (
+                  <div className="sm:col-span-2">
+                    <span className="text-[11px] text-slate-400 block">Gói áp dụng</span>
+                    <span className="font-bold text-slate-900">{result.planName}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -167,51 +200,77 @@ export function VnPayReturnPage() {
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600">Doanh nghiệp:</span>
-                  <span className="font-bold text-slate-900">{result.workspaceName || "Acme Corp"}</span>
+                  <span className="font-bold text-slate-900">{result.workspaceName || "SmartHire Workspace"}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Địa chỉ truy cập Workspace:</span>
-                  <a
-                    href={workspaceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                  >
-                    <span>{protocol}://{result.subdomain}.{baseDomain}</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Email quản trị viên:</span>
-                  <span className="font-semibold text-slate-900">{result.contactEmail}</span>
-                </div>
+                {result.subdomain && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Địa chỉ truy cập Workspace:</span>
+                    <a
+                      href={workspaceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <span>{protocol}://{result.subdomain}.{baseDomain}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+                {result.contactEmail && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Email quản trị viên:</span>
+                    <span className="font-semibold text-slate-900">{result.contactEmail}</span>
+                  </div>
+                )}
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/90 border border-blue-200/80 text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
-                <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <p>
-                  Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{result.contactEmail}</strong>. Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
-                </p>
-              </div>
+              {!isSelfServeTenantPayment && (
+                <div className="p-3.5 rounded-xl bg-white/90 border border-blue-200/80 text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
+                  <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <p>
+                    Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{result.contactEmail}</strong>. Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-              <a
-                href={workspaceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Truy Cập Workspace</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              {isSelfServeTenantPayment ? (
+                isSameSubdomainHost ? (
+                  <Link
+                    to="/internal/admin/billing"
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Quay lại Quản lý Gói &amp; Hóa đơn</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <a
+                    href={billingUrl}
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Quay lại Quản lý Gói &amp; Hóa đơn</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </a>
+                )
+              ) : (
+                <a
+                  href={workspaceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Truy Cập Workspace</span>
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              )}
 
               <Link
-                to="/"
+                to={isSelfServeTenantPayment && isSameSubdomainHost ? "/internal/admin" : "/"}
                 className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors text-center"
               >
-                Về Trang Chủ
+                {isSelfServeTenantPayment ? "Về Tổng quan Quản trị" : "Về Trang Chủ"}
               </Link>
             </div>
           </div>
@@ -243,18 +302,38 @@ export function VnPayReturnPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+              {isSelfServeTenantPayment || currentWindowTenant ? (
+                isSameSubdomainHost ? (
+                  <Link
+                    to="/internal/admin/billing"
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Quay lại Thanh Toán Hóa Đơn</span>
+                  </Link>
+                ) : (
+                  <a
+                    href={billingUrl}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Quay lại Thanh Toán Hóa Đơn</span>
+                  </a>
+                )
+              ) : (
+                <Link
+                  to="/pricing"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Thử Thanh Toán Lại</span>
+                </Link>
+              )}
               <Link
-                to="/pricing"
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Thử Thanh Toán Lại</span>
-              </Link>
-              <Link
-                to="/"
+                to={isSelfServeTenantPayment && isSameSubdomainHost ? "/internal/admin" : "/"}
                 className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
               >
-                Về Trang Chủ
+                {isSelfServeTenantPayment ? "Về Tổng quan Quản trị" : "Về Trang Chủ"}
               </Link>
             </div>
           </div>

@@ -4,11 +4,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.config.PayPalProperties;
 import com.smarthire.domain.master.entity.Invoice;
+import com.smarthire.domain.master.entity.InvoiceLineItem;
 import com.smarthire.domain.master.entity.PaymentTransaction;
+import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
+import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
 import com.smarthire.domain.master.repository.PaymentTransactionRepository;
+import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
+import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import com.smarthire.master.billing.dto.PayPalVerifyReturnRequest;
 import com.smarthire.master.billing.dto.PayPalVerifyReturnResponse;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +46,15 @@ public class PayPalService {
     private final TenantInfoRepository tenantRepository;
     private final MasterBillingService masterBillingService;
     private final PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired(required = false)
+    private InvoiceLineItemRepository invoiceLineItemRepository;
+
+    @Autowired(required = false)
+    private TenantSubscriptionRepository subscriptionRepository;
+
+    @Autowired(required = false)
+    private SubscriptionPlanRepository planRepository;
     
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -153,6 +171,9 @@ public class PayPalService {
                 returnTxn.setRawResponse(order.toString());
                 paymentTransactionRepository.save(returnTxn);
 
+                String paymentPurpose = resolvePaymentPurpose(invoice);
+                String planName = resolvePlanName(invoice);
+
                 if (isCompleted) {
                     if (!"PAID".equalsIgnoreCase(invoice.getStatus())) {
                         masterBillingService.completePaidInvoice(invoice.getId(), "PAYPAL", request.getOrderId(), "PayPal Verification");
@@ -170,6 +191,8 @@ public class PayPalService {
                             .contactEmail(tenant != null ? tenant.getContactEmail() : null)
                             .amountVnd(invoice.getAmount())
                             .transactionNo(request.getOrderId())
+                            .paymentPurpose(paymentPurpose)
+                            .planName(planName)
                             .build();
                 } else {
                     return PayPalVerifyReturnResponse.builder()
@@ -198,6 +221,39 @@ public class PayPalService {
                 .message("Lỗi khi xác thực giao dịch với PayPal")
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .build();
+    }
+
+    private String resolvePaymentPurpose(Invoice invoice) {
+        if (invoiceLineItemRepository == null || invoice == null || invoice.getId() == null) {
+            return "ONBOARDING";
+        }
+        List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+        if (items != null) {
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_UPGRADE".equalsIgnoreCase(i.getItemType()))) {
+                return "UPGRADE";
+            }
+            if (items.stream().anyMatch(i -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(i.getItemType()))) {
+                return "RENEWAL";
+            }
+        }
+        return "ONBOARDING";
+    }
+
+    private String resolvePlanName(Invoice invoice) {
+        if (invoice == null || invoice.getSubscriptionId() == null || subscriptionRepository == null) {
+            return null;
+        }
+        TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+        if (sub == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sub.getPlanNameSnapshot())) {
+            return sub.getPlanNameSnapshot();
+        }
+        if (sub.getPlanId() != null && planRepository != null) {
+            return planRepository.findById(sub.getPlanId()).map(SubscriptionPlan::getName).orElse(null);
+        }
+        return null;
     }
 
     private void validateOrderMatchesInvoice(JsonNode order, Invoice invoice) {
