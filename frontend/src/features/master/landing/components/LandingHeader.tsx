@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { BrainCircuit, Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useLandingModal } from "../context/LandingModalContext";
 
 export function LandingHeader() {
@@ -31,17 +32,10 @@ export function LandingHeader() {
         <Link
           to="/"
           onClick={handleLogoClick}
-          className="flex items-center gap-3.5 select-none shrink-0 group"
+          className="flex items-center select-none shrink-0 group"
           aria-label="Về trang chủ SmartHire.AI"
         >
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/25 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
-            <BrainCircuit className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
-          </div>
+          <SmartHireLogo className="h-10 sm:h-11" />
         </Link>
 
         {/* Navigation Links - Desktop */}
