@@ -7,6 +7,7 @@ import {
   Cpu,
   FileDown,
   Gauge,
+  HelpCircle,
   PowerOff,
   RefreshCw,
   RotateCcw,
@@ -23,6 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { PageSkeleton } from "@/components/ux/Skeleton";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
@@ -64,17 +67,34 @@ function PageHeader({
   );
 }
 
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
 function MetricCard({
   icon: Icon,
   label,
   value,
   detail,
+  tooltip,
   tone = "blue",
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  detail: string;
+  detail?: string;
+  tooltip?: string;
   tone?: "blue" | "violet" | "amber" | "emerald";
 }) {
   const tones = {
@@ -87,10 +107,11 @@ function MetricCard({
     <article className={cn(surface, "p-5")}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {label}
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <span>{label}</span>
+            {tooltip && <HelpTip content={tooltip} label={`Giải thích ${label}`} />}
           </p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-600">
             {value}
           </p>
         </div>
@@ -98,7 +119,7 @@ function MetricCard({
           <Icon className="size-5" aria-hidden="true" />
         </span>
       </div>
-      <p className="mt-3 text-xs text-slate-500">{detail}</p>
+      {detail && <p className="mt-3 text-xs text-slate-500">{detail}</p>}
     </article>
   );
 }
@@ -184,9 +205,6 @@ function AiUsageReportView() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        eyebrow="Hệ thống / AI Metering & Cost"
-        title="Báo cáo sử dụng AI"
-        description="Theo dõi thực tế số lượt gọi AI, tổng lượng Token (Prompt + Completion) và đối soát chi phí USD theo từng Tenant & tác vụ."
         action={
           <div className="flex items-center gap-2">
             <button
@@ -224,51 +242,54 @@ function AiUsageReportView() {
           icon={BrainCircuit}
           label="CV đã phân tích"
           value={(report?.totalCvParses ?? 0).toLocaleString("vi-VN")}
-          detail={`Trong ${months} tháng gần nhất`}
+          tooltip={`Tổng số lượt AI đã phân tích CV trong ${months} tháng gần nhất.`}
         />
         <MetricCard
           icon={Bot}
-          label="Giờ AI interview"
+          label="Giờ phỏng vấn AI"
           value={`${(report?.totalInterviewHours ?? 0).toLocaleString("vi-VN")} giờ`}
-          detail="Tổng thời lượng hội thoại phỏng vấn AI"
+          tooltip="Tổng thời lượng hội thoại phỏng vấn AI trong kỳ báo cáo."
           tone="violet"
         />
         <MetricCard
           icon={Sparkles}
-          label="Tổng lượt gọi & Token AI"
+          label="Tổng lượt gọi AI"
           value={(report?.totalAiRequests ?? 0).toLocaleString("vi-VN")}
-          detail={`${(report?.totalTokensConsumed ?? 0).toLocaleString("vi-VN")} tokens · Thành công ${report?.successRatePercent ?? 100}%${report?.avgLatencyMs ? ` · TB ${report.avgLatencyMs}ms` : ""}`}
+          tooltip={`${(report?.totalTokensConsumed ?? 0).toLocaleString("vi-VN")} token đã tiêu thụ · Tỷ lệ thành công ${report?.successRatePercent ?? 100}%${report?.avgLatencyMs ? ` · Độ trễ TB ${report.avgLatencyMs}ms` : ""}.`}
           tone="emerald"
         />
         <MetricCard
           icon={Cpu}
-          label="Chi phí API ước tính"
+          label="Chi phí AI ước tính"
           value={`$${Number(report?.totalEstimatedCostUsd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
-          detail="Tính theo bảng giá Input/Output 1M Tokens"
+          tooltip="Chi phí ước tính theo bảng giá dữ liệu đầu vào và đầu ra."
           tone="amber"
         />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className={cn(surface, "p-5 sm:p-6")}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-slate-950">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-slate-600">
                 Xu hướng tiêu thụ {months} tháng
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Biểu đồ tương quan CV Screening, Giờ Phỏng vấn AI và Tổng Request AI theo tháng
-              </p>
+              <HelpTip
+                content="Biểu đồ theo dõi số lượt lọc CV, giờ phỏng vấn AI và tổng lượt gọi AI theo từng tháng."
+                label="Giải thích xu hướng tiêu thụ AI"
+              />
             </div>
-            <select
-              aria-label="Khoảng thời gian báo cáo"
-              value={months}
-              onChange={(e) => setMonths(Number(e.target.value))}
-              className="min-h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600"
-            >
-              <option value={6}>6 tháng gần nhất</option>
-              <option value={12}>12 tháng gần nhất</option>
-            </select>
+            <div className="w-44">
+              <CustomSelect
+                ariaLabel="Khoảng thời gian báo cáo"
+                value={String(months)}
+                onChange={(val) => setMonths(Number(val))}
+                options={[
+                  { value: "6", label: "6 tháng gần nhất" },
+                  { value: "12", label: "12 tháng gần nhất" },
+                ]}
+              />
+            </div>
           </div>
 
           <div className="mt-7 flex h-64 items-end gap-3 border-b border-slate-200 pb-3 sm:gap-5">
@@ -282,17 +303,17 @@ function AiUsageReportView() {
                     <span
                       className="w-2.5 rounded-t bg-blue-500 sm:w-4 transition-all"
                       style={{ height: `${cvPct}%` }}
-                      title={`CV: ${item.cvCount.toLocaleString("vi-VN")} lượt`}
+                      title={`Lọc CV: ${item.cvCount.toLocaleString("vi-VN")} lượt`}
                     />
                     <span
                       className="w-2.5 rounded-t bg-violet-400 sm:w-4 transition-all"
                       style={{ height: `${intPct}%` }}
-                      title={`Interview: ${item.interviewHours} giờ`}
+                      title={`Phỏng vấn AI: ${item.interviewHours} giờ`}
                     />
                     <span
                       className="w-2.5 rounded-t bg-cyan-400 sm:w-4 transition-all"
                       style={{ height: `${reqPct}%` }}
-                      title={`Requests: ${item.aiRequests.toLocaleString("vi-VN")} · Cost: $${item.estimatedCostUsd}`}
+                      title={`Tổng lượt gọi: ${item.aiRequests.toLocaleString("vi-VN")} · Chi phí: $${item.estimatedCostUsd}`}
                     />
                   </div>
                   <span className="mt-2 text-center text-xs font-medium text-slate-500">
@@ -305,30 +326,33 @@ function AiUsageReportView() {
           <div className="mt-4 flex flex-wrap gap-5 text-xs text-slate-500">
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-blue-500" />
-              CV screening
+              Lọc CV
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-violet-400" />
-              Giờ AI interview
+              Giờ phỏng vấn AI
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-cyan-400" />
-              Tổng AI Requests
+              Tổng lượt gọi AI
             </span>
           </div>
         </section>
 
         <section className={cn(surface, "p-5 sm:p-6")}>
-          <h2 className="font-semibold text-slate-950">Phân bổ chi phí theo Task</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Chi phí USD thực tế và tỷ trọng theo từng tác vụ AI
-          </p>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-slate-600">Phân bổ chi phí theo tác vụ</h2>
+            <HelpTip
+              content="Chi phí ước tính (USD) và tỷ trọng tiêu thụ theo từng nhóm tác vụ AI."
+              label="Giải thích phân bổ chi phí theo tác vụ"
+            />
+          </div>
           <div className="mt-6 space-y-5">
             {(report?.costByTask || []).map((item) => (
               <div key={item.taskType}>
                 <div className="mb-1.5 flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-700">{item.label}</span>
-                  <span className="font-bold text-slate-900">
+                  <span className="font-bold text-slate-600">
                     ${Number(item.costUsd).toFixed(4)} ({item.sharePercent}%)
                   </span>
                 </div>
@@ -342,8 +366,8 @@ function AiUsageReportView() {
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  {item.requests.toLocaleString("vi-VN")} requests ·{" "}
-                  {item.totalTokens.toLocaleString("vi-VN")} tokens
+                  {item.requests.toLocaleString("vi-VN")} lượt ·{" "}
+                  {item.totalTokens.toLocaleString("vi-VN")} token
                 </p>
               </div>
             ))}
@@ -352,29 +376,56 @@ function AiUsageReportView() {
       </div>
 
       <section className={cn(surface, "overflow-hidden")}>
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-slate-950">Mức sử dụng & Chi phí theo Tenant</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Dữ liệu thực tế tổng hợp từ bảng Metering (`tenant_ai_usage_daily` & `tenant_usage_daily`)
-          </p>
+        <div className="flex items-center gap-2 border-b border-slate-100 p-5">
+          <h2 className="font-semibold text-slate-600">
+            Mức sử dụng & Chi phí theo doanh nghiệp
+          </h2>
+          <HelpTip
+            content="Tổng hợp số lượt gọi AI, token đã dùng và chi phí ước tính theo từng doanh nghiệp."
+            label="Giải thích mức sử dụng theo doanh nghiệp"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Tenant / Gói</th>
-                <th className="px-4 py-3 text-right">CV screening</th>
-                <th className="px-4 py-3 text-right">AI interview</th>
-                <th className="px-4 py-3 text-right">Tokens tiêu thụ</th>
-                <th className="px-4 py-3 text-right">Chi phí API (USD)</th>
-                <th className="px-5 py-3 text-right">Biến động tháng</th>
+                <th className="px-5 py-3">Doanh nghiệp / Gói</th>
+                <th className="px-4 py-3 text-right">Lọc CV</th>
+                <th className="px-4 py-3 text-right">Phỏng vấn AI</th>
+                <th className="px-4 py-3 text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>Token tiêu thụ</span>
+                    <HelpTip
+                      content="Tổng lượng dữ liệu văn bản (input và output) đã xử lý."
+                      label="Giải thích Token tiêu thụ"
+                    />
+                  </span>
+                </th>
+                <th className="px-4 py-3 text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>Chi phí ước tính</span>
+                    <HelpTip
+                      content="Chi phí AI ước tính quy đổi theo USD."
+                      label="Giải thích Chi phí ước tính"
+                    />
+                  </span>
+                </th>
+                <th className="px-5 py-3 text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>Biến động tháng</span>
+                    <HelpTip
+                      content="Tỷ lệ tăng hoặc giảm mức sử dụng AI so với tháng trước."
+                      label="Giải thích Biến động tháng"
+                    />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {(report?.tenantUsages || []).length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate-500">
-                    Chưa có dữ liệu tiêu thụ AI của các Tenant.
+                    Chưa có dữ liệu tiêu thụ AI của các doanh nghiệp.
                   </td>
                 </tr>
               ) : (
@@ -384,7 +435,7 @@ function AiUsageReportView() {
                     className="border-t border-slate-100 hover:bg-blue-50/30"
                   >
                     <td className="px-5 py-4">
-                      <strong className="block font-semibold text-slate-900">
+                      <strong className="block font-semibold text-slate-600">
                         {row.tenantName}
                       </strong>
                       <span className="text-xs text-slate-500">
@@ -400,7 +451,7 @@ function AiUsageReportView() {
                     <td className="px-4 py-4 text-right text-slate-600">
                       {row.totalTokens.toLocaleString("vi-VN")}
                     </td>
-                    <td className="px-4 py-4 text-right font-semibold text-slate-900">
+                    <td className="px-4 py-4 text-right font-semibold text-slate-600">
                       ${Number(row.estimatedCostUsd).toFixed(4)}
                     </td>
                     <td
@@ -439,7 +490,7 @@ function AiQuotaManagementView() {
       setRows(data);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || err.message || "Không thể tải hạn ngạch AI"
+        err.response?.data?.message || err.message || "Không thể tải hạn mức AI"
       );
     } finally {
       setLoading(false);
@@ -490,7 +541,7 @@ function AiQuotaManagementView() {
     askConfirm({
       title: enablingKill ? "Khóa khẩn cấp AI" : "Mở khóa AI",
       description: enablingKill
-        ? `Khóa khẩn cấp toàn bộ tính năng AI (CV Screening & AI Interview) của "${row.tenantName}"? Mọi API AI của tenant này sẽ bị tạm dừng ngay lập tức.`
+        ? `Khóa khẩn cấp toàn bộ tính năng AI (lọc CV & phỏng vấn AI) của "${row.tenantName}"? Mọi tác vụ AI của doanh nghiệp này sẽ tạm dừng ngay lập tức.`
         : `Mở khóa lại hạn mức AI theo gói mặc định cho "${row.tenantName}"?`,
       confirmLabel: enablingKill ? "Khóa khẩn cấp" : "Mở khóa",
       danger: enablingKill,
@@ -506,11 +557,11 @@ function AiQuotaManagementView() {
           );
           toast.success(
             enablingKill
-              ? `Đã kích hoạt Kill Switch cho "${row.tenantName}"`
+              ? `Đã khóa AI khẩn cấp cho "${row.tenantName}"`
               : `Đã mở khóa AI cho "${row.tenantName}"`
           );
         } catch (err: any) {
-          toast.error(err.response?.data?.message || err.message || "Lỗi khi cập nhật Kill Switch");
+          toast.error(err.response?.data?.message || err.message || "Lỗi khi cập nhật trạng thái AI");
         } finally {
           setSavingId(null);
         }
@@ -559,9 +610,6 @@ function AiQuotaManagementView() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        eyebrow="Hệ thống / Tenant Quota Override & Kill Switch"
-        title="Quản lý hạn ngạch AI"
-        description="Can thiệp hạn mức AI riêng cho từng Tenant (Top-up / Bonus Quota, giới hạn tốc độ RPM mỗi phút, đặt -1 cho Không giới hạn, hoặc bật Kill Switch khóa AI khẩn cấp). Đồng bộ trực tiếp với Redis Quota Guard."
         action={
           <button
             type="button"
@@ -583,64 +631,94 @@ function AiQuotaManagementView() {
 
       <section
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Tổng quan hạn ngạch AI"
+        aria-label="Tổng quan hạn mức AI"
       >
         <MetricCard
           icon={Gauge}
-          label="Tổng số Tenant"
+          label="Tổng số doanh nghiệp"
           value={String(rows.length)}
-          detail="Đang quản lý qua Redis Quota Guard"
+          tooltip="Tổng số doanh nghiệp đang áp dụng kiểm soát hạn mức AI."
         />
         <MetricCard
           icon={AlertTriangle}
           label="Sắp chạm ngưỡng"
           value={String(nearLimitCount)}
-          detail="Sử dụng từ 80% hạn mức tháng"
+          tooltip="Doanh nghiệp đã sử dụng từ 80% hạn mức AI trong tháng."
           tone="amber"
         />
         <MetricCard
           icon={ShieldAlert}
-          label="Đang bật Kill Switch"
+          label="Đang khóa AI"
           value={String(killSwitchedCount)}
-          detail="Tenant bị khóa tạm thời tính năng AI"
+          tooltip="Doanh nghiệp đang bị tạm khóa khẩn cấp tính năng AI."
           tone="violet"
         />
         <MetricCard
           icon={CheckCircle2}
           label="Đang hoạt động"
           value={String(Math.max(0, rows.length - killSwitchedCount))}
-          detail="Cho phép gọi API AI bình thường"
+          tooltip="Doanh nghiệp đang sử dụng tính năng AI bình thường."
           tone="emerald"
         />
       </section>
 
       <section className={cn(surface, "overflow-hidden")}>
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-5">
-          <div>
-            <h2 className="font-semibold text-slate-950">
-              Hạn mức AI, Rate Limit (RPM) & Kill Switch theo Tenant
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-5">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-slate-600">
+              Hạn mức AI theo doanh nghiệp
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Nhập <strong>-1</strong> cho Không giới hạn (Unlimited), <strong>0</strong> để khóa tính năng, hoặc số dương để cấp hạn mức tùy chỉnh (Override).
-            </p>
+            <HelpTip
+              content="Can thiệp hạn mức AI riêng cho từng doanh nghiệp: nhập -1 để không giới hạn, 0 để khóa tính năng, hoặc số dương để đặt hạn mức riêng. Có thể lưu thay đổi, khôi phục về mặc định gói hoặc khóa khẩn cấp."
+              label="Giải thích quản lý hạn mức AI"
+            />
           </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            Đồng bộ thời gian thực với Redis
-          </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Tenant / Gói gốc</th>
+                <th className="px-5 py-3">Doanh nghiệp / Gói</th>
                 <th className="px-4 py-3">Đã dùng CV</th>
-                <th className="px-4 py-3">Hạn mức CV (Override)</th>
+                <th className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1">
+                    <span>Hạn mức CV</span>
+                    <HelpTip
+                      content="Số lượt lọc CV tối đa mỗi tháng. Nhập -1 cho không giới hạn, 0 để tạm khóa."
+                      label="Giải thích Hạn mức CV"
+                    />
+                  </span>
+                </th>
                 <th className="px-4 py-3">Đã dùng Phỏng vấn</th>
-                <th className="px-4 py-3">Hạn mức Giờ (Override)</th>
-                <th className="px-4 py-3">Rate Limit (RPM/phút)</th>
-                <th className="px-4 py-3 text-right">Chi phí tháng</th>
-                <th className="px-5 py-3 text-right">Can thiệp Admin</th>
+                <th className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1">
+                    <span>Hạn mức Giờ</span>
+                    <HelpTip
+                      content="Số giờ phỏng vấn AI tối đa mỗi tháng. Nhập -1 cho không giới hạn, 0 để tạm khóa."
+                      label="Giải thích Hạn mức Giờ"
+                    />
+                  </span>
+                </th>
+                <th className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1">
+                    <span>Giới hạn / phút</span>
+                    <HelpTip
+                      content="Số lượt gọi AI tối đa trong mỗi phút của doanh nghiệp."
+                      label="Giải thích Giới hạn mỗi phút"
+                    />
+                  </span>
+                </th>
+                <th className="px-4 py-3 text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>Chi phí tháng</span>
+                    <HelpTip
+                      content="Chi phí AI ước tính phát sinh trong tháng hiện tại (USD)."
+                      label="Giải thích Chi phí tháng"
+                    />
+                  </span>
+                </th>
+                <th className="px-5 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -673,12 +751,12 @@ function AiQuotaManagementView() {
                         <strong className="text-slate-900">{row.tenantName}</strong>
                         {row.aiKillSwitch && (
                           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-700">
-                            AI Locked
+                            Đã khóa AI
                           </span>
                         )}
                         {!row.aiKillSwitch && isOverridden && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                            Overridden
+                            Đã tùy chỉnh
                           </span>
                         )}
                       </div>
@@ -706,7 +784,7 @@ function AiQuotaManagementView() {
                             }
                           >
                             {row.cvLimit < 0
-                              ? "Unlimited"
+                              ? "Không giới hạn"
                               : row.cvLimit === 0
                               ? "Khóa (0)"
                               : `${cvPercent}%`}
@@ -797,12 +875,12 @@ function AiQuotaManagementView() {
                               Number(e.target.value)
                             )
                           }
-                          aria-label={`Giới hạn RPM của ${row.tenantName}`}
+                          aria-label={`Giới hạn lượt gọi mỗi phút của ${row.tenantName}`}
                           className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                         />
                         <span className="text-[10px] text-slate-400">
-                          Phút này: {row.currentMinuteRpm ?? 0} req ·{" "}
-                          {(row.currentMinuteTpm ?? 0).toLocaleString("vi-VN")} tok
+                          Phút này: {row.currentMinuteRpm ?? 0} lượt ·{" "}
+                          {(row.currentMinuteTpm ?? 0).toLocaleString("vi-VN")} token
                         </span>
                       </div>
                     </td>
@@ -833,7 +911,7 @@ function AiQuotaManagementView() {
                             type="button"
                             disabled={savingId === row.tenantId}
                             onClick={() => handleResetToPlan(row)}
-                            title="Khôi phục về hạn mức gốc của gói cước"
+                            title="Khôi phục về hạn mức gốc của gói"
                             className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                           >
                             <RotateCcw className="size-3.5" />
@@ -846,8 +924,8 @@ function AiQuotaManagementView() {
                           onClick={() => handleToggleKillSwitch(row)}
                           title={
                             row.aiKillSwitch
-                              ? "Mở khóa lại AI cho Tenant này"
-                              : "Kill Switch: Khóa khẩn cấp AI của Tenant này"
+                              ? "Mở khóa lại AI cho doanh nghiệp này"
+                              : "Khóa khẩn cấp toàn bộ tính năng AI của doanh nghiệp này"
                           }
                           className={cn(
                             "inline-flex min-h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-semibold transition-colors",
@@ -857,7 +935,7 @@ function AiQuotaManagementView() {
                           )}
                         >
                           <PowerOff className="size-3.5" />
-                          {row.aiKillSwitch ? "Mở AI" : "Kill Switch"}
+                          {row.aiKillSwitch ? "Mở AI" : "Khóa AI"}
                         </button>
                       </div>
                     </td>

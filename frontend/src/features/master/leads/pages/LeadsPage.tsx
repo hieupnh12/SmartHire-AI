@@ -1,10 +1,12 @@
 import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, Inbox, Building2, FileSignature, Calculator } from "lucide-react";
+import { Plus, Search, Filter, Inbox, FileSignature, Calculator, Eye } from "lucide-react";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { useLeads, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSelect";
 import { LeadDetailModal } from "../components/LeadDetailModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import React from "react";
@@ -46,6 +48,43 @@ export function LeadsPage() {
   const pendingLeadsCount = useMemo(() => {
     return leads.filter((l) => l.status === "PENDING").length;
   }, [leads]);
+
+  const statusFilterOptions = useMemo<CustomSelectOption<string>[]>(
+    () => [
+      { value: "ALL", label: "Tất cả trạng thái", count: leads.length },
+      {
+        value: "PENDING",
+        label: "Chờ liên hệ",
+        dotClassName: "bg-amber-500",
+        count: leads.filter((l) => l.status === "PENDING").length,
+      },
+      {
+        value: "CONTACTED",
+        label: "Đang trao đổi",
+        dotClassName: "bg-blue-500",
+        count: leads.filter((l) => l.status === "CONTACTED").length,
+      },
+      {
+        value: "QUOTED",
+        label: "Đã gửi báo giá",
+        dotClassName: "bg-purple-500",
+        count: leads.filter((l) => l.status === "QUOTED").length,
+      },
+      {
+        value: "PROVISIONED",
+        label: "Đã cấp Workspace",
+        dotClassName: "bg-emerald-500",
+        count: leads.filter((l) => l.status === "PROVISIONED").length,
+      },
+      {
+        value: "REJECTED",
+        label: "Từ chối",
+        dotClassName: "bg-rose-500",
+        count: leads.filter((l) => l.status === "REJECTED").length,
+      },
+    ],
+    [leads],
+  );
 
   const handleProvisionFromLead = (lead: ConsultationResponse) => {
     const query = new URLSearchParams({
@@ -133,40 +172,43 @@ export function LeadsPage() {
             placeholder="Tìm theo tên công ty, người liên hệ, email, số điện thoại..."
             value={leadSearch}
             onChange={(e) => setLeadSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600"
+            className="w-full min-h-10 pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-xl shadow-2xs focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-100 transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-          <select
+        <div className="w-full sm:w-[235px] shrink-0">
+          <CustomSelect
             value={leadStatusFilter}
-            onChange={(e) => setLeadStatusFilter(e.target.value)}
-            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 font-semibold text-slate-700"
-          >
-            <option value="ALL">Tất cả trạng thái ({leads.length})</option>
-            <option value="PENDING">Chờ xử lý ({leads.filter((l) => l.status === "PENDING").length})</option>
-            <option value="CONTACTED">Đang trao đổi / Demo ({leads.filter((l) => l.status === "CONTACTED").length})</option>
-            <option value="QUOTED">Đã gửi Báo giá ({leads.filter((l) => l.status === "QUOTED").length})</option>
-            <option value="PROVISIONED">Đã cấp Workspace ({leads.filter((l) => l.status === "PROVISIONED").length})</option>
-            <option value="REJECTED">Từ chối / Hủy ({leads.filter((l) => l.status === "REJECTED").length})</option>
-          </select>
+            onChange={setLeadStatusFilter}
+            options={statusFilterOptions}
+            icon={<Filter className="size-3.5" />}
+            ariaLabel="Lọc theo trạng thái yêu cầu"
+          />
         </div>
       </div>
 
       {/* Leads Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-xs">
+            <colgroup>
+              <col />
+              <col />
+              <col className="w-[118px]" />
+              <col />
+              <col className="w-[104px]" />
+              <col className="w-[154px]" />
+              <col className="w-[194px]" />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
-                <th className="py-3 px-4">Doanh Nghiệp</th>
-                <th className="py-3 px-4">Người Liên Hệ</th>
-                <th className="py-3 px-4">Loại Yêu Cầu & Gói</th>
-                <th className="py-3 px-4">Nhu Cầu / Ghi Chú</th>
-                <th className="py-3 px-4">Thời Gian</th>
-                <th className="py-3 px-4">Trạng Thái</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Doanh Nghiệp</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Người Liên Hệ</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Loại Yêu Cầu</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Nhu Cầu / Ghi Chú</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Thời Gian</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Trạng Thái</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -178,119 +220,210 @@ export function LeadsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900">{lead.companyName}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-slate-400" />
-                        <span>Quy mô: {lead.companySize || "Chưa rõ"}</span>
-                      </div>
-                    </td>
+                filteredLeads.map((lead) => {
+                  const notePreview = lead.notes || lead.primaryNeed || "";
+                  const createdDate = new Date(lead.createdAt);
 
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800">{lead.contactName}</div>
-                      {lead.jobTitle && <div className="text-[11px] text-slate-500">{lead.jobTitle}</div>}
-                      <div className="text-[11px] text-blue-600 font-mono mt-0.5">{lead.workEmail}</div>
-                      {lead.phoneNumber && (
-                        <div className="text-[11px] text-slate-500 font-mono">{lead.phoneNumber}</div>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                          lead.requestType === "CONTRACT_QUOTE"
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : "bg-sky-50 text-sky-700 border border-sky-200"
-                        }`}
-                      >
-                        {lead.requestType === "CONTRACT_QUOTE" ? "Báo Giá Hợp Đồng" : "Trải Nghiệm Demo"}
-                      </span>
-                      <div className="text-[11px] text-slate-600 font-medium mt-1 truncate max-w-[180px]">
-                        {lead.planTier || "Chưa chọn gói"}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 max-w-[220px]">
-                      {lead.notes ? (
-                        <p className="text-[11px] text-slate-700 line-clamp-2 leading-relaxed" title={lead.notes}>
-                          {lead.notes}
-                        </p>
-                      ) : lead.primaryNeed ? (
-                        <p className="text-[11px] text-slate-500 line-clamp-2" title={lead.primaryNeed}>
-                          {lead.primaryNeed}
-                        </p>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
-                      {new Date(lead.createdAt).toLocaleDateString("vi-VN", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          lead.status === "PENDING"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : lead.status === "CONTACTED"
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
-                            : lead.status === "QUOTED"
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : lead.status === "PROVISIONED"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                        }`}
-                      >
-                        {lead.status === "PENDING" && "Chờ liên hệ"}
-                        {lead.status === "CONTACTED" && "Đang trao đổi"}
-                        {lead.status === "QUOTED" && "Đã gửi Báo giá"}
-                        {lead.status === "PROVISIONED" && "Đã cấp Tenant"}
-                        {lead.status === "REJECTED" && "Từ chối"}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenCreateContractForLead(lead)}
-                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold transition-colors flex items-center gap-1"
-                          title="Soạn hợp đồng e-Contract B2B cho khách hàng này"
+                  return (
+                    <tr key={lead.id} className="hover:bg-slate-50/60 transition-colors align-middle">
+                      <td className="py-3 px-3.5">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{lead.companyName}</span>
+                              <span className="block text-slate-300">
+                                Quy mô: {lead.companySize || "Chưa rõ"}
+                              </span>
+                            </span>
+                          }
                         >
-                          <FileSignature className="w-3.5 h-3.5" />
-                          <span>Soạn HĐ</span>
-                        </button>
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-700 cursor-default">
+                            {lead.companyName}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                        <button
-                          onClick={() => handleOpenLeadModal(lead)}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-colors"
-                          title="Xem chi tiết & Cập nhật ghi chú"
+                      <td className="py-3 px-3.5">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">
+                                {lead.contactName}
+                                {lead.jobTitle ? ` · ${lead.jobTitle}` : ""}
+                              </span>
+                              <span className="block font-mono text-sky-300">{lead.workEmail}</span>
+                              {lead.phoneNumber && (
+                                <span className="block font-mono text-slate-300">
+                                  SĐT: {lead.phoneNumber}
+                                </span>
+                              )}
+                            </span>
+                          }
                         >
-                          Chi tiết
-                        </button>
+                          <span className="min-w-0 flex-1 truncate font-medium text-slate-700 cursor-default">
+                            {lead.contactName}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                        {lead.status !== "PROVISIONED" && (
-                          <button
-                            onClick={() => handleProvisionFromLead(lead)}
-                            className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-2xs"
-                            title="Mở B2B Deal Wizard: Lên báo giá 3 cấu phần hoặc cấp Workspace"
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">
+                                {lead.requestType === "CONTRACT_QUOTE"
+                                  ? "Báo Giá Hợp Đồng"
+                                  : "Trải Nghiệm Demo"}
+                              </span>
+                              <span className="block text-slate-300">
+                                Gói quan tâm: {lead.planTier || "Chưa chọn gói"}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold border cursor-default ${
+                              lead.requestType === "CONTRACT_QUOTE"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-sky-50 text-sky-700 border-sky-200"
+                            }`}
                           >
-                            <Calculator className="w-3.5 h-3.5" />
-                            <span>{lead.status === "QUOTED" ? "Chốt HĐ / Cấp WS" : "Báo giá / Deal"}</span>
-                          </button>
+                            {lead.requestType === "CONTRACT_QUOTE" ? "Báo giá HĐ" : "Demo"}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5">
+                        {notePreview ? (
+                          <Tooltip
+                            className="flex w-full min-w-0"
+                            side="top"
+                            content={
+                              <span className="block space-y-1">
+                                {lead.primaryNeed && (
+                                  <span className="block text-slate-300">
+                                    <strong className="font-semibold text-white">Nhu cầu:</strong>{" "}
+                                    {lead.primaryNeed}
+                                  </span>
+                                )}
+                                {lead.notes && (
+                                  <span className="block text-slate-100">
+                                    <strong className="font-semibold text-white">Ghi chú:</strong>{" "}
+                                    {lead.notes}
+                                  </span>
+                                )}
+                              </span>
+                            }
+                          >
+                            <span
+                              className={`min-w-0 flex-1 truncate cursor-default ${
+                                lead.notes ? "text-slate-700" : "text-slate-500"
+                              }`}
+                            >
+                              {notePreview}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-slate-400 italic">—</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          content={createdDate.toLocaleString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        >
+                          <span className="text-[11px] text-slate-500 cursor-default">
+                            {createdDate.toLocaleDateString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                            lead.status === "PENDING"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : lead.status === "CONTACTED"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : lead.status === "QUOTED"
+                              ? "bg-purple-50 text-purple-700 border border-purple-200"
+                              : lead.status === "PROVISIONED"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}
+                        >
+                          {lead.status === "PENDING" && "Chờ liên hệ"}
+                          {lead.status === "CONTACTED" && "Đang trao đổi"}
+                          {lead.status === "QUOTED" && "Đã gửi báo giá"}
+                          {lead.status === "PROVISIONED" && "Đã cấp Workspace"}
+                          {lead.status === "REJECTED" && "Từ chối"}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {lead.status !== "PROVISIONED" && (
+                            <Tooltip
+                              side="top"
+                              content={
+                                lead.status === "QUOTED"
+                                  ? "Chốt hợp đồng & cấp Workspace"
+                                  : "Lên báo giá hoặc cấp Workspace"
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleProvisionFromLead(lead)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-colors hover:bg-blue-700"
+                              >
+                                <Calculator className="w-3.5 h-3.5 shrink-0" />
+                                <span>{lead.status === "QUOTED" ? "Chốt deal" : "Báo giá"}</span>
+                              </button>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip side="top" content="Soạn hợp đồng cho khách hàng này">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCreateContractForLead(lead)}
+                              aria-label={`Soạn hợp đồng cho ${lead.companyName}`}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100"
+                            >
+                              <FileSignature className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip side="top" content="Xem chi tiết & cập nhật">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLeadModal(lead)}
+                              aria-label={`Xem chi tiết ${lead.companyName}`}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

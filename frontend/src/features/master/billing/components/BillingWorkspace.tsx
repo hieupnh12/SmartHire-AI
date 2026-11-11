@@ -9,6 +9,8 @@ import type {
 import type { InvoiceItem } from "@/api/master/billingApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
 import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import {
@@ -22,6 +24,7 @@ import {
   CreditCard,
   Download,
   FileText,
+  HelpCircle,
   Plus,
   Search,
   SlidersHorizontal,
@@ -56,6 +59,37 @@ const money = new Intl.NumberFormat("vi-VN", {
 });
 
 const surface = "rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]";
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+const TENANT_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
+  ACTIVE: { label: "Hoạt động", cls: "bg-emerald-50 text-emerald-700" },
+  PENDING_PAYMENT: { label: "Chờ thanh toán", cls: "bg-amber-50 text-amber-700" },
+  PROVISIONING: { label: "Đang khởi tạo", cls: "bg-blue-50 text-blue-700" },
+  SUSPENDED: { label: "Tạm ngưng", cls: "bg-amber-50 text-amber-700" },
+  FAILED: { label: "Lỗi khởi tạo", cls: "bg-rose-50 text-rose-700" },
+};
+
+const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Gói: Đang dùng",
+  GRACE_PERIOD: "Gói: Gia hạn",
+  PAST_DUE: "Gói: Quá hạn",
+  EXPIRED: "Gói: Hết hạn",
+  CANCELLED: "Gói: Đã hủy",
+};
 
 export function BillingWorkspace({
   plans,
@@ -251,26 +285,181 @@ export function BillingWorkspace({
       {view === "allocations" && (
         <section className={cn(surface, "overflow-hidden")}>
           <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Phân bổ gói cho Tenant</h2>
-              <p className="mt-1 text-xs text-slate-500">Gán, nâng cấp hoặc hạ cấp gói dịch vụ (Snapshot V27) cho từng doanh nghiệp.</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-600">
+                Phân bổ gói theo doanh nghiệp
+              </h2>
+              <HelpTip
+                content="Gán, nâng cấp hoặc hạ cấp gói dịch vụ cho từng doanh nghiệp. Khi lưu thay đổi, mức giá và hạn mức theo phiên bản gói đang chọn sẽ được áp dụng cố định."
+                label="Giải thích phân bổ gói theo doanh nghiệp"
+              />
             </div>
-            <label className="relative block w-full sm:max-w-xs"><span className="sr-only">Tìm doanh nghiệp</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={allocationQuery} onChange={(event) => setAllocationQuery(event.target.value)} placeholder="Tìm tenant..." className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="relative block w-full sm:max-w-xs">
+              <span className="sr-only">Tìm doanh nghiệp</span>
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={allocationQuery}
+                onChange={(event) => setAllocationQuery(event.target.value)}
+                placeholder="Tìm doanh nghiệp..."
+                className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100"
+              />
+            </label>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">Doanh nghiệp</th><th className="px-6 py-3">Trạng thái Tenant / Sub</th><th className="px-6 py-3">Gói hiện tại (Snapshot)</th><th className="px-6 py-3">Chu kỳ & Giá</th><th className="px-6 py-3 text-right">Thao tác</th></tr></thead>
-              <tbody>{filteredTenants.map((tenant) => {
-                const subInstance = subscriptionByTenantId.get(tenant.id);
-                const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
-                const currentPlanCode = subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
-                const selectedCode = assignments[tenant.id] ?? currentPlanCode;
-                const contractedPrice = subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
-                return <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 className="size-4" /></span><span><strong className="block font-semibold text-slate-900">{tenant.name}</strong><small className="text-xs text-slate-500">{tenant.code} · {tenant.subdomain}</small></span></div></td><td className="px-6 py-4"><div className="flex flex-wrap items-center gap-1.5"><span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", tenant.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{tenant.status}</span>{subInstance?.status && <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">Sub: {subInstance.status}</span>}</div></td><td className="px-6 py-4"><select aria-label={`Gói dịch vụ của ${tenant.name}`} value={selectedCode} onChange={(event) => { setAssignments((current) => ({ ...current, [tenant.id]: event.target.value })); setSavedTenantId(null); }} className="min-h-10 min-w-48 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100">{plans.filter((plan) => (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode).map((plan) => <option key={plan.id ?? plan.code} value={plan.code}>{plan.name} (v{plan.version ?? 1}{plan.custom ? " · Custom" : ""})</option>)}</select></td><td className="px-6 py-4 text-xs text-slate-600"><strong className="block text-slate-900">{money.format(contractedPrice)} / năm</strong><span>Hàng năm (Snapshot V27)</span></td><td className="px-6 py-4 text-right"><button type="button" onClick={async () => { try { const { masterAdminApi } = await import("@/api/master/masterAdminApi"); await masterAdminApi.assignTenantSubscription(tenant.id, { planCode: selectedCode, status: "ACTIVE" }); setSavedTenantId(tenant.id); await onSubscriptionAssigned?.(); toast.success(`Đã cập nhật gói ${selectedCode} cho ${tenant.name}`); } catch { toast.danger("Không thể cập nhật gói thuê bao cho tenant"); } }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">{savedTenantId === tenant.id ? <><UserRoundCheck className="size-3.5" />Đã lưu Snapshot</> : "Lưu thay đổi"}</button></td></tr>;
-              })}</tbody>
+              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-6 py-3">Doanh nghiệp</th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>Trạng thái</span>
+                      <HelpTip
+                        content="Trạng thái hoạt động của doanh nghiệp và gói dịch vụ hiện tại."
+                        label="Giải thích cột Trạng thái"
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>Gói hiện tại</span>
+                      <HelpTip
+                        content="Chọn gói dịch vụ áp dụng cho doanh nghiệp, sau đó bấm Lưu thay đổi."
+                        label="Giải thích cột Gói hiện tại"
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>Chu kỳ & Giá</span>
+                      <HelpTip
+                        content="Mức phí bản quyền theo năm đã ghi nhận cho doanh nghiệp."
+                        label="Giải thích cột Chu kỳ & Giá"
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTenants.map((tenant) => {
+                  const subInstance = subscriptionByTenantId.get(tenant.id);
+                  const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
+                  const currentPlanCode =
+                    subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
+                  const selectedCode = assignments[tenant.id] ?? currentPlanCode;
+                  const contractedPrice =
+                    subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
+                  const tenantBadge = TENANT_STATUS_LABELS[tenant.status] ?? {
+                    label: tenant.status,
+                    cls: "bg-slate-100 text-slate-600",
+                  };
+                  const availablePlans = plans
+                    .filter(
+                      (plan) =>
+                        (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode,
+                    )
+                    .map((plan) => ({
+                      value: plan.code,
+                      label: `${plan.name} (v${plan.version ?? 1}${plan.custom ? " · Riêng" : ""})`,
+                    }));
+
+                  return (
+                    <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                            <Building2 className="size-4" />
+                          </span>
+                          <span>
+                            <strong className="block font-semibold text-slate-600">
+                              {tenant.name}
+                            </strong>
+                            <small className="text-xs text-slate-500">
+                              {tenant.code} · {tenant.subdomain}
+                            </small>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                              tenantBadge.cls,
+                            )}
+                          >
+                            {tenantBadge.label}
+                          </span>
+                          {subInstance?.status && (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                              {SUBSCRIPTION_STATUS_LABELS[subInstance.status] ??
+                                `Gói: ${subInstance.status}`}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="min-w-52 max-w-64">
+                          <CustomSelect
+                            ariaLabel={`Gói dịch vụ của ${tenant.name}`}
+                            value={selectedCode}
+                            onChange={(val) => {
+                              setAssignments((current) => ({
+                                ...current,
+                                [tenant.id]: val,
+                              }));
+                              setSavedTenantId(null);
+                            }}
+                            options={availablePlans}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-600">
+                        <strong className="block font-semibold text-slate-600">
+                          {money.format(contractedPrice)} / năm
+                        </strong>
+                        <span className="text-slate-500">Thanh toán theo năm</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const { masterAdminApi } = await import("@/api/master/masterAdminApi");
+                              await masterAdminApi.assignTenantSubscription(tenant.id, {
+                                planCode: selectedCode,
+                                status: "ACTIVE",
+                              });
+                              setSavedTenantId(tenant.id);
+                              await onSubscriptionAssigned?.();
+                              toast.success(`Đã cập nhật gói ${selectedCode} cho ${tenant.name}`);
+                            } catch {
+                              toast.danger("Không thể cập nhật gói dịch vụ cho doanh nghiệp");
+                            }
+                          }}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                        >
+                          {savedTenantId === tenant.id ? (
+                            <>
+                              <UserRoundCheck className="size-3.5" />
+                              Đã lưu
+                            </>
+                          ) : (
+                            "Lưu thay đổi"
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
-          {filteredTenants.length === 0 && <p className="p-10 text-center text-sm text-slate-500">Không tìm thấy tenant phù hợp.</p>}
+          {filteredTenants.length === 0 && (
+            <p className="p-10 text-center text-sm text-slate-500">
+              Không tìm thấy doanh nghiệp phù hợp.
+            </p>
+          )}
         </section>
       )}
 

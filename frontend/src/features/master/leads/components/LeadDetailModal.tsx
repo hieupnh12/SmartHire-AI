@@ -1,12 +1,23 @@
 import React from "react";
 import { X, PhoneCall, Loader2, Check, Calculator } from "lucide-react";
 import { ConsultationResponse } from "@/api/master/consultationApi";
+import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSelect";
+
+type LeadStatus = "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
+
+const LEAD_STATUS_OPTIONS: CustomSelectOption<LeadStatus>[] = [
+  { value: "PENDING", label: "Chờ liên hệ", dotClassName: "bg-amber-500" },
+  { value: "CONTACTED", label: "Đang trao đổi", dotClassName: "bg-blue-500" },
+  { value: "QUOTED", label: "Đã gửi báo giá", dotClassName: "bg-purple-500" },
+  { value: "PROVISIONED", label: "Đã cấp Workspace", dotClassName: "bg-emerald-500" },
+  { value: "REJECTED", label: "Từ chối", dotClassName: "bg-rose-500" },
+];
 
 interface LeadDetailModalProps {
   selectedLead: ConsultationResponse | null;
   setSelectedLead: (lead: ConsultationResponse | null) => void;
-  leadStatusEdit: string;
-  setLeadStatusEdit: (val: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED") => void;
+  leadStatusEdit: LeadStatus;
+  setLeadStatusEdit: (val: LeadStatus) => void;
   leadNotesEdit: string;
   setLeadNotesEdit: (val: string) => void;
   updatingLead: boolean;
@@ -105,18 +116,13 @@ export function LeadDetailModal({
 
         <form onSubmit={handleSaveLeadModal} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Trạng thái xử lý *</label>
-            <select
+            <label className="block font-semibold text-slate-700 mb-1.5">Trạng thái xử lý *</label>
+            <CustomSelect
               value={leadStatusEdit}
-              onChange={(e) => setLeadStatusEdit(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold focus:outline-none focus:border-blue-600"
-            >
-              <option value="PENDING">Chờ xử lý / Chưa liên hệ</option>
-              <option value="CONTACTED">Đang liên hệ & Trao đổi Demo</option>
-              <option value="QUOTED">Đã gửi Báo giá thương mại</option>
-              <option value="PROVISIONED">Đã cấp phát Workspace (Hoàn tất)</option>
-              <option value="REJECTED">Từ chối / Hủy yêu cầu</option>
-            </select>
+              onChange={setLeadStatusEdit}
+              options={LEAD_STATUS_OPTIONS}
+              ariaLabel="Trạng thái xử lý"
+            />
           </div>
 
           <div>

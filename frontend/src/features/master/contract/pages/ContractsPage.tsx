@@ -240,23 +240,23 @@ export function ContractsPage() {
       </HeaderActions>
 
       {/* ── KPI cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   color: "text-slate-900", icon: <FileSignature className="w-3.5 h-3.5 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
-          { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",       color: "text-emerald-600", icon: <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />, sub: "Có giá trị pháp lý" },
-          { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",      color: "text-amber-600", icon: <Clock className="w-3.5 h-3.5 text-amber-400" />, sub: "Doanh nghiệp chưa ký" },
-          { label: "Tổng Giá Trị Ký",     value: `${totalValue.toLocaleString("vi-VN")}`, unit: "VNĐ", color: "text-indigo-600", icon: <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
+          { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   icon: <FileSignature className="w-4 h-4 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
+          { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",      icon: <FileCheck2 className="w-4 h-4 text-emerald-500" />, sub: "Có giá trị pháp lý" },
+          { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",     icon: <Clock className="w-4 h-4 text-amber-500" />, sub: "Doanh nghiệp chưa ký" },
+          { label: "Tổng Giá Trị Ký",     value: `${totalValue.toLocaleString("vi-VN")}`, unit: "VNĐ", icon: <TrendingUp className="w-4 h-4 text-indigo-500" />, sub: "Doanh thu từ HĐ đã ký" },
         ].map((card, i) => (
-          <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">{card.label}</span>
+          <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-600">{card.label}</span>
               {card.icon}
             </div>
-            <div className={`text-lg font-extrabold ${card.color}`}>
+            <div className="text-xl xl:text-2xl font-bold tracking-tight text-slate-600">
               {card.value}{" "}
-              <span className="text-[10px] font-medium text-slate-400">{card.unit}</span>
+              <span className="text-xs font-medium text-slate-500">{card.unit}</span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
+            <p className="text-xs text-slate-500 mt-1">{card.sub}</p>
           </div>
         ))}
       </div>
