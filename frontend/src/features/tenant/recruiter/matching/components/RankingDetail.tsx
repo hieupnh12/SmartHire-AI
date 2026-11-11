@@ -16,7 +16,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import type { ScreeningRoundsView } from "@/api/types/applicant";
 import type { RankingRow } from "../types/ranking";
-import { applicationStatusLabel, scoreText } from "./rankingUi";
+import { applicationStatusLabel, scoreText, stickyDetailSidebar } from "./rankingUi";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { HumanInterviewScheduleDialog } from "@/features/tenant/recruiter/interviews/components/HumanInterviewScheduleDialog";
 import "@/features/tenant/recruiter/interviews/styles/human-interview-reference.css";
@@ -278,8 +278,8 @@ export function RankingCandidateDetailView({
       {/* 2. BODY LAYOUT: LEFT SIDEBAR TABS (1/4) + RIGHT CONTENT AREA (3/4) */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Left Navigation: Vertical Category Tabs */}
-        <aside className="w-full lg:w-64 shrink-0">
-          <div className="sticky top-20 space-y-1.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+        <aside className={cn("w-full lg:w-64 shrink-0", stickyDetailSidebar)}>
+          <div className="space-y-1.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
             <span className="block px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
               CÁC MỤC ĐÁNH GIÁ
             </span>

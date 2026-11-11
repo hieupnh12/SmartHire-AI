@@ -77,6 +77,7 @@ import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashb
 import { JobFormPage } from "@/features/tenant/recruiter/jobs/pages/JobFormPage";
 import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
+import { ApplicantDetailPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantDetailPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { CvDetailPage } from "@/features/tenant/recruiter/cv-screening/pages/CvDetailPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
@@ -222,6 +223,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="APPLICANTS" />}>
             <Route path="jobs/:id/applicants" element={<ApplicantsPage />} />
+            <Route path="jobs/:id/applicants/:applicationId" element={<ApplicantDetailPage />} />
             <Route path="applicants" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
