@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -125,6 +126,9 @@ export function SubscriptionBillingPage() {
     id: number;
     type?: string | null;
   } | null>(null);
+  const [searchParams] = useSearchParams();
+  const highlightedInvoice = searchParams.get("invoice")?.trim() ?? "";
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
@@ -138,6 +142,12 @@ export function SubscriptionBillingPage() {
 
   const sub = subQuery.data?.data;
   const publicPlans = plansQuery.data ?? [];
+
+  useEffect(() => {
+    if (highlightedInvoice && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedInvoice, sub?.invoices]);
 
   const previewQuery = useQuery({
     queryKey: ["tenant-subscription-change-preview", selectedPlanCode],
@@ -1066,8 +1076,19 @@ export function SubscriptionBillingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
-                {sub.invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-surface-muted/40">
+                {sub.invoices.map((inv) => {
+                  const isHighlighted =
+                    Boolean(highlightedInvoice) &&
+                    inv.invoiceNumber.toLowerCase() === highlightedInvoice.toLowerCase();
+                  return (
+                  <tr
+                    key={inv.id}
+                    ref={isHighlighted ? highlightedRowRef : undefined}
+                    className={cn(
+                      "hover:bg-surface-muted/40",
+                      isHighlighted && "bg-[var(--color-primary-soft)]/55 ring-1 ring-inset ring-brand-primary/35",
+                    )}
+                  >
                     <td className="px-5 py-3.5 font-mono text-xs font-bold text-[var(--color-text-primary)]">
                       #{inv.invoiceNumber}
                     </td>
@@ -1132,7 +1153,8 @@ export function SubscriptionBillingPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

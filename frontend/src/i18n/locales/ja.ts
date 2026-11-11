@@ -87,6 +87,7 @@ export const ja: Messages = {
     company: "会社情報",
     billing: "プラン・請求",
     landingPage: "採用ランディングページ",
+    subscription: "プラン・請求",
     system: "システム",
     mailConfig: "Gmail設定",
     overview: "概要",

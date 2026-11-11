@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { tenantRolesApi, type TenantRole } from "@/api/tenant/tenantRolesApi";
 import {
@@ -152,6 +153,8 @@ export function RolesPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const [searchParams] = useSearchParams();
+  const urlRoleCode = searchParams.get("role");
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [name, setName] = useState("");
   const [features, setFeatures] = useState<string[]>([]);
@@ -167,6 +170,16 @@ export function RolesPage() {
     [roles],
   );
   const selected = selectedId === "new" ? null : recruiterRoles.find((role) => role.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!urlRoleCode || recruiterRoles.length === 0) return;
+    const matched = recruiterRoles.find(
+      (role) => role.code.toLowerCase() === urlRoleCode.trim().toLowerCase(),
+    );
+    if (matched) {
+      setSelectedId(matched.id);
+    }
+  }, [urlRoleCode, recruiterRoles]);
 
   useEffect(() => {
     if (selectedId === "new") {

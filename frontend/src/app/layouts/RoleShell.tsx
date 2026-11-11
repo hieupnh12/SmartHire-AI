@@ -15,6 +15,7 @@ import { notificationPath } from "@/features/tenant/candidate/shared/utils/notif
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
 import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
+import { AdminGlobalSearch } from "@/features/tenant/admin/components/AdminGlobalSearch";
 import { useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -27,7 +28,6 @@ type NavItem = {
   to: string;
   labelKey: string;
   icon?: LucideIcon;
-  comingSoon?: boolean;
   descriptionKey?: string;
   groupId?: string;
   groupLabelKey?: string;
@@ -59,7 +59,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = brandKey === "roles.candidate";
   const isRecruiterWorkspace = basePath === "/recruiter";
-  const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace);
+  const isTenantAdminWorkspace = basePath === "/internal/admin";
+  const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace || isTenantAdminWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const markRead = useMutation({
     mutationFn: (id: number | string) => notificationApi.markRead(id),
@@ -75,7 +76,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
   const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
   const isRecruiterBoard = isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board";
-  const isTenantAdminWorkspace = basePath === "/internal/admin";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
   const profileQuery = useQuery({
@@ -147,17 +147,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
         ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter"
         : recruiterHomePath(user?.permissions);
     navigate(query ? `${target}?q=${encodeURIComponent(query)}` : target);
-  };
-  const submitAdminSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query = new FormData(event.currentTarget).get("admin-search")?.toString().trim().toLocaleLowerCase() ?? "";
-    if (/gói|thanh toán|hóa đơn|gia hạn|billing|plan|invoice|subscription/.test(query)) navigate(`${basePath}/billing`);
-    else if (/doanh nghiệp|company|hồ sơ/.test(query)) navigate(`${basePath}/company`);
-    else if (/người dùng|thành viên|user|member/.test(query)) navigate(`${basePath}/users`);
-    else if (/phân quyền|roles|permission/.test(query)) navigate(`${basePath}/roles`);
-    else if (/hệ thống|system|health/.test(query)) navigate(`${basePath}/system`);
-    else if (/tài khoản|account|bảo mật|security/.test(query)) navigate(`${basePath}/account`);
-    else navigate(basePath);
   };
 
   if (isTenantAdminWorkspace) {
@@ -251,14 +240,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                         {group.items.map((item) => {
                           const ItemIcon = item.icon;
                           const label = t(item.labelKey);
-                          if (item.comingSoon) {
-                            return (
-                              <button key={item.to} type="button" role="menuitem" disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl bg-[var(--color-surface-alt)] p-3 text-left opacity-60">
-                                {ItemIcon && <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white"><ItemIcon className="size-5" aria-hidden="true" /></span>}
-                                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{label}</span><span className="mt-0.5 block text-xs text-[var(--color-on-surface-variant)]">Sắp phát triển</span></span>
-                              </button>
-                            );
-                          }
                           const isRecruiterWorkspace = item.to === "/recruiter" || item.to.startsWith("/recruiter/");
                           const targetTo = isRecruiterWorkspace ? item.to : `${basePath}${item.to}`;
                           return (
@@ -306,46 +287,53 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           <header className="sticky top-0 z-30 border-b border-[var(--color-border-default)] bg-white/90 shadow-sm backdrop-blur-md">
             <div className="grid min-h-14 w-full grid-cols-[2.5rem_minmax(0,40rem)_2.5rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
               <span aria-hidden="true" />
-              <form className="relative min-w-0 w-full" role="search" onSubmit={submitAdminSearch}>
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
-                <input
-                  name="admin-search"
-                  type="search"
-                  placeholder="Tìm doanh nghiệp, người dùng, hệ thống, tài khoản..."
-                  aria-label="Tìm kiếm chức năng quản trị"
-                  className="min-h-10 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-1.5 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
-                />
-                <button type="submit" className="absolute right-1.5 top-1/2 min-h-7 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-[var(--color-on-primary)] transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary">
-                  Tìm kiếm
-                </button>
-              </form>
+              <AdminGlobalSearch basePath={basePath} />
 
-              <div className="relative justify-self-end">
-                <Tooltip content="Thông báo" side="bottom">
+              <div
+                className="relative justify-self-end"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsAdminNotificationsOpen(false);
+                }}
+              >
+                <Tooltip content={t("nav.notifications")} side="bottom" disabled={isAdminNotificationsOpen}>
                   <button
                     type="button"
                     onClick={() => setIsAdminNotificationsOpen((open) => !open)}
-                    className="grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                    aria-label="Thông báo"
+                    className={cn(
+                      "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
+                      isAdminNotificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
+                    )}
+                    aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
                     aria-haspopup="dialog"
                     aria-expanded={isAdminNotificationsOpen}
                   >
                     <Bell className="size-5" aria-hidden="true" />
+                    {unreadCount > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold leading-5 text-white shadow-sm"
+                        aria-hidden="true"
+                      >
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
 
                 {isAdminNotificationsOpen && (
-                  <div role="dialog" aria-label="Thông báo quản trị" className="absolute right-0 top-[calc(100%+10px)] w-[min(22rem,calc(100vw-7rem))] overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-xl">
-                    <div className="border-b border-[var(--color-border-default)] px-5 py-4">
-                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">Thông báo</h2>
-                      <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">Cập nhật dành cho quản trị viên workspace</p>
-                    </div>
-                    <div className="px-5 py-8 text-center">
-                      <span className="mx-auto grid size-11 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-brand-primary"><Bell className="size-5" aria-hidden="true" /></span>
-                      <p className="mt-3 text-sm font-semibold text-[var(--color-on-surface)]">Không có thông báo mới</p>
-                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Các cập nhật quản trị sẽ xuất hiện tại đây.</p>
-                    </div>
-                  </div>
+                  <NotificationPreviewDialog
+                    items={inbox.data ?? []}
+                    loading={inbox.isPending}
+                    unreadCount={unreadCount}
+                    targetPath="/recruiter/notifications"
+                    onClose={() => setIsAdminNotificationsOpen(false)}
+                    onMarkAllRead={() => markAllRead.mutate()}
+                    onOpen={(item) => {
+                      if (!item.readAt) markRead.mutate(item.id);
+                      setIsAdminNotificationsOpen(false);
+                      const target = notificationPath(item.payloadJson) ?? "/recruiter/notifications";
+                      navigate(target);
+                    }}
+                  />
                 )}
               </div>
             </div>
