@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { BookOpen, ClipboardList, Settings2, Users } from "lucide-react";
+import { PillNav } from "@/components/ux/PillNav";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -53,44 +53,14 @@ export function AssessmentSubNav({
   ];
 
   return (
-    <nav
-      className={cn(
-        "flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 scrollbar-none",
-        className,
-      )}
-      role="tablist"
-      aria-label={t("recruiter.assessments.subNav.ariaLabel")}
-    >
-      <div className="flex min-w-full items-center gap-1 sm:min-w-0">
-        {navItems.map((item) => {
-          const active = activeTab === item.id;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.id}
-              to={item.to}
-              role="tab"
-              aria-selected={active}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm transition-all",
-                active
-                  ? "border-[var(--color-primary)] font-semibold text-[var(--color-primary)]"
-                  : "border-transparent font-medium text-[#475467] hover:border-slate-300 hover:text-[#101828] dark:text-slate-400 dark:hover:border-slate-700 dark:hover:text-slate-200",
-              )}
-            >
-              <Icon
-                className={cn(
-                  "size-4 shrink-0",
-                  active ? "text-[var(--color-primary)]" : "text-[#667085] dark:text-slate-400",
-                )}
-                aria-hidden="true"
-              />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+    <nav className={cn("min-w-0", className)}>
+      <PillNav
+        items={navItems}
+        activeId={activeTab}
+        ariaLabel={t("recruiter.assessments.subNav.ariaLabel")}
+        variant="docked"
+        dockGroup="assessments"
+      />
     </nav>
   );
 }

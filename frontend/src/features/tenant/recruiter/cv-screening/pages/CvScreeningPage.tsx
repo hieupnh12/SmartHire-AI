@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -23,6 +23,7 @@ import { jobApi } from "@/api/tenant/jobApi";
 import { formatNumber, useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
+import { keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { CvStatusBadge, cvInitials, formatCvDate } from "@/features/tenant/recruiter/cv-screening/components/CvStatusBadge";
@@ -210,7 +211,7 @@ export function CvScreeningPage() {
         page: page - 1,
         size: pageSize,
       }),
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousForScope(jobId ?? 0, 2),
     enabled: jobId !== null && !!token,
     refetchInterval: 5_000,
   });
@@ -219,6 +220,7 @@ export function CvScreeningPage() {
   const pageResult = list.data?.data;
   const rows = pageResult?.items ?? [];
   const rowsPending = list.isPending;
+  const isTableRefreshing = list.isFetching && list.isPlaceholderData;
   const rowsError = list.error;
   const jobSkills = skills.data?.data ?? [];
   const requiredSkills = jobSkills.filter((skill) => skill.required);
@@ -395,7 +397,8 @@ export function CvScreeningPage() {
       )}
 
       {/* 3. Candidate CV Data Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+      <div className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+        <TableRefreshBar active={isTableRefreshing} />
         <div className="w-full overflow-x-auto">
           <table className="w-full min-w-[940px] border-collapse text-left text-sm">
             <thead>
@@ -408,8 +411,8 @@ export function CvScreeningPage() {
                 <th className="py-3 pr-6 text-right">{t("recruiter.screening.cvList.table.actions")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isInitialLoading || isTableTransitioning || rowsPending ? (
+            <tbody className={cn("divide-y divide-slate-100 transition-opacity duration-200", (isTableRefreshing || isTableTransitioning) && "opacity-60")}>
+              {isInitialLoading || (rowsPending && !pageResult) ? (
                 <TableRowsSkeleton rows={pageSize} />
               ) : rowsError ? (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-sm" role="alert">{getApiErrorMessage(rowsError)}</td></tr>

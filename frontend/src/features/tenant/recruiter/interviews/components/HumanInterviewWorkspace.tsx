@@ -17,6 +17,7 @@ import {
 import type { HumanInterview, InterviewPage, InterviewSummary } from "@/api/types/humanInterview";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { TableRefreshBar } from "@/components/ux/TableRefresh";
 import { formatDate, formatTime, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -44,6 +45,7 @@ type Props = {
   selected: number[];
   pending: boolean;
   loading: boolean;
+  refreshing?: boolean;
   onFilter: (name: "search" | "round" | "mode" | "status", value: string) => void;
   onView: (view: "list" | "calendar") => void;
   onWeek: (offset: number) => void;
@@ -280,7 +282,8 @@ export function HumanInterviewWorkspace(p: Props) {
 
       {/* 4. Main View: List or Calendar */}
       {p.view === "list" ? (
-        <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white shadow-xs">
+        <div className="relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white shadow-xs">
+          <TableRefreshBar active={Boolean(p.refreshing)} />
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[950px]">
               <thead className="border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/60 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
@@ -305,7 +308,7 @@ export function HumanInterviewWorkspace(p: Props) {
                   <th scope="col" className="px-3 py-2.5 text-right">{t("recruiter.interviews.human.workspace.colActions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--color-border-default)]">
+              <tbody className={cn("divide-y divide-[var(--color-border-default)] transition-opacity duration-200", p.refreshing && "opacity-60")}>
                 {p.loading && !rows.length && (
                   Array.from({ length: 5 }, (_, idx) => (
                     <tr key={idx}>
@@ -553,7 +556,8 @@ export function HumanInterviewWorkspace(p: Props) {
         </div>
       ) : (
         /* Calendar Week View */
-        <div className="rounded-xl border border-[var(--color-border-default)] bg-white p-3.5">
+        <div className="relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-3.5">
+          <TableRefreshBar active={Boolean(p.refreshing)} />
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-2.5 mb-3">
             <div className="flex items-center gap-2">
               <button
@@ -596,7 +600,7 @@ export function HumanInterviewWorkspace(p: Props) {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className={cn("overflow-x-auto transition-opacity duration-200", p.refreshing && "opacity-60")}>
             <div className="grid grid-cols-7 gap-2 min-w-[850px]">
               {days.map((day) => {
                 const dayStr = localDate(day);

@@ -66,6 +66,9 @@ public class RecruiterFeatureFilter extends OncePerRequestFilter {
                 hasPermission = rolePermissionService.hasAction(role, feature, "EDIT")
                         || rolePermissionService.hasFeature(role, feature);
             }
+            if (!hasPermission && feature == RecruiterFeature.JOBS && "VIEW".equals(action)) {
+                hasPermission = rolePermissionService.hasFeature(role, RecruiterFeature.JOBS_ALL);
+            }
             if (!hasPermission) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);

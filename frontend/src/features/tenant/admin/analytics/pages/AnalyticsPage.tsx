@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousData, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { cn } from "@/lib/utils";
 import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -351,6 +352,7 @@ function OverviewPanel({ range }: { range: TimeRange }) {
   const chartsQuery = useQuery({
     queryKey: ["dashboard", "charts", dateParams],
     queryFn: () => dashboardApi.charts(dateParams),
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
 
@@ -358,8 +360,12 @@ function OverviewPanel({ range }: { range: TimeRange }) {
   const trendsQuery = useQuery({
     queryKey: ["dashboard", "trends", dateParams],
     queryFn: () => dashboardApi.trends({ ...dateParams, granularity: "WEEK" }),
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
+  const isOverviewRefreshing =
+    (chartsQuery.isFetching && chartsQuery.isPlaceholderData) ||
+    (trendsQuery.isFetching && trendsQuery.isPlaceholderData);
 
   const summary = summaryQuery.data?.data;
   const charts = chartsQuery.data?.data;
@@ -591,7 +597,8 @@ function OverviewPanel({ range }: { range: TimeRange }) {
   }, [charts, summary, t]);
 
   return (
-    <div className="space-y-6">
+    <div className={cn("relative space-y-6 overflow-hidden rounded-xl transition-opacity duration-200", isOverviewRefreshing && "opacity-65")}>
+      <TableRefreshBar active={isOverviewRefreshing} />
       {/* 4 KPI Metrics */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
@@ -1210,9 +1217,11 @@ function TalentPanel({ range }: { range: TimeRange }) {
   const qualityQuery = useQuery({
     queryKey: ["analytics", "recruiter", "quality", dateParams],
     queryFn: () => recruiterAnalyticsApi.quality(dateParams),
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
     retry: false,
   });
+  const isTalentRefreshing = qualityQuery.isFetching && qualityQuery.isPlaceholderData;
 
   // Calculate candidate quality score (default to 78 benchmark matching mockup)
   const qualityScore = useMemo(() => {
@@ -1260,7 +1269,8 @@ function TalentPanel({ range }: { range: TimeRange }) {
       });
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] items-stretch">
+    <div className={cn("relative grid gap-5 overflow-hidden rounded-xl lg:grid-cols-[1.2fr_0.8fr] items-stretch transition-opacity duration-200", isTalentRefreshing && "opacity-65")}>
+      <TableRefreshBar active={isTalentRefreshing} />
       <Card className="rounded-xl border border-[var(--color-border-default)] bg-surface-card p-6 shadow-sm flex flex-col justify-between">
         <div>
           <div className="mb-6">

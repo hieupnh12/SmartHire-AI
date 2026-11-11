@@ -9,6 +9,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { canViewAllJobs } from "@/features/tenant/recruiter/permissions";
 
 const generalLinks = [
   {
@@ -23,6 +24,7 @@ export function JobNavigationDrawer() {
   const t = useT();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canViewAll = canViewAllJobs(user);
   const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
   const location = useLocation();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -30,9 +32,9 @@ export function JobNavigationDrawer() {
   const [open, setOpen] = useState(false);
   const currentJobId = location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1];
   const recentJobs = useQuery({
-    queryKey: queryKeys.jobs.list({ page: 0, size: 8, context: "detail-drawer" }),
-    queryFn: () => jobApi.search({ page: 0, size: 8 }),
-    enabled: open,
+    queryKey: queryKeys.jobs.list({ page: 0, size: 8, scope: canViewAll ? "all" : "my", context: "detail-drawer" }),
+    queryFn: () => jobApi.search({ page: 0, size: 8, scope: canViewAll ? "all" : "my" }),
+    enabled: open && !!user,
     staleTime: 60_000,
   });
 
