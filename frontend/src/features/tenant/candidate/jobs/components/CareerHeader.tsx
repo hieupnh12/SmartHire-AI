@@ -108,7 +108,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.logout);
   const landingTenant = getTenantIdFromWindow() || "acme";
-  const landing = useQuery({ queryKey: ["public-landing", landingTenant], queryFn: landingApi.getPublicLanding, staleTime: 60_000 });
+  const landing = useQuery({ queryKey: ["public-landing", landingTenant], queryFn: landingApi.getPublicLanding, staleTime: 0 });
   const publicJobs = useQuery({ queryKey: ["public-jobs", ""], queryFn: () => jobApi.publicList(), staleTime: 60_000 });
   const menus: Menus = useMemo(
     () => ({ ...baseMenus, company: buildCompanyMenu(landing.data?.data, publicJobs.data?.data ?? [], Boolean(token)) }),
@@ -131,9 +131,15 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
 
   const signOut = async () => {
     try { await authApi.logout(); } catch { /* Local logout must still complete. */ }
-    clearAuth();
+    const isPublicCareerQuery = (queryKey: readonly unknown[]) => {
+      const head = queryKey[0];
+      return head === "public-landing" || head === "public-jobs" || head === "public-job";
+    };
+    void queryClient.cancelQueries({ predicate: (query) => !isPublicCareerQuery(query.queryKey) });
+    queryClient.removeQueries({ predicate: (query) => !isPublicCareerQuery(query.queryKey) });
     setProfileOpen(false);
-    navigate("/career", { replace: true });
+    navigate("/", { replace: true });
+    clearAuth({ skipRemote: true });
   };
 
   const openMenu = (key: MenuKey, trigger: HTMLElement) => {
