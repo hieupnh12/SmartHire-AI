@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { landingApi } from "@/api/tenant/landingApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
-import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
+import { getLandingThemeStyle, getTenantTheme } from "@/lib/tenantTheme";
 import { getCentralOAuthRedirectUri, getTenantIdFromWindow } from "@/lib/tenant";
 import "./candidate-login.css";
 
@@ -39,9 +39,25 @@ export function CandidateLoginPage() {
   const publicLanding = useQuery({
     queryKey: ["public-landing", theme.code],
     queryFn: landingApi.getPublicLanding,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
-  const logoUrl = publicLanding.data?.data.header.logoImageUrl?.trim() || null;
+  const customLanding = publicLanding.data?.data;
+  const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
+  const primaryHover = customLanding?.theme?.primaryHover || customLanding?.theme?.primaryColor || theme.primaryHover;
+  const slogan = customLanding?.header?.slogan?.trim() || "Cổng tuyển dụng nhân tài";
+  const copyrightText = customLanding?.footer?.copyrightText?.trim() || `© 2026 ${theme.name}. Cổng thông tin ứng viên.`;
+  const shellRadius = ({
+    "rounded-none": "0px",
+    "rounded-lg": "12px",
+    "rounded-2xl": "16px",
+    "rounded-3xl": "24px",
+  } as Record<string, string>)[customLanding?.theme?.borderRadius ?? ""] ?? "24px";
+  const dynamicThemeStyle = useMemo(
+    () => getLandingThemeStyle(theme, customLanding),
+    [theme, customLanding],
+  );
+  const logoUrl = customLanding?.header.logoImageUrl?.trim() || null;
   const showLogo = !!logoUrl && failedLogoUrl !== logoUrl;
 
   const handleGoogleLogin = () => {
@@ -66,22 +82,22 @@ export function CandidateLoginPage() {
   };
 
   return (
-    <div className="candidate-login-page tenant-workspace-theme bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]" style={getTenantThemeStyle(theme)}>
+    <div className="candidate-login-page tenant-workspace-theme bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]" style={dynamicThemeStyle}>
       <header className="candidate-login-header z-10 border-b border-[var(--color-border-default)] bg-white">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <button type="button" onClick={() => navigate("/")} className="flex min-w-0 items-center gap-3 text-left" aria-label={`Về trang tuyển dụng ${theme.name}`}>
             <span className={`grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl font-semibold ${showLogo ? "border border-[var(--color-border-default)] bg-white p-1" : "bg-[var(--color-primary)] text-white"}`}>
               {showLogo ? <img src={logoUrl} alt="" className="size-full object-contain" onError={() => setFailedLogoUrl(logoUrl)} /> : theme.code.charAt(0).toUpperCase()}
             </span>
-            <span className="min-w-0"><span className="block truncate text-base font-semibold text-slate-900">{theme.name}</span><span className="hidden text-xs text-slate-500 sm:block">Cổng tuyển dụng nhân tài</span></span>
+            <span className="min-w-0"><span className="block truncate text-base font-semibold text-slate-900">{theme.name}</span><span className="hidden text-xs text-slate-500 sm:block">{slogan}</span></span>
           </button>
           <div className="flex items-center gap-1"><LanguageSwitcher variant="icon" /><button type="button" onClick={() => navigate("/")} className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ArrowLeft className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Quay lại</span></button></div>
         </div>
       </header>
 
       <main className="candidate-login-main">
-        <div className="candidate-login-shell border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-ambient)]">
-          <section className="candidate-login-intro text-white" style={{ background: `linear-gradient(145deg, ${theme.primary}, ${theme.primaryHover})` }}>
+        <div className="candidate-login-shell border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-ambient)]" style={{ borderRadius: shellRadius }}>
+          <section className="candidate-login-intro text-white" style={{ background: `linear-gradient(145deg, ${primaryColor}, ${primaryHover})` }}>
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold"><Sparkles className="size-4" aria-hidden="true" />Không gian ứng viên</span>
             <h1 className="mt-5 max-w-xl text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">Theo dõi hành trình ứng tuyển của bạn tại {theme.name}.</h1>
             <p className="mt-4 max-w-lg text-sm leading-6 text-white/75">Quản lý hồ sơ, lịch phỏng vấn và bài đánh giá trong một không gian bảo mật, thuận tiện.</p>
@@ -107,7 +123,7 @@ export function CandidateLoginPage() {
                 {errorMessage && <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--color-error-container)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert"><AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span>{errorMessage}</span></div>}
                 <p className="mt-5 flex items-start gap-2 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />Hệ thống không lưu hoặc chia sẻ mật khẩu Google của bạn.</p>
               </div>
-              <p className="mt-4 text-center text-xs text-slate-400">© 2026 {theme.name}. Cổng thông tin ứng viên.</p>
+              <p className="mt-4 text-center text-xs text-slate-400">{copyrightText}</p>
             </div>
           </section>
         </div>

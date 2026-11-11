@@ -9,7 +9,7 @@ type AuthState = {
   user: UserProfile | null;
   setTokens: (access: string | null, refresh?: string | null) => void;
   setUser: (user: UserProfile | null) => void;
-  logout: () => void;
+  logout: (options?: { skipRemote?: boolean }) => void;
   hasRole: (...roles: Role[]) => boolean;
 };
 
@@ -32,9 +32,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
   setUser: (user) => set({ user }),
-  logout: () => {
+  logout: (options) => {
     const refreshToken = get().refreshToken ?? read("refreshToken") ?? undefined;
-    authApi.logout({ refreshToken }).catch(() => {});
+    const accessToken = get().accessToken ?? read("accessToken") ?? undefined;
+    if (!options?.skipRemote && (refreshToken || accessToken)) {
+      authApi.logout({ refreshToken }).catch(() => {});
+    }
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     set({ accessToken: null, refreshToken: null, user: null });
