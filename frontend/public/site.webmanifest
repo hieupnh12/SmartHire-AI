@@ -1,0 +1,19 @@
+{
+  "name": "SmartHire AI",
+  "short_name": "SmartHire",
+  "description": "Nền tảng tuyển dụng AI toàn diện dành cho doanh nghiệp.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "/logo-smarthire-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
+
