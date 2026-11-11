@@ -1,7 +1,14 @@
 package com.smarthire.common.redis;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -47,6 +54,27 @@ public class RedisService {
             redis.expire(key, windowTtlIfFirst);
         }
         return count == null ? 0L : count;
+    }
+
+    /** Scans keys matching pattern and deletes entries whose string value satisfies the predicate. */
+    public void deleteMatchingValues(String keyPattern, Predicate<String> valuePredicate) {
+        List<String> keysToDelete = new ArrayList<>();
+        ScanOptions options = ScanOptions.scanOptions().match(keyPattern).count(200).build();
+        redis.execute((RedisCallback<Void>) connection -> {
+            try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+                while (cursor.hasNext()) {
+                    String key = new String(cursor.next(), StandardCharsets.UTF_8);
+                    String val = redis.opsForValue().get(key);
+                    if (val != null && valuePredicate.test(val)) {
+                        keysToDelete.add(key);
+                    }
+                }
+            }
+            return null;
+        });
+        if (!keysToDelete.isEmpty()) {
+            redis.delete(keysToDelete);
+        }
     }
 }
 

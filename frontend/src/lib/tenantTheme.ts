@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { LandingPageConfig } from "@/features/tenant/admin/landing/types/landing";
 import { t } from "@/i18n";
 
 export interface TenantThemeConfig {
@@ -63,5 +64,38 @@ export function getTenantThemeStyle(theme: TenantThemeConfig): CSSProperties {
     "--color-surface-muted": theme.primarySubtle,
     "--color-border-focus": theme.primary,
     "--tw-ring-color": theme.primarySoft,
+  } as CSSProperties;
+}
+
+export function getLandingThemeStyle(
+  theme: TenantThemeConfig,
+  customLanding?: Pick<LandingPageConfig, "theme">,
+): CSSProperties {
+  const baseStyle = getTenantThemeStyle(theme);
+  const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
+  const primaryHover = customLanding?.theme?.primaryHover || customLanding?.theme?.primaryColor || theme.primaryHover;
+  const secondaryColor = customLanding?.theme?.secondaryColor || "#505f76";
+  const primarySoft = `color-mix(in srgb, ${primaryColor} 10%, transparent)`;
+  const primarySubtle = `color-mix(in srgb, ${primaryColor} 7%, white)`;
+  return {
+    ...baseStyle,
+    "--color-primary": primaryColor,
+    "--color-primary-hover": primaryHover,
+    "--color-primary-container": primaryColor,
+    "--color-primary-soft": primarySoft,
+    "--color-primary-subtle": primarySubtle,
+    "--color-primary-shadow": `color-mix(in srgb, ${primaryColor} 55%, transparent)`,
+    "--color-surface-container-low": primarySubtle,
+    "--color-surface-container": primarySubtle,
+    "--container-blue": primarySoft,
+    "--color-brand-primary": primaryColor,
+    "--color-brand-primary-hover": primaryHover,
+    "--color-brand-accent": primaryColor,
+    "--color-secondary": secondaryColor,
+    "--color-brand-secondary": secondaryColor,
+    "--color-surface-muted": primarySubtle,
+    "--color-border-focus": primaryColor,
+    "--tw-ring-color": `color-mix(in srgb, ${primaryColor} 15%, transparent)`,
+    ...(customLanding?.theme?.fontFamily ? { fontFamily: customLanding.theme.fontFamily } : {}),
   } as CSSProperties;
 }

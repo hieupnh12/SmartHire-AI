@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
+import { getLandingThemeStyle, getTenantTheme } from "@/lib/tenantTheme";
 import { getCanonicalOrigin } from "@/lib/seo";
 import { buildTenantCareerSeo } from "@/lib/routeSeo";
 import { useSeo } from "@/hooks/useSeo";
@@ -503,7 +503,7 @@ export function TenantCareerPage() {
   const candidateCvDetail = useQuery({
     queryKey: ["career-candidate-cv", analyzedCv?.id],
     queryFn: () => cvApi.get(analyzedCv!.id),
-    enabled: Boolean(analyzedCv),
+    enabled: isCandidate && Boolean(analyzedCv),
   });
 
   const customLanding = publicLanding.data?.data;
@@ -557,25 +557,17 @@ export function TenantCareerPage() {
 
   // Dynamic Theme & Palette
   const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
-  const primaryHover = customLanding?.theme?.primaryHover || theme.primaryHover;
   const secondaryColor = customLanding?.theme?.secondaryColor || "#505f76";
   const isDarkHero = customLanding?.theme?.darkModeHero !== false;
 
   const dynamicThemeStyle = useMemo(() => {
-    const baseStyle = getTenantThemeStyle(theme);
     return {
-      ...baseStyle,
-      "--color-primary": primaryColor,
-      "--color-primary-hover": primaryHover,
-      "--color-brand-primary": primaryColor,
-      "--color-brand-primary-hover": primaryHover,
-      "--color-secondary": secondaryColor,
-      "--color-brand-secondary": secondaryColor,
+      ...getLandingThemeStyle(theme, customLanding),
       "--career-hero": isDarkHero ? primaryColor : "#ffffff",
       "--career-secondary": secondaryColor,
       fontFamily: customLanding?.theme?.fontFamily || "inherit",
     } as React.CSSProperties;
-  }, [theme, customLanding, primaryColor, primaryHover, secondaryColor, isDarkHero]);
+  }, [theme, customLanding, primaryColor, secondaryColor, isDarkHero]);
 
   const jobsList = publicJobs.data?.data ?? [];
 

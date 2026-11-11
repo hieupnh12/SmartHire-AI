@@ -44,7 +44,6 @@ import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/compone
 import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
 import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
 import { CvGuidePage } from "@/features/tenant/candidate/cv/pages/CvGuidePage";
-import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
@@ -296,6 +295,7 @@ export function AppRouter() {
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="landing-page" element={<LandingPageEditorPage />} />
+          <Route path="subscription" element={<Navigate to="/internal/admin/billing" replace />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="recruiter-assignments" element={<AssignmentsPage />} />
@@ -307,8 +307,6 @@ export function AppRouter() {
         </Route>
       </Route>
       <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
-
-      <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
       </Route>
 
       <Route element={<MasterRoute />}>

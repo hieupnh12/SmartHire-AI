@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { BriefcaseBusiness, Users } from "lucide-react";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -15,7 +16,12 @@ const PAGE_SIZE = 20;
 export function RecruitmentPage() {
   const t = useT();
   const locale = useLocale();
-  const [jobId, setJobId] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+  const urlJobIdRaw = searchParams.get("jobId");
+  const urlJobId = urlJobIdRaw ? Number(urlJobIdRaw) : NaN;
+  const [jobId, setJobId] = useState<number | null>(() =>
+    Number.isFinite(urlJobId) && urlJobId > 0 ? urlJobId : null,
+  );
   const [page, setPage] = useState(0);
 
   const getStatusLabel = (status: ApplicationStatus) => {
@@ -42,6 +48,13 @@ export function RecruitmentPage() {
   const jobTotal = jobs.data?.data?.total ?? jobItems.length;
 
   const firstJobId = jobItems[0]?.id;
+
+  useEffect(() => {
+    if (Number.isFinite(urlJobId) && urlJobId > 0) {
+      setJobId(urlJobId);
+      setPage(0);
+    }
+  }, [urlJobId]);
 
   useEffect(() => {
     if (jobId == null && firstJobId != null) {

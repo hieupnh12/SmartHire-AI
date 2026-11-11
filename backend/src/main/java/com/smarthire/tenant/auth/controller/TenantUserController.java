@@ -4,7 +4,9 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
+import com.smarthire.tenant.auth.dto.PendingInvitationResponse;
 import com.smarthire.tenant.auth.dto.UpdateUserRoleRequest;
+import com.smarthire.tenant.auth.dto.UpdateUserStatusRequest;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.service.MemberInvitationService;
 import com.smarthire.tenant.auth.service.TenantUserService;
@@ -51,12 +53,40 @@ public class TenantUserController {
         return ResponseEntity.ok(ApiResponse.ok("Role assigned", tenantUserService.assignRole(id, request.getRole())));
     }
 
+    @PatchMapping("/{id}/status")
+    @Operation(summary = "Update staff status", description = "Activates, locks, or disables a staff account. Requires job ownership transfer if locking/disabling a job owner.")
+    public ResponseEntity<ApiResponse<UserResponse>> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Status updated", tenantUserService.updateStatus(id, request)));
+    }
+
+    @GetMapping("/invitations")
+    @Operation(summary = "List staff invitations", description = "Lists member invitations, optionally filtered by status (PENDING, ACCEPTED, REVOKED).")
+    public ResponseEntity<ApiResponse<List<PendingInvitationResponse>>> listInvitations(
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(memberInvitationService.list(status)));
+    }
+
     @PostMapping("/invitations")
     @Operation(summary = "Invite a staff member", description = "Creates a pending invitation and emails a password-setup link. Roles: TENANT_ADMIN, ADMIN, HR, RECRUITER.")
     public ResponseEntity<ApiResponse<InviteMemberResponse>> inviteMember(@Valid @RequestBody InviteMemberRequest request) {
         InviteMemberResponse response = memberInvitationService.invite(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Invitation created", response));
+    }
+
+    @PostMapping("/invitations/{id}/resend")
+    @Operation(summary = "Resend a pending invitation", description = "Rotates the invitation token, extends expiry, and re-sends the invitation email.")
+    public ResponseEntity<ApiResponse<InviteMemberResponse>> resendInvitation(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok("Invitation resent", memberInvitationService.resend(id)));
+    }
+
+    @DeleteMapping("/invitations/{id}")
+    @Operation(summary = "Revoke an invitation", description = "Marks a pending invitation as REVOKED so its activation link can no longer be used.")
+    public ResponseEntity<ApiResponse<Void>> revokeInvitation(@PathVariable Long id) {
+        memberInvitationService.revoke(id);
+        return ResponseEntity.ok(ApiResponse.ok("Invitation revoked", null));
     }
 
     @PostMapping("/invitations/accept")

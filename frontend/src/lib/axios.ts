@@ -20,8 +20,25 @@ function isPublicTenantAuth(url: string) {
   return /\/tenant\/auth\/(login|google|register|refresh|forgot-password|reset-password)(?:\?|$)/.test(url);
 }
 
+function isLogoutRequest(url: string) {
+  return /\/tenant\/auth\/logout(?:\?|$)/.test(url);
+}
+
+function isPublicCareerBrowsePath(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/career") ||
+    pathname.startsWith("/jobs") ||
+    pathname.startsWith("/cv-templates") ||
+    pathname.startsWith("/cv/share/") ||
+    pathname.startsWith("/cv-guide") ||
+    pathname.startsWith("/assessments/sample")
+  );
+}
+
 function shouldSkipLoginRedirect(pathname: string, url = "") {
-  if (isPublicTenantAuth(url)) return true;
+  if (isPublicTenantAuth(url) || isLogoutRequest(url)) return true;
+  if (!localStorage.getItem("accessToken") && isPublicCareerBrowsePath(pathname)) return true;
   return (
     pathname.startsWith("/login") ||
     pathname.startsWith("/internal/login") ||
@@ -33,23 +50,13 @@ function shouldSkipLoginRedirect(pathname: string, url = "") {
 
 function loginPathFor(pathname: string) {
   if (
-    pathname.startsWith("/candidate") ||
-    pathname.startsWith("/applications") ||
-    pathname.startsWith("/cv") ||
-    pathname.startsWith("/assessments") ||
-    pathname.startsWith("/interviews") ||
-    pathname.startsWith("/practice") ||
-    pathname.startsWith("/schedules") ||
-    pathname.startsWith("/interview-schedules") ||
-    pathname.startsWith("/notifications") ||
-    pathname.startsWith("/account") ||
-    pathname.startsWith("/oauth") ||
-    pathname.startsWith("/career") ||
-    pathname.startsWith("/jobs")
+    pathname.startsWith("/recruiter") ||
+    pathname.startsWith("/internal") ||
+    pathname.startsWith("/tenant/admin")
   ) {
-    return "/login";
+    return "/internal/login";
   }
-  return "/internal/login";
+  return "/login";
 }
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -109,7 +116,8 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     if (error.response?.status === 401 && original && !original._retry) {
-      if (isPublicTenantAuth(requestUrl(original))) {
+      const url = requestUrl(original);
+      if (isPublicTenantAuth(url) || isLogoutRequest(url)) {
         return Promise.reject(error);
       }
       original._retry = true;

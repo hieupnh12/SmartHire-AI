@@ -1,10 +1,7 @@
 import { useState, useMemo, type ComponentType } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
-  Activity,
   ArrowDownRight,
-  ArrowRight,
   ArrowUpRight,
   Award,
   BriefcaseBusiness,
@@ -13,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  CreditCard,
   Gauge,
   LayoutGrid,
   List,
@@ -25,7 +21,6 @@ import {
   UserCheck,
   Users,
   X,
-  Zap,
 } from "lucide-react";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
@@ -34,26 +29,15 @@ import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { recruiterAnalyticsApi } from "@/api/tenant/recruiterAnalyticsApi";
 import { usersApi } from "@/api/tenant/usersApi";
-import { companyApi } from "@/api/tenant/companyApi";
-import { getApiErrorMessage } from "@/lib/axios";
-import { toast } from "@/stores/toastStore";
-import {
-  formatPlanDisplayName,
-  formatSubscriptionStatusLabel,
-  translatePlanFeatureLabel,
-} from "@/features/tenant/admin/billing/utils/billingLabels";
 import {
   useT,
   useLocale,
-  formatDate,
   formatNumber,
   compareLocaleText,
-  type TranslateFn,
 } from "@/i18n";
 
-type AnalyticsTab = "overview" | "pipeline" | "talent" | "team" | "usage";
+type AnalyticsTab = "overview" | "pipeline" | "talent" | "team";
 type TimeRange = "30_DAYS" | "CURRENT_QUARTER" | "12_MONTHS";
-
 function getDateRange(range: TimeRange): { from: string; to: string } {
   const now = new Date();
   const to = now.toISOString().slice(0, 10);
@@ -2013,352 +1997,6 @@ function TeamPanel() {
   );
 }
 
-function formatQuotaBytes(bytes: number): string {
-  if (bytes <= 0) return "0 MB";
-  const mb = bytes / (1024 * 1024);
-  if (mb < 1024) return `${mb.toFixed(1)} MB`;
-  return `${(mb / 1024).toFixed(2)} GB`;
-}
-
-function formatSecondsToHoursLabel(seconds: number, translate: TranslateFn): string {
-  const hours = seconds / 3600;
-  if (hours > 0 && hours < 0.1) {
-    return translate("tenantAdmin.analytics.minutesUnit", { minutes: Math.ceil(seconds / 60) });
-  }
-  return translate("tenantAdmin.analytics.hoursUnit", { hours: hours.toFixed(1) });
-}
-
-function UsagePanel() {
-  const t = useT();
-  const locale = useLocale();
-  const [cancelingDowngrade, setCancelingDowngrade] = useState(false);
-
-  const subQuery = useQuery({
-    queryKey: ["tenant-subscription-quota"],
-    queryFn: companyApi.getSubscription,
-  });
-
-  const sub = subQuery.data?.data;
-
-  const handleCancelDowngrade = async () => {
-    setCancelingDowngrade(true);
-    try {
-      await companyApi.cancelScheduledDowngrade();
-      await subQuery.refetch();
-      toast.success(t("tenantAdmin.analytics.usage.cancelDowngradeSuccess"));
-    } catch (err) {
-      toast.error(t("tenantAdmin.analytics.usage.cancelDowngradeError"), getApiErrorMessage(err));
-    } finally {
-      setCancelingDowngrade(false);
-    }
-  };
-
-  if (subQuery.isLoading) {
-    return (
-      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm space-y-4">
-          <Skeleton className="h-7 w-64 rounded" />
-          <Skeleton className="h-24 w-full rounded-xl" />
-          <Skeleton className="h-24 w-full rounded-xl" />
-        </Card>
-        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm space-y-4">
-          <Skeleton className="h-7 w-40 rounded" />
-          <Skeleton className="h-32 w-full rounded-xl" />
-        </Card>
-      </div>
-    );
-  }
-
-  const quotaRows = sub
-    ? [
-        {
-          id: "jobs",
-          label: t("tenantAdmin.analytics.usage.quotaRows.jobsLabel"),
-          usedLabel: formatNumber(sub.usedJobs, undefined, locale),
-          maxLabel:
-            sub.maxJobs < 0
-              ? t("tenantAdmin.analytics.usage.unlimited")
-              : t("tenantAdmin.analytics.usage.quotaRows.jobsMax", {
-                  count: formatNumber(sub.maxJobs, undefined, locale),
-                }),
-          pct: sub.jobsUsagePercent,
-          enabled: sub.jobsEnabled,
-          allowed: sub.jobsAllowed,
-          unlimited: sub.maxJobs < 0,
-        },
-        {
-          id: "cv",
-          label: t("tenantAdmin.analytics.usage.quotaRows.cvLabel"),
-          usedLabel: formatNumber(sub.usedCvParses, undefined, locale),
-          maxLabel:
-            sub.maxCvParses < 0
-              ? t("tenantAdmin.analytics.usage.unlimited")
-              : t("tenantAdmin.analytics.usage.quotaRows.cvMax", {
-                  count: formatNumber(sub.maxCvParses, undefined, locale),
-                }),
-          pct: sub.cvParsesUsagePercent,
-          enabled: sub.cvParseEnabled,
-          allowed: sub.cvParseAllowed,
-          unlimited: sub.maxCvParses < 0,
-        },
-        {
-          id: "ai_voice",
-          label: t("tenantAdmin.analytics.usage.quotaRows.aiVoiceLabel"),
-          usedLabel: formatSecondsToHoursLabel(sub.usedAiInterviewSeconds, t),
-          maxLabel:
-            sub.maxAiInterviewHours < 0
-              ? t("tenantAdmin.analytics.usage.unlimited")
-              : sub.maxAiInterviewHours === 0
-              ? t("tenantAdmin.analytics.usage.quotaRows.aiVoiceUnsupported")
-              : t("tenantAdmin.analytics.usage.quotaRows.aiVoiceMax", {
-                  count: formatNumber(sub.maxAiInterviewHours, undefined, locale),
-                }),
-          pct: sub.aiInterviewUsagePercent,
-          enabled: sub.aiInterviewEnabled,
-          allowed: sub.aiInterviewAllowed,
-          unlimited: sub.maxAiInterviewHours < 0,
-        },
-        {
-          id: "proctoring",
-          label: t("tenantAdmin.analytics.usage.quotaRows.proctoringLabel"),
-          usedLabel: formatSecondsToHoursLabel(sub.usedProctoringSeconds, t),
-          maxLabel:
-            sub.maxProctoringHours < 0
-              ? t("tenantAdmin.analytics.usage.unlimited")
-              : sub.maxProctoringHours === 0
-              ? t("tenantAdmin.analytics.usage.quotaRows.proctoringUnsupported")
-              : t("tenantAdmin.analytics.usage.quotaRows.proctoringMax", {
-                  count: formatNumber(sub.maxProctoringHours, undefined, locale),
-                }),
-          pct: sub.proctoringUsagePercent,
-          enabled: sub.proctoringEnabled,
-          allowed: sub.proctoringAllowed,
-          unlimited: sub.maxProctoringHours < 0,
-        },
-        {
-          id: "storage",
-          label: t("tenantAdmin.analytics.usage.quotaRows.storageLabel"),
-          usedLabel: formatQuotaBytes(sub.usedStorageBytes),
-          maxLabel:
-            sub.maxStorageGb < 0
-              ? t("tenantAdmin.analytics.usage.unlimited")
-              : sub.maxStorageGb === 0
-              ? t("tenantAdmin.analytics.usage.quotaRows.storageUnsupported")
-              : t("tenantAdmin.analytics.usage.quotaRows.storageMax", {
-                  count: sub.maxStorageGb,
-                }),
-          pct: sub.storageUsagePercent,
-          enabled: sub.storageEnabled,
-          allowed: sub.storageAllowed,
-          unlimited: sub.maxStorageGb < 0,
-        },
-      ]
-    : [];
-
-  return (
-    <div className="space-y-6">
-      {sub?.subscriptionStatus === "PAST_DUE" && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
-          <strong>{t("tenantAdmin.analytics.usage.pastDueTitle")}</strong>{" "}
-          {t("tenantAdmin.analytics.usage.pastDueBody", {
-            until: sub.gracePeriodEndsAt
-              ? t("tenantAdmin.analytics.usage.pastDueUntil", {
-                  date: formatDate(sub.gracePeriodEndsAt, undefined, locale),
-                })
-              : "",
-          })}
-        </div>
-      )}
-
-      {sub?.subscriptionStatus === "SUSPENDED" && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-xs text-red-900">
-          <strong>{t("tenantAdmin.analytics.usage.suspendedTitle")}</strong>{" "}
-          {t("tenantAdmin.analytics.usage.suspendedBody")}
-        </div>
-      )}
-
-      {sub?.nextPlanName && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900">
-          <span>
-            <strong>{t("tenantAdmin.analytics.usage.downgradeTitle")}</strong>{" "}
-            {t("tenantAdmin.analytics.usage.downgradePrefix")}
-            <strong>{formatPlanDisplayName(sub.nextPlanName, t)}</strong>
-            {t("tenantAdmin.analytics.usage.downgradeSuffix", {
-              date: sub.endsAt
-                ? t("tenantAdmin.analytics.usage.downgradeDate", {
-                    date: formatDate(sub.endsAt, undefined, locale),
-                  })
-                : "",
-            })}
-          </span>
-          <button
-            type="button"
-            disabled={cancelingDowngrade}
-            onClick={handleCancelDowngrade}
-            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 border border-blue-300 hover:bg-blue-100 cursor-pointer"
-          >
-            {cancelingDowngrade
-              ? t("tenantAdmin.analytics.usage.cancelingDowngrade")
-              : t("tenantAdmin.analytics.usage.cancelDowngradeButton")}
-          </button>
-        </div>
-      )}
-
-      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3.5">
-            <div className="flex items-start gap-3.5">
-              <span className="grid size-11 place-items-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
-                <Zap className="size-5" />
-              </span>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                    {t("tenantAdmin.analytics.usage.quotaCardTitle", {
-                      plan: formatPlanDisplayName(sub?.planName, t),
-                    })}
-                  </h2>
-                  <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-700 border border-teal-200">
-                    {t("tenantAdmin.analytics.usage.planVersion", { version: sub?.planVersion ?? 1 })}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                    {formatSubscriptionStatusLabel(sub?.subscriptionStatus, t)}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                  {t("tenantAdmin.analytics.usage.daysRemainingSummary", { days: sub?.daysRemaining ?? 0 })}
-                  <strong>
-                    {sub == null
-                      ? "—"
-                      : sub.videoRetentionDays < 0
-                      ? t("tenantAdmin.analytics.usage.retentionUnlimited")
-                      : sub.videoRetentionDays === 0
-                      ? t("tenantAdmin.analytics.usage.retentionNone")
-                      : t("tenantAdmin.analytics.usage.retentionDays", { days: sub.videoRetentionDays })}
-                  </strong>
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void subQuery.refetch()}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3 text-xs font-semibold text-teal-600 hover:bg-surface-muted transition-colors cursor-pointer"
-            >
-              <RefreshCw className={cn("size-3.5", subQuery.isFetching && "animate-spin")} />
-              {t("tenantAdmin.analytics.usage.refresh")}
-            </button>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {quotaRows.map((item) => {
-              const barColor = !item.enabled
-                ? "bg-slate-400"
-                : !item.allowed || item.pct >= 100
-                ? "bg-red-600"
-                : item.pct >= 85
-                ? "bg-amber-500"
-                : "bg-teal-600";
-
-              return (
-                <div key={item.id} className="rounded-xl bg-surface-muted p-4 border border-[var(--color-border-default)]">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="font-medium text-[var(--color-text-primary)]">{item.label}</span>
-                    <div className="flex items-center gap-2">
-                      {!item.enabled ? (
-                        <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                          {t("tenantAdmin.analytics.usage.notIncludedBadge")}
-                        </span>
-                      ) : !item.allowed ? (
-                        <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                          {t("tenantAdmin.analytics.usage.hardCapBadge")}
-                        </span>
-                      ) : item.unlimited ? (
-                        <span className="rounded-md bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">
-                          {t("tenantAdmin.analytics.usage.unlimited")}
-                        </span>
-                      ) : null}
-                      <strong className="text-teal-700 dark:text-teal-400">
-                        {item.usedLabel} / {item.maxLabel}
-                      </strong>
-                    </div>
-                  </div>
-                  <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                    <div
-                      className={cn("h-full rounded-full transition-all duration-300", barColor)}
-                      style={{ width: `${item.unlimited ? 18 : Math.min(100, item.pct)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <div className="space-y-5">
-          <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm bg-gradient-to-br from-teal-50/50 via-surface-card to-surface-card">
-            <Activity className="size-6 text-teal-600" />
-            <p className="mt-4 text-sm font-medium text-[var(--color-text-secondary)]">
-              {t("tenantAdmin.analytics.usage.reservedContractPrice")}
-            </p>
-            <p className="mt-1 font-display text-3xl font-bold text-[var(--color-text-primary)]">
-              {t("tenantAdmin.analytics.usage.priceValue", {
-                amount: formatNumber(sub?.priceYearly ?? 0, undefined, locale),
-              })}
-              <span className="text-xs font-normal text-[var(--color-text-secondary)]">
-                {t("tenantAdmin.analytics.usage.perYear")}
-              </span>
-            </p>
-            {sub?.proratedCreditAmount != null && sub.proratedCreditAmount > 0 && (
-              <p className="mt-1 text-xs font-semibold text-teal-700">
-                {t("tenantAdmin.analytics.usage.prorationDeducted", {
-                  amount: formatNumber(sub.proratedCreditAmount, undefined, locale),
-                })}
-              </p>
-            )}
-            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              {sub?.description || t("tenantAdmin.analytics.usage.defaultPlanDesc")}
-            </p>
-
-            <div className="mt-5 border-t border-[var(--color-border-default)] pt-4 space-y-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                {t("tenantAdmin.analytics.usage.manageSectionTitle")}
-              </p>
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                {t("tenantAdmin.analytics.usage.manageSectionDesc")}
-              </p>
-              <Link
-                to="/internal/admin/billing"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-teal-700"
-              >
-                <CreditCard className="size-4" />
-                <span>{t("tenantAdmin.analytics.usage.manageButton")}</span>
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </div>
-
-            {sub?.features && sub.features.length > 0 && (
-              <div className="mt-4 border-t border-[var(--color-border-default)] pt-4 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                  {t("tenantAdmin.analytics.usage.includedBenefitsTitle")}
-                </p>
-                <ul className="space-y-1.5 text-xs text-[var(--color-text-primary)]">
-                  {sub.features.map((feat, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <CheckCircle2 className="size-3.5 text-teal-600 shrink-0 mt-0.5" />
-                      <span>{translatePlanFeatureLabel(feat, t)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ═══════════════════════════════════════════
    Main AnalyticsPage
    ═══════════════════════════════════════════ */
@@ -2375,7 +2013,6 @@ export function AnalyticsPage() {
       { id: "pipeline", label: t("tenantAdmin.analytics.tabs.pipeline"), icon: TrendingUp },
       { id: "talent", label: t("tenantAdmin.analytics.tabs.talent"), icon: Target },
       { id: "team", label: t("tenantAdmin.analytics.tabs.team"), icon: Users },
-      { id: "usage", label: t("tenantAdmin.analytics.tabs.usage"), icon: Sparkles },
     ],
     [t]
   );
@@ -2385,7 +2022,6 @@ export function AnalyticsPage() {
     pipeline: <PipelinePanel />,
     talent: <TalentPanel range={range} />,
     team: <TeamPanel />,
-    usage: <UsagePanel />,
   };
 
   return (

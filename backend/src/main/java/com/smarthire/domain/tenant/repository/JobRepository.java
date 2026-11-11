@@ -1,5 +1,6 @@
 package com.smarthire.domain.tenant.repository;
 
+import com.smarthire.domain.enums.AssignmentRole;
 import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.tenant.entity.Job;
 import java.time.Instant;
@@ -88,4 +89,18 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             group by j.department
             """)
     List<Object[]> countJobsByDepartment();
+
+    @Query("""
+            select distinct j from Job j
+            where j.deletedAt is null
+              and ((j.createdBy is not null and j.createdBy.id = :userId)
+                   or exists (
+                       select 1 from JobAssignment a
+                       where a.job = j and a.user.id = :userId
+                         and a.assignmentRole in :ownerRoles))
+            order by j.id desc
+            """)
+    List<Job> findOwnedActiveJobsByUserId(
+            @Param("userId") Long userId,
+            @Param("ownerRoles") List<AssignmentRole> ownerRoles);
 }
