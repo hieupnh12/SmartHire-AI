@@ -2,6 +2,7 @@ import type { ElementType } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Bell, Bot, Briefcase, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Check, CircleCheck, ClipboardCheck, CircleX, UserPlus } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
+import { localizeNotification } from "@/features/tenant/candidate/shared/utils/localizeNotification";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { formatDate, formatDateTime, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -31,17 +32,11 @@ const KIND_STYLES: Record<string, KindStyle> = {
   STAFF_JOB_ASSIGNED: { icon: Briefcase, tone: "bg-amber-50 text-amber-700" },
   STAFF_AI_INTERVIEW_COMPLETED: { icon: Bot, tone: "bg-violet-50 text-violet-700" },
   STAFF_ASSESSMENT_SUBMITTED: { icon: ClipboardCheck, tone: "bg-teal-50 text-teal-700" },
+  APPLICATION_OFFER: { icon: CircleCheck, tone: "bg-emerald-50 text-emerald-700" },
+  OFFER_ACCEPTED: { icon: CircleCheck, tone: "bg-emerald-50 text-emerald-700" },
+  OFFER_DECLINED: { icon: CircleX, tone: "bg-red-50 text-red-700" },
 };
 const FALLBACK_STYLE: KindStyle = { icon: Bell, tone: "bg-slate-100 text-slate-600" };
-
-function parseJobTitle(payload: string | null): string | null {
-  try {
-    const data = JSON.parse(payload ?? "{}");
-    return typeof data === "object" && data !== null && typeof data.jobTitle === "string" ? data.jobTitle : null;
-  } catch {
-    return null;
-  }
-}
 
 type Props = { item: Notification; marking: boolean; onRead: () => void };
 
@@ -55,7 +50,7 @@ export function NotificationCard({ item, marking, onRead }: Props) {
   const tagText = t(`candidate.core.notifications.kinds.${kindKey}.tag`);
   const path = notificationPath(item.payloadJson);
   const unread = !item.readAt;
-  const jobTitle = parseJobTitle(item.payloadJson);
+  const { title, body, jobTitle } = localizeNotification(item, t);
 
   const relativeTime = (value: string) => {
     const date = new Date(value);
@@ -81,7 +76,7 @@ export function NotificationCard({ item, marking, onRead }: Props) {
             {jobTitle && <span className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700">{jobTitle}</span>}
           </div>
           <h2 className={cn("mt-0.5 text-[15px] leading-6", unread ? "font-bold text-[var(--color-error)]" : "font-medium text-[var(--color-on-surface)]/85")}>
-            {unread && <span className="sr-only">{t("candidate.core.notifications.unreadSr")} </span>}{item.title}
+            {unread && <span className="sr-only">{t("candidate.core.notifications.unreadSr")} </span>}{title}
           </h2>
         </div>
         <span className="flex shrink-0 items-center gap-2">
@@ -90,7 +85,7 @@ export function NotificationCard({ item, marking, onRead }: Props) {
         </span>
       </div>
 
-      {item.body && <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-6 text-[var(--color-on-surface-variant)]">{item.body}</p>}
+      {body && <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-6 text-[var(--color-on-surface-variant)]">{body}</p>}
 
       {(path || unread) && <div className="mt-3 flex flex-wrap items-center gap-2">
         {path && <Link to={path} onClick={() => { if (unread) onRead(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3.5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">{actionText}<ArrowRight className="size-4" aria-hidden="true" /></Link>}

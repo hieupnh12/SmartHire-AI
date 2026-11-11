@@ -20,6 +20,7 @@ import { formatDateTime, localeLabels, locales, useI18nStore, useLocale, useT, t
 import { useNotifications } from "@/hooks/useNotifications";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
+import { localizeNotification } from "@/features/tenant/candidate/shared/utils/localizeNotification";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import {
   cvRoleKeys,
@@ -386,7 +387,10 @@ function NotificationPreview({ items, loading, unreadCount, onClose, onOpen }: {
         </div>
       )}
       {!loading && recent.length === 0 && <div className="px-5 py-10 text-center"><Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" /><p className="mt-3 text-sm font-semibold text-slate-700">{t("candidate.core.header.notifications.emptyTitle")}</p><p className="mt-1 text-xs text-slate-500">{t("candidate.core.header.notifications.emptyDesc")}</p></div>}
-      {recent.map((item) => <button key={item.id} type="button" onClick={() => onOpen(item)} className={`relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{!item.readAt && <span className="sr-only">{t("candidate.core.header.notifications.unreadSr")} </span>}{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatDateTime(item.createdAt, { dateStyle: "short", timeStyle: "short" }, locale)}</time></div><ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" /></div></button>)}
+      {recent.map((item) => {
+        const { title, body } = localizeNotification(item, t);
+        return <button key={item.id} type="button" onClick={() => onOpen(item)} className={`relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{!item.readAt && <span className="sr-only">{t("candidate.core.header.notifications.unreadSr")} </span>}{title}</h3>{body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatDateTime(item.createdAt, { dateStyle: "short", timeStyle: "short" }, locale)}</time></div><ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" /></div></button>;
+      })}
     </div>
     <div className="border-t border-slate-100 p-3"><Link to="/notifications" onClick={onClose} className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]">{t("candidate.core.header.notifications.viewAll")}<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
   </div>;

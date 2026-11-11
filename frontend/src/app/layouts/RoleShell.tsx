@@ -11,6 +11,7 @@ import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { notificationApi } from "@/api/tenant/notificationApi";
 import type { Notification } from "@/api/types/notification";
+import { localizeNotification } from "@/features/tenant/candidate/shared/utils/localizeNotification";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
@@ -632,13 +633,7 @@ function NotificationPreviewDialog({
         )}
         {recent.map((item) => {
           const unread = !item.readAt;
-          let jobTitle: string | null = null;
-          try {
-            const p = JSON.parse(item.payloadJson ?? "{}");
-            if (typeof p === "object" && p && typeof p.jobTitle === "string") jobTitle = p.jobTitle;
-          } catch {
-            // ignore
-          }
+          const { title, body, jobTitle } = localizeNotification(item, t);
           return (
             <button
               key={item.id}
@@ -659,9 +654,9 @@ function NotificationPreviewDialog({
                   )}
                   <h3 className={cn("line-clamp-1 text-sm leading-5", unread ? "font-bold text-[var(--color-error)]" : "font-semibold text-slate-800")}>
                     {unread && <span className="sr-only">{t("shell.notificationsUnreadSr")} </span>}
-                    {item.title}
+                    {title}
                   </h3>
-                  {item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}
+                  {body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{body}</p>}
                   <time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>
                     {formatDateTime(item.createdAt, { dateStyle: "short", timeStyle: "short" }, locale)}
                   </time>
