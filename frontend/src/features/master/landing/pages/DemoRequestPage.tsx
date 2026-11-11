@@ -8,9 +8,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ArrowLeft,
-  BrainCircuit,
 } from "lucide-react";
 import { consultationApi } from "@/api/master/consultationApi";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 
 /* ─────────────────────────────────────────────
    Job-title options
@@ -342,14 +342,9 @@ export function DemoRequestPage() {
             <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100">
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors group"
+                className="inline-flex items-center text-slate-600 hover:text-blue-600 transition-colors group"
               >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-                  <BrainCircuit className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-base font-bold tracking-tight text-slate-900 font-display">
-                  SmartHire<span className="text-blue-600">.AI</span>
-                </span>
+                <SmartHireLogo className="h-8" />
               </Link>
 
               <div className="flex items-center gap-2">
