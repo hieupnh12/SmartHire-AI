@@ -135,6 +135,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     !isRecruiterBoard &&
     displayedLinks.length > 0 &&
     !(showAdminBackBanner && !isRecruiterQuestionBank);
+  const isWaitingRecruiterNav =
+    isRecruiterWorkspace &&
+    !isRecruiterDashboard &&
+    !isRecruiterQuestionBank &&
+    !isRecruiterJobForm &&
+    !!accessToken &&
+    !user;
 
   const navScrollRef = useRef<HTMLElement>(null);
   const navTrackRef = useRef<HTMLDivElement>(null);
@@ -142,6 +149,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const lastSubPillByGroupRef = useRef<Record<string, SubPillSnapshot>>({});
   const prevActiveHrefRef = useRef<string | null>(null);
   const [activePillRect, setActivePillRect] = useState<{ left: number; width: number } | null>(null);
+  const [activePillIndex, setActivePillIndex] = useState(0);
   const [hoverPillRect, setHoverPillRect] = useState<{ left: number; width: number } | null>(null);
   const [activeMainRect, setActiveMainRect] = useState<NavLinkRect | null>(null);
   const [dockedArcBounds, setDockedArcBounds] = useState<DockedArcBounds | null>(null);
@@ -163,6 +171,10 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
       prevActiveHrefRef.current = null;
       return;
     }
+
+    const navEls = Array.from(trackEl.querySelectorAll<HTMLElement>("a[href]"));
+    const idx = navEls.indexOf(activeEl);
+    if (idx >= 0) setActivePillIndex(idx);
 
     const left = activeEl.offsetLeft;
     const width = activeEl.offsetWidth;
@@ -604,81 +616,99 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             </div>
           </div>
 
-          {!isRecruiterDashboard && displayedLinks.length > 0 && (
+          {!isRecruiterDashboard && (displayedLinks.length > 0 || isWaitingRecruiterNav) && (
             <div className="border-t border-slate-200/75 bg-gradient-to-b from-slate-50/85 via-slate-50/40 to-white">
-              <nav
-                ref={navScrollRef}
-                className="mx-auto max-w-[1440px] overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
-                aria-label={t("a11y.mainNav")}
-              >
+              {isWaitingRecruiterNav && displayedLinks.length === 0 ? (
                 <div
-                  ref={navTrackRef}
-                  onMouseLeave={() => setHoverPillRect(null)}
-                  className="relative inline-flex min-w-full items-center gap-1 py-1.5"
+                  aria-hidden="true"
+                  className="mx-auto flex max-w-[1440px] items-center gap-1.5 overflow-hidden px-4 py-1.5 sm:px-6 lg:px-10"
                 >
-                  {hoverPillRect && (
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        left: hoverPillRect.left,
-                        width: hoverPillRect.width,
-                      }}
-                      className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-slate-200/55 transition-[left,width,opacity] duration-200 ease-out"
+                  {[76, 84, 96, 98, 102, 82, 88, 78, 84, 88].map((width, index) => (
+                    <span
+                      key={index}
+                      style={{ width: `${width}px`, animationDelay: `${index * 45}ms` }}
+                      className="h-9 shrink-0 animate-pulse rounded-full bg-slate-200/55"
                     />
-                  )}
-                  {activePillRect && (
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        left: activePillRect.left,
-                        width: activePillRect.width,
-                        transition:
-                          "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
-                      }}
-                      className="pointer-events-none absolute top-1.5 bottom-1.5 overflow-hidden rounded-full bg-white shadow-[0_3px_12px_-3px_var(--color-primary-shadow),0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-[var(--color-primary)]/25"
-                    >
-                      <span
-                        key={navSheenKey}
-                        className="animate-nav-sheen pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-[var(--color-primary-soft)] to-transparent"
-                      />
-                    </div>
-                  )}
-                  {hasArcBridge && activePillRect && (
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        left: activePillRect.left + 10,
-                        width: Math.max(12, activePillRect.width - 20),
-                        transition:
-                          "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
-                      }}
-                      className="pointer-events-none absolute bottom-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-[var(--color-primary)]/55 to-transparent"
-                    />
-                  )}
-                  {displayedLinks.map((l) => (
-                    <NavLink
-                      key={`${l.labelKey}:${l.to}`}
-                      to={`${basePath}${l.to}`}
-                      end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
-                      onMouseEnter={(event) => {
-                        const target = event.currentTarget;
-                        setHoverPillRect({ left: target.offsetLeft, width: target.offsetWidth });
-                      }}
-                      className={({ isActive }) =>
-                        cn(
-                          "relative z-10 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] transition-all duration-200 active:scale-[0.97]",
-                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-primary)]",
-                          isActive
-                            ? "font-semibold text-brand-primary"
-                            : "font-medium text-slate-600 hover:text-slate-900",
-                        )
-                      }
-                    >
-                      {t(l.labelKey)}
-                    </NavLink>
                   ))}
                 </div>
-              </nav>
+              ) : (
+                <nav
+                  ref={navScrollRef}
+                  className="mx-auto max-w-[1440px] overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
+                  aria-label={t("a11y.mainNav")}
+                >
+                  <div
+                    ref={navTrackRef}
+                    onMouseLeave={() => setHoverPillRect(null)}
+                    className="relative inline-flex min-w-full items-center gap-1 py-1.5"
+                  >
+                    {hoverPillRect && (
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          left: hoverPillRect.left,
+                          width: hoverPillRect.width,
+                        }}
+                        className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-slate-200/55 transition-[left,width,opacity] duration-200 ease-out"
+                      />
+                    )}
+                    {activePillRect && (
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          left: activePillRect.left,
+                          width: activePillRect.width,
+                          animationDelay: `${Math.min(activePillIndex * 32 + 20, 260)}ms`,
+                          transition:
+                            "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
+                        }}
+                        className="animate-nav-pill-in pointer-events-none absolute top-1.5 bottom-1.5 overflow-hidden rounded-full bg-white shadow-[0_3px_12px_-3px_var(--color-primary-shadow),0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-[var(--color-primary)]/25"
+                      >
+                        <span
+                          key={navSheenKey}
+                          className="animate-nav-sheen pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-[var(--color-primary-soft)] to-transparent"
+                        />
+                      </div>
+                    )}
+                    {hasArcBridge && activePillRect && (
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          left: activePillRect.left + 10,
+                          width: Math.max(12, activePillRect.width - 20),
+                          animationDelay: `${Math.min(activePillIndex * 32 + 40, 280)}ms`,
+                          transition:
+                            "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
+                        }}
+                        className="animate-nav-pill-in pointer-events-none absolute bottom-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-[var(--color-primary)]/55 to-transparent"
+                      />
+                    )}
+                    {displayedLinks.map((l, index) => (
+                      <NavLink
+                        key={`${l.labelKey}:${l.to}`}
+                        to={`${basePath}${l.to}`}
+                        end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
+                        style={{ animationDelay: `${Math.min(index * 32, 320)}ms` }}
+                        onMouseEnter={(event) => {
+                          const target = event.currentTarget;
+                          setHoverPillRect({ left: target.offsetLeft, width: target.offsetWidth });
+                        }}
+                        className={({ isActive }) =>
+                          cn(
+                            "animate-nav-item-in relative z-10 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] transition-all duration-200 active:scale-[0.97]",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-primary)]",
+                            isActive
+                              ? "font-semibold text-brand-primary"
+                              : "font-medium text-slate-600 hover:text-slate-900",
+                          )
+                        }
+                      >
+                        {t(l.labelKey)}
+                      </NavLink>
+                    ))}
+                  </div>
+                </nav>
+              )}
             </div>
           )}
 
