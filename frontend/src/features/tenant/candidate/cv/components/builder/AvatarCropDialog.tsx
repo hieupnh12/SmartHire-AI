@@ -4,6 +4,7 @@ import Cropper, { type Area } from "react-easy-crop";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import type { CvAvatarCrop } from "@/api/types/cv";
 import { DetailDialog } from "@/components/ux/DetailDialog";
+import { useT } from "@/i18n";
 import { cropToAreaPercentages } from "../../constants/cvAvatar";
 
 const MAX_ZOOM = 3;
@@ -20,6 +21,7 @@ export function AvatarCropDialog({ src, ratio, round, initial, saving, error, on
   onCancel: () => void;
   onConfirm: (crop: CvAvatarCrop) => void;
 }) {
+  const t = useT();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const area = useRef<Area | null>(null);
@@ -40,7 +42,7 @@ export function AvatarCropDialog({ src, ratio, round, initial, saving, error, on
 
   return createPortal(
     <div className="cv-print-hidden" data-keep-popover>
-      <DetailDialog open title="Căn chỉnh ảnh hồ sơ" onClose={onCancel}>
+      <DetailDialog open title={t("candidate.cv.avatarCrop.title")} onClose={onCancel}>
         <div className="relative h-72 overflow-hidden rounded-xl bg-slate-900">
           <Cropper
             image={src}
@@ -59,15 +61,15 @@ export function AvatarCropDialog({ src, ratio, round, initial, saving, error, on
         </div>
         <label className="mt-4 flex items-center gap-3 text-sm text-slate-600">
           <ZoomOut className="size-4 shrink-0" aria-hidden="true" />
-          <input type="range" min={1} max={MAX_ZOOM} step={0.01} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="Thu phóng ảnh" className="w-full accent-[var(--color-primary)]" />
+          <input type="range" min={1} max={MAX_ZOOM} step={0.01} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label={t("candidate.cv.avatarCrop.zoomAria")} className="w-full accent-[var(--color-primary)]" />
           <ZoomIn className="size-4 shrink-0" aria-hidden="true" />
         </label>
-        <p className="mt-2 text-xs text-slate-500">Kéo ảnh để đưa khuôn mặt vào giữa khung. Đổi mẫu CV hay hình dạng khung sau này vẫn giữ đúng vị trí đã căn.</p>
+        <p className="mt-2 text-xs text-slate-500">{t("candidate.cv.avatarCrop.hint")}</p>
         {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} disabled={saving} className="min-h-10 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>
+          <button type="button" onClick={onCancel} disabled={saving} className="min-h-10 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">{t("candidate.cv.avatarCrop.cancel")}</button>
           <button type="button" onClick={confirm} disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-60">
-            {saving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}Lưu ảnh
+            {saving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}{t("candidate.cv.avatarCrop.save")}
           </button>
         </div>
       </DetailDialog>

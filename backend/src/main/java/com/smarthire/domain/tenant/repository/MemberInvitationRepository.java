@@ -2,6 +2,7 @@ package com.smarthire.domain.tenant.repository;
 
 import com.smarthire.domain.enums.InvitationStatus;
 import com.smarthire.domain.tenant.entity.MemberInvitation;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,4 +14,8 @@ public interface MemberInvitationRepository extends JpaRepository<MemberInvitati
     Optional<MemberInvitation> findFirstByEmailIgnoreCaseAndStatus(String email, InvitationStatus status);
 
     boolean existsByRoleAndStatus(String role, InvitationStatus status);
+
+    List<MemberInvitation> findAllByOrderByCreatedAtDesc();
+
+    List<MemberInvitation> findByStatusOrderByCreatedAtDesc(InvitationStatus status);
 }

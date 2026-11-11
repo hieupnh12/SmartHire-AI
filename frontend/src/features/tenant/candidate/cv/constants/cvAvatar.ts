@@ -1,17 +1,22 @@
 import type { CSSProperties } from "react";
 import type { CvAvatarCrop, CvAvatarShape, CvBuilderTheme } from "@/api/types/cv";
+import { t as globalT, type TranslateFn } from "@/i18n";
 import { cvTemplates, type CvLayout } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 
 export const AVATAR_SIZE_MIN_MM = 20;
 export const AVATAR_SIZE_MAX_MM = 45;
 
-export const avatarShapes: Record<CvAvatarShape, { label: string; ratio: number; radius: string }> = {
-  circle: { label: "Tròn", ratio: 1, radius: "rounded-full" },
-  rounded: { label: "Vuông bo góc", ratio: 1, radius: "rounded-xl" },
-  square: { label: "Vuông", ratio: 1, radius: "rounded-none" },
-  portrait: { label: "Chữ nhật đứng 3:4", ratio: 3 / 4, radius: "rounded-md" },
-  landscape: { label: "Chữ nhật ngang 4:3", ratio: 4 / 3, radius: "rounded-md" },
+export const avatarShapes: Record<CvAvatarShape, { ratio: number; radius: string }> = {
+  circle: { ratio: 1, radius: "rounded-full" },
+  rounded: { ratio: 1, radius: "rounded-xl" },
+  square: { ratio: 1, radius: "rounded-none" },
+  portrait: { ratio: 3 / 4, radius: "rounded-md" },
+  landscape: { ratio: 4 / 3, radius: "rounded-md" },
 };
+
+export function getAvatarShapeLabel(shape: CvAvatarShape, t: TranslateFn = globalT): string {
+  return t(`candidate.cv.avatar.shapes.${shape}`);
+}
 
 export type AvatarFrame = { shape: CvAvatarShape; widthMm: number; heightMm: number; radius: string; locked: boolean };
 

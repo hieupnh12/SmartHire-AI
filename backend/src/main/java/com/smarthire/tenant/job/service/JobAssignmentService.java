@@ -99,15 +99,30 @@ public class JobAssignmentService {
         if (UserRole.isCandidate(user.getRole())) {
             throw notFound("User not found", "USER_NOT_FOUND");
         }
-        return assignments.findActiveByUserId(userId).stream()
-                .map(row -> new StaffAssignmentResponse(
-                        row.getJob().getId(),
-                        row.getJob().getTitle(),
-                        row.getJob().getStatus().name(),
-                        row.isCanView(),
-                        row.isCanEdit(),
-                        row.getAssignmentRole().name()))
-                .toList();
+        List<StaffAssignmentResponse> result = new ArrayList<>();
+        java.util.Set<Long> seenJobIds = new java.util.HashSet<>();
+        for (JobAssignment row : assignments.findActiveByUserId(userId)) {
+            seenJobIds.add(row.getJob().getId());
+            result.add(new StaffAssignmentResponse(
+                    row.getJob().getId(),
+                    row.getJob().getTitle(),
+                    row.getJob().getStatus().name(),
+                    row.isCanView(),
+                    row.isCanEdit(),
+                    row.getAssignmentRole().name()));
+        }
+        for (Job owned : jobs.findOwnedActiveJobsByUserId(userId, List.of(AssignmentRole.OWNER, AssignmentRole.PRIMARY_RECRUITER))) {
+            if (seenJobIds.add(owned.getId())) {
+                result.add(new StaffAssignmentResponse(
+                        owned.getId(),
+                        owned.getTitle(),
+                        owned.getStatus() != null ? owned.getStatus().name() : "DRAFT",
+                        true,
+                        true,
+                        AssignmentRole.OWNER.name()));
+            }
+        }
+        return result;
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -226,11 +241,23 @@ public class JobAssignmentService {
         Job job = job(jobId);
         jobAccess.requireManagePermissions(jobId);
 
-        User newOwner = assignableUser(request.newOwnerId());
+        User newOwner = activeStaffUser(request.newOwnerId());
         boolean canCreate = UserRole.isCompanyAdmin(newOwner.getRole())
                 || rolePermissionService.hasAction(newOwner.getRole(), RecruiterFeature.JOBS, "CREATE");
         if (!canCreate) {
             throw new BusinessException("Chỉ người có quyền Tạo tin tuyển dụng mới có thể làm Chủ sở hữu (OWNER)", HttpStatus.BAD_REQUEST, "NEW_OWNER_CANNOT_CREATE_JOBS");
+        }
+
+        User previousOwner = job.getCreatedBy();
+        if (previousOwner != null && !previousOwner.getId().equals(newOwner.getId())) {
+            assignments.findByJob_IdAndUser_Id(jobId, previousOwner.getId()).ifPresent(prev -> {
+                if (prev.getAssignmentRole() == AssignmentRole.OWNER || prev.getAssignmentRole() == AssignmentRole.PRIMARY_RECRUITER) {
+                    prev.setAssignmentRole(AssignmentRole.COLLABORATOR);
+                    prev.setCanView(true);
+                    prev.setCanEdit(true);
+                    assignments.save(prev);
+                }
+            });
         }
 
         job.setCreatedBy(newOwner);
@@ -295,12 +322,20 @@ public class JobAssignmentService {
     }
 
     private User assignableUser(Long userId) {
+        User user = activeStaffUser(userId);
+        if (!UserRole.isRecruiterStaff(user.getRole())) {
+            throw new BusinessException("User must be recruiter staff", HttpStatus.BAD_REQUEST, "INVALID_RECRUITER");
+        }
+        return user;
+    }
+
+    private User activeStaffUser(Long userId) {
         User user = users.findById(userId)
                 .orElseThrow(() -> notFound("User not found", "USER_NOT_FOUND"));
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new BusinessException("User is not active", HttpStatus.BAD_REQUEST, "USER_INACTIVE");
         }
-        if (!UserRole.isRecruiterStaff(user.getRole())) {
+        if (UserRole.isCandidate(user.getRole())) {
             throw new BusinessException("User must be recruiter staff", HttpStatus.BAD_REQUEST, "INVALID_RECRUITER");
         }
         return user;

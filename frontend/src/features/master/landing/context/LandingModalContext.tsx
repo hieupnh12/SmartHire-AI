@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
+import { t as globalT } from "@/i18n";
 
 interface LandingModalContextType {
   showDemoModal: boolean;
@@ -18,7 +19,7 @@ const defaultContextValue: LandingModalContextType = {
   showDemoModal: false,
   showWorkspaceModal: false,
   showOrderLookupModal: false,
-  selectedTier: "Gói Doanh Nghiệp (Enterprise)",
+  selectedTier: "",
   requestType: "DEMO",
   openDemoModal: () => {},
   closeDemoModal: () => {},
@@ -34,17 +35,20 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showOrderLookupModal, setShowOrderLookupModal] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<string>("Gói Doanh Nghiệp (Enterprise)");
+  const [selectedTier, setSelectedTier] = useState<string>(() =>
+    globalT("master.landingChrome.modals.defaultEnterpriseTier"),
+  );
   const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">("DEMO");
 
   // Navigate to the dedicated /demo page instead of opening a popup modal.
   const openDemoModal = (
-    tierName: string = "Tư Vấn Giải Pháp Doanh Nghiệp",
-    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO"
+    tierName?: string,
+    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
   ) => {
-    setSelectedTier(tierName);
+    const resolvedTier = tierName ?? globalT("master.landingChrome.modals.defaultConsultTier");
+    setSelectedTier(resolvedTier);
     setRequestType(type);
-    const params = new URLSearchParams({ tier: tierName, type });
+    const params = new URLSearchParams({ tier: resolvedTier, type });
     window.location.href = `/demo?${params.toString()}`;
   };
 

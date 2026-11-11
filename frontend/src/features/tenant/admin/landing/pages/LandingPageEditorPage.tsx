@@ -5,6 +5,7 @@ import { landingApi } from "@/api/tenant/landingApi";
 import type { LandingPageConfig } from "../types/landing";
 import { Button } from "@/components/ux/Button";
 import { PageSkeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -27,6 +28,7 @@ import { LandingEditorDrawer } from "../components/LandingEditorDrawer";
 import { LandingEditorCanvas } from "../components/LandingEditorCanvas";
 
 export function LandingPageEditorPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const rawTenantCode = getTenantIdFromWindow() || "acme";
@@ -44,11 +46,11 @@ export function LandingPageEditorPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tenant-landing-page"],
     queryFn: landingApi.getAdminLandingPage,
-    // Keep previous data visible while background-refetch runs → no flash of skeleton
+    // Keep previous data visible while background-refetch runs -> no flash of skeleton
     placeholderData: keepPreviousData,
   });
 
-  // Compute enrichedConfig synchronously from API data (no useEffect → no double-render flash)
+  // Compute enrichedConfig synchronously from API data (no useEffect -> no double-render flash)
   const initialConfig = useMemo<LandingPageConfig | null>(() => {
     if (!data?.data?.config) return null;
     const c = data.data.config;
@@ -57,63 +59,73 @@ export function LandingPageEditorPage() {
       ...c,
       header: {
         ...c.header,
-        slogan: c.header?.slogan || "Cổng Tuyển Dụng Nhân Tài",
+        slogan: c.header?.slogan || t("tenantAdmin.landing.editor.defaults.slogan"),
       },
       hero: {
         ...c.hero,
         bannerImageUrl: c.hero?.bannerImageUrl || "/acme_tech_hero.png",
         bannerHeight: c.hero?.bannerHeight || "540px",
-        title: c.hero?.title || `Chinh Phục Tương Lai Công Nghệ Cùng ${brand}`,
-        badgeText: c.hero?.badgeText || "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI",
+        title: c.hero?.title || t("tenantAdmin.landing.editor.defaults.heroTitle", { brand }),
+        badgeText: c.hero?.badgeText || t("tenantAdmin.landing.editor.defaults.heroBadge"),
         highlightWords: c.hero?.highlightWords || brand,
-        subtitle:
-          c.hero?.subtitle ||
-          "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế. Cùng chúng tôi kiến tạo các sản phẩm công nghệ đột phá và khai phóng tối đa tiềm năng của bạn.",
+        subtitle: c.hero?.subtitle || t("tenantAdmin.landing.editor.defaults.heroSubtitle"),
       },
       about: {
         ...c.about,
         cultureImageUrl: c.about?.cultureImageUrl || "/acme_culture.png",
-        badge: c.about?.badge || "Về Chúng Tôi",
-        title: c.about?.title || `Vì Sao Bạn Nên Chọn ${brand}?`,
+        badge: c.about?.badge || t("tenantAdmin.landing.editor.defaults.aboutBadge"),
+        title: c.about?.title || t("tenantAdmin.landing.editor.defaults.aboutTitle", { brand }),
         description:
           c.about?.description ||
-          `Tại ${brand}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.`,
+          t("tenantAdmin.landing.editor.defaults.aboutDescription", { brand }),
         stats:
           c.about?.stats && c.about.stats.length > 0
             ? c.about.stats
             : [
-                { icon: "Users", value: "500+", label: "Kỹ Sư Phần Mềm & AI" },
-                { icon: "Zap", value: "99.99%", label: "SLA Enterprise High Availability" },
-                { icon: "Award", value: "100%", label: "Tài Trợ Chứng Chỉ AWS/GCP" },
-                { icon: "Globe", value: "Global", label: "Dự Án Enterprise Quốc Tế" },
+                { icon: "Users", value: "500+", label: t("tenantAdmin.landing.editor.defaults.stat1Label") },
+                { icon: "Zap", value: "99.99%", label: t("tenantAdmin.landing.editor.defaults.stat2Label") },
+                { icon: "Award", value: "100%", label: t("tenantAdmin.landing.editor.defaults.stat3Label") },
+                { icon: "Globe", value: "Global", label: t("tenantAdmin.landing.editor.defaults.stat4Label") },
               ],
       },
       benefits: {
         ...c.benefits,
         enabled: c.benefits?.enabled ?? true,
-        badge: c.benefits?.badge || "Đãi Ngộ",
-        title: c.benefits?.title || "Chế Độ Đãi Ngộ & Phúc Lợi Toàn Diện",
-        subtitle:
-          c.benefits?.subtitle ||
-          "Chúng tôi chăm sóc toàn diện cho sức khỏe, sự nghiệp và đời sống tinh thần của bạn",
+        badge: c.benefits?.badge || t("tenantAdmin.landing.editor.defaults.benefitsBadge"),
+        title: c.benefits?.title || t("tenantAdmin.landing.editor.defaults.benefitsTitle"),
+        subtitle: c.benefits?.subtitle || t("tenantAdmin.landing.editor.defaults.benefitsSubtitle"),
         items:
           c.benefits?.items && c.benefits.items.length > 0
             ? c.benefits.items
             : [
-                { icon: "HeartHandshake", title: "Chăm Sóc Sức Khỏe Toàn Diện", description: "Bảo hiểm sức khỏe cao cấp cho nhân viên và người thân, khám sức khỏe định kỳ hàng năm." },
-                { icon: "Laptop", title: "Thiết Bị Làm Việc Hiện Đại", description: "Trang bị Macbook Pro / Laptop cấu hình cao cùng màn hình 4K và trợ cấp setup góc làm việc." },
-                { icon: "TrendingUp", title: "Đào Tạo & Phát Triển Chuyên Sâu", description: "Ngân sách học tập cá nhân, hỗ trợ thi chứng chỉ quốc tế và các buổi tech-talk chia sẻ nội bộ." },
-                { icon: "Coffee", title: "Cân Bằng Cuộc Sống & Thưởng Hiệu Suất", description: "Lương tháng 13, thưởng dự án, ngày nghỉ phép linh hoạt và tiệc teambuilding định kỳ." },
+                {
+                  icon: "HeartHandshake",
+                  title: t("tenantAdmin.landing.editor.defaults.benefit1Title"),
+                  description: t("tenantAdmin.landing.editor.defaults.benefit1Desc"),
+                },
+                {
+                  icon: "Laptop",
+                  title: t("tenantAdmin.landing.editor.defaults.benefit2Title"),
+                  description: t("tenantAdmin.landing.editor.defaults.benefit2Desc"),
+                },
+                {
+                  icon: "TrendingUp",
+                  title: t("tenantAdmin.landing.editor.defaults.benefit3Title"),
+                  description: t("tenantAdmin.landing.editor.defaults.benefit3Desc"),
+                },
+                {
+                  icon: "Coffee",
+                  title: t("tenantAdmin.landing.editor.defaults.benefit4Title"),
+                  description: t("tenantAdmin.landing.editor.defaults.benefit4Desc"),
+                },
               ],
       },
       techStack: {
         ...c.techStack,
         enabled: c.techStack?.enabled ?? true,
-        badge: c.techStack?.badge || "Tech Stack",
-        title: c.techStack?.title || "Hệ Sinh Thái Công Nghệ & Kỹ Năng",
-        subtitle:
-          c.techStack?.subtitle ||
-          "Ứng dụng các công nghệ hiện đại và kiến trúc vi dịch vụ mở rộng cao",
+        badge: c.techStack?.badge || t("tenantAdmin.landing.editor.defaults.techBadge"),
+        title: c.techStack?.title || t("tenantAdmin.landing.editor.defaults.techTitle"),
+        subtitle: c.techStack?.subtitle || t("tenantAdmin.landing.editor.defaults.techSubtitle"),
         tags:
           c.techStack?.tags && c.techStack.tags.length > 0
             ? c.techStack.tags
@@ -122,31 +134,40 @@ export function LandingPageEditorPage() {
       testimonials: {
         ...c.testimonials,
         enabled: c.testimonials?.enabled ?? true,
-        badge: c.testimonials?.badge || "Đội Ngũ",
-        title: c.testimonials?.title || "Cảm Nhận Từ Các Kỹ Sư Thành Viên",
+        badge: c.testimonials?.badge || t("tenantAdmin.landing.editor.defaults.testimonialsBadge"),
+        title: c.testimonials?.title || t("tenantAdmin.landing.editor.defaults.testimonialsTitle"),
         items:
           c.testimonials?.items && c.testimonials.items.length > 0
             ? c.testimonials.items
             : [
-                { name: "Minh Quân", role: "Senior Software Engineer", avatarUrl: "", quote: `Môi trường tại ${brand} mang lại cho tôi cơ hội làm việc với các hệ thống phân tán lớn và học hỏi liên tục từ các đồng nghiệp tài năng.` },
-                { name: "Thu Hà", role: "Tech Lead / Architect", avatarUrl: "", quote: "Văn hóa trao quyền và tôn trọng ý tưởng mới là điều tôi yêu thích nhất ở đây. Bạn luôn có không gian để tạo ra đột phá và nâng tầm giải pháp." },
+                {
+                  name: "Minh Quân",
+                  role: "Senior Software Engineer",
+                  avatarUrl: "",
+                  quote: t("tenantAdmin.landing.editor.defaults.testimonial1Quote", { brand }),
+                },
+                {
+                  name: "Thu Hà",
+                  role: "Tech Lead / Architect",
+                  avatarUrl: "",
+                  quote: t("tenantAdmin.landing.editor.defaults.testimonial2Quote"),
+                },
               ],
       },
       footer: {
         ...c.footer,
-        description: c.footer?.description || "Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise.",
-        contactTitle: c.footer?.contactTitle || "Liên Hệ Tuyển Dụng",
-        socialTitle: c.footer?.socialTitle || "Mạng Xã Hội",
-        bottomText: c.footer?.bottomText || "Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant",
+        description: c.footer?.description || t("tenantAdmin.landing.editor.defaults.footerDescription"),
+        contactTitle: c.footer?.contactTitle || t("tenantAdmin.landing.editor.defaults.footerContactTitle"),
+        socialTitle: c.footer?.socialTitle || t("tenantAdmin.landing.editor.defaults.footerSocialTitle"),
+        bottomText: c.footer?.bottomText || t("tenantAdmin.landing.editor.defaults.footerBottomText"),
       },
     };
-  }, [data, rawTenantCode]);
+  }, [data, rawTenantCode, t]);
 
-  // Local editable state — null until user makes first edit (initial render uses initialConfig directly)
+  // Local editable state - null until user makes first edit (initial render uses initialConfig directly)
   const [config, setConfig] = useState<LandingPageConfig | null>(null);
 
   // Merge: prefer local user edits (config), fall back to server data (initialConfig)
-  // This eliminates the useEffect → setState → re-render flash entirely
   const effectiveConfig = config ?? initialConfig;
 
   const updateMutation = useMutation({
@@ -154,10 +175,14 @@ export function LandingPageEditorPage() {
     onSuccess: (res) => {
       queryClient.setQueryData(["tenant-landing-page"], res);
       queryClient.invalidateQueries({ queryKey: ["public-landing"] });
-      toast.success(res.data?.published ? "Đã xuất bản Landing Page thành công!" : "Đã lưu bản nháp thành công!");
+      toast.success(
+        res.data?.published
+          ? t("tenantAdmin.landing.editor.publishedToast")
+          : t("tenantAdmin.landing.editor.draftToast"),
+      );
     },
     onError: (err) => {
-      toast.danger(getApiErrorMessage(err, "Không thể lưu cấu hình Landing Page"));
+      toast.danger(getApiErrorMessage(err, t("tenantAdmin.landing.editor.saveError")));
     },
   });
 
@@ -169,10 +194,10 @@ export function LandingPageEditorPage() {
       if (res.data?.config) {
         setConfig(res.data.config);
       }
-      toast.success("Đã khôi phục Landing Page về mẫu chuẩn ban đầu!");
+      toast.success(t("tenantAdmin.landing.editor.resetToast"));
     },
     onError: (err) => {
-      toast.danger(getApiErrorMessage(err, "Không thể khôi phục mặc định"));
+      toast.danger(getApiErrorMessage(err, t("tenantAdmin.landing.editor.resetError")));
     },
   });
 
@@ -183,26 +208,61 @@ export function LandingPageEditorPage() {
   if (isError) {
     return (
       <section className="space-y-4 p-6">
-        <h1 className="text-2xl font-bold text-slate-900">Quản lý Landing Page</h1>
-        <p className="text-red-600">{getApiErrorMessage(error, "Không thể tải cấu hình Landing Page")}</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t("tenantAdmin.landing.editor.loadTitle")}</h1>
+        <p className="text-red-600">{getApiErrorMessage(error, t("tenantAdmin.landing.editor.loadError"))}</p>
         <Button variant="secondary" onClick={() => refetch()}>
-          Thử lại
+          {t("tenantAdmin.landing.editor.retry")}
         </Button>
       </section>
     );
   }
 
   // --- Handlers for Deep Nested Updates ---
-  // Use `prev ?? initialConfig!` so edits work even before user has made any change (config still null)
-  const updateHeader = (patch: Partial<LandingPageConfig["header"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, header: { ...base.header, ...patch } }; });
-  const updateTheme = (patch: Partial<LandingPageConfig["theme"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, theme: { ...base.theme, ...patch } }; });
-  const updateHero = (patch: Partial<LandingPageConfig["hero"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, hero: { ...base.hero, ...patch } }; });
-  const updateAbout = (patch: Partial<LandingPageConfig["about"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, about: { ...base.about, ...patch } }; });
-  const updateBenefits = (patch: Partial<LandingPageConfig["benefits"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, benefits: { ...base.benefits, ...patch } }; });
-  const updateTechStack = (patch: Partial<LandingPageConfig["techStack"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, techStack: { ...base.techStack, ...patch } }; });
-  const updateTestimonials = (patch: Partial<LandingPageConfig["testimonials"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, testimonials: { ...base.testimonials, ...patch } }; });
-  const updateFooter = (patch: Partial<LandingPageConfig["footer"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, footer: { ...base.footer, ...patch } }; });
-  const updateSeo = (patch: Partial<LandingPageConfig["seo"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, seo: { ...base.seo, ...patch } }; });
+  const updateHeader = (patch: Partial<LandingPageConfig["header"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, header: { ...base.header, ...patch } };
+    });
+  const updateTheme = (patch: Partial<LandingPageConfig["theme"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, theme: { ...base.theme, ...patch } };
+    });
+  const updateHero = (patch: Partial<LandingPageConfig["hero"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, hero: { ...base.hero, ...patch } };
+    });
+  const updateAbout = (patch: Partial<LandingPageConfig["about"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, about: { ...base.about, ...patch } };
+    });
+  const updateBenefits = (patch: Partial<LandingPageConfig["benefits"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, benefits: { ...base.benefits, ...patch } };
+    });
+  const updateTechStack = (patch: Partial<LandingPageConfig["techStack"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, techStack: { ...base.techStack, ...patch } };
+    });
+  const updateTestimonials = (patch: Partial<LandingPageConfig["testimonials"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, testimonials: { ...base.testimonials, ...patch } };
+    });
+  const updateFooter = (patch: Partial<LandingPageConfig["footer"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, footer: { ...base.footer, ...patch } };
+    });
+  const updateSeo = (patch: Partial<LandingPageConfig["seo"]>) =>
+    setConfig((prev) => {
+      const base = prev ?? initialConfig!;
+      return { ...base, seo: { ...base.seo, ...patch } };
+    });
 
   // Image Upload Handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, onUploaded: (url: string) => void) => {
@@ -213,10 +273,10 @@ export function LandingPageEditorPage() {
       const res = await landingApi.uploadImage(file);
       if (res.data?.url) {
         onUploaded(res.data.url);
-        toast.success("Tải ảnh lên thành công!");
+        toast.success(t("tenantAdmin.landing.editor.uploadSuccess"));
       }
     } catch (err) {
-      toast.danger(getApiErrorMessage(err, "Tải ảnh thất bại"));
+      toast.danger(getApiErrorMessage(err, t("tenantAdmin.landing.editor.uploadError")));
     } finally {
       setIsUploading(false);
       e.target.value = "";
@@ -229,7 +289,7 @@ export function LandingPageEditorPage() {
   };
 
   const handleReset = () => {
-    if (window.confirm("Bạn có chắc chắn muốn khôi phục về giao diện mặc định ban đầu không? Toàn bộ tùy biến hiện tại sẽ được làm mới.")) {
+    if (window.confirm(t("tenantAdmin.landing.editor.resetConfirm"))) {
       resetMutation.mutate();
     }
   };
@@ -264,7 +324,11 @@ export function LandingPageEditorPage() {
                 ? "bg-brand-primary text-white border-brand-primary shadow-sm"
                 : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300 shadow-sm"
             }`}
-            title={isDrawerOpen ? "Đóng Cài Đặt" : "Tùy Biến"}
+            title={
+              isDrawerOpen
+                ? t("tenantAdmin.landing.editor.closeSettingsTitle")
+                : t("tenantAdmin.landing.editor.customizeTitle")
+            }
           >
             <Menu className="w-4 h-4 text-cyan-600" />
           </button>
@@ -275,7 +339,7 @@ export function LandingPageEditorPage() {
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-sm transition-all"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Về Admin</span>
+            <span className="hidden md:inline">{t("tenantAdmin.landing.editor.backToAdmin")}</span>
           </button>
 
           <div className="h-4 w-px bg-slate-200 hidden sm:block" />
@@ -290,7 +354,9 @@ export function LandingPageEditorPage() {
                   : "bg-amber-50 text-amber-700 border-amber-200"
               }`}
             >
-              {data?.data?.published ? "Đã Xuất Bản" : "Bản Nháp"}
+              {data?.data?.published
+                ? t("tenantAdmin.landing.editor.publishedBadge")
+                : t("tenantAdmin.landing.editor.draftBadge")}
             </span>
           </div>
         </div>
@@ -310,7 +376,7 @@ export function LandingPageEditorPage() {
 
               {/* Custom Tooltip */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
-                Select device preview
+                {t("tenantAdmin.landing.editor.selectDevicePreview")}
               </div>
             </button>
 
@@ -322,72 +388,72 @@ export function LandingPageEditorPage() {
                   : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
               }`}
             >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("desktop");
-                    setIsViewModeMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                    viewMode === "desktop" ? "text-slate-900 font-medium" : "text-slate-600"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <MonitorSmartphone className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs whitespace-nowrap">Current screen size</span>
-                  </div>
-                  {viewMode === "desktop" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("mobile");
-                    setIsViewModeMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                    viewMode === "mobile" ? "text-slate-900 font-medium" : "text-slate-600"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-slate-400" />
-                    <span>Mobile</span>
-                  </div>
-                  {viewMode === "mobile" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("tablet");
-                    setIsViewModeMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                    viewMode === "tablet" ? "text-slate-900 font-medium" : "text-slate-600"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Tablet className="w-4 h-4 text-slate-400" />
-                    <span>Tablet</span>
-                  </div>
-                  {viewMode === "tablet" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("desktop");
+                  setIsViewModeMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                  viewMode === "desktop" ? "text-slate-900 font-medium" : "text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <MonitorSmartphone className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs whitespace-nowrap">
+                    {t("tenantAdmin.landing.editor.currentScreenSize")}
+                  </span>
+                </div>
+                {viewMode === "desktop" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("mobile");
+                  setIsViewModeMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                  viewMode === "mobile" ? "text-slate-900 font-medium" : "text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-slate-400" />
+                  <span>{t("tenantAdmin.landing.editor.mobileDevice")}</span>
+                </div>
+                {viewMode === "mobile" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("tablet");
+                  setIsViewModeMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                  viewMode === "tablet" ? "text-slate-900 font-medium" : "text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Tablet className="w-4 h-4 text-slate-400" />
+                  <span>{t("tenantAdmin.landing.editor.tabletDevice")}</span>
+                </div>
+                {viewMode === "tablet" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+              </button>
+            </div>
 
             <div className="text-slate-300 pointer-events-none mx-1 text-lg font-light">/</div>
 
             <button
               type="button"
               onClick={() => {
-                // Refresh iframe or trigger a visual reload logic if needed
-                // Currently just re-triggers re-render by doing nothing or refetching
                 refetch();
               }}
               className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-600 hover:text-slate-900 relative group"
             >
               <RotateCcw className="w-4 h-4" />
-              
+
               {/* Custom Tooltip */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
-                Tải lại
+                {t("tenantAdmin.landing.editor.reloadTooltip")}
               </div>
             </button>
 
@@ -406,7 +472,7 @@ export function LandingPageEditorPage() {
 
               {/* Custom Tooltip */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
-                Toàn màn hình
+                {t("tenantAdmin.landing.editor.fullscreenTooltip")}
               </div>
             </button>
           </div>
@@ -421,7 +487,11 @@ export function LandingPageEditorPage() {
             }`}
           >
             <Wand2 className={`w-3.5 h-3.5 ${showVisualControls ? "" : "opacity-50 grayscale"}`} />
-            <span>{showVisualControls ? "Nút Sửa: Bật" : "Nút Sửa: Tắt"}</span>
+            <span>
+              {showVisualControls
+                ? t("tenantAdmin.landing.editor.editButtonsOn")
+                : t("tenantAdmin.landing.editor.editButtonsOff")}
+            </span>
           </button>
         </div>
 
@@ -432,7 +502,7 @@ export function LandingPageEditorPage() {
             className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-sm"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>Mở Trang Thật</span>
+            <span>{t("tenantAdmin.landing.editor.openLiveSite")}</span>
           </button>
 
           <button
@@ -442,7 +512,7 @@ export function LandingPageEditorPage() {
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Khôi Phục</span>
+            <span className="hidden lg:inline">{t("tenantAdmin.landing.editor.resetButton")}</span>
           </button>
 
           <button
@@ -452,7 +522,7 @@ export function LandingPageEditorPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm transition-all"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>Lưu Nháp</span>
+            <span>{t("tenantAdmin.landing.editor.saveDraftButton")}</span>
           </button>
 
           <button
@@ -463,7 +533,7 @@ export function LandingPageEditorPage() {
             style={{ backgroundColor: primary }}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Xuất Bản Ngay</span>
+            <span>{t("tenantAdmin.landing.editor.publishButton")}</span>
           </button>
         </div>
       </header>

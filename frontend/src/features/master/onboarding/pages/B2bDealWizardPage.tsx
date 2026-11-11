@@ -16,6 +16,7 @@ import { consultationApi } from "@/api/master/consultationApi";
 import { useSubscriptions, useCreateSubscription, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage } from "@/lib/axios";
+import { formatNumber, useLocale, useT, type TranslateFn } from "@/i18n";
 import { 
   calculateTemplateAddonQuote, 
   calculateScratchCustomQuote, 
@@ -25,60 +26,64 @@ import {
 } from "../utils/cpqPricingEngine";
 
 
-const wizardSchema = z.object({
-  // Step 1: Tenant
-  name: z.string().trim().min(1, "Vui lòng nhập tên doanh nghiệp"),
-  code: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/, "Mã gồm 2-32 ký tự thường/số (vd: fpt)"),
-  subdomain: z.string().regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, "Subdomain không hợp lệ"),
-  environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
-  adminName: z.string().trim().min(1, "Vui lòng nhập tên người liên hệ"),
-  adminEmail: z.string().trim().email("Email không hợp lệ"),
+function createWizardSchema(t: TranslateFn) {
+  return z.object({
+    // Step 1: Tenant
+    name: z.string().trim().min(1, t("master.commerce.dealWizard.validation.nameRequired")),
+    code: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/, t("master.commerce.dealWizard.validation.codePattern")),
+    subdomain: z.string().regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, t("master.commerce.dealWizard.validation.subdomainInvalid")),
+    environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
+    adminName: z.string().trim().min(1, t("master.commerce.dealWizard.validation.adminNameRequired")),
+    adminEmail: z.string().trim().email(t("master.commerce.dealWizard.validation.emailInvalid")),
 
-  // Step 2: Plan
-  planId: z.number({ required_error: "Vui lòng chọn gói dịch vụ" }).min(1, "Vui lòng chọn gói dịch vụ"),
-  billingCycle: z.enum(["YEARLY"]).default("YEARLY"),
+    // Step 2: Plan
+    planId: z.number({ required_error: t("master.commerce.dealWizard.validation.planRequired") }).min(1, t("master.commerce.dealWizard.validation.planRequired")),
+    billingCycle: z.enum(["YEARLY"]).default("YEARLY"),
 
-  // Step 3: Billing & Contract
-  closingMethod: z.enum(["QUOTATION", "INVOICE", "CONTRACT"]).default("QUOTATION"),
-  companyLegalName: z.string().trim().optional(),
-  taxCode: z.string().trim().optional(),
-  address: z.string().trim().optional(),
-  billingEmail: z.string().trim().email("Email không hợp lệ"),
-  phone: z.string().optional(),
-  representative: z.string().optional(),
-  notes: z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.closingMethod === "INVOICE" || data.closingMethod === "CONTRACT") {
-    if (!data.companyLegalName || data.companyLegalName.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Vui lòng nhập Tên công ty / Pháp nhân để lập hóa đơn/hợp đồng",
-        path: ["companyLegalName"],
-      });
+    // Step 3: Billing & Contract
+    closingMethod: z.enum(["QUOTATION", "INVOICE", "CONTRACT"]).default("QUOTATION"),
+    companyLegalName: z.string().trim().optional(),
+    taxCode: z.string().trim().optional(),
+    address: z.string().trim().optional(),
+    billingEmail: z.string().trim().email(t("master.commerce.dealWizard.validation.emailInvalid")),
+    phone: z.string().optional(),
+    representative: z.string().optional(),
+    notes: z.string().optional(),
+  }).superRefine((data, ctx) => {
+    if (data.closingMethod === "INVOICE" || data.closingMethod === "CONTRACT") {
+      if (!data.companyLegalName || data.companyLegalName.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("master.commerce.dealWizard.validation.companyLegalRequired"),
+          path: ["companyLegalName"],
+        });
+      }
+      if (!data.taxCode || data.taxCode.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("master.commerce.dealWizard.validation.taxCodeRequired"),
+          path: ["taxCode"],
+        });
+      }
+      if (!data.address || data.address.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("master.commerce.dealWizard.validation.addressRequired"),
+          path: ["address"],
+        });
+      }
     }
-    if (!data.taxCode || data.taxCode.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Vui lòng nhập Mã số thuế",
-        path: ["taxCode"],
-      });
-    }
-    if (!data.address || data.address.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Vui lòng nhập địa chỉ doanh nghiệp",
-        path: ["address"],
-      });
-    }
-  }
-});
+  });
+}
 
-type FormValues = z.infer<typeof wizardSchema>;
+type FormValues = z.infer<ReturnType<typeof createWizardSchema>>;
 
 function CreatePlanInlineForm({ onCancel, onSuccess }: { 
   onCancel: () => void, 
   onSuccess: (plan: any, cpqDetails?: { platformFee: number; addonFee: number; discount: number; totalQuote: number; pricingMode: string }) => void 
 }) {
+  const t = useT();
+  const locale = useLocale();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const createPlanMutation = useCreateSubscription();
@@ -154,17 +159,17 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
 
   const handleSubmit = async () => {
     if (!name.trim() || !code.trim()) {
-      setError("Vui lòng nhập Tên gói và Mã code");
+      setError(t("master.commerce.cpq.errors.nameCodeRequired"));
       return;
     }
 
     if (activeResult.totalQuoteVnd <= 0) {
-      setError("Tổng giá trị báo giá phải lớn hơn 0 VNĐ");
+      setError(t("master.commerce.cpq.errors.quoteMustBePositive"));
       return;
     }
 
     if (activeResult.isBelowSafeFloor && !confirmedLoss) {
-      setError("Giá chốt hợp đồng thấp hơn giá sàn an toàn tối thiểu (Lãi < 50%). Vui lòng xác nhận phê duyệt bán giá ưu đãi từ Ban Giám đốc để tiếp tục.");
+      setError(t("master.commerce.cpq.errors.belowSafeFloorApproval"));
       return;
     }
 
@@ -191,8 +196,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       name: name.trim(),
       code: code.trim().toUpperCase(),
       description: description.trim() || (pricingMode === "TEMPLATE_ADDON"
-        ? `Gói B2B mở rộng từ ${STANDARD_TEMPLATE_PLANS[selectedTemplate]?.name}`
-        : "Gói B2B Enterprise may đo từ đầu"),
+        ? t("master.commerce.cpq.defaultDescTemplate", { name: t(STANDARD_TEMPLATE_PLANS[selectedTemplate]?.nameKey) })
+        : t("master.commerce.cpq.defaultDescScratch")),
       priceYearly: activeResult.totalQuoteVnd,
       maxJobs: finalJobs,
       maxCvParses: finalCv,
@@ -223,7 +228,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         pricingMode: pricingMode,
       });
     } catch (err: any) {
-      setError(getApiErrorMessage(err, "Không thể tạo gói dịch vụ"));
+      setError(getApiErrorMessage(err, t("master.commerce.cpq.errors.createFailed")));
     } finally {
       setLoading(false);
     }
@@ -234,7 +239,12 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
 
   return (
     <div ref={containerRef} onKeyDown={handleKeyDown} className="mt-6 rounded-2xl border-2 border-indigo-200 bg-white p-5 sm:p-6 relative animate-in fade-in slide-in-from-top-2 shadow-xl">
-      <button type="button" onClick={onCancel} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors">
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label={t("master.commerce.common.close")}
+        className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors"
+      >
         <X className="h-5 w-5" />
       </button>
 
@@ -242,12 +252,12 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-slate-900 text-lg sm:text-xl">Thiết Kế Báo Giá B2B (CPQ Engine)</h3>
+            <h3 className="font-bold text-slate-900 text-lg sm:text-xl">{t("master.commerce.cpq.title")}</h3>
             <span className="text-[11px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
-              Two-Tier V27
+              {t("master.commerce.cpq.badge")}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">Chọn chế độ định giá phù hợp với quy mô và yêu cầu đàm phán của doanh nghiệp.</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t("master.commerce.cpq.subtitle")}</p>
         </div>
 
         {/* Dual Mode Switcher Tabs */}
@@ -262,7 +272,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
             }`}
           >
             <Layers className="h-3.5 w-3.5" />
-            <span>1. Mở rộng từ gói mẫu</span>
+            <span>{t("master.commerce.cpq.modeTemplate")}</span>
           </button>
           <button
             type="button"
@@ -274,7 +284,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
             }`}
           >
             <Sliders className="h-3.5 w-3.5" />
-            <span>2. May đo từ đầu (From Scratch)</span>
+            <span>{t("master.commerce.cpq.modeScratch")}</span>
           </button>
         </div>
       </div>
@@ -284,35 +294,35 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       {/* Plan Identity */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
         <div className="col-span-2">
-          <label className={labelClass}>Tên gói báo giá <span className="text-red-500">*</span></label>
+          <label className={labelClass}>{t("master.commerce.cpq.planNameLabel")} <span className="text-red-500">*</span></label>
           <input
             name="name"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputClass}
-            placeholder={pricingMode === "TEMPLATE_ADDON" ? "Gói Pro Custom - FPT Software" : "Gói May Đo Riêng - VNG Corp"}
+            placeholder={pricingMode === "TEMPLATE_ADDON" ? t("master.commerce.cpq.planNamePlaceholderTemplate") : t("master.commerce.cpq.planNamePlaceholderScratch")}
           />
         </div>
         <div className="col-span-2">
-          <label className={labelClass}>Mã Code định danh <span className="text-red-500">*</span></label>
+          <label className={labelClass}>{t("master.commerce.cpq.planCodeLabel")} <span className="text-red-500">*</span></label>
           <input
             name="code"
             required
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className={inputClass}
-            placeholder="CUSTOM_FPT_2026"
+            placeholder={t("master.commerce.cpq.planCodePlaceholder")}
           />
         </div>
         <div className="col-span-2 sm:col-span-4">
-          <label className={labelClass}>Mô tả tóm tắt</label>
+          <label className={labelClass}>{t("master.commerce.cpq.summaryDescLabel")}</label>
           <input
             name="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={inputClass}
-            placeholder="Ghi chú các điều khoản ưu đãi hoặc phạm vi sử dụng..."
+            placeholder={t("master.commerce.cpq.summaryDescPlaceholder")}
           />
         </div>
       </div>
@@ -324,7 +334,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         <div className="space-y-5 animate-in fade-in duration-200">
           {/* Base Template Selector */}
           <div>
-            <label className={labelClass}>1. Chọn Gói Nền Tảng Làm Mốc <span className="text-red-500">*</span></label>
+            <label className={labelClass}>{t("master.commerce.cpq.selectBaseTemplate")} <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1.5">
               {(["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const).map((tCode) => {
                 const plan = STANDARD_TEMPLATE_PLANS[tCode];
@@ -346,14 +356,19 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold text-sm text-slate-900">{plan.name}</span>
+                      <span className="font-bold text-sm text-slate-900">{t(plan.nameKey)}</span>
                       {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
                     </div>
                     <div className="text-base font-extrabold text-indigo-700">
-                      {plan.priceYearly.toLocaleString("vi-VN")} ₫<span className="text-xs font-normal text-slate-500">/năm</span>
+                      {formatNumber(plan.priceYearly, undefined, locale)} ₫<span className="text-xs font-normal text-slate-500">/{t("master.commerce.common.yearUnit")}</span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-1">
-                      Gốc: {plan.baseJobs} jobs · {plan.baseCvParsesMonthly.toLocaleString()} CV · {plan.baseAiHoursMonthly}h AI · {plan.baseStorageGb}GB
+                      {t("master.commerce.cpq.templateBaseLine", {
+                        jobs: plan.baseJobs,
+                        cv: formatNumber(plan.baseCvParsesMonthly, undefined, locale),
+                        ai: plan.baseAiHoursMonthly,
+                        storage: plan.baseStorageGb,
+                      })}
                     </div>
                   </div>
                 );
@@ -364,15 +379,15 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Add-on Quota Inputs */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className={labelClass}>2. Cấu hình hạn mức mong muốn (Tự động cộng dồn phí Add-on)</label>
+              <label className={labelClass}>{t("master.commerce.cpq.addonHeader")}</label>
               <span className="text-[11px] text-indigo-600 font-semibold">
-                Đơn giá: +500k/job · +1.000đ/CV · +200k/h AI · +25k/GB
+                {t("master.commerce.cpq.addonUnitPrices")}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
                 <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Tin tuyển dụng (Gốc: {STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseJobs})
+                  {t("master.commerce.cpq.jobsLabel", { base: STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseJobs })}
                 </label>
                 <input
                   type="number"
@@ -383,14 +398,19 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   {templateResult.deltaJobs > 0 ? (
-                    <strong className="text-indigo-600">+{templateResult.deltaJobs} tin (+{templateResult.addonJobsFee.toLocaleString()}đ)</strong>
-                  ) : "Không tăng thêm"}
+                    <strong className="text-indigo-600">
+                      {t("master.commerce.cpq.jobsDelta", {
+                        delta: templateResult.deltaJobs,
+                        fee: formatNumber(templateResult.addonJobsFee, undefined, locale),
+                      })}
+                    </strong>
+                  ) : t("master.commerce.cpq.noAddonDelta")}
                 </span>
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Lượt CV/tháng (Gốc: {STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseCvParsesMonthly.toLocaleString()})
+                  {t("master.commerce.cpq.cvMonthlyLabel", { base: formatNumber(STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseCvParsesMonthly ?? 0, undefined, locale) })}
                 </label>
                 <input
                   type="number"
@@ -402,14 +422,19 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   {templateResult.deltaCv > 0 ? (
-                    <strong className="text-indigo-600">+{templateResult.deltaCv.toLocaleString()} CV (+{templateResult.addonCvFee.toLocaleString()}đ)</strong>
-                  ) : "Không tăng thêm"}
+                    <strong className="text-indigo-600">
+                      {t("master.commerce.cpq.cvDelta", {
+                        delta: formatNumber(templateResult.deltaCv, undefined, locale),
+                        fee: formatNumber(templateResult.addonCvFee, undefined, locale),
+                      })}
+                    </strong>
+                  ) : t("master.commerce.cpq.noAddonDelta")}
                 </span>
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Giờ AI/tháng (Gốc: {STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseAiHoursMonthly}h)
+                  {t("master.commerce.cpq.aiMonthlyLabel", { base: STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseAiHoursMonthly })}
                 </label>
                 <input
                   type="number"
@@ -420,14 +445,19 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   {templateResult.deltaAiHours > 0 ? (
-                    <strong className="text-indigo-600">+{templateResult.deltaAiHours}h AI (+{templateResult.addonAiFee.toLocaleString()}đ)</strong>
-                  ) : "Không tăng thêm"}
+                    <strong className="text-indigo-600">
+                      {t("master.commerce.cpq.aiDelta", {
+                        delta: templateResult.deltaAiHours,
+                        fee: formatNumber(templateResult.addonAiFee, undefined, locale),
+                      })}
+                    </strong>
+                  ) : t("master.commerce.cpq.noAddonDelta")}
                 </span>
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Lưu trữ GB (Gốc: {STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseStorageGb}GB)
+                  {t("master.commerce.cpq.storageLabel", { base: STANDARD_TEMPLATE_PLANS[selectedTemplate]?.baseStorageGb })}
                 </label>
                 <input
                   type="number"
@@ -439,8 +469,13 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   {templateResult.deltaStorageGb > 0 ? (
-                    <strong className="text-indigo-600">+{templateResult.deltaStorageGb}GB (+{templateResult.addonStorageFee.toLocaleString()}đ)</strong>
-                  ) : "Không tăng thêm"}
+                    <strong className="text-indigo-600">
+                      {t("master.commerce.cpq.storageDelta", {
+                        delta: templateResult.deltaStorageGb,
+                        fee: formatNumber(templateResult.addonStorageFee, undefined, locale),
+                      })}
+                    </strong>
+                  ) : t("master.commerce.cpq.noAddonDelta")}
                 </span>
               </div>
             </div>
@@ -450,9 +485,9 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <label className="text-xs font-bold text-slate-800">
-                3. Chiết khấu thương mại đối tác (Commercial Discount)
+                {t("master.commerce.cpq.discountTemplateTitle")}
               </label>
-              <span className="text-[11px] text-slate-500">Giảm trừ trên tổng giá niêm yết</span>
+              <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.discountTemplateHint")}</span>
             </div>
             <div className="relative">
               <input
@@ -462,10 +497,10 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 value={templateDiscount}
                 onChange={(e) => setTemplateDiscount(Number(e.target.value || 0))}
                 className={`${inputClass} text-base font-bold text-emerald-800`}
-                placeholder="Nhập số tiền chiết khấu..."
+                placeholder={t("master.commerce.cpq.discountPlaceholder")}
               />
               <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                VNĐ
+                {t("master.commerce.common.vnd")}
               </div>
             </div>
           </div>
@@ -480,11 +515,11 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-200">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-indigo-950 block">1. Phí Nền Tảng Cố Định (Platform Base Fee)</span>
-                <span className="text-[11px] text-indigo-700">Chi phí mở cổng, Dedicated MySQL DB, connection pool HikariCP, Subdomain & SLA</span>
+                <span className="text-xs font-bold text-indigo-950 block">{t("master.commerce.cpq.scratchPlatformFeeTitle")}</span>
+                <span className="text-[11px] text-indigo-700">{t("master.commerce.cpq.scratchPlatformFeeDesc")}</span>
               </div>
               <div className="text-base font-extrabold text-indigo-900">
-                {scratchPlatformFee.toLocaleString("vi-VN")} ₫<span className="text-xs font-normal">/năm</span>
+                {formatNumber(scratchPlatformFee, undefined, locale)} ₫<span className="text-xs font-normal">/{t("master.commerce.common.yearUnit")}</span>
               </div>
             </div>
           </div>
@@ -492,14 +527,14 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Scratch Resource Inputs */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className={labelClass}>2. Định lượng tài nguyên theo nhu cầu (From Zero)</label>
+              <label className={labelClass}>{t("master.commerce.cpq.scratchResourcesTitle")}</label>
               <span className="text-[11px] text-indigo-600 font-semibold">
-                Đơn giá: 400k/job · 800đ/CV · 200k/h AI · 50k/GB
+                {t("master.commerce.cpq.scratchUnitPrices")}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Số Jobs mở tối đa</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">{t("master.commerce.cpq.scratchMaxJobsLabel")}</label>
                 <input
                   type="number"
                   min={1}
@@ -508,12 +543,12 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchJobs * CPQ_RATES.SCRATCH.JOB_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {formatNumber(scratchJobs * CPQ_RATES.SCRATCH.JOB_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
                 </span>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Lượt lọc CV / năm</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">{t("master.commerce.cpq.scratchYearlyCvLabel")}</label>
                 <input
                   type="number"
                   min={100}
@@ -523,12 +558,12 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchYearlyCv * CPQ_RATES.SCRATCH.CV_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {formatNumber(scratchYearlyCv * CPQ_RATES.SCRATCH.CV_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
                 </span>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giờ phỏng vấn AI / năm</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">{t("master.commerce.cpq.scratchYearlyAiLabel")}</label>
                 <input
                   type="number"
                   min={1}
@@ -537,12 +572,12 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchYearlyAiHours * CPQ_RATES.SCRATCH.AI_HOUR_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {formatNumber(scratchYearlyAiHours * CPQ_RATES.SCRATCH.AI_HOUR_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
                 </span>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Dung lượng Storage (GB)</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">{t("master.commerce.cpq.scratchStorageLabel")}</label>
                 <input
                   type="number"
                   min={5}
@@ -552,7 +587,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchStorage * CPQ_RATES.SCRATCH.STORAGE_GB_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {formatNumber(scratchStorage * CPQ_RATES.SCRATCH.STORAGE_GB_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
                 </span>
               </div>
             </div>
@@ -560,7 +595,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
 
           {/* Enterprise Advanced Options */}
           <div>
-            <label className={labelClass}>3. Tùy chọn Doanh nghiệp Nâng cao (Enterprise Options)</label>
+            <label className={labelClass}>{t("master.commerce.cpq.enterpriseOptionsTitle")}</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1.5">
               <label className={`flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                 scratchEnableSso ? "border-indigo-600 bg-indigo-50/40" : "border-slate-200 bg-slate-50/50"
@@ -572,8 +607,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">SSO Doanh Nghiệp (+5tr)</span>
-                  <span className="text-[11px] text-slate-500">SAML 2.0 / OIDC / Azure AD</span>
+                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.ssoTitle")}</span>
+                  <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.ssoDesc")}</span>
                 </div>
               </label>
 
@@ -587,8 +622,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">Docker Code Sandbox (+3tr)</span>
-                  <span className="text-[11px] text-slate-500">Chấm bài thi code tự động</span>
+                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.sandboxTitle")}</span>
+                  <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.sandboxDesc")}</span>
                 </div>
               </label>
 
@@ -602,8 +637,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">Hỗ trợ 24/7 & SLA (+10tr)</span>
-                  <span className="text-[11px] text-slate-500">Kênh chuyên trách & SLA 99.99%</span>
+                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.supportTitle")}</span>
+                  <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.supportDesc")}</span>
                 </div>
               </label>
             </div>
@@ -613,9 +648,9 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <label className="text-xs font-bold text-slate-800">
-                4. Chiết khấu thương mại đối tác (Commercial Discount)
+                {t("master.commerce.cpq.discountScratchTitle")}
               </label>
-              <span className="text-[11px] text-slate-500">Giảm trừ trên tổng giá cấu hình</span>
+              <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.discountScratchHint")}</span>
             </div>
             <div className="relative">
               <input
@@ -625,10 +660,10 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 value={scratchDiscount}
                 onChange={(e) => setScratchDiscount(Number(e.target.value || 0))}
                 className={`${inputClass} text-base font-bold text-emerald-800`}
-                placeholder="Nhập số tiền chiết khấu..."
+                placeholder={t("master.commerce.cpq.discountPlaceholder")}
               />
               <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                VNĐ
+                {t("master.commerce.common.vnd")}
               </div>
             </div>
           </div>
@@ -642,10 +677,10 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
           <div className="flex items-center gap-2 text-indigo-950 font-bold text-sm">
             <Calculator className="h-4 w-4 text-indigo-600" />
-            <span>BẢNG BÁO GIÁ THƯƠNG MẠI CHUẨN 3 CẤU PHẦN</span>
+            <span>{t("master.commerce.cpq.quoteSummaryTitle")}</span>
           </div>
           <span className="text-xs font-semibold text-slate-500">
-            Thời hạn hiệu lực: 15–30 ngày
+            {t("master.commerce.cpq.quoteValidity")}
           </span>
         </div>
 
@@ -653,52 +688,52 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {pricingMode === "TEMPLATE_ADDON" ? (
             <>
               <div className="flex justify-between text-slate-700">
-                <span>1. Phí bản quyền nền tảng ({STANDARD_TEMPLATE_PLANS[selectedTemplate]?.name}):</span>
-                <span className="font-semibold">{templateResult.basePlanPrice.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.line1Template", { name: t(STANDARD_TEMPLATE_PLANS[selectedTemplate]?.nameKey) })}</span>
+                <span className="font-semibold">{formatNumber(templateResult.basePlanPrice, undefined, locale)} ₫</span>
               </div>
               <div className="flex justify-between text-slate-700">
-                <span>2. Gói tài nguyên mở rộng (Add-on Quotas):</span>
-                <span className="font-semibold text-indigo-700">+{templateResult.totalAddonFees.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.line2Template")}</span>
+                <span className="font-semibold text-indigo-700">+{formatNumber(templateResult.totalAddonFees, undefined, locale)} ₫</span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px] pl-3">
-                <span>• Tổng giá trị niêm yết danh nghĩa (List Price):</span>
-                <span>{templateResult.listPrice.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.lineListPrice")}</span>
+                <span>{formatNumber(templateResult.listPrice, undefined, locale)} ₫</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-medium">
-                <span>3. Chiết khấu đối tác chiến lược (Discount):</span>
-                <span>-{templateResult.discountVnd.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.line3Discount")}</span>
+                <span>-{formatNumber(templateResult.discountVnd, undefined, locale)} ₫</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex justify-between text-slate-700">
-                <span>1. Phí nền tảng cố định (Dedicated DB, HikariCP, SLA):</span>
-                <span className="font-semibold">{scratchResult.platformBaseFee.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.line1Scratch")}</span>
+                <span className="font-semibold">{formatNumber(scratchResult.platformBaseFee, undefined, locale)} ₫</span>
               </div>
               <div className="flex justify-between text-slate-700">
-                <span>2. Chi phí tài nguyên định lượng + Tùy chọn cao cấp:</span>
+                <span>{t("master.commerce.cpq.line2Scratch")}</span>
                 <span className="font-semibold text-indigo-700">
-                  +{(scratchResult.jobsFee + scratchResult.cvFee + scratchResult.aiFee + scratchResult.storageFee + scratchResult.totalEnterpriseOptionsFee).toLocaleString("vi-VN")} ₫
+                  +{formatNumber(scratchResult.jobsFee + scratchResult.cvFee + scratchResult.aiFee + scratchResult.storageFee + scratchResult.totalEnterpriseOptionsFee, undefined, locale)} ₫
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px] pl-3">
-                <span>• Tổng giá trị niêm yết danh nghĩa (List Price):</span>
-                <span>{scratchResult.listPrice.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.lineListPrice")}</span>
+                <span>{formatNumber(scratchResult.listPrice, undefined, locale)} ₫</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-medium">
-                <span>3. Chiết khấu đối tác chiến lược (Discount):</span>
-                <span>-{scratchResult.discountVnd.toLocaleString("vi-VN")} ₫</span>
+                <span>{t("master.commerce.cpq.line3Discount")}</span>
+                <span>-{formatNumber(scratchResult.discountVnd, undefined, locale)} ₫</span>
               </div>
             </>
           )}
 
           <div className="border-t-2 border-indigo-100 pt-2.5 flex flex-wrap items-baseline justify-between">
-            <span className="text-sm font-bold text-slate-900">TỔNG GIÁ TRỊ BÁO GIÁ (TOTAL QUOTE):</span>
+            <span className="text-sm font-bold text-slate-900">{t("master.commerce.cpq.totalQuoteLabel")}</span>
             <div className="text-right">
               <span className="text-2xl font-black text-indigo-700">
-                {activeResult.totalQuoteVnd.toLocaleString("vi-VN")} ₫
+                {formatNumber(activeResult.totalQuoteVnd, undefined, locale)} ₫
               </span>
-              <span className="text-xs font-semibold text-slate-500 ml-1">/ năm</span>
+              <span className="text-xs font-semibold text-slate-500 ml-1">/ {t("master.commerce.common.yearUnit")}</span>
             </div>
           </div>
         </div>
@@ -706,10 +741,13 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         {/* Floor Price and Guardrail */}
         <div className="border-t border-indigo-100 pt-3 flex flex-wrap items-center justify-between text-[11px] gap-2">
           <div className="text-slate-500">
-            Chi phí giá vốn ước tính (Floor Price): <strong>{activeResult.floorPriceVnd.toLocaleString("vi-VN")} ₫</strong> · Giá sàn an toàn (lãi &gt;50%): <strong>{activeResult.safeFloorPriceVnd.toLocaleString("vi-VN")} ₫</strong>
+            {t("master.commerce.cpq.floorCostPrefix")} <strong>{formatNumber(activeResult.floorPriceVnd, undefined, locale)} ₫</strong> · {t("master.commerce.cpq.safeFloorPrefix")} <strong>{formatNumber(activeResult.safeFloorPriceVnd, undefined, locale)} ₫</strong>
           </div>
           <div className="text-emerald-700 font-semibold">
-            Biên LN ước tính: +{activeResult.marginPercent.toFixed(1)}% (+{activeResult.grossProfitVnd.toLocaleString("vi-VN")} ₫)
+            {t("master.commerce.cpq.marginEstimate", {
+              percent: activeResult.marginPercent.toFixed(1),
+              profit: formatNumber(activeResult.grossProfitVnd, undefined, locale),
+            })}
           </div>
         </div>
 
@@ -719,9 +757,13 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
             <div className="flex items-start gap-2 font-bold text-red-700">
               <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-red-600" />
               <div>
-                <div className="text-sm font-bold">CẢNH BÁO GIÁ SÀN AN TOÀN (FLOOR PRICE GUARD)!</div>
+                <div className="text-sm font-bold">{t("master.commerce.cpq.floorGuardTitle")}</div>
                 <div className="font-normal text-red-800 mt-0.5">
-                  Mức giá chốt <strong>{activeResult.totalQuoteVnd.toLocaleString()} ₫</strong> thấp hơn ngưỡng an toàn <strong>{activeResult.safeFloorPriceVnd.toLocaleString()} ₫</strong> (lợi nhuận gộp dưới 50% hoặc bán lỗ).
+                  {t("master.commerce.cpq.floorGuardBefore")}{" "}
+                  <strong>{formatNumber(activeResult.totalQuoteVnd, undefined, locale)} ₫</strong>{" "}
+                  {t("master.commerce.cpq.floorGuardMiddle")}{" "}
+                  <strong>{formatNumber(activeResult.safeFloorPriceVnd, undefined, locale)} ₫</strong>{" "}
+                  {t("master.commerce.cpq.floorGuardAfter")}
                 </div>
               </div>
             </div>
@@ -732,7 +774,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 onChange={(e) => setConfirmedLoss(e.target.checked)}
                 className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
               />
-              <span>Tôi xác nhận thương vụ chiến lược này đã có phê duyệt giá bán ưu đãi từ Ban Giám đốc / CFO.</span>
+              <span>{t("master.commerce.cpq.floorGuardConfirm")}</span>
             </label>
           </div>
         )}
@@ -745,7 +787,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           onClick={onCancel}
           className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 text-sm"
         >
-          Hủy bỏ
+          {t("master.commerce.common.cancelAction")}
         </button>
         <button
           type="button"
@@ -754,7 +796,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm transition-colors"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Lưu cấu hình gói & Áp dụng
+          {t("master.commerce.cpq.submitCpqBtn")}
         </button>
       </div>
     </div>
@@ -762,6 +804,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
 }
 
 export function B2bDealWizardPageContent() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: plans = [] } = useSubscriptions();
@@ -789,6 +833,8 @@ export function B2bDealWizardPageContent() {
       .replace(/^-+|-+$/g, "")
       .substring(0, 30)
     : "";
+
+  const wizardSchema = useMemo(() => createWizardSchema(t), [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(wizardSchema),
@@ -833,7 +879,7 @@ export function B2bDealWizardPageContent() {
     setApiError(null);
     try {
       const plan = plans.find((p) => p.id === values.planId);
-      if (!plan) throw new Error("Không tìm thấy thông tin gói cước");
+      if (!plan) throw new Error(t("master.commerce.dealWizard.errors.planNotFound"));
       const amountVnd = plan.priceYearly || 0;
 
       // =========================================================================
@@ -889,7 +935,7 @@ export function B2bDealWizardPageContent() {
           planId: plan.id,
           amount: amountVnd,
           currency: "VND",
-          notes: `Khởi tạo qua B2B Wizard. Gói: ${plan.name} (YEARLY)`,
+          notes: t("master.commerce.dealWizard.payload.invoiceNotes", { planName: plan.name }),
         });
       } else {
         const today = new Date();
@@ -900,7 +946,7 @@ export function B2bDealWizardPageContent() {
           tenantId: tenant.id,
           planId: plan.id,
           consultationRequestId,
-          title: `Hợp đồng cung cấp Dịch vụ phần mềm SmartHire.AI - ${plan.name}`,
+          title: t("master.commerce.dealWizard.payload.contractTitle", { planName: plan.name }),
           contractValue: amountVnd,
           currency: "VND",
           startDate: today.toISOString().split("T")[0],
@@ -917,7 +963,7 @@ export function B2bDealWizardPageContent() {
       fetchData();
       setSuccessData({ tenantCode: tenant.code, closingMethod: values.closingMethod });
     } catch (err: any) {
-      setApiError(getApiErrorMessage(err, "Có lỗi xảy ra trong quá trình khởi tạo"));
+      setApiError(getApiErrorMessage(err, t("master.commerce.dealWizard.errors.createFailed")));
     } finally {
       setIsSubmitting(false);
     }
@@ -937,18 +983,19 @@ export function B2bDealWizardPageContent() {
             {isQuote ? <Mail className="h-10 w-10" /> : <CheckCircle2 className="h-12 w-12" />}
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-3">
-            {isQuote ? "Gửi Báo Giá Thương Mại Thành Công! 🚀" : "Khởi Tạo Deal B2B Thành Công! 🎉"}
+            {isQuote ? t("master.commerce.dealWizard.success.quoteTitle") : t("master.commerce.dealWizard.success.dealTitle")}
           </h1>
           <p className="text-slate-600 mb-8 max-w-lg mx-auto leading-relaxed">
             {isQuote ? (
               <>
-                Bảng báo giá chi tiết 3 cấu phần đã được gửi tới hòm thư <strong>{successData.recipientEmail}</strong> (hiệu lực trong 15 ngày).
-                Sau khi khách hàng xem và đồng ý phương án, bạn có thể chuyển tiếp sang bước Soạn Hợp đồng hoặc Xuất Hóa đơn.
+                {t("master.commerce.dealWizard.success.quoteDescBefore")}
+                <strong>{successData.recipientEmail}</strong>
+                {t("master.commerce.dealWizard.success.quoteDescAfter")}
               </>
             ) : successData.closingMethod === "INVOICE" ? (
-              "Hồ sơ doanh nghiệp và gói dịch vụ đã được ghi nhận ở trạng thái PENDING_PAYMENT. Ngay sau khi Hóa đơn được xác nhận thanh toán (PAID), hệ thống sẽ tự động cấp phát MySQL Database riêng, kích hoạt gói và gửi Email thiết lập mật khẩu cho Admin."
+              t("master.commerce.dealWizard.success.invoiceDesc")
             ) : (
-              "Hợp đồng điện tử đã sẵn sàng gửi khách ký số. Sau khi hoàn tất ký kết và thanh toán, hệ thống sẽ tự động cấp phát MySQL Database riêng và gửi Email kích hoạt cho Admin."
+              t("master.commerce.dealWizard.success.contractDesc")
             )}
           </p>
 
@@ -957,13 +1004,13 @@ export function B2bDealWizardPageContent() {
               onClick={() => navigate(isQuote ? "/admin/leads" : "/admin/tenants/directory")}
               className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
             >
-              {isQuote ? "Về Danh sách Yêu cầu Tư vấn (Leads)" : "Về Danh bạ Doanh nghiệp"}
+              {isQuote ? t("master.commerce.dealWizard.success.backToLeads") : t("master.commerce.dealWizard.success.backToDirectory")}
             </button>
             <button
               onClick={() => navigate(isQuote ? "/admin/subscriptions/plans" : (successData.closingMethod === "INVOICE" ? "/admin/invoices" : "/admin/contracts"))}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-md"
             >
-              {isQuote ? "Xem Quản lý Gói cước" : (successData.closingMethod === "INVOICE" ? "Xem Hóa đơn vừa tạo" : "Xem Hợp đồng vừa tạo")}
+              {isQuote ? t("master.commerce.dealWizard.success.viewPlans") : (successData.closingMethod === "INVOICE" ? t("master.commerce.dealWizard.success.viewInvoice") : t("master.commerce.dealWizard.success.viewContract"))}
             </button>
           </div>
         </div>
@@ -991,25 +1038,25 @@ export function B2bDealWizardPageContent() {
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-blue-600" />
-                    Hồ sơ Doanh nghiệp & Quản trị
+                    {t("master.commerce.dealWizard.step1Title")}
                   </h2>
                 </div>
 
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <label className={labelClass}>Tên Doanh nghiệp <span className="text-red-500">*</span></label>
-                    <input {...form.register("name")} onChange={handleNameChange} className={inputClass} placeholder="FPT Software" />
+                    <label className={labelClass}>{t("master.commerce.dealWizard.companyNameLabel")} <span className="text-red-500">*</span></label>
+                    <input {...form.register("name")} onChange={handleNameChange} className={inputClass} placeholder={t("master.commerce.dealWizard.companyNamePlaceholder")} />
                     {form.formState.errors.name && <p className="mt-1 text-xs text-red-600">{form.formState.errors.name.message}</p>}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Mã Code <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>{t("master.commerce.dealWizard.codeLabel")} <span className="text-red-500">*</span></label>
                     <input {...form.register("code")} className={`${inputClass} font-mono text-blue-700 font-semibold`} />
                     {form.formState.errors.code && <p className="mt-1 text-xs text-red-600">{form.formState.errors.code.message}</p>}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Subdomain <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>{t("master.commerce.dealWizard.subdomainLabel")} <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <input {...form.register("subdomain")} className={`${inputClass} font-mono pr-28 text-blue-700 font-semibold`} />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">.smarthire.top</span>
@@ -1020,24 +1067,25 @@ export function B2bDealWizardPageContent() {
 
                   <div className="sm:col-span-2 pt-4 border-t border-slate-100">
                     <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> Tài khoản Quản trị (Invite & Claim Account)
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> {t("master.commerce.dealWizard.adminAccountSection")}
                     </h3>
                   </div>
 
                   <div>
-                    <label className={labelClass}>Họ tên Admin <span className="text-red-500">*</span></label>
-                    <input {...form.register("adminName")} className={inputClass} placeholder="Nguyễn Văn A" />
+                    <label className={labelClass}>{t("master.commerce.dealWizard.adminNameLabel")} <span className="text-red-500">*</span></label>
+                    <input {...form.register("adminName")} className={inputClass} placeholder={t("master.commerce.dealWizard.adminNamePlaceholder")} />
                     {form.formState.errors.adminName && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminName.message}</p>}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Email Admin <span className="text-red-500">*</span></label>
-                    <input type="email" {...form.register("adminEmail")} className={inputClass} placeholder="admin@domain.com" />
+                    <label className={labelClass}>{t("master.commerce.dealWizard.adminEmailLabel")} <span className="text-red-500">*</span></label>
+                    <input type="email" {...form.register("adminEmail")} className={inputClass} placeholder={t("master.commerce.dealWizard.adminEmailPlaceholder")} />
                     {form.formState.errors.adminEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminEmail.message}</p>}
                   </div>
 
                   <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 leading-relaxed">
-                    <strong>Bảo mật Enterprise:</strong> Hệ thống không cấp mật khẩu tĩnh. Sau khi tạo Workspace, hệ thống sẽ tự động gửi email chứa liên kết kích hoạt một lần (Magic Link có hiệu lực 72 giờ) tới địa chỉ email trên để khách hàng tự thiết lập mật khẩu riêng.
+                    <strong>{t("master.commerce.dealWizard.securityNoteTitle")}</strong>{" "}
+                    {t("master.commerce.dealWizard.securityNoteBody")}
                   </div>
                 </div>
 
@@ -1048,15 +1096,15 @@ export function B2bDealWizardPageContent() {
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-blue-600" />
-                    Gói Dịch Vụ & Chu Kỳ
+                    {t("master.commerce.dealWizard.step2Title")}
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">Phân bổ tài nguyên và tính năng cho Doanh nghiệp.</p>
+                  <p className="text-sm text-slate-500 mt-1">{t("master.commerce.dealWizard.step2Subtitle")}</p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className={labelClass}>Chu kỳ bản quyền</label>
+                  <label className={labelClass}>{t("master.commerce.dealWizard.licenseCycleLabel")}</label>
                   <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold">
-                    <span>Hàng Năm (Yearly License Only)</span>
+                    <span>{t("master.commerce.dealWizard.licenseCycleYearly")}</span>
                   </div>
                 </div>
 
@@ -1083,24 +1131,24 @@ export function B2bDealWizardPageContent() {
                           {isSelected && <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />}
                         </div>
                         <div className="text-2xl font-bold text-slate-900 mb-1">
-                          {price?.toLocaleString("vi-VN")} ₫
+                          {formatNumber(price, undefined, locale)} ₫
                         </div>
                         <div className="text-xs text-slate-500 font-medium pb-4 border-b border-slate-100">
-                          /năm
+                          /{t("master.commerce.common.yearUnit")}
                         </div>
 
                         <ul className="mt-4 space-y-2 text-sm text-slate-600">
                           <li className="flex items-center justify-between">
-                            <span>Tin tuyển dụng:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxJobs === -1 ? "Không giới hạn" : plan.maxJobs}</span>
+                            <span>{t("master.commerce.dealWizard.jobsQuotaLabel")}</span>
+                            <span className="font-semibold text-slate-900">{plan.maxJobs === -1 ? t("master.commerce.common.unlimited") : plan.maxJobs}</span>
                           </li>
                           <li className="flex items-center justify-between">
-                            <span>Lượt CV AI:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxCvParses === -1 ? "Không giới hạn" : plan.maxCvParses}</span>
+                            <span>{t("master.commerce.dealWizard.cvQuotaLabel")}</span>
+                            <span className="font-semibold text-slate-900">{plan.maxCvParses === -1 ? t("master.commerce.common.unlimited") : formatNumber(plan.maxCvParses, undefined, locale)}</span>
                           </li>
                           <li className="flex items-center justify-between">
-                            <span>Phỏng vấn AI:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxAiInterviewHours === -1 ? "Không giới hạn" : `${plan.maxAiInterviewHours}h`}</span>
+                            <span>{t("master.commerce.dealWizard.aiQuotaLabel")}</span>
+                            <span className="font-semibold text-slate-900">{plan.maxAiInterviewHours === -1 ? t("master.commerce.common.unlimited") : `${plan.maxAiInterviewHours}h`}</span>
                           </li>
                         </ul>
                       </div>
@@ -1118,7 +1166,7 @@ export function B2bDealWizardPageContent() {
                       }}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 shadow-sm"
                     >
-                      <Plus className="h-4 w-4" /> Thêm gói dịch vụ mới
+                      <Plus className="h-4 w-4" /> {t("master.commerce.dealWizard.addCustomPlanBtn")}
                     </button>
                   </div>
                 )}
@@ -1142,9 +1190,9 @@ export function B2bDealWizardPageContent() {
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <FileSignature className="h-5 w-5 text-blue-600" />
-                    Hình thức Báo giá & Pháp lý B2B
+                    {t("master.commerce.dealWizard.step3Title")}
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">Chọn gửi Báo giá thương mại (Chặng 1) hoặc tiến hành lập Hóa đơn / Hợp đồng (Chặng 2).</p>
+                  <p className="text-sm text-slate-500 mt-1">{t("master.commerce.dealWizard.step3Subtitle")}</p>
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-4">
@@ -1154,10 +1202,10 @@ export function B2bDealWizardPageContent() {
                     <input type="radio" value="QUOTATION" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-purple-600" />
                     <div>
                       <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <Mail className="h-4 w-4 text-purple-600" /> 1. Gửi Báo giá (Chặng 1)
+                        <Mail className="h-4 w-4 text-purple-600" /> {t("master.commerce.dealWizard.methodQuotationTitle")}
                       </div>
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Gửi email Báo giá 3 cấu phần chi tiết để khách trình duyệt. Chưa cần MST, chưa tạo DB.
+                        {t("master.commerce.dealWizard.methodQuotationDesc")}
                       </p>
                     </div>
                   </label>
@@ -1168,10 +1216,10 @@ export function B2bDealWizardPageContent() {
                     <input type="radio" value="INVOICE" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-amber-600" />
                     <div>
                       <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <ReceiptText className="h-4 w-4 text-amber-600" /> 2. Xuất Hóa đơn trực tiếp
+                        <ReceiptText className="h-4 w-4 text-amber-600" /> {t("master.commerce.dealWizard.methodInvoiceTitle")}
                       </div>
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Xuất hóa đơn thanh toán năm (VietQR SePay / VNPay). Tự động kích hoạt khi nhận thanh toán.
+                        {t("master.commerce.dealWizard.methodInvoiceDesc")}
                       </p>
                     </div>
                   </label>
@@ -1182,10 +1230,10 @@ export function B2bDealWizardPageContent() {
                     <input type="radio" value="CONTRACT" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-indigo-600" />
                     <div>
                       <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <FileSignature className="h-4 w-4 text-indigo-600" /> 3. Hợp đồng E-Contract
+                        <FileSignature className="h-4 w-4 text-indigo-600" /> {t("master.commerce.dealWizard.methodContractTitle")}
                       </div>
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Soạn hợp đồng pháp lý Việt Nam gửi ký số điện tử (Dropbox Sign) trước khi thanh toán.
+                        {t("master.commerce.dealWizard.methodContractDesc")}
                       </p>
                     </div>
                   </label>
@@ -1196,29 +1244,30 @@ export function B2bDealWizardPageContent() {
                     <div className="flex items-start gap-2.5">
                       <Mail className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-bold text-purple-950 text-sm">Chặng 1: Gửi Báo Giá Thương Mại (Commercial Proposal)</h4>
+                        <h4 className="font-bold text-purple-950 text-sm">{t("master.commerce.dealWizard.quotationBoxTitle")}</h4>
                         <p className="text-xs text-purple-800 mt-0.5 leading-relaxed">
-                          Hệ thống sẽ gửi email báo giá chuyên nghiệp gồm bảng 3 cấu phần (Phí bản quyền nền tảng, Quota mở rộng, Chiết khấu đối tác) kèm hiệu lực 15 ngày tới khách hàng.
-                          Ở chặng này <strong>không bắt buộc</strong> nhập Mã số thuế, địa chỉ pháp lý hay đại diện ký tên.
+                          {t("master.commerce.dealWizard.quotationBoxDescBefore")}
+                          <strong>{t("master.commerce.dealWizard.quotationBoxDescStrong")}</strong>
+                          {t("master.commerce.dealWizard.quotationBoxDescAfter")}
                         </p>
                       </div>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4 pt-2">
                       <div>
-                        <label className={labelClass}>Email nhận Báo giá <span className="text-red-500">*</span></label>
-                        <input {...form.register("billingEmail")} type="email" className={inputClass} placeholder="khachhang@congty.com" />
+                        <label className={labelClass}>{t("master.commerce.dealWizard.quoteEmailLabel")} <span className="text-red-500">*</span></label>
+                        <input {...form.register("billingEmail")} type="email" className={inputClass} placeholder={t("master.commerce.dealWizard.quoteEmailPlaceholder")} />
                         {form.formState.errors.billingEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.billingEmail.message}</p>}
                       </div>
 
                       <div>
-                        <label className={labelClass}>Số điện thoại liên hệ</label>
-                        <input {...form.register("phone")} className={inputClass} placeholder="0988 888 888" />
+                        <label className={labelClass}>{t("master.commerce.dealWizard.contactPhoneLabel")}</label>
+                        <input {...form.register("phone")} className={inputClass} placeholder={t("master.commerce.dealWizard.contactPhonePlaceholder")} />
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label className={labelClass}>Ghi chú gửi kèm báo giá (tùy chọn)</label>
-                        <textarea {...form.register("notes")} rows={2} className={inputClass} placeholder="Ví dụ: Ưu đãi dành riêng cho Quý doanh nghiệp theo trao đổi ngày..." />
+                        <label className={labelClass}>{t("master.commerce.dealWizard.quoteNotesLabel")}</label>
+                        <textarea {...form.register("notes")} rows={2} className={inputClass} placeholder={t("master.commerce.dealWizard.quoteNotesPlaceholder")} />
                       </div>
                     </div>
                   </div>
@@ -1226,43 +1275,43 @@ export function B2bDealWizardPageContent() {
                   <div className="grid sm:grid-cols-2 gap-6 bg-slate-50 rounded-2xl p-5 border border-slate-200 animate-in fade-in">
                     <div className="sm:col-span-2">
                       <h3 className="font-bold text-slate-900 text-sm mb-4">
-                        {form.watch("closingMethod") === "INVOICE" ? "Thông tin Xuất Hóa Đơn B2B" : "Thông tin Pháp lý Hợp đồng (Bên B)"}
+                        {form.watch("closingMethod") === "INVOICE" ? t("master.commerce.dealWizard.invoiceInfoTitle") : t("master.commerce.dealWizard.contractInfoTitle")}
                       </h3>
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className={labelClass}>Tên Công ty / Pháp nhân <span className="text-red-500">*</span></label>
-                      <input {...form.register("companyLegalName")} className={inputClass} placeholder="Công ty Cổ phần Công nghệ XYZ" />
+                      <label className={labelClass}>{t("master.commerce.dealWizard.legalNameLabel")} <span className="text-red-500">*</span></label>
+                      <input {...form.register("companyLegalName")} className={inputClass} placeholder={t("master.commerce.dealWizard.legalNamePlaceholder")} />
                       {form.formState.errors.companyLegalName && <p className="mt-1 text-xs text-red-600">{form.formState.errors.companyLegalName.message}</p>}
                     </div>
 
                     <div>
-                      <label className={labelClass}>Mã số thuế <span className="text-red-500">*</span></label>
-                      <input {...form.register("taxCode")} className={inputClass} placeholder="0101248141" />
+                      <label className={labelClass}>{t("master.commerce.dealWizard.taxCodeLabel")} <span className="text-red-500">*</span></label>
+                      <input {...form.register("taxCode")} className={inputClass} placeholder={t("master.commerce.dealWizard.taxCodePlaceholder")} />
                       {form.formState.errors.taxCode && <p className="mt-1 text-xs text-red-600">{form.formState.errors.taxCode.message}</p>}
                     </div>
 
                     <div>
-                      <label className={labelClass}>Email nhận Hóa đơn / Hợp đồng <span className="text-red-500">*</span></label>
-                      <input {...form.register("billingEmail")} type="email" className={inputClass} placeholder="ketoan@congty.com" />
+                      <label className={labelClass}>{t("master.commerce.dealWizard.billingEmailLabel")} <span className="text-red-500">*</span></label>
+                      <input {...form.register("billingEmail")} type="email" className={inputClass} placeholder={t("master.commerce.dealWizard.billingEmailPlaceholder")} />
                       {form.formState.errors.billingEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.billingEmail.message}</p>}
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className={labelClass}>Địa chỉ xuất hóa đơn / Trụ sở theo ĐKKD <span className="text-red-500">*</span></label>
-                      <input {...form.register("address")} className={inputClass} placeholder="Địa chỉ trên ĐKKD..." />
+                      <label className={labelClass}>{t("master.commerce.dealWizard.addressLabel")} <span className="text-red-500">*</span></label>
+                      <input {...form.register("address")} className={inputClass} placeholder={t("master.commerce.dealWizard.addressPlaceholder")} />
                       {form.formState.errors.address && <p className="mt-1 text-xs text-red-600">{form.formState.errors.address.message}</p>}
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className={labelClass}>Số điện thoại</label>
-                      <input {...form.register("phone")} className={inputClass} placeholder="SĐT liên hệ" />
+                      <label className={labelClass}>{t("master.commerce.dealWizard.phoneLabel")}</label>
+                      <input {...form.register("phone")} className={inputClass} placeholder={t("master.commerce.dealWizard.phonePlaceholder")} />
                     </div>
 
                     {form.watch("closingMethod") === "CONTRACT" && (
                       <div className="sm:col-span-2 animate-in fade-in slide-in-from-top-2">
-                        <label className={labelClass}>Người đại diện pháp luật (Ký hợp đồng)</label>
-                        <input {...form.register("representative")} className={inputClass} placeholder="Ông Nguyễn Văn A - Tổng Giám Đốc" />
+                        <label className={labelClass}>{t("master.commerce.dealWizard.representativeLabel")}</label>
+                        <input {...form.register("representative")} className={inputClass} placeholder={t("master.commerce.dealWizard.representativePlaceholder")} />
                       </div>
                     )}
                   </div>
@@ -1275,13 +1324,13 @@ export function B2bDealWizardPageContent() {
                     className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-70 disabled:hover:bg-blue-600"
                   >
                     {isSubmitting ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> Đang xử lý...</>
+                      <><Loader2 className="h-4 w-4 animate-spin" /> {t("master.commerce.common.processing")}</>
                     ) : form.watch("closingMethod") === "QUOTATION" ? (
-                      <><Send className="h-4 w-4" /> Gửi Email Báo Giá Cho Khách Hàng</>
+                      <><Send className="h-4 w-4" /> {t("master.commerce.dealWizard.submitQuotationBtn")}</>
                     ) : form.watch("closingMethod") === "INVOICE" ? (
-                      <><ReceiptText className="h-4 w-4" /> Hoàn tất Deal & Phát hành Hóa đơn</>
+                      <><ReceiptText className="h-4 w-4" /> {t("master.commerce.dealWizard.submitInvoiceBtn")}</>
                     ) : (
-                      <><FileSignature className="h-4 w-4" /> Hoàn tất Deal & Soạn Hợp đồng</>
+                      <><FileSignature className="h-4 w-4" /> {t("master.commerce.dealWizard.submitContractBtn")}</>
                     )}
                   </button>
                 </div>

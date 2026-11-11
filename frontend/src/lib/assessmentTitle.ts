@@ -1,3 +1,5 @@
+import { t } from "@/i18n";
+
 const DEMO_MARKER = "[Demo UI]";
 
 export function isDemoAssessmentTitle(title?: string | null): boolean {
@@ -12,7 +14,7 @@ export function isDemoAssessmentTitle(title?: string | null): boolean {
  */
 export function shortAssessmentTitle(jobTitle?: string | null, testTitle?: string | null): string {
   const raw = (testTitle ?? "").trim();
-  if (!raw) return cleanJobTitle(jobTitle) || "Bài đánh giá";
+  if (!raw) return cleanJobTitle(jobTitle) || t("ux.assessmentFallbackTitle");
 
   if (isDemoAssessmentTitle(raw)) {
     return raw;

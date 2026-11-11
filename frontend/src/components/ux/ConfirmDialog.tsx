@@ -31,7 +31,7 @@ export function ConfirmDialog() {
       await confirm.onConfirm?.();
       closeConfirm();
     } catch (cause) {
-      setError(getApiErrorMessage(cause, "Không thể hoàn tất thao tác. Vui lòng thử lại."));
+      setError(getApiErrorMessage(cause, t("errors.actionFailed")));
     } finally {
       setIsConfirming(false);
     }

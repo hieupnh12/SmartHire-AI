@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import type { SpeechCapture } from "@/api/types/aiInterview";
+import { t as globalT, useT } from "@/i18n";
 
 type Recognition = {
   lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; abort: () => void;
@@ -14,6 +15,7 @@ export function SpeechAnswerControl({ language, disabled, onTranscript, onCaptur
   language?: string; disabled: boolean; onTranscript: (text: string) => void;
   onCapture: (capture: SpeechCapture) => void; onBusy: (busy: boolean) => void; onReset: () => void;
 }) {
+  const t = useT();
   const recognition = useRef<Recognition | null>(null); const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null); const context = useRef<AudioContext | null>(null); const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const callbacks = useRef({ onTranscript, onCapture, onBusy, onReset }); callbacks.current = { onTranscript, onCapture, onBusy, onReset };
@@ -31,9 +33,12 @@ export function SpeechAnswerControl({ language, disabled, onTranscript, onCaptur
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; recognition.current?.abort(); if (recorder.current?.state === "recording") recorder.current.stop(); release(); }; }, []);
   useEffect(() => { if (disabled) stop(); }, [disabled]);
   async function start() {
-    if (!navigator.mediaDevices || !window.MediaRecorder || !window.AudioContext) { setError("Trình duyệt chưa hỗ trợ ghi âm. Bạn có thể nhập văn bản."); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder || !window.AudioContext) {
+      setError(globalT("candidate.assess.interviews.speechControl.recordingUnsupported"));
+      return;
+    }
     window.speechSynthesis?.cancel();
-    setError(Constructor ? null : "Trình duyệt chưa hỗ trợ STT. Bạn vẫn có thể ghi âm và nhập transcript sau khi dừng.");
+    setError(Constructor ? null : globalT("candidate.assess.interviews.speechControl.sttUnsupported"));
     setInterim(""); setSignal({ seconds: 0, speaking: false }); callbacks.current.onBusy(true); setListening(true); setOpening(true);
     try {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -51,8 +56,21 @@ export function SpeechAnswerControl({ language, disabled, onTranscript, onCaptur
       const mime = ["audio/webm", "audio/mp4", "audio/ogg"].find(type => MediaRecorder.isTypeSupported(type));
       if (!mime) throw new Error("Unsupported audio format");
       const instance = new MediaRecorder(mic, { mimeType: mime }); recorder.current = instance; const chunks: Blob[] = []; let bytes = 0; let failed = false;
-      instance.ondataavailable = event => { if (event.data.size) { chunks.push(event.data); bytes += event.data.size; if (bytes > 9 * 1024 * 1024) { failed = true; setError("Bản ghi đạt giới hạn 9 MB; hãy ghi lại câu trả lời ngắn hơn."); stop(); } } };
-      instance.onerror = () => { failed = true; setError("Ghi âm bị gián đoạn. Hãy ghi lại hoặc gửi câu trả lời bằng văn bản."); stop(); };
+      instance.ondataavailable = event => {
+        if (event.data.size) {
+          chunks.push(event.data); bytes += event.data.size;
+          if (bytes > 9 * 1024 * 1024) {
+            failed = true;
+            setError(globalT("candidate.assess.interviews.speechControl.recordingTooLarge"));
+            stop();
+          }
+        }
+      };
+      instance.onerror = () => {
+        failed = true;
+        setError(globalT("candidate.assess.interviews.speechControl.recordingInterrupted"));
+        stop();
+      };
       instance.onstop = () => {
         const durationMs = Date.now() - started; release();
         if (!mounted.current) return;
@@ -76,20 +94,35 @@ export function SpeechAnswerControl({ language, disabled, onTranscript, onCaptur
           setInterim(draft.trim());
           if (text.trim()) callbacks.current.onTranscript(text.trim());
         };
-        stt.onerror = () => { if (mounted.current) setError("STT bị gián đoạn. Bản ghi vẫn tiếp tục; dừng và kiểm tra hoặc nhập transcript trước khi gửi."); };
-        stt.onend = () => { if (mounted.current && recorder.current?.state === "recording") setError("STT đã dừng. Bạn có thể tiếp tục ghi âm, rồi kiểm tra hoặc nhập transcript."); };
-        try { stt.start(); } catch { setError("Không mở được STT. Ghi âm vẫn hoạt động; nhập transcript sau khi dừng."); }
+        stt.onerror = () => { if (mounted.current) setError(globalT("candidate.assess.interviews.speechControl.sttInterrupted")); };
+        stt.onend = () => { if (mounted.current && recorder.current?.state === "recording") setError(globalT("candidate.assess.interviews.speechControl.sttStopped")); };
+        try { stt.start(); } catch { setError(globalT("candidate.assess.interviews.speechControl.sttOpenFailed")); }
       }
       instance.start(1000); setOpening(false);
-    } catch { recognition.current?.abort(); release(); setOpening(false); setListening(false); callbacks.current.onBusy(false); setError("Không mở được micro/ghi âm. Kiểm tra quyền micro và HTTPS hoặc nhập văn bản."); }
+    } catch {
+      recognition.current?.abort(); release(); setOpening(false); setListening(false); callbacks.current.onBusy(false);
+      setError(globalT("candidate.assess.interviews.speechControl.micOpenFailed"));
+    }
   }
   return <div className="space-y-2 rounded-lg border border-[var(--color-border-default)] p-3 text-sm">
-    <p>Nhận giọng nói và ghi âm câu trả lời. Kiểm tra transcript trước khi gửi; audio được lưu riêng tư nếu Job bật ghi âm. STT có thể dùng dịch vụ nhận dạng của trình duyệt.</p>
+    <p>{t("candidate.assess.interviews.speechControl.description")}</p>
     <Button type="button" variant="secondary" disabled={disabled || opening} onClick={() => listening ? stop() : void start()}>
-      {listening ? <Square className="size-4" aria-hidden="true" /> : <Mic className="size-4" aria-hidden="true" />}{listening ? "Dừng và kiểm tra transcript" : "Bắt đầu trả lời bằng giọng nói"}
+      {listening ? <Square className="size-4" aria-hidden="true" /> : <Mic className="size-4" aria-hidden="true" />}
+      {listening ? t("candidate.assess.interviews.speechControl.stopAndCheckButton") : t("candidate.assess.interviews.speechControl.startVoiceButton")}
     </Button>
-    {listening && <p role="status">{opening ? "Đang mở micro…" : `Đang ghi âm · ${signal.seconds}s · ${signal.speaking ? "Có tín hiệu lời nói" : "Đang chờ giọng nói"}`}</p>}
-    {interim && <p className="text-[var(--color-on-surface-variant)]">Đang nhận dạng: {interim}</p>}
+    {listening && (
+      <p role="status">
+        {opening
+          ? t("candidate.assess.interviews.speechControl.openingMic")
+          : t("candidate.assess.interviews.speechControl.recordingSignal", {
+              seconds: signal.seconds,
+              speechStatus: signal.speaking
+                ? t("candidate.assess.interviews.speechControl.speechDetected")
+                : t("candidate.assess.interviews.speechControl.waitingForSpeech"),
+            })}
+      </p>
+    )}
+    {interim && <p className="text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.speechControl.recognizingPrefix", { text: interim })}</p>}
     {error && <p role="alert">{error}</p>}
   </div>;
 }

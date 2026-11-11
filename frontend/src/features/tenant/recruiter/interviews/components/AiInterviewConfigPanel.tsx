@@ -5,39 +5,12 @@ import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { InterviewConfigurationTabs } from "./InterviewConfigurationTabs";
 import { AiInterviewCandidateAssigner } from "./AiInterviewCandidateAssigner";
 
 export type ConfigSection = "general" | "exercise" | "assign";
-
-const configNavGroups = [
-  {
-    groupTitle: "CẤU HÌNH",
-    items: [
-      {
-        id: "general" as const,
-        title: "Chung",
-        icon: Sliders,
-      },
-      {
-        id: "exercise" as const,
-        title: "Bài tập",
-        icon: SlidersHorizontal,
-      },
-    ],
-  },
-  {
-    groupTitle: "ỨNG VIÊN",
-    items: [
-      {
-        id: "assign" as const,
-        title: "Giao đề",
-        icon: Users,
-      },
-    ],
-  },
-];
 
 type Props = {
   jobId: number;
@@ -45,12 +18,43 @@ type Props = {
 };
 
 export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionParam = searchParams.get("section") as ConfigSection | null;
   const activeSection: ConfigSection =
     sectionParam && ["general", "exercise", "assign"].includes(sectionParam)
       ? sectionParam
       : "general";
+
+  const configNavGroups = [
+    {
+      id: "config",
+      groupTitle: t("recruiter.interviews.ai.configPanel.groupConfig"),
+      items: [
+        {
+          id: "general" as const,
+          title: t("recruiter.interviews.ai.configPanel.general"),
+          icon: Sliders,
+        },
+        {
+          id: "exercise" as const,
+          title: t("recruiter.interviews.ai.configPanel.exercise"),
+          icon: SlidersHorizontal,
+        },
+      ],
+    },
+    {
+      id: "candidate",
+      groupTitle: t("recruiter.interviews.ai.configPanel.groupCandidate"),
+      items: [
+        {
+          id: "assign" as const,
+          title: t("recruiter.interviews.ai.configPanel.assign"),
+          icon: Users,
+        },
+      ],
+    },
+  ];
 
   const setSection = (section: ConfigSection) => {
     setSearchParams(
@@ -84,7 +88,7 @@ export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
       >
         <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
           {configNavGroups.map((group) => (
-            <div key={group.groupTitle} className="space-y-1">
+            <div key={group.id} className="space-y-1">
               <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-slate-400">
                 {group.groupTitle}
               </div>

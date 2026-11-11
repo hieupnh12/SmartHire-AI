@@ -41,11 +41,13 @@ import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 import { queryKeys } from "@/lib/query-keys";
 
 
+import { compareLocaleText, formatNumber, t as globalT, useLocale, useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 
@@ -55,7 +57,7 @@ const SKILLS = SKILL_CATALOG.flatMap((group) => group.skills);
 type Collection = "all" | "favorites" | "ready" | "pending" | "archived";
 type ViewMode = "table" | "cards";
 type DrawerTab = "content" | "usage" | "history";
-type Difficulty = "Cơ bản" | "Vận dụng" | "Nâng cao";
+type Difficulty = "easy" | "medium" | "hard";
 
 type BankRow = {
   key: string;
@@ -77,13 +79,23 @@ function isAiGenerated(meta: Record<string, unknown> | null | undefined) {
   return meta?.aiGenerated === true || meta?.aiGenerated === "true" || meta?.source === "AI";
 }
 
-const collections: { id: Collection; label: string; icon: typeof FolderOpen }[] = [
-  { id: "all", label: "Tất cả câu hỏi", icon: FolderOpen },
-  { id: "favorites", label: "Yêu thích của tôi", icon: Star },
-  { id: "ready", label: "Câu hỏi phụ trách", icon: UserRound },
-  { id: "pending", label: "Chờ phê duyệt", icon: ClipboardList },
-  { id: "archived", label: "Đã lưu trữ", icon: Archive },
-];
+function getCollections(translate: TranslateFn): { id: Collection; label: string; icon: typeof FolderOpen }[] {
+  return [
+    { id: "all", label: translate("recruiter.assessments.bank.collections.all"), icon: FolderOpen },
+    { id: "favorites", label: translate("recruiter.assessments.bank.collections.favorites"), icon: Star },
+    { id: "ready", label: translate("recruiter.assessments.bank.collections.ready"), icon: UserRound },
+    { id: "pending", label: translate("recruiter.assessments.bank.collections.pendingJob"), icon: ClipboardList },
+    { id: "archived", label: translate("recruiter.assessments.bank.collections.archived"), icon: Archive },
+  ];
+}
+
+function normalizeDifficultyParam(raw: string | null): Difficulty | "" {
+  if (!raw) return "";
+  if (raw === "easy" || raw === "Cơ bản") return "easy";
+  if (raw === "medium" || raw === "Vận dụng") return "medium";
+  if (raw === "hard" || raw === "Nâng cao") return "hard";
+  return "";
+}
 
 function loadFavorites() {
   try {
@@ -94,14 +106,14 @@ function loadFavorites() {
   }
 }
 
-function typeLabel(type?: string): string {
-  if (!type) return "Trắc nghiệm đơn";
+function typeLabel(type: string | undefined, translate: TranslateFn = globalT): string {
+  if (!type) return translate("recruiter.assessments.common.questionTypes.singleChoice");
   const t = type.toUpperCase();
-  if (t === "MCQ") return "Trắc nghiệm đơn";
-  if (t === "MULTIPLE_CHOICE") return "Nhiều đáp án";
-  if (t === "QUIZ") return "Trắc nghiệm";
-  if (t === "CODING") return "Bài tập Code";
-  if (t === "ESSAY") return "Tự luận lý thuyết";
+  if (t === "MCQ") return translate("recruiter.assessments.common.questionTypes.singleChoice");
+  if (t === "MULTIPLE_CHOICE") return translate("recruiter.assessments.common.questionTypes.multipleChoice");
+  if (t === "QUIZ") return translate("recruiter.assessments.common.questionTypes.quiz");
+  if (t === "CODING") return translate("recruiter.assessments.common.questionTypes.coding");
+  if (t === "ESSAY") return translate("recruiter.assessments.common.questionTypes.essayTheory");
   return type;
 }
 
@@ -110,16 +122,16 @@ function questionCode(id: number) {
 }
 
 function difficultyOf(points: number): Difficulty {
-  if (points <= 5) return "Cơ bản";
-  if (points <= 15) return "Vận dụng";
-  return "Nâng cao";
+  if (points <= 5) return "easy";
+  if (points <= 15) return "medium";
+  return "hard";
 }
 
 function difficultyLabel(value: string | null | undefined, points: number): Difficulty {
   const key = (value ?? "").trim().toLowerCase();
-  if (key === "easy") return "Cơ bản";
-  if (key === "medium") return "Vận dụng";
-  if (key === "hard") return "Nâng cao";
+  if (key === "easy") return "easy";
+  if (key === "medium") return "medium";
+  if (key === "hard") return "hard";
   return difficultyOf(points);
 }
 
@@ -131,28 +143,37 @@ function skillsOf(text: string, skill: string | null | undefined) {
   return matched.slice(0, 4);
 }
 
-function statusMeta(status: TestStatus) {
-  if (status === "PUBLISHED") return { label: "Sẵn sàng", dot: "bg-emerald-600", chip: "bg-emerald-100 text-emerald-800" };
-  if (status === "DRAFT") return { label: "Chờ duyệt", dot: "bg-amber-600", chip: "bg-amber-100 text-amber-900" };
-  return { label: "Đã lưu trữ", dot: "bg-[var(--color-outline)]", chip: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]" };
+function statusMeta(status: TestStatus, translate: TranslateFn = globalT) {
+  if (status === "PUBLISHED") return { label: translate("recruiter.assessments.bank.status.ready"), dot: "bg-emerald-600", chip: "bg-emerald-100 text-emerald-800" };
+  if (status === "DRAFT") return { label: translate("recruiter.assessments.bank.status.pendingApproval"), dot: "bg-amber-600", chip: "bg-amber-100 text-amber-900" };
+  return { label: translate("recruiter.assessments.bank.status.archived"), dot: "bg-[var(--color-outline)]", chip: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]" };
 }
 
 function difficultyClass(level: Difficulty) {
-  if (level === "Cơ bản") return "bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-0";
-  if (level === "Nâng cao") return "bg-rose-100/70 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-0";
+  if (level === "easy") return "bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-0";
+  if (level === "hard") return "bg-rose-100/70 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-0";
   return "bg-amber-100/70 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-0";
 }
 
-function downloadCsv(rows: BankRow[]) {
-  const header = ["Mã", "Câu hỏi", "Đề", "Vị trí", "Loại câu", "Điểm", "Trạng thái", "Kỹ năng"];
+function downloadCsv(rows: BankRow[], translate: TranslateFn) {
+  const header = [
+    translate("recruiter.assessments.bank.csvHeaders.code"),
+    translate("recruiter.assessments.bank.csvHeaders.question"),
+    translate("recruiter.assessments.bank.csvHeaders.test"),
+    translate("recruiter.assessments.bank.csvHeaders.job"),
+    translate("recruiter.assessments.bank.csvHeaders.questionType"),
+    translate("recruiter.assessments.bank.csvHeaders.points"),
+    translate("recruiter.assessments.bank.csvHeaders.status"),
+    translate("recruiter.assessments.bank.csvHeaders.skills"),
+  ];
   const body = rows.map((row) => [
     row.code,
     row.question.questionText,
     row.testTitle,
     row.jobTitle,
-    row.content ? typeMeta(row.content.kind).label : "Trắc nghiệm đơn",
+    row.content ? typeMeta(row.content.kind, translate).label : translate("recruiter.assessments.common.questionTypes.singleChoice"),
     String(row.question.points),
-    statusMeta(row.testStatus).label,
+    statusMeta(row.testStatus, translate).label,
     row.skills.join("; "),
   ]);
   const csv = [header, ...body]
@@ -162,7 +183,7 @@ function downloadCsv(rows: BankRow[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "ngan-hang-cau-hoi.csv";
+  link.download = translate("recruiter.assessments.bank.csvFilename");
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -257,6 +278,10 @@ function QuestionCardsSkeleton({ count = 6 }: { count?: number }) {
 }
 
 export function QuestionBankPage() {
+  const t = useT();
+  const locale = useLocale();
+  const collections = getCollections(t);
+  const difficultyLabelText = (level: Difficulty) => t(`recruiter.assessments.common.difficulty.${level}`);
   const job = useRecruitmentJob();
   const client = useQueryClient();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
@@ -271,8 +296,7 @@ export function QuestionBankPage() {
   const initialCollection: Collection = ["all", "favorites", "ready", "pending", "archived"].includes(requestedTab) ? requestedTab : "all";
   const requestedQ = params.get("q") ?? "";
   const requestedSkill = params.get("skill") ?? "";
-  const requestedDifficulty = (params.get("difficulty") as Difficulty | "") ?? "";
-  const initialDifficulty: Difficulty | "" = ["Cơ bản", "Vận dụng", "Nâng cao"].includes(requestedDifficulty) ? requestedDifficulty : "";
+  const initialDifficulty: Difficulty | "" = normalizeDifficultyParam(params.get("difficulty"));
   const requestedStatus = (params.get("status") as TestStatus | "") ?? "";
   const initialStatus: TestStatus | "" = ["PUBLISHED", "DRAFT", "ARCHIVED"].includes(requestedStatus) ? requestedStatus : "";
   const requestedSort = (params.get("sort") as "latest" | "points" | "text") ?? "latest";
@@ -337,8 +361,7 @@ export function QuestionBankPage() {
     const col: Collection = ["all", "favorites", "ready", "pending", "archived"].includes(tab) ? tab : "all";
     const q = params.get("q") ?? "";
     const sk = params.get("skill") ?? "";
-    const df = (params.get("difficulty") as Difficulty | "") ?? "";
-    const diff: Difficulty | "" = ["Cơ bản", "Vận dụng", "Nâng cao"].includes(df) ? df : "";
+    const diff: Difficulty | "" = normalizeDifficultyParam(params.get("difficulty"));
     const st = (params.get("status") as TestStatus | "") ?? "";
     const stat: TestStatus | "" = ["PUBLISHED", "DRAFT", "ARCHIVED"].includes(st) ? st : "";
     const so = (params.get("sort") as "latest" | "points" | "text") ?? "latest";
@@ -362,13 +385,13 @@ export function QuestionBankPage() {
   const jobSkills = useMemo(() => job.skills?.map((item) => item.name).filter(Boolean) ?? [], [job.skills]);
   const jobContext = useMemo(() => {
     const parts = [
-      `Vị trí: ${job.title}`,
-      job.department ? `Phòng ban: ${job.department}` : "",
-      jobSkills.length ? `Kỹ năng: ${jobSkills.join(", ")}` : "",
-      job.description ? `JD: ${job.description}` : "",
+      t("recruiter.assessments.bank.jobBank.contextJob", { title: job.title }),
+      job.department ? t("recruiter.assessments.bank.jobBank.contextDepartment", { department: job.department }) : "",
+      jobSkills.length ? t("recruiter.assessments.bank.jobBank.contextSkills", { skills: jobSkills.join(", ") }) : "",
+      job.description ? t("recruiter.assessments.bank.jobBank.contextJd", { jd: job.description }) : "",
     ].filter(Boolean);
     return parts.join("\n").slice(0, 1500);
-  }, [job, jobSkills]);
+  }, [job, jobSkills, t]);
 
   const favoriteIds = useMemo(
     () =>
@@ -378,7 +401,7 @@ export function QuestionBankPage() {
         .sort((a, b) => a - b),
     [favorites]
   );
-  const apiDifficulty = difficulty === "Cơ bản" ? "Easy" : difficulty === "Vận dụng" ? "Medium" : difficulty === "Nâng cao" ? "Hard" : undefined;
+  const apiDifficulty = difficulty === "easy" ? "Easy" : difficulty === "medium" ? "Medium" : difficulty === "hard" ? "Hard" : undefined;
 
   const tests = useQuery({
     queryKey: [
@@ -413,18 +436,19 @@ export function QuestionBankPage() {
         },
         signal
       ),
-    placeholderData: (previousData) => previousData,
+    placeholderData: keepPreviousForScope(job.id, 4),
   });
-  const isInitialLoading = tests.isLoading;
+  const isInitialLoading = tests.isPending && !tests.data;
+  const isTableRefreshing = tests.isFetching && tests.isPlaceholderData;
 
   const rows = useMemo<BankRow[]>(() => {
     return (tests.data?.items ?? []).map((item) => ({
       key: item.testId ? `${item.testId}-${item.question.id}` : `bank-${item.question.id}`,
       testId: item.testId,
-      testTitle: item.testTitle ?? "Ngân hàng chung",
+      testTitle: item.testTitle ?? t("recruiter.assessments.bank.general.generalBankTitle"),
       testStatus: item.archived ? "ARCHIVED" : item.testStatus ?? "DRAFT",
       jobId: item.jobId,
-      jobTitle: item.jobTitle ?? "Tất cả vị trí",
+      jobTitle: item.jobTitle ?? t("recruiter.assessments.bank.jobBank.allPositions"),
       department: item.jobId === job.id ? job.department ?? "" : "",
       question: item.question,
       content: bankQuestionAuthoring(item),
@@ -433,15 +457,15 @@ export function QuestionBankPage() {
       difficulty: difficultyLabel(item.question.difficulty, item.question.points),
       aiGenerated: isAiGenerated(item.authoringMetadata),
     }));
-  }, [tests.data, job]);
+  }, [tests.data, job, t]);
   const questionPath = (row: BankRow) => row.testId && row.jobId
     ? `/recruiter/jobs/${row.jobId}/assessments/${row.testId}`
     : `/recruiter/question-bank/${row.question.id}/edit`;
 
   const skillOptions = useMemo(() => {
     const list = tests.data?.skills ?? [];
-    return [...new Set([...jobSkills, ...list])].filter(Boolean).sort((a, b) => a.localeCompare(b, "vi"));
-  }, [tests.data?.skills, jobSkills]);
+    return [...new Set([...jobSkills, ...list])].filter(Boolean).sort((a, b) => compareLocaleText(a, b, locale));
+  }, [tests.data?.skills, jobSkills, locale]);
 
   const filteredSkills = useMemo(() => {
     if (!skillSearchQuery.trim()) return skillOptions;
@@ -450,11 +474,11 @@ export function QuestionBankPage() {
   }, [skillOptions, skillSearchQuery]);
 
   const questionTypeLabels: Record<string, string> = {
-    MCQ: "Trắc nghiệm đơn",
-    MULTIPLE_CHOICE: "Nhiều đáp án",
-    QUIZ: "Trắc nghiệm",
-    ESSAY: "Tự luận lý thuyết",
-    CODING: "Bài tập Code",
+    MCQ: t("recruiter.assessments.common.questionTypes.singleChoice"),
+    MULTIPLE_CHOICE: t("recruiter.assessments.common.questionTypes.multipleChoice"),
+    QUIZ: t("recruiter.assessments.common.questionTypes.quiz"),
+    ESSAY: t("recruiter.assessments.common.questionTypes.essayTheory"),
+    CODING: t("recruiter.assessments.common.questionTypes.coding"),
   };
 
   const totalItems = tests.data?.total ?? 0;
@@ -587,23 +611,15 @@ export function QuestionBankPage() {
     questionType
       ? {
           id: "type",
-          label: `Loại câu: ${
-            questionType === "MCQ"
-              ? "Trắc nghiệm đơn"
-              : questionType === "MULTIPLE_CHOICE"
-              ? "Nhiều đáp án"
-              : questionType === "QUIZ"
-              ? "Trắc nghiệm"
-              : questionType === "CODING"
-              ? "Bài tập Code"
-              : "Tự luận lý thuyết"
-          }`,
+          label: t("recruiter.assessments.bank.chipTypePrefix", {
+            label: questionTypeLabels[questionType] ?? t("recruiter.assessments.common.questionTypes.essayTheory"),
+          }),
         }
       : null,
-    skill ? { id: "skill", label: `Kỹ năng: ${skill}` } : null,
-    difficulty ? { id: "difficulty", label: `Độ khó: ${difficulty}` } : null,
-    status ? { id: "status", label: `Trạng thái: ${statusMeta(status).label}` } : null,
-    query.trim() ? { id: "query", label: `Từ khóa: "${query.trim()}"` } : null,
+    skill ? { id: "skill", label: t("recruiter.assessments.bank.chipSkillPrefix", { skill }) } : null,
+    difficulty ? { id: "difficulty", label: t("recruiter.assessments.bank.chipDifficultyPrefix", { difficulty: difficultyLabelText(difficulty) }) } : null,
+    status ? { id: "status", label: t("recruiter.assessments.bank.chipStatusPrefix", { status: statusMeta(status, t).label }) } : null,
+    query.trim() ? { id: "query", label: t("recruiter.assessments.bank.chipQueryQuoted", { query: query.trim() }) } : null,
   ].filter((chip): chip is { id: string; label: string } => chip !== null);
 
   const clearChip = (id: string) => {
@@ -694,7 +710,7 @@ export function QuestionBankPage() {
             )}
           >
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Độ phủ đề thi</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{t("recruiter.assessments.bank.jobBank.coverageTitle")}</span>
               <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{coverage}%</span>
             </div>
             <div className="relative mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
@@ -704,14 +720,14 @@ export function QuestionBankPage() {
               />
             </div>
             <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-              {readyCount} câu hỏi sẵn sàng
+              {t("recruiter.assessments.bank.jobBank.readyQuestionsCount", { count: readyCount })}
             </p>
           </div>
 
           {/* Danh sách Bộ sưu tập hệ thống */}
           <div className="flex flex-col gap-1">
             <p className="px-1 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Bộ sưu tập hệ thống
+              {t("recruiter.assessments.bank.general.systemCollectionsTitle")}
             </p>
             <div className="flex flex-col gap-0.5">
               {collections.map((item) => {
@@ -761,7 +777,7 @@ export function QuestionBankPage() {
               to="/recruiter"
               className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/60 px-2.5 py-2 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:border-[var(--color-primary)]/30 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:bg-slate-800"
             >
-              Quản lý vị trí tuyển dụng
+              {t("recruiter.assessments.bank.general.manageJobsLink")}
             </Link>
           </div>
         </aside>
@@ -777,13 +793,13 @@ export function QuestionBankPage() {
                     value={query}
                     onChange={(event) => handleQueryChange(event.target.value)}
                     className="w-full bg-transparent text-xs outline-none placeholder:text-slate-400"
-                    placeholder="Tìm câu hỏi, mã #QB-, kỹ năng..."
-                    aria-label="Tìm câu hỏi"
+                    placeholder={t("recruiter.assessments.bank.jobBank.searchPlaceholder")}
+                    aria-label={t("recruiter.assessments.bank.general.searchAria")}
                   />
                   {query && (
                     <button
                       type="button"
-                      aria-label="Xóa nội dung tìm kiếm"
+                      aria-label={t("recruiter.assessments.common.actions.clearSearchText")}
                       onClick={() => handleQueryChange("")}
                       className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                     >
@@ -805,7 +821,7 @@ export function QuestionBankPage() {
                     )}
                     aria-expanded={activeDropdown === "skill"}
                   >
-                    <span className="truncate max-w-[110px]">{skill || "Tất cả kỹ năng"}</span>
+                    <span className="truncate max-w-[110px]">{skill || t("recruiter.assessments.bank.jobBank.allSkills")}</span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "skill" && "rotate-180")} />
                   </button>
 
@@ -816,7 +832,7 @@ export function QuestionBankPage() {
                         <input
                           value={skillSearchQuery}
                           onChange={(e) => setSkillSearchQuery(e.target.value)}
-                          placeholder="Tìm kỹ năng..."
+                          placeholder={t("recruiter.assessments.bank.jobBank.searchSkillPlaceholder")}
                           className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 py-1.5 pl-8 pr-2 text-xs outline-none focus:ring-1 focus:ring-[var(--color-primary)] border border-slate-100 dark:border-slate-700"
                           autoFocus
                         />
@@ -836,7 +852,7 @@ export function QuestionBankPage() {
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
-                          <span>Tất cả kỹ năng</span>
+                          <span>{t("recruiter.assessments.bank.jobBank.allSkills")}</span>
                           {!skill && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                         {filteredSkills.map((item) => (
@@ -877,19 +893,19 @@ export function QuestionBankPage() {
                     )}
                     aria-expanded={activeDropdown === "type"}
                   >
-                    <span>{questionTypeLabels[questionType] || "Loại câu"}</span>
+                    <span>{questionTypeLabels[questionType] || t("recruiter.assessments.bank.jobBank.typeLabelDefault")}</span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "type" && "rotate-180")} />
                   </button>
 
                   {activeDropdown === "type" && (
                     <div className="absolute left-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       {[
-                        { value: "", label: "Tất cả loại câu" },
-                        { value: "MCQ", label: "Trắc nghiệm đơn" },
-                        { value: "MULTIPLE_CHOICE", label: "Nhiều đáp án" },
-                        { value: "QUIZ", label: "Trắc nghiệm" },
-                        { value: "ESSAY", label: "Tự luận lý thuyết" },
-                        { value: "CODING", label: "Bài tập Code" },
+                        { value: "", label: t("recruiter.assessments.bank.jobBank.allTypesOption") },
+                        { value: "MCQ", label: t("recruiter.assessments.common.questionTypes.singleChoice") },
+                        { value: "MULTIPLE_CHOICE", label: t("recruiter.assessments.common.questionTypes.multipleChoice") },
+                        { value: "QUIZ", label: t("recruiter.assessments.common.questionTypes.quiz") },
+                        { value: "ESSAY", label: t("recruiter.assessments.common.questionTypes.essayTheory") },
+                        { value: "CODING", label: t("recruiter.assessments.common.questionTypes.coding") },
                       ].map((item) => (
                         <button
                           key={item.value}
@@ -926,17 +942,17 @@ export function QuestionBankPage() {
                     )}
                     aria-expanded={activeDropdown === "difficulty"}
                   >
-                    <span>{difficulty || "Mức độ"}</span>
+                    <span>{difficulty ? difficultyLabelText(difficulty) : t("recruiter.assessments.bank.jobBank.difficultyDefault")}</span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "difficulty" && "rotate-180")} />
                   </button>
 
                   {activeDropdown === "difficulty" && (
                     <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       {[
-                        { value: "", label: "Tất cả mức độ", color: "" },
-                        { value: "Cơ bản", label: "Cơ bản (1–3đ)", color: "bg-emerald-500" },
-                        { value: "Vận dụng", label: "Vận dụng (4–7đ)", color: "bg-amber-500" },
-                        { value: "Nâng cao", label: "Nâng cao (8–10đ)", color: "bg-rose-500" },
+                        { value: "", label: t("recruiter.assessments.bank.jobBank.allDifficultiesOption"), color: "" },
+                        { value: "easy", label: t("recruiter.assessments.common.difficulty.easyRange"), color: "bg-emerald-500" },
+                        { value: "medium", label: t("recruiter.assessments.common.difficulty.mediumRange"), color: "bg-amber-500" },
+                        { value: "hard", label: t("recruiter.assessments.common.difficulty.hardRange"), color: "bg-rose-500" },
                       ].map((item) => (
                         <button
                           key={item.value}
@@ -974,7 +990,7 @@ export function QuestionBankPage() {
                   )}
                 >
                   <Sparkles className={cn("size-3.5", aiOnly ? "text-[var(--color-primary)]" : "text-slate-400")} />
-                  <span>Câu AI</span>
+                  <span>{t("recruiter.assessments.bank.jobBank.aiChipLabel")}</span>
                 </button>
               </div>
 
@@ -986,7 +1002,7 @@ export function QuestionBankPage() {
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 text-xs font-semibold text-[var(--color-on-primary)] shadow-xs hover:bg-[var(--color-primary-hover)] transition-all cursor-pointer whitespace-nowrap"
                 >
                   <Sparkles className="size-3.5" aria-hidden="true" />
-                  <span>Sinh bằng AI</span>
+                  <span>{t("recruiter.assessments.bank.general.aiGenerateBtn")}</span>
                 </Link>
 
                 {/* Dropdown Nhập/Xuất */}
@@ -998,18 +1014,18 @@ export function QuestionBankPage() {
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer transition-colors",
                       activeDropdown === "export" && "border-[var(--color-primary)]/40 ring-2 ring-[var(--color-primary)]/15"
                     )}
-                    title="Nhập đề thi mẫu Excel hoặc Xuất dữ liệu ngân hàng"
+                    title={t("recruiter.assessments.bank.jobBank.importExportTooltip")}
                     aria-expanded={activeDropdown === "export"}
                   >
                     <Download className="size-3.5 text-slate-500" aria-hidden="true" />
-                    <span className="hidden sm:inline">Nhập/Xuất</span>
+                    <span className="hidden sm:inline">{t("recruiter.assessments.bank.jobBank.importExportBtn")}</span>
                     <ChevronDown className={cn("size-3 text-slate-400 transition-transform", activeDropdown === "export" && "rotate-180")} />
                   </button>
 
                   {activeDropdown === "export" && (
                     <div className="absolute right-0 top-full mt-1.5 z-40 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Dữ liệu & Mẫu đề
+                        {t("recruiter.assessments.bank.jobBank.dataTemplatesHeader")}
                       </div>
                       <Link
                         to={`${basePath}/excel-template`}
@@ -1020,14 +1036,14 @@ export function QuestionBankPage() {
                           <Table2 className="size-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Nhập Excel (Mẫu chuẩn)</p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Tải file template và nhập hàng loạt</p>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{t("recruiter.assessments.bank.jobBank.importExcelTitle")}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{t("recruiter.assessments.bank.jobBank.importExcelDesc")}</p>
                         </div>
                       </Link>
                       <button
                         type="button"
                         onClick={() => {
-                          downloadCsv(rows);
+                          downloadCsv(rows, t);
                           setActiveDropdown(null);
                         }}
                         className="flex w-full items-start gap-2.5 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
@@ -1036,8 +1052,8 @@ export function QuestionBankPage() {
                           <Download className="size-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Xuất file CSV ({rows.length})</p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Tải dữ liệu danh sách hiện tại</p>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{t("recruiter.assessments.bank.jobBank.exportCsvTitle", { count: rows.length })}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{t("recruiter.assessments.bank.jobBank.exportCsvDesc")}</p>
                         </div>
                       </button>
                     </div>
@@ -1056,16 +1072,16 @@ export function QuestionBankPage() {
                     aria-expanded={activeDropdown === "sort"}
                   >
                     <ArrowUpDown className="size-3.5 text-slate-400" />
-                    <span>{sort === "latest" ? "Mới cập nhật" : sort === "points" ? "Điểm cao nhất" : "Nội dung A-Z"}</span>
+                    <span>{sort === "latest" ? t("recruiter.assessments.bank.jobBank.sortLatestShort") : sort === "points" ? t("recruiter.assessments.bank.jobBank.sortPointsShort") : t("recruiter.assessments.bank.jobBank.sortTextShort")}</span>
                     <ChevronDown className={cn("size-3 text-slate-400 transition-transform", activeDropdown === "sort" && "rotate-180")} />
                   </button>
 
                   {activeDropdown === "sort" && (
                     <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       {[
-                        { value: "latest", label: "Mới cập nhật" },
-                        { value: "points", label: "Điểm cao nhất" },
-                        { value: "text", label: "Nội dung A-Z" },
+                        { value: "latest", label: t("recruiter.assessments.bank.jobBank.sortLatestShort") },
+                        { value: "points", label: t("recruiter.assessments.bank.jobBank.sortPointsShort") },
+                        { value: "text", label: t("recruiter.assessments.bank.jobBank.sortTextShort") },
                       ].map((item) => (
                         <button
                           key={item.value}
@@ -1093,7 +1109,7 @@ export function QuestionBankPage() {
                 <div className="flex h-9 items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800">
                   <button
                     type="button"
-                    aria-label="Dạng bảng"
+                    aria-label={t("recruiter.assessments.bank.general.viewTableAria")}
                     aria-pressed={view === "table"}
                     onClick={() => handleViewChange("table")}
                     className={cn(
@@ -1107,7 +1123,7 @@ export function QuestionBankPage() {
                   </button>
                   <button
                     type="button"
-                    aria-label="Dạng thẻ"
+                    aria-label={t("recruiter.assessments.bank.general.viewCardsAria")}
                     aria-pressed={view === "cards"}
                     onClick={() => handleViewChange("cards")}
                     className={cn(
@@ -1125,7 +1141,7 @@ export function QuestionBankPage() {
 
             {(chips.length > 0 || aiOnly) && (
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-200/60 dark:border-slate-700/60 pt-2 px-1 text-xs">
-                <span className="font-medium text-[var(--color-on-surface-variant)]">Bộ lọc đang bật:</span>
+                <span className="font-medium text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.common.actions.activeFilters")}</span>
                 {chips.map((chip) => (
                   <span
                     key={chip.id}
@@ -1136,7 +1152,7 @@ export function QuestionBankPage() {
                       type="button"
                       onClick={() => clearChip(chip.id)}
                       className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/10"
-                      aria-label={`Xóa bộ lọc ${chip.label}`}
+                      aria-label={t("recruiter.assessments.bank.jobBank.removeChipAria", { label: chip.label })}
                     >
                       <X className="size-3" />
                     </button>
@@ -1144,12 +1160,12 @@ export function QuestionBankPage() {
                 ))}
                 {aiOnly && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
-                    <Sparkles className="size-3" /> Chỉ câu AI
+                    <Sparkles className="size-3" /> {t("recruiter.assessments.bank.jobBank.aiOnlyChipLabel")}
                     <button
                       type="button"
                       onClick={handleAiOnlyToggle}
                       className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15"
-                      aria-label="Bỏ lọc chỉ câu AI"
+                      aria-label={t("recruiter.assessments.bank.jobBank.removeAiFilterAria")}
                     >
                       <X className="size-3" />
                     </button>
@@ -1160,7 +1176,7 @@ export function QuestionBankPage() {
                   onClick={clearFilters}
                   className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline"
                 >
-                  Xóa tất cả bộ lọc
+                  {t("recruiter.assessments.common.actions.clearAllFilters")}
                 </button>
               </div>
             )}
@@ -1170,64 +1186,62 @@ export function QuestionBankPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-primary)]/25 bg-slate-900 px-4 py-2.5 text-white shadow-lg">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">{selected.length}</span>
-                Đã chọn {selected.length} câu hỏi
+                {t("recruiter.assessments.bank.general.selectedCount", { count: selected.length })}
                 <button type="button" className="text-xs text-[var(--color-primary)] brightness-125 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
-                  Chọn toàn bộ {pageRows.length} câu trên trang
+                  {t("recruiter.assessments.bank.general.selectAllOnPage", { count: pageRows.length })}
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link to={basePath} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
-                  <ClipboardList className="size-3.5" /> Thêm vào Assessment
+                  <ClipboardList className="size-3.5" /> {t("recruiter.assessments.bank.jobBank.addToAssessment")}
                 </Link>
                 <Link to={`/recruiter/jobs/${job.id}/ai-interviews`} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
-                  <Bot className="size-3.5" /> Thêm vào AI Interview
+                  <Bot className="size-3.5" /> {t("recruiter.assessments.bank.jobBank.addToAiInterview")}
                 </Link>
-                <button type="button" onClick={() => downloadCsv(selectedRows)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
-                  <Download className="size-3.5" /> Xuất file
+                <button type="button" onClick={() => downloadCsv(selectedRows, t)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
+                  <Download className="size-3.5" /> {t("recruiter.assessments.common.actions.exportFile")}
                 </button>
                 <button
                   type="button"
-                  onClick={() => toast.info("Lưu trữ từng câu chưa có API riêng", "Mở đề ở trạng thái nháp để sửa hoặc xóa câu hỏi.")}
+                  onClick={() => toast.info(t("recruiter.assessments.bank.jobBank.archiveUnavailableTitle"), t("recruiter.assessments.bank.jobBank.archiveUnavailableDesc"))}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-rose-400/20 px-3 py-1.5 text-xs font-medium text-rose-100 hover:bg-rose-400/30"
                 >
-                  <Archive className="size-3.5" /> Lưu trữ
+                  <Archive className="size-3.5" /> {t("recruiter.assessments.bank.general.archiveAction")}
                 </button>
               </div>
             </div>
           )}
 
-          <div className={cn(
-            "overflow-hidden rounded-2xl bg-[var(--color-surface-card)] shadow-xs border border-slate-100/80 dark:border-slate-800/60 transition-opacity",
-            tests.isFetching && !isInitialLoading && "opacity-75"
-          )}>
+          <div className="relative overflow-hidden rounded-2xl bg-[var(--color-surface-card)] shadow-xs border border-slate-100/80 dark:border-slate-800/60">
+            <TableRefreshBar active={isTableRefreshing} />
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)] border-b border-slate-100 dark:border-slate-800/60">
               <p>
                 {isInitialLoading ? (
-                  <span>Đang tải danh sách câu hỏi…</span>
+                  <span>{t("recruiter.assessments.bank.general.loadingListLabel")}…</span>
                 ) : (
                   <>
-                    Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{totalItems === 0 ? 0 : startIndex + 1} - {Math.min(totalItems, startIndex + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{totalItems}</span> câu hỏi
+                    {t("recruiter.assessments.bank.general.showingRange")} <span className="font-semibold text-[var(--color-on-surface)]">{totalItems === 0 ? 0 : startIndex + 1} - {Math.min(totalItems, startIndex + pageRows.length)}</span> {t("recruiter.assessments.bank.general.ofTotalQuestions", { total: totalItems })}
                   </>
                 )}
               </p>
               {tests.isFetching && (
                 <span className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)]" role="status">
                   <Loader2 className="size-3.5 animate-spin" />
-                  Đang đồng bộ…
+                  {t("recruiter.assessments.common.syncingEllipsis")}
                 </span>
               )}
             </div>
 
-            {tests.isSuccess && !isInitialLoading && !isTableTransitioning && totalItems === 0 && (
+            {tests.isSuccess && !isInitialLoading && totalItems === 0 && (
               <div className="flex flex-col items-start gap-2 p-8">
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
-                <p className="font-semibold">Không có câu hỏi phù hợp</p>
-                <p className="text-sm text-[var(--color-on-surface-variant)]">{job.skills.length ? "Đổi bộ lọc hoặc thêm câu hỏi vào ngân hàng chung với skill phù hợp với job." : "Job chưa có skill. Thêm skill cho job để hiển thị câu hỏi phù hợp từ ngân hàng chung."}</p>
-                <Link to={basePath} className="text-sm font-semibold text-[var(--color-primary)] hover:underline">Về danh sách bài đánh giá</Link>
+                <p className="font-semibold">{t("recruiter.assessments.bank.general.emptyTitle")}</p>
+                <p className="text-sm text-[var(--color-on-surface-variant)]">{job.skills.length ? t("recruiter.assessments.bank.jobBank.emptyWithSkillsDesc") : t("recruiter.assessments.bank.jobBank.emptyNoSkillsDesc")}</p>
+                <Link to={basePath} className="text-sm font-semibold text-[var(--color-primary)] hover:underline">{t("recruiter.assessments.bank.jobBank.backToAssessmentsLink")}</Link>
               </div>
             )}
 
-            {view === "table" && (isInitialLoading || isTableTransitioning || pageRows.length > 0) && (
+            {view === "table" && (isInitialLoading || pageRows.length > 0) && (
               <div className="w-full max-lg:overflow-x-auto lg:overflow-x-hidden">
                 <table className="w-full table-fixed border-collapse text-left text-sm">
                   <thead>
@@ -1236,23 +1250,23 @@ export function QuestionBankPage() {
                         <input
                           type="checkbox"
                           checked={allPageSelected}
-                          aria-label="Chọn các câu trên trang"
+                          aria-label={t("recruiter.assessments.bank.general.selectPageCheckAria")}
                           onChange={() => setSelected((current) => allPageSelected ? current.filter((key) => !pageKeys.includes(key)) : [...new Set([...current, ...pageKeys])])}
                           className="size-4 rounded accent-[var(--color-primary)]"
                         />
                       </th>
-                      <th className="px-3 py-3">Câu hỏi & Nội dung</th>
-                      <th className="w-36 px-3 py-3">Kỹ năng</th>
-                      <th className="w-24 px-3 py-3">Độ khó</th>
-                      <th className="w-24 px-2 py-3 text-center">Thao tác</th>
+                      <th className="px-3 py-3">{t("recruiter.assessments.bank.jobBank.colQuestionContent")}</th>
+                      <th className="w-36 px-3 py-3">{t("recruiter.assessments.bank.jobBank.colSkill")}</th>
+                      <th className="w-24 px-3 py-3">{t("recruiter.assessments.bank.jobBank.colDifficulty")}</th>
+                      <th className="w-24 px-2 py-3 text-center">{t("recruiter.assessments.bank.general.colActions")}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {isInitialLoading || isTableTransitioning ? (
+                  <tbody className={cn("divide-y divide-slate-100 dark:divide-slate-800/60 transition-opacity duration-200", (isTableRefreshing || isTableTransitioning) && "opacity-60")}>
+                    {isInitialLoading ? (
                       <QuestionTableRowsSkeleton rows={pageSize} />
                     ) : (
                       pageRows.map((row) => {
-                        const meta = statusMeta(row.testStatus);
+                        const meta = statusMeta(row.testStatus, t);
                         const inspected = activeKey === row.key;
                         return (
                           <tr
@@ -1269,7 +1283,7 @@ export function QuestionBankPage() {
                               <input
                                 type="checkbox"
                                 checked={selected.includes(row.key)}
-                                aria-label={`Chọn ${row.code}`}
+                                aria-label={t("recruiter.assessments.bank.general.selectCodeAria", { code: row.code })}
                                 onChange={() => toggleOne(row.key)}
                                 className="size-4 rounded accent-[var(--color-primary)]"
                               />
@@ -1283,13 +1297,13 @@ export function QuestionBankPage() {
                                   </span>
                                   <span className="text-slate-300 dark:text-slate-600 font-light">•</span>
                                   <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                    {typeLabel(row.question.questionType)} ({row.question.points}đ)
+                                    {typeLabel(row.question.questionType, t)} ({row.question.points}{t("recruiter.assessments.common.pointsShort")})
                                   </span>
                                   {row.question.options && row.question.options.length > 0 && (
                                     <>
                                       <span className="text-slate-300 dark:text-slate-600 font-light">•</span>
                                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        {row.question.options.length} phương án
+                                        {t("recruiter.assessments.bank.general.optionsCount", { count: row.question.options.length })}
                                       </span>
                                     </>
                                   )}
@@ -1305,9 +1319,9 @@ export function QuestionBankPage() {
                                   {row.testTitle && row.testTitle !== row.jobTitle && (
                                     <span
                                       className="inline-flex items-center rounded-md bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
-                                      title={`Đang dùng trong: ${row.testTitle}`}
+                                      title={t("recruiter.assessments.bank.jobBank.usedInTooltip", { title: row.testTitle })}
                                     >
-                                      +1 đề
+                                      {t("recruiter.assessments.bank.jobBank.plusOneTestBadge")}
                                     </span>
                                   )}
                                 </div>
@@ -1318,9 +1332,9 @@ export function QuestionBankPage() {
                                       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
                                         <span>{row.code}</span>
                                         <span>•</span>
-                                        <span>{typeLabel(row.question.questionType)}</span>
+                                        <span>{typeLabel(row.question.questionType, t)}</span>
                                         <span>•</span>
-                                        <span>{row.question.points}đ</span>
+                                        <span>{row.question.points}{t("recruiter.assessments.common.pointsShort")}</span>
                                       </div>
                                       <p className="text-xs font-medium leading-relaxed text-slate-100">
                                         {row.question.questionText}
@@ -1339,12 +1353,12 @@ export function QuestionBankPage() {
                             </td>
                             <td className="w-36 px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
                               <div className="flex flex-wrap items-center gap-1">
-                                {(row.skills.length ? row.skills : ["—"]).slice(0, 2).map((item) => (
+                                {(row.skills.length ? row.skills : [t("recruiter.assessments.common.dash")]).slice(0, 2).map((item) => (
                                   <button
                                     key={item}
                                     type="button"
-                                    title={`Lọc theo ${item}`}
-                                    onClick={() => handleSkillChange(item === "—" ? "" : item)}
+                                    title={t("recruiter.assessments.bank.jobBank.filterBySkillTooltip", { skill: item })}
+                                    onClick={() => handleSkillChange(item === t("recruiter.assessments.common.dash") ? "" : item)}
                                     className={cn(
                                       "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors border-0 cursor-pointer truncate max-w-[100px]",
                                       skill === item
@@ -1367,7 +1381,7 @@ export function QuestionBankPage() {
                             </td>
                             <td className="w-24 px-3 py-2.5">
                               <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap", difficultyClass(row.difficulty))}>
-                                {row.difficulty}
+                                {difficultyLabelText(row.difficulty)}
                               </span>
                             </td>
                             <td className="w-24 px-2 py-2.5 text-center" onClick={(event) => event.stopPropagation()}>
@@ -1375,30 +1389,30 @@ export function QuestionBankPage() {
                                 "relative flex items-center justify-center gap-0.5 transition-opacity",
                                 menuKey === row.key ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
                               )}>
-                                <Tooltip content="Xem chi tiết" side="top">
+                                <Tooltip content={t("recruiter.assessments.common.actions.viewDetails")} side="top">
                                   <button
                                     type="button"
-                                    aria-label="Xem chi tiết"
+                                    aria-label={t("recruiter.assessments.common.actions.viewDetails")}
                                     onClick={() => openRow(row.key)}
                                     className="flex size-7 items-center justify-center rounded-lg text-slate-600 hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] dark:text-slate-300 transition-colors cursor-pointer"
                                   >
                                     <Eye className="size-3.5" />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Chỉnh sửa câu hỏi" side="top">
+                                <Tooltip content={t("recruiter.assessments.bank.general.editQuestionAria")} side="top">
                                   <Link
                                     to={questionPath(row)}
-                                    aria-label="Chỉnh sửa câu hỏi"
+                                    aria-label={t("recruiter.assessments.bank.general.editQuestionAria")}
                                     className="flex size-7 items-center justify-center rounded-lg text-slate-600 hover:bg-amber-50 hover:text-amber-600 dark:text-slate-300 dark:hover:bg-amber-950/60 dark:hover:text-amber-300 transition-colors cursor-pointer"
                                   >
                                     <Pencil className="size-3.5" />
                                   </Link>
                                 </Tooltip>
                                 <div className="relative" data-action-menu>
-                                  <Tooltip content="Tùy chọn khác" side="top">
+                                  <Tooltip content={t("recruiter.assessments.common.actions.moreOptions")} side="top">
                                     <button
                                       type="button"
-                                      aria-label="Tùy chọn khác"
+                                      aria-label={t("recruiter.assessments.common.actions.moreOptions")}
                                       onClick={() => setMenuKey(menuKey === row.key ? null : row.key)}
                                       className={cn(
                                         "flex size-7 items-center justify-center rounded-lg transition-colors cursor-pointer",
@@ -1418,14 +1432,14 @@ export function QuestionBankPage() {
                                         className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                         onClick={() => { void navigator.clipboard.writeText(row.question.questionText); setMenuKey(null); }}
                                       >
-                                        <Copy className="size-3.5 text-slate-500" /> Sao chép nội dung
+                                        <Copy className="size-3.5 text-slate-500" /> {t("recruiter.assessments.bank.general.copyContent")}
                                       </button>
                                       <button
                                         type="button"
                                         className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                         onClick={() => { void navigator.clipboard.writeText(row.code); setMenuKey(null); }}
                                       >
-                                        <Copy className="size-3.5 text-slate-500" /> Sao chép mã #QB
+                                        <Copy className="size-3.5 text-slate-500" /> {t("recruiter.assessments.bank.jobBank.copyCodeQb")}
                                       </button>
                                       <button
                                         type="button"
@@ -1433,7 +1447,7 @@ export function QuestionBankPage() {
                                         onClick={() => { toggleFavorite(row.key); setMenuKey(null); }}
                                       >
                                         <Star className={cn("size-3.5", favorites.has(row.key) && "fill-amber-500 text-amber-500")} />
-                                        {favorites.has(row.key) ? "Bỏ yêu thích" : "Đánh dấu yêu thích"}
+                                        {favorites.has(row.key) ? t("recruiter.assessments.bank.general.unfavorite") : t("recruiter.assessments.bank.jobBank.markFavorite")}
                                       </button>
                                       <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                                       <Link
@@ -1441,7 +1455,7 @@ export function QuestionBankPage() {
                                         className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                         onClick={() => setMenuKey(null)}
                                       >
-                                        <Pencil className="size-3.5 text-amber-500" /> Chỉnh sửa
+                                        <Pencil className="size-3.5 text-amber-500" /> {t("recruiter.assessments.common.actions.edit")}
                                       </Link>
                                     </div>
                                   )}
@@ -1457,13 +1471,13 @@ export function QuestionBankPage() {
               </div>
             )}
 
-            {view === "cards" && (isInitialLoading || isTableTransitioning || pageRows.length > 0) && (
-              isInitialLoading || isTableTransitioning ? (
+            {view === "cards" && (isInitialLoading || pageRows.length > 0) && (
+              isInitialLoading ? (
                 <QuestionCardsSkeleton count={Math.min(pageSize, 6)} />
               ) : (
-                <div className="grid gap-3.5 p-4 md:grid-cols-2">
+                <div className={cn("grid gap-3.5 p-4 md:grid-cols-2 transition-opacity duration-200", (isTableRefreshing || isTableTransitioning) && "opacity-60")}>
                   {pageRows.map((row) => {
-                    const meta = statusMeta(row.testStatus);
+                    const meta = statusMeta(row.testStatus, t);
                     return (
                       <button
                         key={row.key}
@@ -1478,7 +1492,7 @@ export function QuestionBankPage() {
                                 {row.code}
                               </span>
                               <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", difficultyClass(row.difficulty))}>
-                                {row.difficulty}
+                                {difficultyLabelText(row.difficulty)}
                               </span>
                               {row.aiGenerated && (
                                 <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2 py-0.5 text-[10px] font-semibold border-0">
@@ -1500,7 +1514,7 @@ export function QuestionBankPage() {
                             {row.testTitle}
                           </span>
                           <span className="font-medium">
-                            {row.question.points} điểm · {typeLabel(row.question.questionType)}
+                            {row.question.points} {t("recruiter.assessments.common.pointsUnit")} · {typeLabel(row.question.questionType, t)}
                           </span>
                         </div>
                       </button>
@@ -1517,14 +1531,14 @@ export function QuestionBankPage() {
               {/* [TRÁI]: Thông tin dữ liệu & loading */}
               <div className="flex items-center gap-2">
                 <span>
-                  Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{totalItems === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, totalItems)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{totalItems}</span> câu hỏi
+                  {t("recruiter.assessments.bank.general.showingRange")} <span className="font-semibold text-[var(--color-on-surface)]">{totalItems === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, totalItems)}</span> {t("recruiter.assessments.bank.general.ofTotalQuestions", { total: formatNumber(totalItems, undefined, locale) })}
                 </span>
                 <span>·</span>
-                <span className="tabular-nums">Trang {currentPage} / {totalPages}</span>
+                <span className="tabular-nums">{t("recruiter.assessments.common.pagination.pageOf", { current: currentPage, total: totalPages })}</span>
                 {tests.isFetching && !isInitialLoading && (
                   <span className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] ml-1">
                     <Loader2 className="size-3.5 animate-spin" />
-                    <span className="hidden sm:inline">Đang tải…</span>
+                    <span className="hidden sm:inline">{t("recruiter.assessments.common.loadingEllipsis")}</span>
                   </span>
                 )}
               </div>
@@ -1532,14 +1546,14 @@ export function QuestionBankPage() {
               {/* [GIỮA]: Dropdown chọn số dòng / trang */}
               <div className="flex items-center justify-start lg:justify-center">
                 <label className="flex items-center gap-1.5">
-                  <span>Hiển thị</span>
+                  <span>{t("recruiter.assessments.common.pagination.showing")}</span>
                   <select
                     value={pageSize}
                     onChange={(e) => goToPage(1, Number(e.target.value))}
                     className="h-8 rounded-lg bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-[var(--color-on-surface)] outline-none shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 cursor-pointer"
                   >
                     {PAGE_SIZE_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s} / trang</option>
+                      <option key={s} value={s}>{t("recruiter.assessments.common.pagination.perPage", { size: s })}</option>
                     ))}
                   </select>
                 </label>
@@ -1547,11 +1561,11 @@ export function QuestionBankPage() {
 
               {/* [PHẢI]: Nút điều hướng + Nhập trang nhanh */}
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <nav className="flex items-center gap-1" aria-label="Phân trang câu hỏi">
+                <nav className="flex items-center gap-1" aria-label={t("recruiter.assessments.common.pagination.pageWord")}>
                   <button
                     type="button"
-                    title="Về trang đầu"
-                    aria-label="Về trang đầu"
+                    title={t("recruiter.assessments.common.pagination.firstPage")}
+                    aria-label={t("recruiter.assessments.common.pagination.firstPage")}
                     disabled={currentPage === 1}
                     onClick={() => goToPage(1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-[var(--color-on-surface)] shadow-2xs transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1560,8 +1574,8 @@ export function QuestionBankPage() {
                   </button>
                   <button
                     type="button"
-                    title="Trang trước"
-                    aria-label="Trang trước"
+                    title={t("recruiter.assessments.common.pagination.prevPage")}
+                    aria-label={t("recruiter.assessments.common.pagination.prevPage")}
                     disabled={currentPage === 1}
                     onClick={() => goToPage(currentPage - 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-[var(--color-on-surface)] shadow-2xs transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1582,7 +1596,7 @@ export function QuestionBankPage() {
                       <button
                         key={item}
                         type="button"
-                        aria-label={`Trang ${item}`}
+                        aria-label={t("recruiter.assessments.common.pagination.pageNumberAria", { page: item })}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => goToPage(item)}
                         className={cn(
@@ -1599,8 +1613,8 @@ export function QuestionBankPage() {
 
                   <button
                     type="button"
-                    title="Trang tiếp"
-                    aria-label="Trang tiếp"
+                    title={t("recruiter.assessments.common.pagination.nextPageAlt")}
+                    aria-label={t("recruiter.assessments.common.pagination.nextPageAlt")}
                     disabled={currentPage >= totalPages}
                     onClick={() => goToPage(currentPage + 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-[var(--color-on-surface)] shadow-2xs transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1609,8 +1623,8 @@ export function QuestionBankPage() {
                   </button>
                   <button
                     type="button"
-                    title="Đến trang cuối"
-                    aria-label="Đến trang cuối"
+                    title={t("recruiter.assessments.common.pagination.lastPage")}
+                    aria-label={t("recruiter.assessments.common.pagination.lastPage")}
                     disabled={currentPage >= totalPages}
                     onClick={() => goToPage(totalPages)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-[var(--color-on-surface)] shadow-2xs transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1633,7 +1647,7 @@ export function QuestionBankPage() {
                   }}
                   className="flex items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]"
                 >
-                  <span>Đi đến:</span>
+                  <span>{t("recruiter.assessments.common.pagination.goTo")}</span>
                   <input
                     type="number"
                     min={1}
@@ -1641,15 +1655,16 @@ export function QuestionBankPage() {
                     placeholder={String(currentPage)}
                     value={jumpInput}
                     onChange={(e) => setJumpInput(e.target.value)}
+                    aria-label={t("recruiter.assessments.common.pagination.jumpInputAria")}
                     className="h-8 w-11 rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-semibold text-[var(--color-on-surface)] outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
                   />
-                  <span>Trang</span>
+                  <span>{t("recruiter.assessments.common.pagination.pageWord")}</span>
                   <button
                     type="submit"
                     disabled={!jumpInput || Number(jumpInput) < 1 || Number(jumpInput) > totalPages}
                     className="inline-flex h-8 items-center rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-[var(--color-on-surface)] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Đi
+                    {t("recruiter.assessments.common.pagination.goBtn")}
                   </button>
                 </form>
               </div>
@@ -1660,25 +1675,25 @@ export function QuestionBankPage() {
 
       {active && (
         <>
-          <button type="button" aria-label="Đóng chi tiết câu hỏi" className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
-          <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col bg-[var(--color-surface-card)] shadow-2xl" aria-label="Chi tiết câu hỏi">
+          <button type="button" aria-label={t("recruiter.assessments.bank.general.drawerCloseOverlayAria")} className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
+          <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col bg-[var(--color-surface-card)] shadow-2xl" aria-label={t("recruiter.assessments.bank.general.drawerAria")}>
             <div className="flex items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-bold text-[var(--color-primary)]">{active.code}</span>
-                <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusMeta(active.testStatus).chip)}>
-                  <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus).dot)} />
-                  {statusMeta(active.testStatus).label}
+                <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusMeta(active.testStatus, t).chip)}>
+                  <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus, t).dot)} />
+                  {statusMeta(active.testStatus, t).label}
                 </span>
               </div>
-              <button type="button" aria-label="Đóng panel" onClick={() => setActiveKey(null)} className="rounded-lg p-1.5 text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]">
+              <button type="button" aria-label={t("recruiter.assessments.bank.general.drawerCloseAria")} onClick={() => setActiveKey(null)} className="rounded-lg p-1.5 text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]">
                 <X className="size-5" />
               </button>
             </div>
             <div className="flex border-b border-[var(--color-surface-container)] px-3">
               {([
-                ["content", "Nội dung chi tiết"],
-                ["usage", "Nơi sử dụng"],
-                ["history", "Lịch sử"],
+                ["content", t("recruiter.assessments.bank.general.drawerTabContent")],
+                ["usage", t("recruiter.assessments.bank.general.drawerTabUsage")],
+                ["history", t("recruiter.assessments.bank.general.drawerTabHistory")],
               ] as const).map(([id, label]) => (
                 <button key={id} type="button" onClick={() => setDrawerTab(id)} className={cn("px-3 py-3 text-sm", drawerTab === id ? "border-b-2 border-[var(--color-primary)] font-bold text-[var(--color-primary)]" : "font-medium text-[var(--color-on-surface-variant)]")}>
                   {label}
@@ -1689,12 +1704,12 @@ export function QuestionBankPage() {
               {drawerTab === "content" && (
                 <>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Đề bài câu hỏi</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.promptLabel")}</p>
                     <p className="mt-2 rounded-xl bg-[var(--color-surface-container-low)] p-4 text-sm leading-6">{active.question.questionText}</p>
                   </div>
                   {active.question.options.length > 0 && (
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Phương án</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.optionsLabel")}</p>
                       <ul className="mt-2 space-y-2">
                         {active.question.options.map((option) => (
                           <li key={option.id} className={cn("rounded-xl px-3.5 py-3 text-sm", option.correct ? "bg-emerald-50 text-emerald-950" : "bg-[var(--color-surface-container)]")}>
@@ -1709,12 +1724,12 @@ export function QuestionBankPage() {
                   )}
                   {active.content && active.question.questionType === "ESSAY" && (
                     <div className="mt-3 space-y-3 text-sm">
-                      <p>Loại câu: {typeMeta(active.content.kind).label}</p>
-                      <p>Ngôn ngữ: {active.content.language || "—"}</p>
+                      <p>{t("recruiter.assessments.bank.general.kindPrefix")}{typeMeta(active.content.kind, t).label}</p>
+                      <p>{t("recruiter.assessments.bank.general.languagePrefix")}{active.content.language || t("recruiter.assessments.common.dash")}</p>
                       {active.content.snippet && (
                         <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container)] p-3">{active.content.snippet}</pre>
                       )}
-                      <p className="whitespace-pre-wrap">Đáp án mẫu: {active.content.sample || "Chưa có"}</p>
+                      <p className="whitespace-pre-wrap">{t("recruiter.assessments.bank.general.sampleAnswerPrefix")}{active.content.sample || t("recruiter.assessments.bank.general.notAvailable")}</p>
                       {active.content.rubric.map((item) => (
                         <p key={item.level} className="whitespace-pre-wrap">{item.text}</p>
                       ))}
@@ -1722,7 +1737,7 @@ export function QuestionBankPage() {
                   )}
                   {active.question.rubricJson && (
                     <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
-                      <h3 className="font-semibold">Rubric chấm điểm</h3>
+                      <h3 className="font-semibold">{t("recruiter.assessments.bank.general.rubricHeading")}</h3>
                       <p className="whitespace-pre-wrap">{active.question.rubricJson.referenceAnswer}</p>
                       {active.question.rubricJson.criteria.map((criterion, i) => (
                         <p key={i}>{criterion.weight}% · {criterion.description}</p>
@@ -1731,9 +1746,9 @@ export function QuestionBankPage() {
                   )}
                   {active.question.coding && (
                     <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
-                      <h3 className="font-semibold">Bài lập trình</h3>
+                      <h3 className="font-semibold">{t("recruiter.assessments.bank.general.codingHeading")}</h3>
                       <p>{active.question.coding.category} · {active.question.coding.timeLimitMs} ms · {active.question.coding.memoryMb} MB</p>
-                      <p>{active.question.coding.testCases.filter(test => test.sample).length} test công khai · {active.question.coding.testCases.filter(test => !test.sample).length} test ẩn</p>
+                      <p>{t("recruiter.assessments.bank.general.codingTestsSummary", { sample: active.question.coding.testCases.filter(test => test.sample).length, hidden: active.question.coding.testCases.filter(test => !test.sample).length })}</p>
                       {Object.entries(active.question.coding.starterCode).map(([language, code]) => (
                         <pre key={language} className="overflow-auto whitespace-pre-wrap font-mono text-xs">{language}{"\n"}{code}</pre>
                       ))}
@@ -1741,23 +1756,23 @@ export function QuestionBankPage() {
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-[var(--color-surface-container)] p-3">
-                      <p className="text-[11px] text-[var(--color-on-surface-variant)]">Điểm số</p>
-                      <p className="text-base font-bold">{active.question.points} điểm</p>
+                      <p className="text-[11px] text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.pointsCardLabel")}</p>
+                      <p className="text-base font-bold">{active.question.points} {t("recruiter.assessments.common.pointsUnit")}</p>
                     </div>
                     <div className="rounded-lg bg-[var(--color-surface-container)] p-3">
-                      <p className="text-[11px] text-[var(--color-on-surface-variant)]">Độ khó theo điểm</p>
-                      <p className="text-base font-bold">{active.difficulty}</p>
+                      <p className="text-[11px] text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.pointsDifficultyCardLabel")}</p>
+                      <p className="text-base font-bold">{difficultyLabelText(active.difficulty)}</p>
                     </div>
                   </div>
                   <div className="rounded-xl bg-[var(--color-surface-container-low)] p-4 text-sm">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Phân loại</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.classificationCardTitle")}</p>
                     <dl className="mt-3 grid grid-cols-2 gap-3">
-                      <div><dt className="text-xs text-[var(--color-on-surface-variant)]">Nhóm</dt><dd className="font-semibold">{active.department}</dd></div>
-                      <div><dt className="text-xs text-[var(--color-on-surface-variant)]">Vị trí</dt><dd className="font-semibold">{active.jobTitle}</dd></div>
+                      <div><dt className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.groupFieldLabel")}</dt><dd className="font-semibold">{active.department}</dd></div>
+                      <div><dt className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.jobFieldLabel")}</dt><dd className="font-semibold">{active.jobTitle}</dd></div>
                       <div className="col-span-2">
-                        <dt className="text-xs text-[var(--color-on-surface-variant)]">Kỹ năng nhận diện</dt>
+                        <dt className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.bank.general.detectedSkillsLabel")}</dt>
                         <dd className="mt-1 flex flex-wrap gap-1">
-                          {(active.skills.length ? active.skills : ["Chưa khớp từ khóa"]).map((item) => (
+                          {(active.skills.length ? active.skills : [t("recruiter.assessments.bank.general.noKeywordMatch")]).map((item) => (
                             <span key={item} className="rounded bg-[var(--color-surface-card)] px-2 py-0.5 text-xs font-semibold">{item}</span>
                           ))}
                         </dd>
@@ -1767,7 +1782,7 @@ export function QuestionBankPage() {
                   {active.testStatus === "PUBLISHED" && (
                     <div className="flex gap-2 rounded-xl bg-amber-50 p-3.5 text-sm text-amber-950">
                       <Shield className="mt-0.5 size-5 shrink-0 text-amber-600" aria-hidden="true" />
-                      <p>Câu hỏi đang nằm trong đề đã xuất bản <strong>{active.testTitle}</strong>. Nội dung đã khóa cho đến khi đề được đưa về nháp.</p>
+                      <p>{t("recruiter.assessments.bank.general.publishedLockWarning", { title: active.testTitle })}</p>
                     </div>
                   )}
                 </>
@@ -1776,51 +1791,51 @@ export function QuestionBankPage() {
                 <div className="space-y-3.5">
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <Briefcase className="size-4 text-[var(--color-primary)]" /> Vị trí tuyển dụng
+                      <Briefcase className="size-4 text-[var(--color-primary)]" /> {t("recruiter.assessments.bank.general.jobFieldLabel")}
                     </div>
                     <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">{active.jobTitle || job.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Phòng ban: {active.department || job.department || "Kỹ thuật"}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t("recruiter.assessments.bank.jobBank.contextDepartment", { department: active.department || job.department || t("recruiter.assessments.bank.jobBank.departmentFallback") })}</p>
                     <div className="mt-3 flex items-center gap-2">
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
-                        <CheckCircle2 className="size-3" /> Đang mở tuyển
+                        <CheckCircle2 className="size-3" /> {t("recruiter.assessments.bank.jobBank.openHiringBadge")}
                       </span>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <ClipboardList className="size-4 text-[var(--color-primary)]" /> Bài đánh giá liên kết
+                      <ClipboardList className="size-4 text-[var(--color-primary)]" /> {t("recruiter.assessments.bank.jobBank.linkedAssessmentHeading")}
                     </div>
                     <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">{active.testTitle}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", statusMeta(active.testStatus).chip)}>
-                        <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus).dot)} />
-                        {statusMeta(active.testStatus).label}
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", statusMeta(active.testStatus, t).chip)}>
+                        <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus, t).dot)} />
+                        {statusMeta(active.testStatus, t).label}
                       </span>
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {active.question.points} điểm · {typeLabel(active.question.questionType)}
+                        {active.question.points} {t("recruiter.assessments.common.pointsUnit")} · {typeLabel(active.question.questionType, t)}
                       </span>
                     </div>
                     <Link
                       to={questionPath(active)}
                       className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] shadow-2xs hover:bg-[var(--color-primary-subtle)] border border-slate-200 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 transition-colors"
                     >
-                      <InfinityIcon className="size-3.5" /> {active.testId ? "Mở đề đánh giá" : "Mở câu hỏi chung"}
+                      <InfinityIcon className="size-3.5" /> {active.testId ? t("recruiter.assessments.bank.jobBank.openAssessmentLink") : t("recruiter.assessments.bank.jobBank.openGeneralQuestionLink")}
                     </Link>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <Bot className="size-4 text-[var(--color-primary)]" /> AI Interview Voice Match
+                      <Bot className="size-4 text-[var(--color-primary)]" /> {t("recruiter.assessments.bank.jobBank.voiceMatchHeading")}
                     </div>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                      Câu hỏi này phù hợp làm đề bài phỏng vấn thoại kỹ thuật với trợ lý ảo Sophia AI trong luồng phỏng vấn ứng viên.
+                      {t("recruiter.assessments.bank.jobBank.voiceMatchDesc")}
                     </p>
                     <Link
                       to={`/recruiter/jobs/${job.id}/ai-interviews`}
                       className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] hover:underline"
                     >
-                      Cấu hình phỏng vấn AI <ChevronRight className="size-3.5" />
+                      {t("recruiter.assessments.bank.jobBank.configureAiInterviewLink")} <ChevronRight className="size-3.5" />
                     </Link>
                   </div>
                 </div>
@@ -1828,16 +1843,16 @@ export function QuestionBankPage() {
               {drawerTab === "history" && (
                 <div className="space-y-3.5">
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Dòng thời gian hoạt động</p>
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.bank.jobBank.activityTimelineTitle")}</p>
                     <div className="mt-4 relative pl-6 border-l-2 border-slate-200 dark:border-slate-700 space-y-6 text-xs">
                       <div className="relative">
                         <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white ring-4 ring-white dark:ring-slate-900">
                           <Check className="size-2.5" />
                         </span>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">Đã cập nhật câu hỏi</p>
-                        <p className="mt-0.5 text-slate-500 dark:text-slate-400">Trạng thái: {statusMeta(active.testStatus).label} · Độ khó: {active.difficulty}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.bank.jobBank.timelineUpdatedTitle")}</p>
+                        <p className="mt-0.5 text-slate-500 dark:text-slate-400">{t("recruiter.assessments.bank.jobBank.timelineUpdatedMeta", { status: statusMeta(active.testStatus, t).label, difficulty: difficultyLabelText(active.difficulty) })}</p>
                         <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
-                          <Clock className="size-3" /> Gần đây nhất
+                          <Clock className="size-3" /> {t("recruiter.assessments.bank.jobBank.timelineLatest")}
                         </span>
                       </div>
 
@@ -1845,8 +1860,8 @@ export function QuestionBankPage() {
                         <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-[var(--color-primary)]/80 text-white ring-4 ring-white dark:ring-slate-900">
                           <ClipboardList className="size-2.5" />
                         </span>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">Liên kết vào bài thi</p>
-                        <p className="mt-0.5 text-slate-500 dark:text-slate-400">Đã gán vào đề: {active.testTitle}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.bank.jobBank.timelineLinkedTitle")}</p>
+                        <p className="mt-0.5 text-slate-500 dark:text-slate-400">{t("recruiter.assessments.bank.jobBank.timelineLinkedDesc", { title: active.testTitle })}</p>
                       </div>
 
                       <div className="relative">
@@ -1854,10 +1869,10 @@ export function QuestionBankPage() {
                           <Sparkles className="size-2.5" />
                         </span>
                         <p className="font-semibold text-slate-900 dark:text-slate-100">
-                          {active.aiGenerated ? "Sinh tự động bằng SmartHire AI" : "Khởi tạo trong ngân hàng câu hỏi"}
+                          {active.aiGenerated ? t("recruiter.assessments.bank.jobBank.timelineCreatedAi") : t("recruiter.assessments.bank.jobBank.timelineCreatedManual")}
                         </p>
                         <p className="mt-0.5 text-slate-500 dark:text-slate-400">
-                          Mã câu hỏi: <span className="font-mono font-semibold">{active.code}</span>
+                          {t("recruiter.assessments.bank.jobBank.timelineQuestionCode")}<span className="font-mono font-semibold">{active.code}</span>
                         </p>
                       </div>
                     </div>
@@ -1868,19 +1883,19 @@ export function QuestionBankPage() {
             <div className="border-t border-[var(--color-surface-container)] bg-[var(--color-surface-container-low)] px-5 py-4">
               <div className="mb-2 flex items-center justify-between">
                 <button type="button" onClick={() => void navigator.clipboard.writeText(active.question.questionText)} className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]">
-                  <Copy className="size-4" /> Sao chép
+                  <Copy className="size-4" /> {t("recruiter.assessments.common.actions.copy")}
                 </button>
                 <button type="button" onClick={() => toggleFavorite(active.key)} className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-amber-700 hover:bg-amber-50">
                   <Star className={cn("size-4", favorites.has(active.key) && "fill-amber-500")} />
-                  {favorites.has(active.key) ? "Đã yêu thích" : "Yêu thích"}
+                  {favorites.has(active.key) ? t("recruiter.assessments.bank.general.favorited") : t("recruiter.assessments.bank.general.favorite")}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Link to={questionPath(active)} className="rounded-lg bg-[var(--color-surface-card)] px-3 py-2.5 text-center text-sm font-semibold shadow-sm">
-                  Chỉnh sửa câu hỏi
+                  {t("recruiter.assessments.bank.general.editQuestionBtn")}
                 </Link>
                 <Link to={basePath} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2.5 text-sm font-semibold text-white">
-                  <ClipboardList className="size-4" /> Về Assessment
+                  <ClipboardList className="size-4" /> {t("recruiter.assessments.bank.jobBank.backToAssessmentBtn")}
                 </Link>
               </div>
             </div>
@@ -1895,7 +1910,7 @@ export function QuestionBankPage() {
         defaultTopic={job.title}
         jobContext={jobContext}
         onSaved={async () => {
-          toast.success("Đã lưu câu hỏi AI vào ngân hàng", "Câu hỏi đã được tạo theo ngữ cảnh JD của vị trí tuyển dụng.");
+          toast.success(t("recruiter.assessments.bank.jobBank.aiSavedTitle"), t("recruiter.assessments.bank.jobBank.aiSavedDesc"));
           setAiOpen(false);
           setAiOnly(true);
           await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });

@@ -1,5 +1,14 @@
 import { RefreshCw } from "lucide-react";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
+import {
+  formatDateTime as i18nFormatDateTime,
+  formatNumber,
+  t as globalT,
+  useI18nStore,
+  useT,
+  type Locale,
+  type TranslateFn,
+} from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export const AI_INTERVIEW_STATUSES: AiInterviewStatus[] = [
@@ -14,34 +23,38 @@ export const AI_INTERVIEW_STATUSES: AiInterviewStatus[] = [
   "FAILED",
 ];
 
-export const aiStatusLabel: Record<AiInterviewStatus, string> = {
-  CREATED: "Đang chuẩn bị",
-  GENERATING: "Đang sinh câu hỏi",
-  PASSED: "Đạt",
-  ERROR: "Lỗi xử lý",
-  QUESTIONS_READY: "Đã có câu hỏi",
-  IN_PROGRESS: "Đang diễn ra",
-  SCORING: "Đang chấm điểm",
-  SCORED: "Đã chấm xong",
-  FAILED: "Không đạt",
-};
+export function getAiStatusLabel(status: AiInterviewStatus, translate: TranslateFn = globalT): string {
+  const key = `recruiter.interviews.status.${status}`;
+  const label = translate(key);
+  return label === key ? status : label;
+}
 
 export const AI_QUESTION_TYPES = ["TECHNICAL", "BEHAVIORAL", "SITUATIONAL", "GENERAL"] as const;
 
-export function formatDateTime(value: string | null | undefined) {
+export function formatDateTime(
+  value: string | null | undefined,
+  locale: Locale = useI18nStore.getState().locale,
+) {
   if (!value) return "—";
-  return new Date(value).toLocaleString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return i18nFormatDateTime(
+    value,
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    },
+    locale,
+  );
 }
 
-export function formatInterviewScore(value: number | null | undefined) {
+export function formatInterviewScore(
+  value: number | null | undefined,
+  locale: Locale = useI18nStore.getState().locale,
+) {
   if (value == null) return "—";
-  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+  return formatNumber(Number(value), { maximumFractionDigits: 1 }, locale);
 }
 
 export const aiStatusTone: Record<AiInterviewStatus, string> = {
@@ -69,6 +82,7 @@ export const aiStatusDot: Record<AiInterviewStatus, string> = {
 };
 
 export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
+  const t = useT();
   const isSpinning = status === "SCORING" || status === "GENERATING";
   return (
     <span
@@ -82,7 +96,7 @@ export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
       ) : (
         <span className={cn("size-1.5 rounded-full shrink-0", aiStatusDot[status])} />
       )}
-      <span>{aiStatusLabel[status]}</span>
+      <span>{getAiStatusLabel(status, t)}</span>
     </span>
   );
 }

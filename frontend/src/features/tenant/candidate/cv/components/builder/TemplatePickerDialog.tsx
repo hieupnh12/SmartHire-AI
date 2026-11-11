@@ -1,15 +1,17 @@
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { DetailDialog } from "@/components/ux/DetailDialog";
-import { cvStyles, cvTemplates } from "@/features/tenant/candidate/shared/constants/cvTemplates";
-import { CvPreview } from "../../pages/CvTemplatesPage";
+import { useT } from "@/i18n";
+import { cvTemplates } from "@/features/tenant/candidate/shared/constants/cvTemplates";
+import { CvPreview, getCvStyleLabel } from "../../pages/CvTemplatesPage";
 
 /** Switching template only changes `templateId`; the CV content stays untouched. */
 export function TemplatePickerDialog({ templateId, onSelect, onClose }: { templateId: string; onSelect: (templateId: string) => void; onClose: () => void }) {
+  const t = useT();
   return createPortal(
     <div className="cv-print-hidden">
-      <DetailDialog open title="Đổi mẫu CV" onClose={onClose}>
-        <p className="mb-4 text-sm text-slate-600">Nội dung CV được giữ nguyên, chỉ thay đổi bố cục hiển thị.</p>
+      <DetailDialog open title={t("candidate.cv.templatePicker.title")} onClose={onClose}>
+        <p className="mb-4 text-sm text-slate-600">{t("candidate.cv.templatePicker.subtitle")}</p>
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {cvTemplates.map((item) => {
             const active = item.id === templateId;
@@ -24,7 +26,7 @@ export function TemplatePickerDialog({ templateId, onSelect, onClose }: { templa
                   <CvPreview layout={item.layout} role={item.roles[0] ?? "backend"} />
                   <span className="mt-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-800">
                     {item.name}
-                    <span className="text-xs font-medium text-slate-500">{cvStyles[item.style].label}</span>
+                    <span className="text-xs font-medium text-slate-500">{getCvStyleLabel(t, item.style)}</span>
                   </span>
                   {active && <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-white"><Check className="size-3.5" aria-hidden="true" /></span>}
                 </button>

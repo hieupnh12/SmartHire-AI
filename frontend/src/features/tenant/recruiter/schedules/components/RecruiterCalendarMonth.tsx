@@ -1,7 +1,8 @@
+import { formatDate, formatTime, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { roundMeta, type MockInterview } from "../constants/mockInterviews";
+import { getInterviewRoundShortLabel, roundMeta, type MockInterview } from "../constants/mockInterviews";
 
-const weekdays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
 export const dayKey = (date: Date) =>
   `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -22,6 +23,8 @@ type Props = {
 };
 
 export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }: Props) {
+  const t = useT();
+  const locale = useLocale();
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const start = new Date(first);
   start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
@@ -42,12 +45,12 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
     <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white">
       {/* Weekday Header */}
       <div className="grid grid-cols-7 border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]">
-        {weekdays.map((day) => (
+        {WEEKDAY_KEYS.map((day) => (
           <div
             key={day}
             className="py-3 text-center text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]"
           >
-            {day}
+            {t(`recruiter.ops.schedules.calendar.weekdays.${day}`)}
           </div>
         ))}
       </div>
@@ -67,11 +70,11 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
               type="button"
               onClick={() => onSelect(day)}
               aria-pressed={isSelected}
-              aria-label={`${day.toLocaleDateString("vi-VN", {
+              aria-label={`${formatDate(day, {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
-              })}${items.length ? `, có ${items.length} lịch phỏng vấn` : ""}`}
+              }, locale)}${items.length ? t("recruiter.ops.schedules.calendar.dayInterviewCountAria", { count: items.length }) : ""}`}
               className={cn(
                 "group relative flex min-h-[72px] flex-col gap-1 border-b border-r border-[var(--color-border-default)] p-1.5 text-left align-top transition-colors sm:min-h-[96px] lg:min-h-[108px] [&:nth-child(7n)]:border-r-0",
                 outside
@@ -107,7 +110,7 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
                 {items.slice(0, 3).map((item) => (
                   <span
                     key={item.id}
-                    title={`${item.candidateName} (${roundMeta[item.round]?.label || item.round})`}
+                    title={`${item.candidateName} (${getInterviewRoundShortLabel(item.round, t)})`}
                     className={cn(
                       "size-1.5 rounded-full",
                       roundMeta[item.round]?.dot || "bg-brand-primary",
@@ -122,10 +125,10 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
               {/* Desktop / Tablet View: Event Chips */}
               <div className="hidden min-w-0 flex-1 flex-col gap-1 sm:flex">
                 {items.slice(0, 2).map((item) => {
-                  const startTime = new Date(item.startsAt).toLocaleTimeString("vi-VN", {
+                  const startTime = formatTime(item.startsAt, {
                     hour: "2-digit",
                     minute: "2-digit",
-                  });
+                  }, locale);
                   const meta = roundMeta[item.round];
                   return (
                     <div
@@ -148,7 +151,7 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
                 })}
                 {items.length > 2 && (
                   <span className="px-1 text-[10px] font-medium text-[var(--color-on-surface-variant)]">
-                    +{items.length - 2} ứng viên khác
+                    {t("recruiter.ops.schedules.calendar.moreCandidates", { count: items.length - 2 })}
                   </span>
                 )}
               </div>

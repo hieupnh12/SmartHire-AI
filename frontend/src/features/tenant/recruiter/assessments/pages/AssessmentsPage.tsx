@@ -26,10 +26,11 @@ import {
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { JobTest, TestOrigin, TestStatus } from "@/api/types/assessment";
-import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
+import { AssessmentError, getAssessmentStatusLabel } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { Tooltip } from "@/components/ux/Tooltip";
+import { compareLocaleText, formatDate, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
@@ -59,15 +60,15 @@ function getPaginationItems(current: number, total: number): (number | "ellipsis
   return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
 }
 
-function formatRelative(iso: string) {
+function formatRelative(iso: string, t: TranslateFn, locale: Locale) {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 60) return `${minutes} phút trước`;
+  if (minutes < 60) return t("recruiter.assessments.list.minutesAgo", { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} giờ trước`;
+  if (hours < 48) return t("recruiter.assessments.list.hoursAgo", { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 14) return `${days} ngày trước`;
-  return new Date(iso).toLocaleDateString("vi-VN");
+  if (days < 14) return t("recruiter.assessments.list.daysAgo", { count: days });
+  return formatDate(iso, undefined, locale);
 }
 
 function initials(name: string | null | undefined) {
@@ -84,6 +85,7 @@ function statusTone(status: TestStatus) {
 }
 
 function OriginBadge({ origin }: { origin?: TestOrigin }) {
+  const t = useT();
   const ai = origin === "GENERATED";
   return (
     <span
@@ -94,12 +96,13 @@ function OriginBadge({ origin }: { origin?: TestOrigin }) {
           : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
       )}
     >
-      {ai ? "AI" : "Thường"}
+      {ai ? t("recruiter.assessments.list.originAi") : t("recruiter.assessments.list.originManual")}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: TestStatus }) {
+  const t = useT();
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", statusTone(status))}>
       <span
@@ -110,12 +113,14 @@ function StatusBadge({ status }: { status: TestStatus }) {
           status === "ARCHIVED" && "bg-[var(--color-outline)]",
         )}
       />
-      {assessmentStatus[status]}
+      {getAssessmentStatusLabel(status, t)}
     </span>
   );
 }
 
 export function AssessmentsPage() {
+  const t = useT();
+  const locale = useLocale();
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
   const [params, setParams] = useSearchParams();
@@ -213,12 +218,12 @@ export function AssessmentsPage() {
       );
     }
     rows.sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title, "vi");
+      if (sort === "title") return compareLocaleText(a.title, b.title, locale);
       if (sort === "duration") return a.durationMinutes - b.durationMinutes;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return rows;
-  }, [allTests, job.id, query, sort, status, jobMap]);
+  }, [allTests, job.id, query, sort, status, jobMap, locale]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -314,28 +319,39 @@ export function AssessmentsPage() {
 
   const exportCsv = (rowsToExport: JobTest[]) => {
     if (rowsToExport.length === 0) {
-      toast.warning("Không có dữ liệu bài đánh giá để xuất");
+      toast.warning(t("recruiter.assessments.list.noDataToExport"));
       return;
     }
-    const headers = ["Mã đề", "Tên bài đánh giá", "Thời lượng (phút)", "Ngưỡng đạt", "Trạng thái", "Người tạo", "Ngày tạo"];
-    const lines = rowsToExport.map((t) => [
-      `ASM-${t.id}`,
-      `"${(t.title ?? "").replace(/"/g, '""')}"`,
-      t.durationMinutes,
-      t.passingScore != null ? t.passingScore : "—",
-      assessmentStatus[t.status] ?? t.status,
-      `"${(t.createdByName ?? "").replace(/"/g, '""')}"`,
-      new Date(t.createdAt).toLocaleDateString("vi-VN"),
+    const headers = [
+      t("recruiter.assessments.list.csvHeaders.code"),
+      t("recruiter.assessments.list.csvHeaders.title"),
+      t("recruiter.assessments.list.csvHeaders.duration"),
+      t("recruiter.assessments.list.csvHeaders.passingScore"),
+      t("recruiter.assessments.list.csvHeaders.status"),
+      t("recruiter.assessments.list.csvHeaders.creator"),
+      t("recruiter.assessments.list.csvHeaders.createdAt"),
+    ];
+    const lines = rowsToExport.map((row) => [
+      `ASM-${row.id}`,
+      `"${(row.title ?? "").replace(/"/g, '""')}"`,
+      row.durationMinutes,
+      row.passingScore != null ? row.passingScore : "—",
+      getAssessmentStatusLabel(row.status, t),
+      `"${(row.createdByName ?? "").replace(/"/g, '""')}"`,
+      formatDate(row.createdAt, undefined, locale),
     ]);
     const csvContent = "\uFEFF" + [headers.join(","), ...lines.map((l) => l.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Danh_sach_bai_danh_gia_Job_${job.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `${t("recruiter.assessments.list.csvFilenamePrefix")}_${job.id}_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    toast.success("Xuất file CSV thành công", `Đã xuất ${rowsToExport.length} bài đánh giá`);
+    toast.success(
+      t("recruiter.assessments.list.exportSuccessTitle"),
+      t("recruiter.assessments.list.exportSuccessDesc", { count: rowsToExport.length }),
+    );
   };
 
   return (
@@ -351,13 +367,13 @@ export function AssessmentsPage() {
             <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
               {selected.length}
             </span>
-            <span className="font-medium">Đã chọn {selected.length} bài đánh giá</span>
+            <span className="font-medium">{t("recruiter.assessments.list.selectedCount", { count: selected.length })}</span>
             <button
               type="button"
               className="text-xs font-medium text-[var(--color-primary)] brightness-125 hover:underline cursor-pointer"
               onClick={() => setSelected(pageRows.map((row) => row.id))}
             >
-              Chọn toàn bộ {pageRows.length} bài trên trang
+              {t("recruiter.assessments.list.selectAllOnPage", { count: pageRows.length })}
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -365,24 +381,24 @@ export function AssessmentsPage() {
               to={`${basePath}/submissions`}
               className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors"
             >
-              <Users className="size-3.5" /> Xem bài nộp ứng viên
+              <Users className="size-3.5" /> {t("recruiter.assessments.list.viewCandidateSubmissions")}
             </Link>
             <button
               type="button"
               onClick={() => {
-                const selectedTests = filtered.filter((t) => selected.includes(t.id));
+                const selectedTests = filtered.filter((item) => selected.includes(item.id));
                 exportCsv(selectedTests);
               }}
               className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors cursor-pointer"
             >
-              <Download className="size-3.5" /> Xuất file CSV ({selected.length})
+              <Download className="size-3.5" /> {t("recruiter.assessments.list.exportCsvCount", { count: selected.length })}
             </button>
             <button
               type="button"
               onClick={() => setSelected([])}
               className="inline-flex items-center gap-1 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
             >
-              <X className="size-3.5" /> Bỏ chọn
+              <X className="size-3.5" /> {t("recruiter.assessments.list.deselect")}
             </button>
           </div>
         </div>
@@ -397,14 +413,14 @@ export function AssessmentsPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
                 className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
-                placeholder="Tìm theo tên bài đánh giá, mã đề…"
+                placeholder={t("recruiter.assessments.list.searchPlaceholder")}
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}
               />
               {query && (
                 <button
                   type="button"
-                  aria-label="Xóa tìm kiếm"
+                  aria-label={t("recruiter.assessments.common.actions.clearSearch")}
                   onClick={() => handleQueryChange("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
@@ -430,20 +446,20 @@ export function AssessmentsPage() {
                   "size-1.5 rounded-full",
                   status === "PUBLISHED" ? "bg-emerald-500" : status === "DRAFT" ? "bg-amber-500" : status === "ARCHIVED" ? "bg-slate-400" : "bg-slate-300"
                 )} />
-                <span>{status === "ALL" ? "Tất cả trạng thái" : assessmentStatus[status]}</span>
+                <span>{status === "ALL" ? t("recruiter.assessments.list.allStatuses") : getAssessmentStatusLabel(status, t)}</span>
                 <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "status" && "rotate-180")} />
               </button>
 
               {activeDropdown === "status" && (
                 <div className="absolute left-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                   <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Lọc theo trạng thái
+                    {t("recruiter.assessments.list.filterByStatus")}
                   </p>
                   {[
-                    { value: "ALL", label: "Tất cả trạng thái", dot: "bg-slate-400", count: counts.ALL },
-                    { value: "PUBLISHED", label: "Đã xuất bản", dot: "bg-emerald-500", count: counts.PUBLISHED },
-                    { value: "DRAFT", label: "Bản nháp", dot: "bg-amber-500", count: counts.DRAFT },
-                    { value: "ARCHIVED", label: "Lưu trữ", dot: "bg-slate-400", count: counts.ARCHIVED },
+                    { value: "ALL", label: t("recruiter.assessments.list.allStatuses"), dot: "bg-slate-400", count: counts.ALL },
+                    { value: "PUBLISHED", label: getAssessmentStatusLabel("PUBLISHED", t), dot: "bg-emerald-500", count: counts.PUBLISHED },
+                    { value: "DRAFT", label: getAssessmentStatusLabel("DRAFT", t), dot: "bg-amber-500", count: counts.DRAFT },
+                    { value: "ARCHIVED", label: getAssessmentStatusLabel("ARCHIVED", t), dot: "bg-slate-400", count: counts.ARCHIVED },
                   ].map((item) => (
                     <button
                       key={item.value}
@@ -489,7 +505,11 @@ export function AssessmentsPage() {
                 aria-expanded={activeDropdown === "sort"}
               >
                 <span>
-                  {sort === "latest" ? "Mới tạo gần đây" : sort === "title" ? "Tên A → Z" : "Thời lượng test"}
+                  {sort === "latest"
+                    ? t("recruiter.assessments.list.sortLatest")
+                    : sort === "title"
+                      ? t("recruiter.assessments.list.sortTitleShort")
+                      : t("recruiter.assessments.list.sortDuration")}
                 </span>
                 <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "sort" && "rotate-180")} />
               </button>
@@ -497,12 +517,12 @@ export function AssessmentsPage() {
               {activeDropdown === "sort" && (
                 <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                   <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Sắp xếp theo
+                    {t("recruiter.assessments.list.sortBy")}
                   </p>
                   {[
-                    { value: "latest", label: "Mới tạo gần đây" },
-                    { value: "title", label: "Tên bài đánh giá (A → Z)" },
-                    { value: "duration", label: "Thời lượng thi" },
+                    { value: "latest", label: t("recruiter.assessments.list.sortLatest") },
+                    { value: "title", label: t("recruiter.assessments.list.sortTitleLong") },
+                    { value: "duration", label: t("recruiter.assessments.list.sortDurationOption") },
                   ].map((item) => (
                     <button
                       key={item.value}
@@ -537,7 +557,7 @@ export function AssessmentsPage() {
                 aria-expanded={activeDropdown === "export"}
               >
                 <Download className="size-3.5 text-slate-500" />
-                <span>Xuất file</span>
+                <span>{t("recruiter.assessments.common.actions.exportFile")}</span>
                 <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "export" && "rotate-180")} />
               </button>
 
@@ -553,15 +573,15 @@ export function AssessmentsPage() {
                   >
                     <FileSpreadsheet className="size-4 text-emerald-600" />
                     <div className="text-left">
-                      <p className="font-semibold">Xuất toàn bộ bộ lọc</p>
-                      <p className="text-[10px] text-slate-400">{filtered.length} bài đánh giá</p>
+                      <p className="font-semibold">{t("recruiter.assessments.list.exportAllFiltered")}</p>
+                      <p className="text-[10px] text-slate-400">{t("recruiter.assessments.list.exportAllCount", { count: filtered.length })}</p>
                     </div>
                   </button>
                   {selected.length > 0 && (
                     <button
                       type="button"
                       onClick={() => {
-                        const selectedTests = filtered.filter((t) => selected.includes(t.id));
+                        const selectedTests = filtered.filter((item) => selected.includes(item.id));
                         exportCsv(selectedTests);
                         setActiveDropdown(null);
                       }}
@@ -569,8 +589,8 @@ export function AssessmentsPage() {
                     >
                       <FileSpreadsheet className="size-4 text-[var(--color-primary)]" />
                       <div className="text-left">
-                        <p className="font-semibold">Xuất bài đã chọn</p>
-                        <p className="text-[10px] text-slate-400">{selected.length} bài đã chọn</p>
+                        <p className="font-semibold">{t("recruiter.assessments.list.exportSelected")}</p>
+                        <p className="text-[10px] text-slate-400">{t("recruiter.assessments.list.exportSelectedCount", { count: selected.length })}</p>
                       </div>
                     </button>
                   )}
@@ -584,7 +604,7 @@ export function AssessmentsPage() {
               className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 text-xs font-semibold text-[var(--color-on-primary)] shadow-xs transition-colors hover:bg-[var(--color-primary-hover)] cursor-pointer"
             >
               <Settings2 className="size-3.5" aria-hidden="true" />
-              Cấu hình bài đánh giá
+              {t("recruiter.assessments.list.configureAssessment")}
             </Link>
           </div>
         </div>
@@ -592,15 +612,15 @@ export function AssessmentsPage() {
         {/* Thanh chip bộ lọc đang bật */}
         {(query || status !== "ALL" || sort !== "latest") && (
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
-            <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
+            <span className="font-medium text-slate-400">{t("recruiter.assessments.common.actions.activeFilters")}</span>
             {query && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
-                Từ khóa: "{query}"
+                {t("recruiter.assessments.list.keywordChip", { query })}
                 <button
                   type="button"
                   onClick={() => handleQueryChange("")}
                   className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
-                  aria-label="Xóa từ khóa tìm kiếm"
+                  aria-label={t("recruiter.assessments.list.clearKeywordAria")}
                 >
                   <X className="size-3" />
                 </button>
@@ -608,12 +628,12 @@ export function AssessmentsPage() {
             )}
             {status !== "ALL" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
-                Trạng thái: {assessmentStatus[status]}
+                {t("recruiter.assessments.list.statusChip", { status: getAssessmentStatusLabel(status, t) })}
                 <button
                   type="button"
                   onClick={() => handleStatusChange("ALL")}
                   className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
-                  aria-label="Xóa lọc trạng thái"
+                  aria-label={t("recruiter.assessments.list.clearStatusAria")}
                 >
                   <X className="size-3" />
                 </button>
@@ -621,12 +641,14 @@ export function AssessmentsPage() {
             )}
             {sort !== "latest" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
-                Sắp xếp: {sort === "title" ? "Tên A → Z" : "Thời lượng"}
+                {t("recruiter.assessments.list.sortChip", {
+                  sort: sort === "title" ? t("recruiter.assessments.list.sortTitleShort") : t("recruiter.assessments.list.sortChipDuration"),
+                })}
                 <button
                   type="button"
                   onClick={() => handleSortChange("latest")}
                   className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
-                  aria-label="Xóa sắp xếp"
+                  aria-label={t("recruiter.assessments.list.clearSortAria")}
                 >
                   <X className="size-3" />
                 </button>
@@ -641,7 +663,7 @@ export function AssessmentsPage() {
               }}
               className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
             >
-              Xóa tất cả bộ lọc
+              {t("recruiter.assessments.common.actions.clearAllFilters")}
             </button>
           </div>
         )}
@@ -657,11 +679,11 @@ export function AssessmentsPage() {
             <div className="flex items-center gap-3">
               <ClipboardList className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
               <div>
-                <p className="font-semibold">Chưa có đề thi nào</p>
+                <p className="font-semibold">{t("recruiter.assessments.list.emptyTitle")}</p>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">
                   {tests.data.items.length === 0
-                    ? "Đề thi sẽ được hệ thống tự động bốc từ Ngân hàng câu hỏi khi ứng viên vào vòng Assessment."
-                    : "Thử đổi từ khóa hoặc bộ lọc tìm kiếm."}
+                    ? t("recruiter.assessments.list.emptyInitialDesc")
+                    : t("recruiter.assessments.list.emptyFilteredDesc")}
                 </p>
               </div>
             </div>
@@ -671,7 +693,7 @@ export function AssessmentsPage() {
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
               >
                 <Settings2 className="size-4" aria-hidden="true" />
-                Cấu hình bài đánh giá
+                {t("recruiter.assessments.list.configureAssessment")}
               </Link>
             )}
           </div>
@@ -699,16 +721,16 @@ export function AssessmentsPage() {
                         className="size-4 cursor-pointer accent-[var(--color-primary)]"
                         checked={allPageSelected}
                         onChange={toggleAllPage}
-                        aria-label="Chọn tất cả trên trang"
+                        aria-label={t("recruiter.assessments.list.selectAllPageAria")}
                       />
                     </th>
-                    <th className="px-4 py-2">Tên bài đánh giá &amp; Mã đề</th>
-                    <th className="w-36 px-3 py-2 whitespace-nowrap">Cấu trúc đề</th>
-                    <th className="w-24 px-3 py-2 whitespace-nowrap">Thời lượng</th>
-                    <th className="w-32 px-3 py-2 whitespace-nowrap">Thang điểm / Đạt</th>
-                    <th className="w-28 px-3 py-2 whitespace-nowrap">Trạng thái</th>
-                    <th className="w-40 px-3 py-2 whitespace-nowrap">Người tạo &amp; Cập nhật</th>
-                    <th className="w-44 px-3 py-2 text-right whitespace-nowrap">Thao tác</th>
+                    <th className="px-4 py-2">{t("recruiter.assessments.list.colTitleCode")}</th>
+                    <th className="w-36 px-3 py-2 whitespace-nowrap">{t("recruiter.assessments.list.colStructure")}</th>
+                    <th className="w-24 px-3 py-2 whitespace-nowrap">{t("recruiter.assessments.list.colDuration")}</th>
+                    <th className="w-32 px-3 py-2 whitespace-nowrap">{t("recruiter.assessments.list.colScorePass")}</th>
+                    <th className="w-28 px-3 py-2 whitespace-nowrap">{t("recruiter.assessments.list.colStatus")}</th>
+                    <th className="w-40 px-3 py-2 whitespace-nowrap">{t("recruiter.assessments.list.colCreatorUpdated")}</th>
+                    <th className="w-44 px-3 py-2 text-right whitespace-nowrap">{t("recruiter.assessments.list.colActions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-surface-container-low)]">
@@ -744,14 +766,14 @@ export function AssessmentsPage() {
               {/* Nhóm 1: Thông tin Dữ liệu (Left) */}
               <div className="flex items-center gap-2 text-xs sm:text-[13px] text-slate-600">
                 <p>
-                  Hiển thị <strong className="font-semibold text-slate-900">{totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}</strong> trên <strong className="font-semibold text-slate-900">{totalItems}</strong> bài đánh giá
+                  {t("recruiter.assessments.common.pagination.showing")} <strong className="font-semibold text-slate-900">{totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}</strong> {t("recruiter.assessments.common.pagination.of")} <strong className="font-semibold text-slate-900">{totalItems}</strong> {t("recruiter.assessments.list.assessmentsUnit")}
                 </p>
                 <span className="text-slate-300">·</span>
-                <span className="tabular-nums">Trang {currentPage} / {totalPages}</span>
+                <span className="tabular-nums">{t("recruiter.assessments.common.pagination.pageOf", { current: currentPage, total: totalPages })}</span>
                 {tests.isFetching && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
                     <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                    <span className="hidden sm:inline">Đang tải…</span>
+                    <span className="hidden sm:inline">{t("recruiter.assessments.common.loadingEllipsis")}</span>
                   </span>
                 )}
               </div>
@@ -759,9 +781,9 @@ export function AssessmentsPage() {
               {/* Nhóm 2: Chọn số bản ghi / trang (Center) */}
               <div className="flex items-center justify-start lg:justify-center">
                 <label className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600">
-                  <span>Hiển thị</span>
+                  <span>{t("recruiter.assessments.common.pagination.showing")}</span>
                   <select
-                    aria-label="Số bài đánh giá mỗi trang"
+                    aria-label={t("recruiter.assessments.list.itemsPerPageAria")}
                     value={pageSize}
                     onChange={(e) => {
                       const nextSize = Number(e.target.value);
@@ -771,7 +793,7 @@ export function AssessmentsPage() {
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
                       <option key={size} value={size}>
-                        {size} / trang
+                        {t("recruiter.assessments.common.pagination.perPage", { size })}
                       </option>
                     ))}
                   </select>
@@ -780,12 +802,12 @@ export function AssessmentsPage() {
 
               {/* Nhóm 3 & 4: Điều hướng & Nhảy trang (Right) */}
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <nav className="flex items-center gap-1" aria-label="Phân trang danh sách bài đánh giá">
+                <nav className="flex items-center gap-1" aria-label={t("recruiter.assessments.list.paginationAria")}>
                   {/* First Page [|<] */}
                   <button
                     type="button"
-                    aria-label="Về trang đầu"
-                    title="Về trang đầu (Trang 1)"
+                    aria-label={t("recruiter.assessments.common.pagination.firstPage")}
+                    title={t("recruiter.assessments.common.pagination.firstPageTitle")}
                     disabled={currentPage === 1}
                     onClick={() => goToPage(1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
@@ -796,8 +818,8 @@ export function AssessmentsPage() {
                   {/* Previous [<] */}
                   <button
                     type="button"
-                    aria-label="Trang trước"
-                    title="Trang trước"
+                    aria-label={t("recruiter.assessments.common.pagination.prevPage")}
+                    title={t("recruiter.assessments.common.pagination.prevPage")}
                     disabled={currentPage === 1}
                     onClick={() => goToPage(currentPage - 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
@@ -823,7 +845,7 @@ export function AssessmentsPage() {
                       <button
                         key={item}
                         type="button"
-                        aria-label={`Trang ${item}`}
+                        aria-label={t("recruiter.assessments.common.pagination.pageNumberAria", { page: item })}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => goToPage(item)}
                         className={cn(
@@ -841,8 +863,8 @@ export function AssessmentsPage() {
                   {/* Next [>] */}
                   <button
                     type="button"
-                    aria-label="Trang sau"
-                    title="Trang sau"
+                    aria-label={t("recruiter.assessments.common.pagination.nextPage")}
+                    title={t("recruiter.assessments.common.pagination.nextPage")}
                     disabled={currentPage >= totalPages}
                     onClick={() => goToPage(currentPage + 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
@@ -853,8 +875,8 @@ export function AssessmentsPage() {
                   {/* Last Page [>|] */}
                   <button
                     type="button"
-                    aria-label="Đến trang cuối"
-                    title={`Đến trang cuối (Trang ${totalPages})`}
+                    aria-label={t("recruiter.assessments.common.pagination.lastPage")}
+                    title={t("recruiter.assessments.common.pagination.lastPageTitle", { total: totalPages })}
                     disabled={currentPage >= totalPages}
                     onClick={() => goToPage(totalPages)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
@@ -878,7 +900,7 @@ export function AssessmentsPage() {
                   className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600"
                 >
                   <label htmlFor="assessment-jump-page" className="whitespace-nowrap">
-                    Đi đến:
+                    {t("recruiter.assessments.common.pagination.goTo")}
                   </label>
                   <input
                     id="assessment-jump-page"
@@ -890,13 +912,13 @@ export function AssessmentsPage() {
                     placeholder={String(currentPage)}
                     className="h-8 w-13 rounded-lg border border-slate-200 bg-white px-1.5 text-center text-xs font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
-                  <span>Trang</span>
+                  <span>{t("recruiter.assessments.common.pagination.pageWord")}</span>
                   <button
                     type="submit"
                     disabled={!jumpVal.trim() || Number(jumpVal) < 1 || Number(jumpVal) > totalPages}
                     className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                   >
-                    Đi
+                    {t("recruiter.assessments.common.pagination.goBtn")}
                   </button>
                 </form>
               </div>
@@ -923,6 +945,8 @@ function AssessmentRow({
   jobTitle?: string | null;
   basePath: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -994,7 +1018,7 @@ function AssessmentRow({
           className="size-4 cursor-pointer accent-[var(--color-primary)]"
           checked={checked}
           onChange={onToggle}
-          aria-label={`Chọn ${title}`}
+          aria-label={t("recruiter.assessments.list.selectRowAria", { title })}
         />
       </td>
       <td className="min-w-0 px-4 py-3.5">
@@ -1016,7 +1040,7 @@ function AssessmentRow({
               {draft && (
                 <>
                   <span className="size-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Đang biên soạn</span>
+                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">{t("recruiter.assessments.list.drafting")}</span>
                 </>
               )}
             </div>
@@ -1025,12 +1049,12 @@ function AssessmentRow({
       </td>
       <td className="w-36 whitespace-nowrap px-3 py-3.5">
         {questionCount === null ? (
-          <span className="text-slate-400">Đang tải…</span>
+          <span className="text-slate-400">{t("recruiter.assessments.common.loadingEllipsis")}</span>
         ) : (
           <>
-            <span className="block font-semibold text-slate-900 dark:text-slate-100">{questionCount} câu hỏi</span>
+            <span className="block font-semibold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.list.questionCount", { count: questionCount })}</span>
             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              {questionCount === 0 ? "Chưa có câu hỏi" : "Trắc nghiệm một đáp án"}
+              {questionCount === 0 ? t("recruiter.assessments.list.noQuestionsYet") : t("recruiter.assessments.list.singleChoiceSubtitle")}
             </span>
           </>
         )}
@@ -1038,16 +1062,16 @@ function AssessmentRow({
       <td className="w-24 whitespace-nowrap px-3 py-3.5">
         <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
           <Clock3 className="size-3.5 text-slate-400" aria-hidden="true" />
-          {test.durationMinutes} phút
+          {test.durationMinutes} {t("recruiter.assessments.common.minutesUnit")}
         </span>
       </td>
       <td className="w-32 whitespace-nowrap px-3 py-3.5">
         <div className="flex flex-col">
           <span className="font-semibold text-slate-900 dark:text-slate-100">
-            {totalPoints === null ? "…" : totalPoints > 0 ? `${totalPoints} điểm` : "Chưa có điểm"}
+            {totalPoints === null ? "…" : totalPoints > 0 ? `${totalPoints} ${t("recruiter.assessments.common.pointsUnit")}` : t("recruiter.assessments.list.noPointsYet")}
           </span>
           <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-            {test.passingScore != null ? `Đạt: ≥ ${test.passingScore} điểm` : "Không đặt ngưỡng"}
+            {test.passingScore != null ? t("recruiter.assessments.list.passingThreshold", { score: test.passingScore }) : t("recruiter.assessments.list.noThreshold")}
           </span>
         </div>
       </td>
@@ -1060,9 +1084,9 @@ function AssessmentRow({
             {initials(test.createdByName)}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
+            <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{test.createdByName?.trim() || t("recruiter.assessments.common.notRecorded")}</span>
             <span className="text-[11px] text-slate-400">
-              {formatRelative(test.updatedAt ?? test.createdAt)}
+              {formatRelative(test.updatedAt ?? test.createdAt, t, locale)}
             </span>
           </div>
         </div>
@@ -1075,7 +1099,7 @@ function AssessmentRow({
               className="inline-flex h-8 items-center gap-1 rounded-xl bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition-colors shadow-2xs"
             >
               <Edit3 className="size-3.5" aria-hidden="true" />
-              Chỉnh sửa
+              {t("recruiter.assessments.common.actions.edit")}
             </Link>
           ) : (
             <Link
@@ -1083,14 +1107,14 @@ function AssessmentRow({
               className="inline-flex h-8 items-center gap-1 rounded-xl bg-brand-primary/10 px-2.5 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white shadow-2xs"
             >
               <Eye className="size-3.5" aria-hidden="true" />
-              Xem đề
+              {t("recruiter.assessments.list.viewTest")}
             </Link>
           )}
 
-          <Tooltip content="Xem bài nộp của ứng viên" side="top">
+          <Tooltip content={t("recruiter.assessments.list.candidateSubmissions")} side="top">
             <Link
               to={`${basePath}/submissions?testId=${test.id}`}
-              aria-label="Xem bài nộp của ứng viên"
+              aria-label={t("recruiter.assessments.list.candidateSubmissions")}
               className="inline-flex size-8 items-center justify-center rounded-xl text-slate-500 hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition-colors border border-transparent hover:border-[var(--color-primary)]/20"
             >
               <Users className="size-4" />
@@ -1098,11 +1122,11 @@ function AssessmentRow({
           </Tooltip>
 
           <div className="relative">
-            <Tooltip content="Tùy chọn khác" side="top">
+            <Tooltip content={t("recruiter.assessments.common.actions.moreOptions")} side="top">
               <button
                 ref={triggerRef}
                 type="button"
-                aria-label="Tùy chọn khác"
+                aria-label={t("recruiter.assessments.common.actions.moreOptions")}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen((prev) => !prev)}
@@ -1139,10 +1163,10 @@ function AssessmentRow({
                     onClick={() => {
                       void navigator.clipboard.writeText(`ASM-${test.id}`);
                       setMenuOpen(false);
-                      toast.success("Đã sao chép mã đề ASM-" + test.id);
+                      toast.success(t("recruiter.assessments.list.copiedTestCode", { code: `ASM-${test.id}` }));
                     }}
                   >
-                    <Copy className="size-3.5 text-slate-500" /> Sao chép mã đề
+                    <Copy className="size-3.5 text-slate-500" /> {t("recruiter.assessments.list.copyTestCode")}
                   </button>
                   <button
                     type="button"
@@ -1150,10 +1174,10 @@ function AssessmentRow({
                     onClick={() => {
                       void navigator.clipboard.writeText(test.title);
                       setMenuOpen(false);
-                      toast.success("Đã sao chép tên bài đánh giá");
+                      toast.success(t("recruiter.assessments.list.copiedTestTitle"));
                     }}
                   >
-                    <Copy className="size-3.5 text-slate-500" /> Sao chép tên bài thi
+                    <Copy className="size-3.5 text-slate-500" /> {t("recruiter.assessments.list.copyTestTitle")}
                   </button>
                   <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                   <Link
@@ -1161,14 +1185,14 @@ function AssessmentRow({
                     className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     onClick={() => setMenuOpen(false)}
                   >
-                    <Users className="size-3.5 text-[var(--color-primary)]" /> Bài nộp ứng viên
+                    <Users className="size-3.5 text-[var(--color-primary)]" /> {t("recruiter.assessments.list.candidateSubmissions")}
                   </Link>
                   <Link
                     to={String(test.id)}
                     className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     onClick={() => setMenuOpen(false)}
                   >
-                    <Eye className="size-3.5 text-slate-600" /> Chi tiết bài đánh giá
+                    <Eye className="size-3.5 text-slate-600" /> {t("recruiter.assessments.list.assessmentDetails")}
                   </Link>
                 </div>,
                 document.body

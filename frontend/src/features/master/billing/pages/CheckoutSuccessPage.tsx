@@ -11,8 +11,12 @@ import {
 } from "lucide-react";
 import { CheckoutResponseData } from "@/api/master/checkoutApi";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { formatNumber, useLocale, useT } from "@/i18n";
 
 export function CheckoutSuccessPage() {
+  const t = useT();
+  const locale = useLocale();
   const location = useLocation();
   const order = location.state?.order as CheckoutResponseData | undefined;
 
@@ -32,13 +36,16 @@ export function CheckoutSuccessPage() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased pb-20">
       {/* Header */}
       <header className="bg-white border-b border-slate-200/80 shadow-2xs py-4">
-        <div className="max-w-4xl mx-auto px-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 flex items-center justify-between gap-3">
           <Link to="/" className="flex items-center group">
             <SmartHireLogo className="h-9 sm:h-10" />
           </Link>
-          <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-            <ShieldCheck className="w-4 h-4" />
-            <span className="font-semibold">Đơn Hàng Đã Ghi Nhận</span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+              <ShieldCheck className="w-4 h-4" />
+              <span className="font-semibold">{t("master.commerce.checkoutSuccess.headerBadge")}</span>
+            </div>
+            <LanguageSwitcher variant="icon" />
           </div>
         </div>
       </header>
@@ -50,16 +57,16 @@ export function CheckoutSuccessPage() {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Đăng Ký Thành Công & Đang Chờ Kích Hoạt!
+            {t("master.commerce.checkoutSuccess.title")}
           </h1>
           <p className="text-sm text-slate-600 mt-2 max-w-xl mx-auto">
-            Cảm ơn quý doanh nghiệp đã lựa chọn SmartHire-AI. Không gian tuyển dụng độc lập của bạn đã được giữ chỗ và đang chờ xác nhận thanh toán.
+            {t("master.commerce.checkoutSuccess.subtitle")}
           </p>
 
           {/* Details Card */}
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-w-2xl mx-auto">
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-              <span className="text-xs text-slate-500 block mb-1">Mã hóa đơn / Đơn hàng</span>
+              <span className="text-xs text-slate-500 block mb-1">{t("master.commerce.checkoutSuccess.orderNumberLabel")}</span>
               <div className="flex items-center justify-between">
                 <span className="font-mono font-bold text-slate-900 text-sm">
                   {order.invoiceNumber}
@@ -68,7 +75,8 @@ export function CheckoutSuccessPage() {
                   type="button"
                   onClick={() => handleCopy(order.invoiceNumber, "inv")}
                   className="text-slate-400 hover:text-slate-600"
-                  title="Copy mã đơn"
+                  title={t("master.commerce.checkoutSuccess.copyOrderTitle")}
+                  aria-label={t("master.commerce.checkoutSuccess.copyOrderTitle")}
                 >
                   {copiedField === "inv" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -76,7 +84,7 @@ export function CheckoutSuccessPage() {
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-              <span className="text-xs text-slate-500 block mb-1">Subdomain Đã Đăng Ký</span>
+              <span className="text-xs text-slate-500 block mb-1">{t("master.commerce.checkoutSuccess.subdomainLabel")}</span>
               <div className="flex items-center gap-1.5 text-blue-600 font-bold text-sm">
                 <Building2 className="w-4 h-4 shrink-0" />
                 <span className="font-mono truncate">{order.subdomain}.smarthire.top</span>
@@ -87,29 +95,29 @@ export function CheckoutSuccessPage() {
           {/* Bank Transfer Guide Box with VietQR */}
           <div className="mt-8 p-6 rounded-2xl bg-gradient-to-br from-blue-50/70 via-indigo-50/50 to-white border border-blue-200/80 text-left max-w-2xl mx-auto shadow-2xs">
             <h3 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
-              <span>Thông Tin Chuyển Khoản Ngân Hàng (Nếu Quý Khách Chưa Quét Mã)</span>
+              <span>{t("master.commerce.checkoutSuccess.transferGuideTitle")}</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
               <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-blue-200 shadow-2xs">
                 <img
                   src={order.qrUrl}
-                  alt="Mã QR Chuyển Khoản"
+                  alt={t("master.commerce.checkoutSuccess.qrAlt")}
                   className="w-44 h-44 object-contain"
                 />
                 <span className="text-[11px] font-semibold text-slate-500 mt-2">
-                  Quét mã qua app ngân hàng
+                  {t("master.commerce.checkoutSuccess.qrHint")}
                 </span>
               </div>
 
               <div className="sm:col-span-7 space-y-3 text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Ngân hàng thụ hưởng</span>
+                  <span className="text-slate-500 block text-[11px]">{t("master.commerce.checkoutSuccess.bankLabel")}</span>
                   <span className="font-bold text-slate-800">{order.bankName}</span>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Số tài khoản</span>
+                  <span className="text-slate-500 block text-[11px]">{t("master.commerce.checkoutSuccess.accountNumberLabel")}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-extrabold text-slate-900 text-sm">
                       {order.accountNumber}
@@ -118,7 +126,8 @@ export function CheckoutSuccessPage() {
                       type="button"
                       onClick={() => handleCopy(order.accountNumber, "acc")}
                       className="text-blue-600 hover:text-blue-800"
-                      title="Copy số tài khoản"
+                      title={t("master.commerce.checkoutSuccess.copyAccountTitle")}
+                      aria-label={t("master.commerce.checkoutSuccess.copyAccountTitle")}
                     >
                       {copiedField === "acc" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -126,21 +135,22 @@ export function CheckoutSuccessPage() {
                 </div>
 
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Chủ tài khoản</span>
+                  <span className="text-slate-500 block text-[11px]">{t("master.commerce.checkoutSuccess.accountHolderLabel")}</span>
                   <span className="font-semibold text-slate-800">{order.accountName}</span>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Số tiền cần chuyển</span>
+                  <span className="text-slate-500 block text-[11px]">{t("master.commerce.checkoutSuccess.amountLabel")}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-blue-600 text-base">
-                      {order.amountVnd.toLocaleString("vi-VN")} VNĐ
+                      {formatNumber(order.amountVnd, undefined, locale)} {t("master.commerce.common.vnd")}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCopy(order.amountVnd.toString(), "amount")}
                       className="text-blue-600 hover:text-blue-800"
-                      title="Copy số tiền"
+                      title={t("master.commerce.checkoutSuccess.copyAmountTitle")}
+                      aria-label={t("master.commerce.checkoutSuccess.copyAmountTitle")}
                     >
                       {copiedField === "amount" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -149,7 +159,7 @@ export function CheckoutSuccessPage() {
 
                 <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
                   <span className="text-amber-800 font-bold block text-[11px] mb-0.5">
-                    Nội dung chuyển khoản (bắt buộc đúng mã):
+                    {t("master.commerce.checkoutSuccess.transferContentLabel")}
                   </span>
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-extrabold text-amber-900 text-sm">
@@ -161,7 +171,7 @@ export function CheckoutSuccessPage() {
                       className="text-amber-700 hover:text-amber-900 font-bold text-xs inline-flex items-center gap-1"
                     >
                       {copiedField === "syntax" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>Copy</span>
+                      <span>{t("master.commerce.common.copy")}</span>
                     </button>
                   </div>
                 </div>
@@ -173,17 +183,20 @@ export function CheckoutSuccessPage() {
           <div className="mt-8 max-w-2xl mx-auto p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left space-y-2.5">
             <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600" />
-              <span>Quy trình xử lý tiếp theo:</span>
+              <span>{t("master.commerce.checkoutSuccess.nextStepsTitle")}</span>
             </h4>
             <ul className="text-xs text-slate-600 space-y-2 pl-6 list-disc">
               <li>
-                <strong>Đối soát giao dịch:</strong> Quản trị viên hệ thống sẽ kiểm tra ủy nhiệm chi trong vòng 1-2 giờ làm việc.
+                <strong>{t("master.commerce.checkoutSuccess.step1Label")}</strong>{" "}
+                {t("master.commerce.checkoutSuccess.step1Desc")}
               </li>
               <li>
-                <strong>Cấp phát Database MySQL:</strong> Hệ thống tự động tạo cơ sở dữ liệu riêng và cấu hình phân quyền cho Workspace của bạn.
+                <strong>{t("master.commerce.checkoutSuccess.step2Label")}</strong>{" "}
+                {t("master.commerce.checkoutSuccess.step2Desc")}
               </li>
               <li>
-                <strong>Kích hoạt & Đặt mật khẩu:</strong> Một email chứa liên kết kích hoạt và thiết lập mật khẩu sẽ được gửi đến hòm thư người đại diện của bạn.
+                <strong>{t("master.commerce.checkoutSuccess.step3Label")}</strong>{" "}
+                {t("master.commerce.checkoutSuccess.step3Desc")}
               </li>
             </ul>
           </div>
@@ -193,7 +206,7 @@ export function CheckoutSuccessPage() {
               to="/"
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-2"
             >
-              <span>Về Trang Chủ</span>
+              <span>{t("master.commerce.checkoutSuccess.backHomeBtn")}</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

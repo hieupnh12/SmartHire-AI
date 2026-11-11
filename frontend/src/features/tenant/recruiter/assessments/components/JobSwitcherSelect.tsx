@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Briefcase } from "lucide-react";
 import { jobApi } from "@/api/tenant/jobApi";
+import { useT } from "@/i18n";
 import type { AssessmentTab } from "./AssessmentSubNav";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ function getTargetUrl(newJobId: number, activeTab?: AssessmentTab) {
 }
 
 export function JobSwitcherSelect({ currentJobId, activeTab = "tests", className }: Props) {
+  const t = useT();
   const navigate = useNavigate();
 
   const { data: jobOptionsRes } = useQuery({
@@ -50,8 +52,8 @@ export function JobSwitcherSelect({ currentJobId, activeTab = "tests", className
           }
         }}
         className="h-8 max-w-[170px] truncate rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-2xs outline-none transition focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 sm:max-w-[210px]"
-        title="Chuyển nhanh sang vị trí tuyển dụng khác"
-        aria-label="Chọn vị trí tuyển dụng khác"
+        title={t("recruiter.assessments.jobSwitcher.title")}
+        aria-label={t("recruiter.assessments.jobSwitcher.ariaLabel")}
       >
         {jobList.map((j) => (
           <option key={j.id} value={j.id}>

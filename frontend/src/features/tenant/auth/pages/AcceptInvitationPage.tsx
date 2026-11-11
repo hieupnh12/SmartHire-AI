@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -5,36 +6,42 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usersApi } from "@/api/tenant/usersApi";
 import { Button } from "@/components/ux/Button";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { toast } from "@/stores/toastStore";
 
-const schema = z
-  .object({
-    password: z
-      .string()
-      .min(8, "Mật khẩu tối thiểu 8 ký tự")
-      .refine(
-        (v) => new TextEncoder().encode(v).length <= 72,
-        "Mật khẩu tối đa 72 byte UTF-8",
-      ),
-    confirmPassword: z.string().min(8, "Vui lòng nhập lại mật khẩu"),
-  })
-  .refine((v) => v.password === v.confirmPassword, {
-    message: "Mật khẩu không khớp",
-    path: ["confirmPassword"],
-  });
+function createSchema(t: TranslateFn) {
+  return z
+    .object({
+      password: z
+        .string()
+        .min(8, t("auth.validation.passwordMin8"))
+        .refine(
+          (v) => new TextEncoder().encode(v).length <= 72,
+          t("auth.validation.passwordMax72"),
+        ),
+      confirmPassword: z.string().min(8, t("auth.validation.confirmPasswordMin8")),
+    })
+    .refine((v) => v.password === v.confirmPassword, {
+      message: t("auth.validation.passwordsMismatch"),
+      path: ["confirmPassword"],
+    });
+}
 
-type Form = z.infer<typeof schema>;
+type Form = z.infer<ReturnType<typeof createSchema>>;
 
 const inputClass =
   "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
 
 export function AcceptInvitationPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const token = params.get("token")?.trim() ?? "";
   const tenant = getTenantIdFromWindow();
+  const schema = useMemo(() => createSchema(t), [t]);
 
   const {
     register,
@@ -46,17 +53,18 @@ export function AcceptInvitationPage() {
     mutationFn: (password: string) => usersApi.acceptInvite({ token, password }),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Tài khoản đã kích hoạt. Hãy đăng nhập.");
+      toast.success(t("auth.invite.activatedToast"));
       navigate("/internal/login", { replace: true });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không kích hoạt được tài khoản")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("auth.invite.activateFailed"))),
   });
 
   if (!token) {
     return (
       <main className="mx-auto max-w-md px-4 py-16">
-        <h1 className="font-display text-2xl font-bold">Link không hợp lệ</h1>
-        <p className="mt-2 text-[var(--color-text-secondary)]">Thiếu token lời mời.</p>
+        <div className="mb-4 flex justify-end"><LanguageSwitcher variant="icon" /></div>
+        <h1 className="font-display text-2xl font-bold">{t("auth.invite.invalidLinkTitle")}</h1>
+        <p className="mt-2 text-[var(--color-text-secondary)]">{t("auth.invite.missingToken")}</p>
       </main>
     );
   }
@@ -64,9 +72,10 @@ export function AcceptInvitationPage() {
   if (!tenant) {
     return (
       <main className="mx-auto max-w-md px-4 py-16">
-        <h1 className="font-display text-2xl font-bold">Sai địa chỉ workspace</h1>
+        <div className="mb-4 flex justify-end"><LanguageSwitcher variant="icon" /></div>
+        <h1 className="font-display text-2xl font-bold">{t("auth.invite.wrongWorkspaceTitle")}</h1>
         <p className="mt-2 text-[var(--color-text-secondary)]">
-          Mở link dạng <code>ten-cong-ty.localhost:5173</code> (đúng subdomain workspace) để hệ thống biết công ty nào.
+          {t("auth.invite.wrongWorkspaceHintPrefix")} <code>ten-cong-ty.localhost:5173</code> {t("auth.invite.wrongWorkspaceHintSuffix")}
         </p>
       </main>
     );
@@ -79,15 +88,18 @@ export function AcceptInvitationPage() {
         onSubmit={handleSubmit((values) => mutation.mutate(values.password))}
         noValidate
       >
-        <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
-          Kích hoạt tài khoản & Đặt mật khẩu
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
+            {t("auth.invite.activateTitle")}
+          </h1>
+          <LanguageSwitcher variant="icon" />
+        </div>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Thiết lập mật khẩu riêng cho Workspace <strong>{tenant}</strong>. Sau khi kích hoạt, liên kết này sẽ hết hiệu lực và bạn có thể đăng nhập bằng email đã được mời.
+          {t("auth.invite.activateSubtitlePrefix")} <strong>{tenant}</strong>{t("auth.invite.activateSubtitleSuffix")}
         </p>
         <div>
           <label className="mb-1.5 block text-sm font-medium" htmlFor="password">
-            Mật khẩu mới (tối thiểu 8 ký tự) *
+            {t("auth.invite.newPasswordMin8Label")}
           </label>
           <input id="password" type="password" className={inputClass} {...register("password")} />
           {errors.password && (
@@ -98,7 +110,7 @@ export function AcceptInvitationPage() {
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium" htmlFor="confirmPassword">
-            Nhập lại mật khẩu *
+            {t("auth.invite.reenterPasswordLabel")}
           </label>
           <input id="confirmPassword" type="password" className={inputClass} {...register("confirmPassword")} />
           {errors.confirmPassword && (
@@ -108,7 +120,7 @@ export function AcceptInvitationPage() {
           )}
         </div>
         <Button type="submit" disabled={mutation.isPending} className="w-full">
-          {mutation.isPending ? "Đang kích hoạt…" : "Kích hoạt tài khoản"}
+          {mutation.isPending ? t("auth.invite.activating") : t("auth.invite.activateButton")}
         </Button>
       </form>
     </main>

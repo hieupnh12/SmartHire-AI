@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { cvApi } from "@/api/tenant/cvApi";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { Skeleton } from "@/components/ux/Skeleton";
 
 export function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mimeType: string | null; filename: string }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pdf = (mimeType ?? "").includes("pdf") || filename.toLowerCase().endsWith(".pdf");
@@ -19,25 +21,25 @@ export function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mime
       objectUrl = URL.createObjectURL(file);
       setUrl(objectUrl);
     }).catch((err: unknown) => {
-      if (!cancelled) setError(getApiErrorMessage(err, "Không mở được file CV"));
+      if (!cancelled) setError(getApiErrorMessage(err, t("ux.cvPreview.cannotOpen")));
     });
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [cvId, pdf]);
+  }, [cvId, pdf, t]);
   if (error) return <p role="alert">{error}</p>;
   if (!url) {
     return (
       <div className="space-y-3" role="status" aria-busy="true">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-[30rem] w-full rounded-xl" />
-        <span className="sr-only">Đang tải file CV…</span>
+        <span className="sr-only">{t("ux.cvPreview.loading")}</span>
       </div>
     );
   }
   if (!pdf) {
-    return <a className={muted} href={url} download={filename}>Tải CV về máy</a>;
+    return <a className={muted} href={url} download={filename}>{t("ux.cvPreview.download")}</a>;
   }
   return (
     <embed title={filename} src={url} type="application/pdf" className="h-[32rem] w-full rounded-md border border-[var(--color-border-default)] bg-white" />

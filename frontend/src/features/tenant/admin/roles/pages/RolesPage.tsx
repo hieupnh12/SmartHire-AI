@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { tenantRolesApi, type TenantRole } from "@/api/tenant/tenantRolesApi";
 import {
@@ -13,6 +14,7 @@ import {
   FileSearch,
   GraduationCap,
   House,
+  Plus,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -35,8 +37,8 @@ type FeatureAction = "VIEW" | "CREATE" | "EDIT" | "DELETE";
 interface FeatureMatrixItem {
   code: string;
   labelKey: string;
-  customLabel?: string;
-  description: string;
+  customLabelKey?: string;
+  descriptionKey: string;
   icon: LucideIcon;
   actions: FeatureAction[];
 }
@@ -45,78 +47,78 @@ const FEATURE_MATRIX: FeatureMatrixItem[] = [
   {
     code: "DASHBOARD",
     labelKey: "nav.dashboard",
-    description: "Xem thống kê tổng quan và tình hình tuyển dụng",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.DASHBOARD",
     icon: House,
     actions: ["VIEW"],
   },
   {
     code: "JOBS",
     labelKey: "nav.publishedJobs",
-    customLabel: "Tin tuyển dụng (Job)",
-    description: "Tạo job mới (cột TẠO), chỉnh sửa và quản lý tin tuyển dụng",
+    customLabelKey: "tenantAdmin.roles.matrix.jobsLabel",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.JOBS",
     icon: BriefcaseBusiness,
     actions: ["VIEW", "CREATE", "EDIT", "DELETE"],
   },
   {
     code: "APPLICANTS",
     labelKey: "nav.applicants",
-    description: "Xem danh sách, quản lý trạng thái hồ sơ ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.APPLICANTS",
     icon: Users,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "CV_SCREENING",
     labelKey: "nav.cvScreening",
-    description: "Tải lên, phân tích và sàng lọc hồ sơ CV bằng AI",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.CV_SCREENING",
     icon: FileSearch,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "RANKING",
     labelKey: "nav.ranking",
-    description: "Khớp lệnh thông minh và bảng xếp hạng độ phù hợp ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.RANKING",
     icon: Sparkles,
     actions: ["VIEW", "EDIT"],
   },
   {
     code: "ANALYTICS",
     labelKey: "nav.recruitmentAnalytics",
-    description: "Báo cáo chuyên sâu và phân tích hiệu suất tuyển dụng",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.ANALYTICS",
     icon: ChartNoAxesCombined,
     actions: ["VIEW"],
   },
   {
     code: "ASSESSMENTS",
     labelKey: "nav.assessments",
-    description: "Tạo và chấm điểm bài kiểm tra năng lực chuyên môn",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.ASSESSMENTS",
     icon: GraduationCap,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "AI_INTERVIEWS",
     labelKey: "nav.aiInterview",
-    description: "Cấu hình kịch bản và xem kết quả phỏng vấn AI",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.AI_INTERVIEWS",
     icon: Bot,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "INTERVIEWS",
     labelKey: "nav.interviews",
-    description: "Điều phối và ghi chú đánh giá buổi phỏng vấn trực tiếp",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.INTERVIEWS",
     icon: CalendarClock,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "SCHEDULES",
     labelKey: "nav.schedules",
-    description: "Xem và đặt lịch hẹn phỏng vấn với ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.SCHEDULES",
     icon: CalendarDays,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "NOTIFICATIONS",
     labelKey: "nav.notifications",
-    description: "Thông báo nội bộ và thông báo tiến độ ứng tuyển",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.NOTIFICATIONS",
     icon: Bell,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
@@ -141,9 +143,9 @@ function DeleteIconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)] disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <Trash2 className="size-4" aria-hidden />
+      <Trash2 className="size-3.5" aria-hidden />
     </button>
   );
 }
@@ -152,6 +154,8 @@ export function RolesPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const [searchParams] = useSearchParams();
+  const urlRoleCode = searchParams.get("role");
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [name, setName] = useState("");
   const [features, setFeatures] = useState<string[]>([]);
@@ -166,7 +170,39 @@ export function RolesPage() {
     () => roles.filter((role) => role.workspace === "RECRUITER"),
     [roles],
   );
-  const selected = selectedId === "new" ? null : recruiterRoles.find((role) => role.id === selectedId) ?? null;
+  const selected =
+    selectedId === "new"
+      ? null
+      : recruiterRoles.find((role) => role.id === selectedId) ?? null;
+
+  // Apply explicit deep-link ?role=... when present
+  useEffect(() => {
+    if (!urlRoleCode || recruiterRoles.length === 0) return;
+    const matched = recruiterRoles.find(
+      (role) => role.code.toLowerCase() === urlRoleCode.trim().toLowerCase(),
+    );
+    if (matched) {
+      setSelectedId(matched.id);
+    }
+  }, [urlRoleCode, recruiterRoles]);
+
+  // Auto-select first role immediately on page load (or after deletion) so panel is never empty
+  useEffect(() => {
+    if (recruiterRoles.length === 0) return;
+    setSelectedId((current) => {
+      if (current === "new") return current;
+      if (current != null && recruiterRoles.some((role) => role.id === current)) {
+        return current;
+      }
+      if (urlRoleCode) {
+        const matched = recruiterRoles.find(
+          (role) => role.code.toLowerCase() === urlRoleCode.trim().toLowerCase(),
+        );
+        if (matched) return matched.id;
+      }
+      return recruiterRoles[0].id;
+    });
+  }, [recruiterRoles, urlRoleCode]);
 
   useEffect(() => {
     if (selectedId === "new") {
@@ -189,11 +225,11 @@ export function RolesPage() {
     mutationFn: () => tenantRolesApi.create({ name, features }),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã tạo vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.createSuccess"));
       invalidate();
       setSelectedId(res.data.id);
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không tạo được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.createError"))),
   });
 
   const updateMutation = useMutation({
@@ -201,21 +237,21 @@ export function RolesPage() {
       tenantRolesApi.update(role.id, role.system ? { features } : { name, features }),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã lưu vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.updateSuccess"));
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không lưu được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.updateError"))),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => tenantRolesApi.remove(id),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã xóa vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.deleteSuccess"));
       setSelectedId(null);
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không xóa được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.deleteError"))),
   });
 
   const isActionChecked = (moduleCode: string, action: FeatureAction) => {
@@ -232,7 +268,6 @@ export function RolesPage() {
       let updated = [...current];
 
       if (checked) {
-        // If the legacy full module code was stored, expand it into specific remaining actions
         if (updated.includes(item.code)) {
           updated = updated.filter((f) => f !== item.code);
           for (const act of item.actions) {
@@ -241,21 +276,17 @@ export function RolesPage() {
             }
           }
         }
-        // Remove this action
         updated = updated.filter((f) => f !== `${item.code}_${action}`);
 
-        // If unchecking VIEW, user cannot edit or delete either -> remove all actions
         if (action === "VIEW") {
           updated = updated.filter(
             (f) => f !== item.code && !f.startsWith(`${item.code}_`),
           );
         }
       } else {
-        // Checking this action
         if (!updated.includes(`${item.code}_${action}`)) {
           updated.push(`${item.code}_${action}`);
         }
-        // If checking CREATE, EDIT or DELETE, ensure VIEW is also enabled
         if (action === "CREATE" || action === "EDIT" || action === "DELETE") {
           if (!updated.includes(`${item.code}_VIEW`) && !updated.includes(item.code)) {
             updated.push(`${item.code}_VIEW`);
@@ -269,11 +300,10 @@ export function RolesPage() {
   const toggleAllModule = (item: FeatureMatrixItem) => {
     setFeatures((current) => {
       const allChecked = isModuleAllChecked(item);
-      let updated = current.filter(
+      const updated = current.filter(
         (f) => f !== item.code && !f.startsWith(`${item.code}_`),
       );
       if (!allChecked) {
-        // Grant all actions for this module
         for (const act of item.actions) {
           updated.push(`${item.code}_${act}`);
         }
@@ -308,13 +338,13 @@ export function RolesPage() {
 
   const askDelete = (role: TenantRole) => {
     if (!canDeleteRole(role)) {
-      toast.danger("Vai trò mặc định và admin không thể xóa");
+      toast.danger(t("tenantAdmin.roles.toasts.cannotDeleteProtected"));
       return;
     }
     askConfirm({
-      title: `Xóa vai trò ${role.name}?`,
-      description: "Chỉ xóa được khi chưa gán cho nhân viên hoặc lời mời đang chờ.",
-      confirmLabel: "Xóa",
+      title: t("tenantAdmin.roles.deleteConfirm.title", { name: role.name }),
+      description: t("tenantAdmin.roles.deleteConfirm.description"),
+      confirmLabel: t("tenantAdmin.roles.deleteConfirm.confirmLabel"),
       danger: true,
       onConfirm: () => deleteMutation.mutate(role.id),
     });
@@ -332,57 +362,60 @@ export function RolesPage() {
   }, [features]);
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">Phân quyền</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-          Tùy chỉnh vai trò và phân quyền chi tiết (Xem / Sửa / Xóa) cho từng phân hệ trong tổ chức.
-        </p>
+    <section className="flex flex-col gap-3 lg:h-[calc(100dvh-6.25rem)] lg:overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <h1 className="font-display text-xl font-bold text-[var(--color-text-primary)] sm:text-2xl">
+          {t("tenantAdmin.roles.title")}
+        </h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(18rem,22rem)_1fr] lg:items-start">
-        {/* Left Column: Roles List & Scope */}
-        <div className="space-y-4">
-          <Card className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold">Vai trò</h2>
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
+        {/* Left Column: Roles List + Scope */}
+        <div className="flex min-h-0 flex-col gap-3">
+          <Card className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
+            <div className="flex shrink-0 items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.roles.rolesCardTitle")}</h2>
               <Button type="button" size="sm" onClick={() => setSelectedId("new")}>
-                Tạo vai trò
+                <Plus className="mr-1 size-3.5" />
+                {t("tenantAdmin.roles.createShort")}
               </Button>
             </div>
+
             {query.isLoading && (
               <div className="space-y-2 py-1" role="status" aria-busy="true">
                 {Array.from({ length: 4 }, (_, i) => (
-                  <Skeleton key={i} className="h-9 w-full rounded-[var(--radius-md)]" />
+                  <Skeleton key={i} className="h-9 w-full rounded-lg" />
                 ))}
-                <span className="sr-only">Đang tải danh sách vai trò…</span>
+                <span className="sr-only">{t("tenantAdmin.roles.loadingRolesSr")}</span>
               </div>
             )}
+
             {query.isError && (
-              <p className="text-sm text-status-danger" role="alert">
-                {getApiErrorMessage(query.error, "Không tải được danh sách vai trò")}
+              <p className="text-xs text-status-danger" role="alert">
+                {getApiErrorMessage(query.error, t("tenantAdmin.roles.loadRolesError"))}
               </p>
             )}
-            <ul className="space-y-1">
+
+            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5">
               {recruiterRoles.map((role) => (
                 <li key={role.id} className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setSelectedId(role.id)}
-                    className={`flex min-w-0 flex-1 items-center justify-between rounded-[var(--radius-md)] px-3 py-2 text-left text-sm transition-colors ${
+                    className={`flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                       selectedId === role.id
-                        ? "bg-[var(--color-primary-soft)] text-brand-primary font-semibold"
+                        ? "bg-[var(--color-primary-soft)] font-semibold text-brand-primary"
                         : "hover:bg-[var(--color-surface-alt)]"
                     }`}
                   >
                     <span className="truncate">{role.name}</span>
-                    <span className="ml-2 shrink-0 text-xs text-[var(--color-text-secondary)]">
-                      {role.system ? "Mặc định" : role.code}
+                    <span className="ml-2 shrink-0 text-[11px] text-[var(--color-text-secondary)]">
+                      {role.system ? t("tenantAdmin.roles.defaultRoleBadge") : role.code}
                     </span>
                   </button>
                   {canDeleteRole(role) && (
                     <DeleteIconButton
-                      label={`Xóa vai trò ${role.name}`}
+                      label={t("tenantAdmin.roles.deleteRoleAria", { name: role.name })}
                       disabled={deleteMutation.isPending}
                       onClick={() => askDelete(role)}
                     />
@@ -392,261 +425,253 @@ export function RolesPage() {
             </ul>
           </Card>
 
-          {/* Recruitment Scope Section moved under Roles List */}
           {selectedId != null && (
-            <Card className="border border-[var(--color-primary-soft)] bg-gradient-to-br from-[var(--color-primary-soft)]/40 to-transparent p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm mt-0.5">
-                  <ShieldCheck className="size-4.5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <label className="flex items-start gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={features.includes("JOBS_ALL")}
-                      onChange={() => toggleScope("JOBS_ALL")}
-                      className="mt-0.5 size-4 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
-                    />
-                    <span className="font-semibold text-xs text-[var(--color-text-primary)] leading-snug">
-                      Xem tất cả tin tuyển dụng toàn công ty (`JOBS_ALL`)
-                    </span>
-                  </label>
-                  <p className="mt-1.5 text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
-                    Mặc định nhân sự chỉ thấy các tin tuyển dụng do chính mình tạo hoặc được phân quyền phụ trách. Bật quyền này cho phép nhân sự xem toàn bộ tin tuyển dụng trong công ty.
-                  </p>
-                </div>
-              </div>
+            <Card className="shrink-0 border border-[var(--color-primary-soft)] bg-gradient-to-br from-[var(--color-primary-soft)]/40 to-transparent p-3.5">
+              <label className="flex cursor-pointer select-none items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={features.includes("JOBS_ALL")}
+                  onChange={() => toggleScope("JOBS_ALL")}
+                  className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-primary)]">
+                    <ShieldCheck className="size-3.5 shrink-0 text-brand-primary" />
+                    {t("tenantAdmin.roles.jobsAllShortTitle")}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-[var(--color-text-secondary)]">
+                    {t("tenantAdmin.roles.jobsAllShortDesc")}
+                  </span>
+                </span>
+              </label>
             </Card>
           )}
         </div>
 
         {/* Right Column: Role Permissions Matrix */}
-        <Card className="space-y-5">
-          {selectedId == null && (
-            <div className="py-12 text-center text-sm text-[var(--color-text-secondary)]">
-              <Shield className="mx-auto size-10 stroke-1 text-slate-300 mb-2" />
-              Chọn một vai trò ở danh sách bên trái hoặc tạo vai trò mới để phân quyền.
+        <Card className="flex min-h-0 flex-col gap-3 p-4">
+          {selectedId == null && !query.isLoading && (
+            <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-sm text-[var(--color-text-secondary)]">
+              <Shield className="mb-2 size-9 stroke-1 text-slate-300" />
+              {t("tenantAdmin.roles.emptySelectionShort")}
             </div>
           )}
+
           {selectedId != null && (
             <>
-              {/* Role Name */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[var(--color-border-default)] pb-4">
-                <div className="flex-1 max-w-md">
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]" htmlFor="role-name">
-                    Tên vai trò
+              {/* Role Name & Quick Matrix Controls */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b border-[var(--color-border-default)] pb-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <label className="sr-only" htmlFor="role-name">
+                    {t("tenantAdmin.roles.roleNameLabel")}
                   </label>
                   <input
                     id="role-name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     disabled={selected?.system}
-                    placeholder="VD: Chuyên viên Tuyển dụng..."
-                    className="min-h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-white px-3 text-sm font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 disabled:opacity-70 disabled:bg-slate-50"
+                    placeholder={t("tenantAdmin.roles.roleNamePlaceholder")}
+                    className="min-h-9 w-full max-w-xs rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm font-semibold outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 disabled:bg-slate-50 disabled:opacity-75"
                   />
+                  {selected?.system && (
+                    <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                      {t("tenantAdmin.roles.defaultRoleBadge")}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-medium text-brand-primary">
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-brand-primary">
                     <Check className="size-3.5" />
-                    Đã cấp {totalAssignedCount} quyền
+                    {t("tenantAdmin.roles.assignedCountShort", { count: totalAssignedCount })}
                   </span>
+                  <button
+                    type="button"
+                    onClick={selectAllFeatures}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-surface-alt)] hover:text-brand-primary"
+                  >
+                    <CheckCheck className="size-3.5" />
+                    {t("tenantAdmin.roles.selectAllShort")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllFeatures}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-surface-alt)] hover:text-status-danger"
+                  >
+                    {t("tenantAdmin.roles.clearAllShort")}
+                  </button>
                 </div>
               </div>
 
               {/* Granular Permissions Table */}
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
-                    Phân quyền chi tiết
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={selectAllFeatures}
-                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1 text-xs font-medium hover:bg-[var(--color-surface-alt)] hover:text-brand-primary transition-colors"
-                    >
-                      <CheckCheck className="size-3.5" />
-                      Chọn tất cả
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearAllFeatures}
-                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1 text-xs font-medium hover:bg-[var(--color-surface-alt)] hover:text-status-danger transition-colors"
-                    >
-                      Bỏ chọn hết
-                    </button>
-                  </div>
-                </div>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--color-border-default)] bg-white">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-[var(--color-surface-alt)]">
+                    <tr className="border-b border-[var(--color-border-default)] text-xs font-semibold text-[var(--color-text-secondary)]">
+                      <th className="px-3.5 py-2.5 font-semibold">{t("tenantAdmin.roles.columns.moduleShort")}</th>
+                      <th className="w-16 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.all")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.view")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.create")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.edit")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.delete")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border-default)]">
+                    {FEATURE_MATRIX.map((item) => {
+                      const Icon = item.icon;
+                      const allChecked = isModuleAllChecked(item);
+                      const hasCreate = item.actions.includes("CREATE");
+                      const hasEdit = item.actions.includes("EDIT");
+                      const hasDelete = item.actions.includes("DELETE");
 
-                <div className="max-h-[480px] overflow-y-auto rounded-xl border border-[var(--color-border-default)] bg-white shadow-sm">
-                  <table className="w-full text-left text-sm border-collapse">
-                    <thead className="sticky top-0 z-10 bg-[var(--color-surface-alt)] shadow-sm">
-                      <tr className="border-b border-[var(--color-border-default)] text-[var(--color-text-secondary)] text-xs font-semibold">
-                        <th className="py-3 px-4 font-semibold">TÍNH NĂNG / PHÂN HỆ</th>
-                        <th className="py-3 px-2 text-center w-16 font-semibold">TẤT CẢ</th>
-                        <th className="py-3 px-2 text-center w-16 font-semibold">XEM</th>
-                        <th className="py-3 px-2 text-center w-16 font-semibold">TẠO</th>
-                        <th className="py-3 px-2 text-center w-16 font-semibold">SỬA</th>
-                        <th className="py-3 px-2 text-center w-16 font-semibold">XÓA</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--color-border-default)]">
-                      {FEATURE_MATRIX.map((item) => {
-                        const Icon = item.icon;
-                        const allChecked = isModuleAllChecked(item);
-                        const hasCreate = item.actions.includes("CREATE");
-                        const hasEdit = item.actions.includes("EDIT");
-                        const hasDelete = item.actions.includes("DELETE");
+                      const viewChecked = isActionChecked(item.code, "VIEW");
+                      const createChecked = isActionChecked(item.code, "CREATE");
+                      const editChecked = isActionChecked(item.code, "EDIT");
+                      const deleteChecked = isActionChecked(item.code, "DELETE");
+                      const featureLabel = item.customLabelKey ? t(item.customLabelKey) : t(item.labelKey);
 
-                        const viewChecked = isActionChecked(item.code, "VIEW");
-                        const createChecked = isActionChecked(item.code, "CREATE");
-                        const editChecked = isActionChecked(item.code, "EDIT");
-                        const deleteChecked = isActionChecked(item.code, "DELETE");
+                      return (
+                        <tr
+                          key={item.code}
+                          title={t(item.descriptionKey)}
+                          className="transition-colors hover:bg-[var(--color-surface-alt)]/50"
+                        >
+                          <td className="px-3.5 py-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-brand-primary">
+                                <Icon className="size-3.5" />
+                              </span>
+                              <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                                {featureLabel}
+                              </span>
+                            </div>
+                          </td>
 
-                        return (
-                          <tr
-                            key={item.code}
-                            className="hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-                          >
-                            {/* Feature Info */}
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-brand-primary">
-                                  <Icon className="size-4" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-sm text-[var(--color-text-primary)]">
-                                    {item.customLabel ?? t(item.labelKey)}
-                                  </p>
-                                  <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1">
-                                    {item.description}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
+                          <td className="px-2 py-2 text-center">
+                            <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                              <input
+                                type="checkbox"
+                                checked={allChecked}
+                                onChange={() => toggleAllModule(item)}
+                                aria-label={t("tenantAdmin.roles.ariaAll", { name: featureLabel })}
+                                className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
+                              />
+                            </label>
+                          </td>
 
-                            {/* All Checkbox */}
-                            <td className="py-3 px-2 text-center">
-                              <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                          <td className="px-2 py-2 text-center">
+                            <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                              <input
+                                type="checkbox"
+                                checked={viewChecked}
+                                onChange={() => toggleAction(item, "VIEW")}
+                                aria-label={t("tenantAdmin.roles.ariaView", { name: featureLabel })}
+                                className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
+                              />
+                            </label>
+                          </td>
+
+                          <td className="px-2 py-2 text-center">
+                            {hasCreate ? (
+                              <label className="inline-flex cursor-pointer items-center justify-center p-1">
                                 <input
                                   type="checkbox"
-                                  checked={allChecked}
-                                  onChange={() => toggleAllModule(item)}
-                                  className="size-4.5 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
+                                  checked={createChecked}
+                                  onChange={() => toggleAction(item, "CREATE")}
+                                  aria-label={t("tenantAdmin.roles.ariaCreate", { name: featureLabel })}
+                                  className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                                 />
                               </label>
-                            </td>
+                            ) : (
+                              <span className="select-none text-slate-300">—</span>
+                            )}
+                          </td>
 
-                            {/* VIEW Action */}
-                            <td className="py-3 px-2 text-center">
-                              <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                          <td className="px-2 py-2 text-center">
+                            {hasEdit ? (
+                              <label className="inline-flex cursor-pointer items-center justify-center p-1">
                                 <input
                                   type="checkbox"
-                                  checked={viewChecked}
-                                  onChange={() => toggleAction(item, "VIEW")}
-                                  className="size-4.5 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
+                                  checked={editChecked}
+                                  onChange={() => toggleAction(item, "EDIT")}
+                                  aria-label={t("tenantAdmin.roles.ariaEdit", { name: featureLabel })}
+                                  className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                                 />
                               </label>
-                            </td>
+                            ) : (
+                              <span className="select-none text-slate-300">—</span>
+                            )}
+                          </td>
 
-                            {/* CREATE Action */}
-                            <td className="py-3 px-2 text-center">
-                              {hasCreate ? (
-                                <label
-                                  title={item.code === "JOBS" ? "Quyền tạo job mới (JOBS_CREATE)" : undefined}
-                                  className="inline-flex items-center justify-center cursor-pointer p-1"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={createChecked}
-                                    onChange={() => toggleAction(item, "CREATE")}
-                                    className="size-4.5 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
-                                  />
-                                </label>
-                              ) : (
-                                <span className="text-slate-300 font-medium select-none">—</span>
-                              )}
-                            </td>
-
-                            {/* EDIT Action */}
-                            <td className="py-3 px-2 text-center">
-                              {hasEdit ? (
-                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
-                                  <input
-                                    type="checkbox"
-                                    checked={editChecked}
-                                    onChange={() => toggleAction(item, "EDIT")}
-                                    className="size-4.5 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
-                                  />
-                                </label>
-                              ) : (
-                                <span className="text-slate-300 font-medium select-none">—</span>
-                              )}
-                            </td>
-
-                            {/* DELETE Action */}
-                            <td className="py-3 px-2 text-center">
-                              {hasDelete ? (
-                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
-                                  <input
-                                    type="checkbox"
-                                    checked={deleteChecked}
-                                    onChange={() => toggleAction(item, "DELETE")}
-                                    className="size-4.5 rounded border-[var(--color-border-default)] text-brand-primary focus:ring-brand-primary/20 accent-[var(--color-primary)] cursor-pointer"
-                                  />
-                                </label>
-                              ) : (
-                                <span className="text-slate-300 font-medium select-none">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          <td className="px-2 py-2 text-center">
+                            {hasDelete ? (
+                              <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                <input
+                                  type="checkbox"
+                                  checked={deleteChecked}
+                                  onChange={() => toggleAction(item, "DELETE")}
+                                  aria-label={t("tenantAdmin.roles.ariaDelete", { name: featureLabel })}
+                                  className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
+                                />
+                              </label>
+                            ) : (
+                              <span className="select-none text-slate-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-4">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-3">
                 <div>
                   {selected && canDeleteRole(selected) && (
                     <Button
                       type="button"
                       variant="ghost"
+                      size="sm"
                       className="text-status-danger hover:bg-status-danger/10"
                       disabled={deleteMutation.isPending}
                       onClick={() => askDelete(selected)}
                     >
-                      <Trash2 className="size-4 mr-1.5" />
-                      Xóa vai trò
+                      <Trash2 className="mr-1.5 size-3.5" />
+                      {t("tenantAdmin.roles.deleteRoleButton")}
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <Button
                     type="button"
                     variant="secondary"
+                    size="sm"
                     onClick={() => {
                       if (selected) {
                         setName(selected.name);
                         setFeatures(selected.features);
                       } else {
-                        setSelectedId(null);
+                        setSelectedId(recruiterRoles[0]?.id ?? null);
                       }
                     }}
                   >
-                    Hủy thay đổi
+                    {t("tenantAdmin.roles.revert")}
                   </Button>
                   <Button
                     type="button"
+                    size="sm"
                     disabled={saving || !name.trim()}
                     onClick={() => {
                       if (selectedId === "new") createMutation.mutate();
                       else if (selected) updateMutation.mutate(selected);
                     }}
                   >
-                    {saving ? "Đang lưu…" : selectedId === "new" ? "Tạo vai trò" : "Lưu thay đổi"}
+                    {saving
+                      ? t("tenantAdmin.roles.saving")
+                      : selectedId === "new"
+                        ? t("tenantAdmin.roles.createRoleButton")
+                        : t("tenantAdmin.roles.saveChanges")}
                   </Button>
                 </div>
               </div>

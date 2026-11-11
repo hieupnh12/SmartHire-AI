@@ -1,17 +1,21 @@
 import type { CvBuilderItem, CvBuilderItemRow, CvLanguage, CvSectionType } from "@/api/types/cv";
+import { cvDocByLanguage } from "./cvDocPrimitives";
 
 export const MAX_ITEM_ROWS = 8;
 
-const defaultRowLabels: Record<CvLanguage, Partial<Record<CvSectionType, string[]>>> = {
-  vi: {
-    experience: ["Mô tả công việc", "Thành tựu nổi bật"],
-    projects: ["Thông tin chung", "Mô tả", "Phạm vi công việc", "Công nghệ sử dụng"],
-  },
-  en: {
-    experience: ["Job description", "Key achievements"],
-    projects: ["General information", "Description", "Project Scope", "Technology used"],
-  },
-};
+function getDefaultRowLabels(language: CvLanguage, type: CvSectionType): string[] {
+  const { rowLabels } = cvDocByLanguage[language];
+  if (type === "experience") return [rowLabels.experienceDesc, rowLabels.experienceAchievements];
+  if (type === "projects") {
+    return [
+      rowLabels.projectsGeneral,
+      rowLabels.projectsDescription,
+      rowLabels.projectsScope,
+      rowLabels.projectsTech,
+    ];
+  }
+  return [];
+}
 
 const HEADING = /<p><(?:b|strong)>(.*?)<\/(?:b|strong)><\/p>/i;
 
@@ -21,7 +25,7 @@ const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;
 /** Rows of the enterprise two-column table; items saved before rows existed are split on their "<p><b>Label</b></p>" headings. */
 export function itemRows(item: CvBuilderItem, type: CvSectionType, language: CvLanguage): CvBuilderItemRow[] {
   if (item.rows?.length) return item.rows;
-  const labels = defaultRowLabels[language][type] ?? [];
+  const labels = getDefaultRowLabels(language, type);
   const [before, ...parts] = item.description.split(new RegExp(HEADING.source, "gi"));
   if (parts.length === 0) return labels.map((label, index) => ({ label, value: index === 0 ? item.description : "" }));
   const rows: CvBuilderItemRow[] = [];

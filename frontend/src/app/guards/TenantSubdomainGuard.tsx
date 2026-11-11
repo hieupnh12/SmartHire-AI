@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Outlet } from "react-router-dom";
 import { masterAdminApi } from "@/api/master/masterAdminApi";
+import { useT } from "@/i18n";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { TenantNotFoundPage } from "@/features/tenant/candidate/jobs/pages/TenantNotFoundPage";
 
 export function TenantSubdomainGuard() {
+  const t = useT();
   const subdomain = getTenantIdFromSubdomain();
   const query = useQuery({
     queryKey: ["tenant-subdomain", subdomain],
@@ -33,7 +35,7 @@ export function TenantSubdomainGuard() {
     return (
       <main className="grid min-h-screen place-items-center bg-[var(--color-surface)] px-6 text-center">
         <div role="alert" className="max-w-md rounded-xl border border-red-200 bg-white p-6 text-sm text-red-700 shadow-sm">
-          Không thể kết nối để xác thực subdomain “{subdomain}”. Vui lòng thử tải lại trang.
+          {t("ux.subdomainCheckError", { subdomain })}
         </div>
       </main>
     );

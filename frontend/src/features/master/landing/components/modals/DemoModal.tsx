@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, PhoneCall, FileText, Loader2, Send, CheckCircle2 } from "lucide-react";
 import { consultationApi } from "@/api/master/consultationApi";
+import { t as globalT, useT } from "@/i18n";
 import { useLandingModal } from "../../context/LandingModalContext";
 
 interface DemoRequestForm {
@@ -15,6 +16,7 @@ interface DemoRequestForm {
 }
 
 export function DemoModal() {
+  const t = useT();
   const { showDemoModal, closeDemoModal, selectedTier, requestType, openDemoModal } = useLandingModal();
 
   const [formData, setFormData] = useState<DemoRequestForm>({
@@ -24,7 +26,7 @@ export function DemoModal() {
     workEmail: "",
     phoneNumber: "",
     companySize: "100-500",
-    primaryNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
+    primaryNeed: globalT("master.landingChrome.modals.demo.defaultNeed"),
     notes: "",
   });
 
@@ -55,13 +57,13 @@ export function DemoModal() {
     } catch (err: any) {
       if (err?.response?.data?.errors && typeof err.response.data.errors === "object") {
         const firstErrMsg = Object.values(err.response.data.errors)[0] as string;
-        setSubmitError(firstErrMsg || err.response.data.message || "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.");
+        setSubmitError(firstErrMsg || err.response.data.message || t("master.landingChrome.modals.demo.invalidData"));
       } else if (err?.response?.data?.message) {
         setSubmitError(err.response.data.message);
       } else if (err?.message === "Network Error" || !err?.response) {
-        setSubmitError("Không thể kết nối đến máy chủ Backend (Port 8080). Vui lòng đảm bảo dịch vụ Backend đang chạy.");
+        setSubmitError(t("master.landingChrome.modals.demo.backendError"));
       } else {
-        setSubmitError("Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.top");
+        setSubmitError(t("master.landingChrome.modals.demo.submitFailed"));
       }
     } finally {
       setIsSubmitting(false);
@@ -80,7 +82,7 @@ export function DemoModal() {
         <button
           onClick={handleClose}
           className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors"
-          aria-label="Đóng cửa sổ"
+          aria-label={t("master.landingChrome.modals.closeWindowAria")}
         >
           <X className="w-5 h-5" />
         </button>
@@ -93,7 +95,9 @@ export function DemoModal() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-slate-900">
-                  {requestType === "DEMO" ? "Đăng Ký Trải Nghiệm Demo 1:1" : "Tư Vấn Báo Giá & Hợp Đồng"}
+                  {requestType === "DEMO"
+                    ? t("master.landingChrome.modals.demo.demoTitle")
+                    : t("master.landingChrome.modals.demo.quoteTitle")}
                 </h3>
                 <span className="text-xs font-medium text-blue-600">{selectedTier}</span>
               </div>
@@ -108,7 +112,7 @@ export function DemoModal() {
                   requestType === "DEMO" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Đặt Lịch Demo 1:1
+                {t("master.landingChrome.modals.demo.demoTab")}
               </button>
               <button
                 type="button"
@@ -119,7 +123,7 @@ export function DemoModal() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Báo Giá & Hợp Đồng Enterprise
+                {t("master.landingChrome.modals.demo.quoteTab")}
               </button>
             </div>
 
@@ -131,19 +135,19 @@ export function DemoModal() {
 
             <p className="text-xs text-slate-500 mb-5 leading-relaxed">
               {requestType === "DEMO"
-                ? "Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trong 2 giờ làm việc để chuẩn bị nội dung demo phù hợp với doanh nghiệp của bạn."
-                : "Đội ngũ chuyên trách Enterprise sẽ liên hệ để trao đổi chi tiết bảng giá, thỏa thuận SLA và quy trình ký kết hợp đồng."}
+                ? t("master.landingChrome.modals.demo.demoDesc")
+                : t("master.landingChrome.modals.demo.quoteDesc")}
             </p>
 
             <form onSubmit={handleDemoSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-slate-900 mb-1">
-                  Tên Doanh Nghiệp / Tổ Chức <span className="text-red-500">*</span>
+                  {t("master.landingChrome.modals.demo.companyLabel")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Tập đoàn Công nghệ VNP..."
+                  placeholder={t("master.landingChrome.modals.demo.companyPlaceholder")}
                   value={formData.companyName}
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -153,12 +157,12 @@ export function DemoModal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-900 mb-1">
-                    Họ và Tên Người Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landingChrome.modals.demo.contactNameLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Nguyễn Văn A"
+                    placeholder={t("master.landingChrome.modals.demo.contactNamePlaceholder")}
                     value={formData.contactName}
                     onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -166,12 +170,12 @@ export function DemoModal() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-900 mb-1">
-                    Chức Vụ <span className="text-red-500">*</span>
+                    {t("master.landingChrome.modals.demo.jobTitleLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Trưởng phòng Tuyển dụng / HRD..."
+                    placeholder={t("master.landingChrome.modals.demo.jobTitlePlaceholder")}
                     value={formData.jobTitle}
                     onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -182,12 +186,12 @@ export function DemoModal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-900 mb-1">
-                    Email Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landingChrome.modals.demo.workEmailLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
                     required
-                    placeholder="name@company.com hoặc name@gmail.com"
+                    placeholder={t("master.landingChrome.modals.demo.workEmailPlaceholder")}
                     value={formData.workEmail}
                     onChange={(e) => setFormData({ ...formData, workEmail: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -195,12 +199,12 @@ export function DemoModal() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-900 mb-1">
-                    Số Điện Thoại Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landingChrome.modals.demo.phoneLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
                     required
-                    placeholder="0912 345 678"
+                    placeholder={t("master.landingChrome.modals.demo.phonePlaceholder")}
                     value={formData.phoneNumber}
                     onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -210,27 +214,27 @@ export function DemoModal() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-900 mb-1">
-                  Quy Mô Nhân Sự Doanh Nghiệp
+                  {t("master.landingChrome.modals.demo.companySizeLabel")}
                 </label>
                 <select
                   value={formData.companySize}
                   onChange={(e) => setFormData({ ...formData, companySize: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
                 >
-                  <option value="50-100">Dưới 100 nhân sự</option>
-                  <option value="100-500">100 - 500 nhân sự</option>
-                  <option value="500-2000">500 - 2,000 nhân sự</option>
-                  <option value="2000+">Trên 2,000 nhân sự</option>
+                  <option value="50-100">{t("master.landingChrome.modals.demo.sizeUnder100")}</option>
+                  <option value="100-500">{t("master.landingChrome.modals.demo.size100To500")}</option>
+                  <option value="500-2000">{t("master.landingChrome.modals.demo.size500To2000")}</option>
+                  <option value="2000+">{t("master.landingChrome.modals.demo.size2000Plus")}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-900 mb-1">
-                  Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)
+                  {t("master.landingChrome.modals.demo.notesLabel")}
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ví dụ: Mong muốn tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT..."
+                  placeholder={t("master.landingChrome.modals.demo.notesPlaceholder")}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full px-3.5 py-2 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors resize-none"
@@ -245,12 +249,16 @@ export function DemoModal() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang gửi thông tin...</span>
+                    <span>{t("master.landingChrome.modals.demo.submitting")}</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>{requestType === "DEMO" ? "Gửi Yêu Cầu Đặt Lịch Demo" : "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng"}</span>
+                    <span>
+                      {requestType === "DEMO"
+                        ? t("master.landingChrome.modals.demo.submitDemo")
+                        : t("master.landingChrome.modals.demo.submitQuote")}
+                    </span>
                   </>
                 )}
               </button>
@@ -261,15 +269,20 @@ export function DemoModal() {
             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">Đã Tiếp Nhận Thông Tin!</h3>
+            <h3 className="text-xl font-semibold text-slate-900 mb-2">
+              {t("master.landingChrome.modals.demo.receivedTitle")}
+            </h3>
             <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-              Cảm ơn Quý doanh nghiệp <strong>{formData.companyName}</strong>. Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trực tiếp qua email <strong>{formData.workEmail}</strong> và số điện thoại <strong>{formData.phoneNumber}</strong> trong vòng 2 giờ làm việc.
+              {t("master.landingChrome.modals.demo.receivedDescBefore")} <strong>{formData.companyName}</strong>
+              {t("master.landingChrome.modals.demo.receivedDescMiddle")} <strong>{formData.workEmail}</strong>{" "}
+              {t("master.landingChrome.modals.demo.receivedDescAnd")} <strong>{formData.phoneNumber}</strong>{" "}
+              {t("master.landingChrome.modals.demo.receivedDescAfter")}
             </p>
             <button
               onClick={handleClose}
               className="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
             >
-              Đóng Cửa Sổ
+              {t("master.landingChrome.modals.demo.closeBtn")}
             </button>
           </div>
         )}

@@ -1,14 +1,39 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
 import type { CodingLanguage } from "./questionContentValidation";
 
 export type HarnessTemplateId = "two_ints" | "single_line" | "json_stdin" | "raw_program" | "sql_query";
 
-export const harnessTemplateOptions: { id: HarnessTemplateId; label: string; hint: string }[] = [
-  { id: "two_ints", label: "Hai số nguyên", hint: "stdin: a b → gọi solve(a, b)" },
-  { id: "single_line", label: "Một dòng chuỗi", hint: "stdin: một dòng → gọi solve(line)" },
-  { id: "json_stdin", label: "JSON từ stdin", hint: "stdin: JSON → parse rồi gọi solve(data)" },
-  { id: "raw_program", label: "Chương trình đầy đủ", hint: "Ứng viên viết cả chương trình; harness chỉ chèn {{SOURCE}}" },
-  { id: "sql_query", label: "Truy vấn SQL", hint: "Ứng viên viết SELECT; phù hợp category SQL" },
-];
+export function getHarnessTemplateOptions(
+  t: TranslateFn = globalT,
+): { id: HarnessTemplateId; label: string; hint: string }[] {
+  return [
+    {
+      id: "two_ints",
+      label: t("recruiter.assessments.coding.harnessTemplates.twoIntsLabel"),
+      hint: t("recruiter.assessments.coding.harnessTemplates.twoIntsHint"),
+    },
+    {
+      id: "single_line",
+      label: t("recruiter.assessments.coding.harnessTemplates.singleLineLabel"),
+      hint: t("recruiter.assessments.coding.harnessTemplates.singleLineHint"),
+    },
+    {
+      id: "json_stdin",
+      label: t("recruiter.assessments.coding.harnessTemplates.jsonStdinLabel"),
+      hint: t("recruiter.assessments.coding.harnessTemplates.jsonStdinHint"),
+    },
+    {
+      id: "raw_program",
+      label: t("recruiter.assessments.coding.harnessTemplates.rawProgramLabel"),
+      hint: t("recruiter.assessments.coding.harnessTemplates.rawProgramHint"),
+    },
+    {
+      id: "sql_query",
+      label: t("recruiter.assessments.coding.harnessTemplates.sqlQueryLabel"),
+      hint: t("recruiter.assessments.coding.harnessTemplates.sqlQueryHint"),
+    },
+  ];
+}
 
 const templates: Record<HarnessTemplateId, Partial<Record<CodingLanguage, { starter: string; harness: string }>>> = {
   two_ints: {
@@ -58,7 +83,7 @@ const templates: Record<HarnessTemplateId, Partial<Record<CodingLanguage, { star
     },
   },
   raw_program: {
-    python: { starter: "# Đọc stdin và in kết quả ra stdout\n", harness: "{{SOURCE}}\n" },
+    python: { starter: "# Read stdin and print result to stdout\n", harness: "{{SOURCE}}\n" },
     java: {
       starter: "import java.util.*;\npublic class Main {\n  public static void main(String[] args) {\n    Scanner sc = new Scanner(System.in);\n    // TODO\n  }\n}\n",
       harness: "{{SOURCE}}\n",
@@ -78,13 +103,17 @@ const templates: Record<HarnessTemplateId, Partial<Record<CodingLanguage, { star
 export function applyHarnessTemplate(
   templateId: HarnessTemplateId,
   languages: CodingLanguage[],
+  t: TranslateFn = globalT,
 ): { starterCode: Record<string, string>; harness: Record<string, string> } {
   const starterCode: Record<string, string> = {};
   const harness: Record<string, string> = {};
   for (const language of languages) {
     const pack = templates[templateId][language];
     if (!pack) continue;
-    starterCode[language] = pack.starter;
+    starterCode[language] =
+      templateId === "raw_program" && language === "python"
+        ? t("recruiter.assessments.coding.harnessTemplates.rawPythonComment")
+        : pack.starter;
     harness[language] = pack.harness;
   }
   return { starterCode, harness };

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { SavedAnswer, Submission } from "@/api/types/assessment";
+import { t as globalT } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { useUiStore } from "@/stores/uiStore";
 import { loadSubmissionDraft, sameAnswer } from "../utils/submissionDraft";
@@ -181,9 +182,9 @@ export function useSubmission(id: number) {
       event.preventDefault();
       event.stopPropagation();
       useUiStore.getState().askConfirm({
-        title: "Rời trang?",
-        description: "Có câu trả lời chưa lưu. Bạn vẫn muốn rời trang?",
-        confirmLabel: "Rời trang",
+        title: globalT("candidate.assess.submission.leaveTitle"),
+        description: globalT("candidate.assess.submission.leaveDescription"),
+        confirmLabel: globalT("candidate.assess.submission.leaveConfirm"),
         danger: true,
         onConfirm: () => {
           allowLeave = true;

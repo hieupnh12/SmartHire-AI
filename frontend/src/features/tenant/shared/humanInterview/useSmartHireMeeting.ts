@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Peer, { type DataConnection, type MediaConnection } from "peerjs";
+import { t as globalT, useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 
 export type MeetingRemote = {
@@ -18,6 +19,14 @@ type Signal =
   | { type: "join"; from: string; name: string }
   | { type: "roster"; peers: { id: string; name: string }[] };
 
+type MeetingStatusKey =
+  | "preparing"
+  | "enablingDevices"
+  | "joining"
+  | "openedHost"
+  | "connectedGuest"
+  | "deviceError";
+
 function hostPeerId(interviewId: number) {
   const tenant = (getTenantIdFromWindow() ?? "t").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
   return `shi${tenant}i${interviewId}`.slice(0, 60);
@@ -29,9 +38,10 @@ function hostPeerId(interviewId: number) {
  * SmartHire LEAD role is unrelated — everyone with the interview link can participate.
  */
 export function useSmartHireMeeting({ interviewId, displayName, enabled }: Options) {
+  const t = useT();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remotes, setRemotes] = useState<MeetingRemote[]>([]);
-  const [status, setStatus] = useState("Đang chuẩn bị phòng…");
+  const [statusKey, setStatusKey] = useState<MeetingStatusKey>("preparing");
   const [error, setError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -49,7 +59,7 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
     let cancelled = false;
 
     const upsertRemote = (peerId: string, stream: MediaStream) => {
-      const name = namesRef.current.get(peerId) ?? "Thành viên";
+      const name = namesRef.current.get(peerId) ?? globalT("candidate.assess.humanMeeting.participantFallback");
       setRemotes((prev) => {
         const rest = prev.filter((r) => r.peerId !== peerId);
         return [...rest, { peerId, stream, name }];
@@ -164,7 +174,7 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
     (async () => {
       try {
         setError(null);
-        setStatus("Đang bật camera / micro…");
+        setStatusKey("enablingDevices");
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -173,7 +183,7 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
         localRef.current = stream;
         setLocalStream(stream);
 
-        setStatus("Đang vào phòng họp SmartHire…");
+        setStatusKey("joining");
         let peer: Peer;
         try {
           peer = await startAsHost(stream);
@@ -183,7 +193,7 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
           }
           peerRef.current = peer;
           setIsHost(true);
-          setStatus("Phòng đã mở — chờ HR / ứng viên khác tham gia.");
+          setStatusKey("openedHost");
           attachPeerHandlers(peer, stream);
         } catch {
           if (cancelled) return;
@@ -194,12 +204,12 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
           }
           peerRef.current = peer;
           setIsHost(false);
-          setStatus("Đã vào phòng — đang kết nối video với mọi người.");
+          setStatusKey("connectedGuest");
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Không mở được camera/micro. Hãy cho phép quyền trình duyệt.");
-          setStatus("Lỗi thiết bị");
+          setError(e instanceof Error ? e.message : globalT("candidate.assess.humanMeeting.devicePermissionError"));
+          setStatusKey("deviceError");
         }
       }
     })();
@@ -233,5 +243,15 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
     setCamOn(next);
   };
 
-  return { localStream, remotes, status, error, micOn, camOn, isHost, toggleMic, toggleCam };
+  return {
+    localStream,
+    remotes,
+    status: t(`candidate.assess.humanMeeting.status.${statusKey}`),
+    error,
+    micOn,
+    camOn,
+    isHost,
+    toggleMic,
+    toggleCam,
+  };
 }

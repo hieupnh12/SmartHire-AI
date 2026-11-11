@@ -3,14 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LogOut, MessageSquareText, RefreshCw, RotateCcw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi, AlertTriangle, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
 import type { AiAnswer, AiQuestion } from "@/api/types/aiInterview";
 import { candidateInterviewApi, type CandidateInterview } from "../api/candidateInterviewApi";
 import { useCandidateInterviewScope } from "../hooks/useCandidateInterviews";
 import { formatRemaining, useCountdown } from "../hooks/useCountdown";
-import { interviewStatus } from "../constants/interviewStatus";
-import { INTERVIEW_RULES } from "../constants/interviewRules";
+import { getAiInterviewStatusLabel } from "../constants/interviewStatus";
+import { getInterviewRules } from "../constants/interviewRules";
 import { ConversationRoom } from "./ConversationRoom";
 import { InterviewQuestionPanel } from "./InterviewQuestionPanel";
 import { InterviewRoadmap } from "./InterviewRoadmap";
@@ -23,6 +24,7 @@ const card = "rounded-2xl border border-[var(--color-border-default)] bg-surface
 const answered = (q: AiQuestion) => !!q.answer?.answerText?.trim();
 
 export function AiInterviewRoom({ id }: { id: number }) {
+  const t = useT();
   const scope = useCandidateInterviewScope();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -116,9 +118,13 @@ export function AiInterviewRoom({ id }: { id: number }) {
 
   function submit() {
     askConfirm({
-      title: "Kết thúc và nộp bài?",
-      description: data?.conversational ? "Toàn bộ hội thoại sẽ được gửi đánh giá. Bạn không thể gửi thêm tin nhắn sau khi kết thúc." : `${unanswered > 0 ? `Còn ${unanswered} câu chưa trả lời sẽ được tính 0 điểm. ` : ""}Sau khi nộp, bạn không thể sửa câu trả lời.`,
-      confirmLabel: "Nộp bài",
+      title: t("candidate.assess.interviews.room.submitTitle"),
+      description: data?.conversational
+        ? t("candidate.assess.interviews.room.submitDescConversational")
+        : unanswered > 0
+          ? t("candidate.assess.interviews.room.submitDescRemaining", { unanswered })
+          : t("candidate.assess.interviews.room.submitDescAllAnswered"),
+      confirmLabel: t("candidate.assess.interviews.room.submitConfirm"),
       danger: !data?.conversational && unanswered > 0,
       onConfirm: async () => { await complete.mutateAsync(); },
     });
@@ -126,18 +132,22 @@ export function AiInterviewRoom({ id }: { id: number }) {
 
   if (session.isPending) return <RoomLoading />;
   if (session.isError && !session.data) return <RoomLoadError message={getApiErrorMessage(session.error)} onRetry={() => void session.refetch()} />;
-  if (!data) return <RoomLoadError message="Không nhận được dữ liệu phòng thi." onRetry={() => void refetchSession()} />;
+  if (!data) return <RoomLoadError message={t("candidate.assess.interviews.room.noRoomData")} onRetry={() => void refetchSession()} />;
   if (data.conversational && proctorSession && !data.startedAt && !data.completedAt) {
-    const openingError = start.error ? getApiErrorMessage(start.error) : data.status === "ERROR" ? "AI chưa tạo được lời chào. Bạn có thể thử lại trong phòng chờ này." : null;
+    const openingError = start.error
+      ? getApiErrorMessage(start.error)
+      : data.status === "ERROR"
+        ? t("candidate.assess.interviews.room.openingErrorFallback")
+        : null;
     return <main className="grid min-h-[100dvh] place-items-center bg-[var(--color-surface-container-low)] p-4">
       <section className={`${card} w-full max-w-xl space-y-4 text-center`} aria-busy={!openingError}>
         <Bot className={`mx-auto size-12 text-[var(--color-primary)] ${openingError ? "" : "animate-pulse motion-reduce:animate-none"}`} aria-hidden="true" />
-        <h1 className="text-xl font-semibold">Đã vào phòng phỏng vấn</h1>
-        <p role="status">AI đang chuẩn bị lời chào. Hội thoại sẽ tự hiển thị khi sẵn sàng.</p>
-        <p className="text-sm text-[var(--color-on-surface-variant)]">Thời gian làm bài chưa bắt đầu. Vui lòng giữ tab phỏng vấn ở chế độ toàn màn hình.</p>
+        <h1 className="text-xl font-semibold">{t("candidate.assess.interviews.room.waitingTitle")}</h1>
+        <p role="status">{t("candidate.assess.interviews.room.waitingStatus")}</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.waitingDesc")}</p>
         {openingError && <><p role="alert" className="text-sm text-[var(--color-error)]">{openingError}</p>
-          <Button disabled={start.isPending} onClick={() => start.mutate()}>Thử tạo hội thoại lại</Button></>}
-        <Button variant="secondary" disabled={start.isPending} onClick={() => { setProctorSession(null); start.reset(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); }}>Quay lại kiểm tra thiết bị</Button>
+          <Button disabled={start.isPending} onClick={() => start.mutate()}>{t("candidate.assess.interviews.room.retryCreateChat")}</Button></>}
+        <Button variant="secondary" disabled={start.isPending} onClick={() => { setProctorSession(null); start.reset(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); }}>{t("candidate.assess.interviews.room.backToDeviceCheck")}</Button>
       </section>
     </main>;
   }
@@ -164,7 +174,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-on-surface)]">
-                {data.jobTitle ?? "AI Interview"}
+                {data.jobTitle ?? t("candidate.assess.interviews.room.defaultTitle")}
               </h1>
               <span className="rounded-lg bg-[var(--color-surface-container-high)] px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-on-surface-variant)] border border-[var(--color-border-subtle)]">
                 #AI-{data.id}
@@ -177,7 +187,10 @@ export function AiInterviewRoom({ id }: { id: number }) {
               {data.attemptNumber && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
                   <RotateCcw className="size-3 text-blue-500" aria-hidden="true" />
-                  Lượt thi: {data.attemptNumber}/{data.maxAttempts ?? data.attemptNumber}
+                  {t("candidate.assess.interviews.room.attemptBadge", {
+                    current: data.attemptNumber,
+                    max: data.maxAttempts ?? data.attemptNumber,
+                  })}
                 </span>
               )}
 
@@ -185,22 +198,22 @@ export function AiInterviewRoom({ id }: { id: number }) {
               {data.status === "ERROR" ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200/80">
                   <AlertTriangle className="size-3.5 text-amber-600" aria-hidden="true" />
-                  Lỗi xử lý · Chờ nhà tuyển dụng thử lại
+                  {t("candidate.assess.interviews.room.statusErrorBadge")}
                 </span>
               ) : data.status === "PASSED" ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-300">
                   <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden="true" />
-                  Đạt vòng phỏng vấn
+                  {t("candidate.assess.interviews.room.statusPassedBadge")}
                 </span>
               ) : data.status === "FAILED" ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800 border border-rose-300">
                   <AlertCircle className="size-3.5 text-rose-600" aria-hidden="true" />
-                  Chưa đạt ngưỡng điểm
+                  {t("candidate.assess.interviews.room.statusFailedBadge")}
                 </span>
               ) : data.status === "SCORING" || !!data.completedAt ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 border border-indigo-200">
                   <Sparkles className="size-3.5 text-indigo-500" aria-hidden="true" />
-                  Đã nộp · Chờ đánh giá
+                  {t("candidate.assess.interviews.room.statusScoringBadge")}
                 </span>
               ) : inProgress ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
@@ -208,16 +221,16 @@ export function AiInterviewRoom({ id }: { id: number }) {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
                   </span>
-                  Đang phỏng vấn
+                  {t("candidate.assess.interviews.room.statusInProgressBadge")}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 border border-slate-200">
-                  {interviewStatus[data.status] ?? "Sẵn sàng"}
+                  {getAiInterviewStatusLabel(data.status, t) || t("candidate.assess.interviews.room.statusReadyFallback")}
                 </span>
               )}
 
               <span className="text-xs text-[var(--color-on-surface-variant)] hidden sm:inline">
-                · Phỏng vấn trực tuyến cùng SmartHire AI
+                {t("candidate.assess.interviews.room.onlineSubtitle")}
               </span>
             </div>
           </div>
@@ -227,32 +240,38 @@ export function AiInterviewRoom({ id }: { id: number }) {
           {!inProgress && (
             <Link to="/interviews" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm font-semibold hover:bg-[var(--color-surface-container-low)] transition-colors">
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Về danh sách
+              {t("candidate.assess.interviews.room.backToList")}
             </Link>
           )}
 
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold ${inProgress ? "bg-emerald-50 text-emerald-700" : data.status === "ERROR" ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]"}`}>
             <Wifi className="size-4" aria-hidden="true" />
-            {inProgress ? "Phiên đang hoạt động" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · Chờ chấm lại" : "Đề thi cần khôi phục") : data.completedAt ? "Đã nộp bài" : "Phòng thi chưa bắt đầu"}
+            {inProgress
+              ? t("candidate.assess.interviews.room.stateActive")
+              : data.status === "ERROR"
+                ? (data.completedAt ? t("candidate.assess.interviews.room.stateErrorSubmitted") : t("candidate.assess.interviews.room.stateErrorRecover"))
+                : data.completedAt
+                  ? t("candidate.assess.interviews.room.stateSubmitted")
+                  : t("candidate.assess.interviews.room.stateNotStarted")}
           </span>
 
           {inProgress && remaining != null ? (
-            <div role="timer" aria-label={`Thời gian còn lại ${formatRemaining(remaining)}`}
+            <div role="timer" aria-label={t("candidate.assess.interviews.room.timerAria", { time: formatRemaining(remaining) })}
               className={`flex items-center gap-2 rounded-lg px-3.5 py-2 ${remaining <= 300 ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)]"}`}>
               <Timer className="size-5 text-brand-primary" aria-hidden="true" />
               <div className="text-right">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời gian còn lại</span>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.timeRemainingLabel")}</span>
                 <span className="font-mono text-base font-semibold tabular-nums">
-                  {timeUp ? "Hết giờ · đang nộp…" : formatRemaining(remaining)}
+                  {timeUp ? t("candidate.assess.interviews.room.timeUpSubmitting") : formatRemaining(remaining)}
                   {data.durationMinutes && !timeUp ? <span className="text-sm font-normal text-[var(--color-on-surface-variant)]"> / {formatRemaining(data.durationMinutes * 60)}</span> : null}
                 </span>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3.5 py-2" aria-label={`Thời lượng ${data.durationMinutes ?? 30} phút`}>
+            <div className="flex items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3.5 py-2" aria-label={t("candidate.assess.common.minutes", { count: data.durationMinutes ?? 30 })}>
               <Timer className="size-5 text-brand-primary" aria-hidden="true" />
               <div className="text-right">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời lượng bài</span>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.durationLabel")}</span>
                 <span className="font-mono text-base font-semibold tabular-nums">{formatRemaining((data.durationMinutes ?? 30) * 60)}</span>
               </div>
             </div>
@@ -261,7 +280,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
           {inProgress && (
             <Button className="bg-[color:var(--color-error-container)] text-[color:var(--color-on-error-container)] shadow-none hover:bg-[color:var(--color-error-container)] hover:opacity-90" disabled={!canSubmit} onClick={submit}>
               <LogOut className="size-4" aria-hidden="true" />
-              {complete.isPending ? "Đang nộp…" : "Kết thúc"}
+              {complete.isPending ? t("candidate.assess.interviews.room.submitting") : t("candidate.assess.interviews.room.endButton")}
             </Button>
           )}
         </div>
@@ -302,8 +321,14 @@ export function AiInterviewRoom({ id }: { id: number }) {
             <InterviewQuestionPanel recordingEnabled={data.recordingEnabled} interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
               onSelect={setSelected} onSaved={saved} onDirty={onDirty} answerDuration={answerDuration} />
             <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-              <p className="text-sm">Đã lưu {done}/{questions.length} câu.{unanswered > 0 && planned ? ` Còn ${unanswered} câu chưa trả lời sẽ tính 0 điểm nếu nộp.` : ""}{!planned && unanswered > 0 ? " Cần trả lời đủ các câu trước khi nộp." : ""}</p>
-              <Button disabled={!canSubmit} onClick={submit}>{complete.isPending ? "Đang nộp…" : "Nộp bài phỏng vấn"}</Button>
+              <p className="text-sm">
+                {t("candidate.assess.interviews.room.progressSummary", { done, total: questions.length })}
+                {unanswered > 0 && planned ? t("candidate.assess.interviews.room.progressRemainingNote", { unanswered }) : ""}
+                {!planned && unanswered > 0 ? t("candidate.assess.interviews.room.progressAllRequiredNote") : ""}
+              </p>
+              <Button disabled={!canSubmit} onClick={submit}>
+                {complete.isPending ? t("candidate.assess.interviews.room.submitting") : t("candidate.assess.interviews.room.submitInterviewButton")}
+              </Button>
             </div>
           </>}
 
@@ -321,7 +346,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
                   await start.mutateAsync();
                   setProctorSession(proctor);
                 } catch (cause) {
-                  throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Vui lòng kiểm tra thiết bị và thử lại.`);
+                  throw new Error(t("candidate.assess.interviews.room.startFailedError", { message: getApiErrorMessage(cause) }));
                 }
               }}
             />
@@ -329,11 +354,29 @@ export function AiInterviewRoom({ id }: { id: number }) {
 
           {data.completedAt && questions.map((question, i) => (
             <article key={question.id} className={`${card} space-y-3`}>
-              <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {i + 1}{question.stageTitle ? ` · ${question.stageTitle}` : ""}</p>
+              <p className="text-xs text-[var(--color-on-surface-variant)]">
+                {t("candidate.assess.interviews.room.questionNumber", { num: i + 1 })}{question.stageTitle ? ` · ${question.stageTitle}` : ""}
+              </p>
               <h3 className="font-semibold">{question.questionText}</h3>
-              <p className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{submittedAnswer(question)}</p>
-              {question.correctOptions?.length ? <p className="text-sm">Đáp án đúng: {question.correctOptions.map(option => String.fromCharCode(65 + option)).join(", ")}</p> : question.correctOption != null && <p className="text-sm">Đáp án đúng: {String.fromCharCode(65 + question.correctOption)}</p>}
-              {question.explanation && <p className="whitespace-pre-wrap text-sm">Giải thích: {question.explanation}</p>}
+              <p className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{submittedAnswer(question, t)}</p>
+              {question.correctOptions?.length ? (
+                <p className="text-sm">
+                  {t("candidate.assess.interviews.room.correctAnswerLabel", {
+                    answers: question.correctOptions.map(option => String.fromCharCode(65 + option)).join(", "),
+                  })}
+                </p>
+              ) : question.correctOption != null && (
+                <p className="text-sm">
+                  {t("candidate.assess.interviews.room.correctAnswerLabel", {
+                    answers: String.fromCharCode(65 + question.correctOption),
+                  })}
+                </p>
+              )}
+              {question.explanation && (
+                <p className="whitespace-pre-wrap text-sm">
+                  {t("candidate.assess.interviews.room.explanationLabel", { text: question.explanation })}
+                </p>
+              )}
             </article>
           ))}
         </div>
@@ -342,8 +385,12 @@ export function AiInterviewRoom({ id }: { id: number }) {
           {!data.conversational && <InterviewRoadmap steps={data.roadmap} questions={questions} current={inProgress ? index : null} openedAt={openedAt}
             durationMinutes={data.durationMinutes} onSelect={inProgress && !dirty && !timeUp ? setSelected : undefined} />}
           <section className={`${card} space-y-2`} aria-labelledby="interview-rules">
-            <h2 id="interview-rules" className="flex items-center gap-2 font-semibold"><Info className="size-5 text-brand-primary" aria-hidden="true" />Quy định AI Interview</h2>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--color-on-surface-variant)]">{INTERVIEW_RULES.map(rule => <li key={rule}>{rule}</li>)}</ul>
+            <h2 id="interview-rules" className="flex items-center gap-2 font-semibold">
+              <Info className="size-5 text-brand-primary" aria-hidden="true" />{t("candidate.assess.interviews.room.rulesHeading")}
+            </h2>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--color-on-surface-variant)]">
+              {getInterviewRules(t).map(rule => <li key={rule}>{rule}</li>)}
+            </ul>
           </section>
         </aside>
       </div>
@@ -355,9 +402,16 @@ export function AiInterviewRoom({ id }: { id: number }) {
 }
 
 function RoomLoading() {
+  const t = useT();
   return <main className="grid min-h-[100dvh] place-items-center bg-[var(--color-surface-container-low)] p-4" aria-busy="true">
     <section className="w-full max-w-3xl rounded-3xl border border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-ambient)] sm:p-8">
-      <div className="flex items-center gap-4"><span className="grid size-12 place-items-center rounded-xl bg-[var(--color-primary-soft)]"><RefreshCw className="size-6 animate-spin text-[var(--color-primary)]" aria-hidden="true" /></span><div><p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">Phòng phỏng vấn AI</p><h1 className="mt-1 text-xl font-semibold">Đang tải đề và đồng bộ thời gian…</h1></div></div>
+      <div className="flex items-center gap-4">
+        <span className="grid size-12 place-items-center rounded-xl bg-[var(--color-primary-soft)]"><RefreshCw className="size-6 animate-spin text-[var(--color-primary)]" aria-hidden="true" /></span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">{t("candidate.assess.interviews.room.loadingEyebrow")}</p>
+          <h1 className="mt-1 text-xl font-semibold">{t("candidate.assess.interviews.room.loadingTitle")}</h1>
+        </div>
+      </div>
       <div className="mt-8 grid gap-3 sm:grid-cols-3" aria-hidden="true">{[0, 1, 2].map(item => <div key={item} className="h-20 animate-pulse rounded-xl bg-[var(--color-surface-container)]" />)}</div>
       <div className="mt-4 h-56 animate-pulse rounded-2xl bg-[var(--color-surface-container-low)]" aria-hidden="true" />
     </section>
@@ -365,33 +419,77 @@ function RoomLoading() {
 }
 
 function RoomLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const t = useT();
   return <main className="grid min-h-[100dvh] place-items-center bg-[var(--color-surface-container-low)] p-4">
     <section className="w-full max-w-xl rounded-3xl border border-[var(--color-border-default)] bg-white p-7 text-center shadow-[var(--shadow-ambient)]" role="alert">
       <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"><ServerCrash className="size-8" aria-hidden="true" /></span>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-[var(--color-error)]">Không thể tải phòng thi</p>
-      <h1 className="mt-2 text-2xl font-semibold">Kết nối tới phiên phỏng vấn thất bại</h1>
-      <p className="mt-3 text-sm leading-6 text-[var(--color-on-surface-variant)]">{message} Đồng hồ chưa bắt đầu và lượt làm của bạn không bị ảnh hưởng.</p>
-      <div className="mt-6 flex flex-wrap justify-center gap-3"><Button onClick={onRetry}><RefreshCw className="size-4" aria-hidden="true" />Tải lại phòng thi</Button><Link to="/interviews" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]"><ArrowLeft className="size-4" aria-hidden="true" />Về danh sách</Link></div>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-[var(--color-error)]">{t("candidate.assess.interviews.room.loadErrorEyebrow")}</p>
+      <h1 className="mt-2 text-2xl font-semibold">{t("candidate.assess.interviews.room.loadErrorTitle")}</h1>
+      <p className="mt-3 text-sm leading-6 text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.loadErrorDesc", { message })}</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Button onClick={onRetry}><RefreshCw className="size-4" aria-hidden="true" />{t("candidate.assess.interviews.room.reloadRoom")}</Button>
+        <Link to="/interviews" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]"><ArrowLeft className="size-4" aria-hidden="true" />{t("candidate.assess.interviews.room.backToList")}</Link>
+      </div>
     </section>
   </main>;
 }
 
 function RoomRecovery({ data, error, retrying, onRetry }: { data: CandidateInterview; error: string | null; retrying: boolean; onRetry: () => void }) {
+  const t = useT();
   return <main className="min-h-[100dvh] bg-[var(--color-surface-container-low)] p-4 sm:p-6">
     <section className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-ambient)]">
       <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-        <div className="flex items-center gap-4"><span className="grid size-12 place-items-center rounded-xl bg-[var(--color-primary)] text-white"><ClipboardCheck className="size-6" aria-hidden="true" /></span><div><p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">Phòng phỏng vấn AI · #AI-{data.id}</p><h1 className="mt-1 text-xl font-semibold">{data.jobTitle ?? "AI Interview"}</h1></div></div>
-        <div className="flex items-center gap-3 rounded-xl bg-[var(--color-surface-container)] px-4 py-3"><Timer className="size-5 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Thời lượng</p><p className="font-mono text-lg font-semibold">{formatRemaining((data.durationMinutes ?? 30) * 60)}</p></div></div>
+        <div className="flex items-center gap-4">
+          <span className="grid size-12 place-items-center rounded-xl bg-[var(--color-primary)] text-white"><ClipboardCheck className="size-6" aria-hidden="true" /></span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">{t("candidate.assess.interviews.room.recoveryEyebrow", { id: data.id })}</p>
+            <h1 className="mt-1 text-xl font-semibold">{data.jobTitle ?? t("candidate.assess.interviews.room.defaultTitle")}</h1>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl bg-[var(--color-surface-container)] px-4 py-3">
+          <Timer className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.recoveryDuration")}</p>
+            <p className="font-mono text-lg font-semibold">{formatRemaining((data.durationMinutes ?? 30) * 60)}</p>
+          </div>
+        </div>
       </header>
       <div className="grid gap-8 p-6 lg:grid-cols-[1fr_18rem] lg:p-10">
-        <div className="flex min-h-80 flex-col justify-center"><span className="grid size-14 place-items-center rounded-2xl bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"><ServerCrash className="size-7" aria-hidden="true" /></span><p className="mt-5 text-xs font-semibold uppercase tracking-wider text-[var(--color-error)]">Chưa thể mở đề thi</p><h2 className="mt-2 text-2xl font-semibold">Bộ câu hỏi chưa tải thành công</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">{data.errorMessage ?? "Hệ thống AI chưa chuẩn bị được bộ câu hỏi."} Đồng hồ chưa chạy, câu hỏi chưa được mở và lượt làm không bị trừ.</p>{error && <p className="mt-4 rounded-xl bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">{error}</p>}<div className="mt-6 flex flex-wrap gap-3"><Button size="lg" disabled={retrying} onClick={onRetry}><RefreshCw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />{retrying ? "Đang khôi phục đề…" : "Tải lại đề phỏng vấn"}</Button><Link to="/interviews" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]"><ArrowLeft className="size-4" aria-hidden="true" />Thoát phòng thi</Link></div></div>
-        <aside className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-5"><h2 className="font-semibold">Trạng thái phiên</h2><ul className="mt-4 space-y-4 text-sm"><li className="flex gap-3"><CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /><span><strong className="block">Lượt thi được bảo toàn</strong><span className="text-[var(--color-on-surface-variant)]">Lỗi hệ thống không tính lượt.</span></span></li><li className="flex gap-3"><Timer className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><span><strong className="block">Đồng hồ chưa chạy</strong><span className="text-[var(--color-on-surface-variant)]">Chỉ bắt đầu khi đề sẵn sàng.</span></span></li><li className="flex gap-3"><ShieldCheck className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><span><strong className="block">Giám sát chưa bật</strong><span className="text-[var(--color-on-surface-variant)]">Thiết bị được kiểm tra ở bước tiếp theo.</span></span></li></ul></aside>
+        <div className="flex min-h-80 flex-col justify-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"><ServerCrash className="size-7" aria-hidden="true" /></span>
+          <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-[var(--color-error)]">{t("candidate.assess.interviews.room.recoveryBadge")}</p>
+          <h2 className="mt-2 text-2xl font-semibold">{t("candidate.assess.interviews.room.recoveryTitle")}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
+            {t("candidate.assess.interviews.room.recoveryDesc", {
+              message: data.errorMessage ?? t("candidate.assess.interviews.room.recoveryDefaultError"),
+            })}
+          </p>
+          {error && <p className="mt-4 rounded-xl bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">{error}</p>}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button size="lg" disabled={retrying} onClick={onRetry}>
+              <RefreshCw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+              {retrying ? t("candidate.assess.interviews.room.recovering") : t("candidate.assess.interviews.room.reloadQuestions")}
+            </Button>
+            <Link to="/interviews" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]">
+              <ArrowLeft className="size-4" aria-hidden="true" />{t("candidate.assess.interviews.room.exitRoom")}
+            </Link>
+          </div>
+        </div>
+        <aside className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-5">
+          <h2 className="font-semibold">{t("candidate.assess.interviews.room.sessionStatusHeading")}</h2>
+          <ul className="mt-4 space-y-4 text-sm">
+            <li className="flex gap-3"><CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /><span><strong className="block">{t("candidate.assess.interviews.room.sessionStatusAttemptTitle")}</strong><span className="text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.sessionStatusAttemptDesc")}</span></span></li>
+            <li className="flex gap-3"><Timer className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><span><strong className="block">{t("candidate.assess.interviews.room.sessionStatusTimerTitle")}</strong><span className="text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.sessionStatusTimerDesc")}</span></span></li>
+            <li className="flex gap-3"><ShieldCheck className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><span><strong className="block">{t("candidate.assess.interviews.room.sessionStatusProctorTitle")}</strong><span className="text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.sessionStatusProctorDesc")}</span></span></li>
+          </ul>
+        </aside>
       </div>
     </section>
   </main>;
 }
 
 function InterviewerCard({ question, done, total }: { question?: AiQuestion; done: number; total: number }) {
+  const t = useT();
   const focusAreas = [...(question?.competencies ?? []), ...(question?.skills ?? [])].slice(0, 4);
   return <section className={`${card} overflow-hidden p-0`} aria-labelledby="ai-interviewer-title">
     <div className="bg-gradient-to-br from-[var(--color-primary-soft)] via-white to-white p-5 text-center">
@@ -399,18 +497,18 @@ function InterviewerCard({ question, done, total }: { question?: AiQuestion; don
         <Bot className="size-9 text-[var(--color-primary)]" aria-hidden="true" />
         <span className="absolute bottom-0 right-0 size-4 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />
       </div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Đang phỏng vấn</p>
-      <h2 id="ai-interviewer-title" className="mt-1 text-lg font-semibold">SmartHire AI Interviewer</h2>
-      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Đánh giá theo lộ trình và tiêu chí của vị trí</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">{t("candidate.assess.interviews.room.interviewerInProgress")}</p>
+      <h2 id="ai-interviewer-title" className="mt-1 text-lg font-semibold">{t("candidate.assess.interviews.room.interviewerName")}</h2>
+      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.interviewerSubtitle")}</p>
       <div className="mt-4 rounded-xl border border-[var(--color-border-default)] bg-white/80 p-3 text-left">
-        <div className="flex items-center justify-between text-xs"><span className="font-medium">Tiến độ trả lời</span><strong>{done}/{total}</strong></div>
-        <progress className="mt-2 h-1.5 w-full accent-[var(--color-primary)]" max={Math.max(total, 1)} value={done} aria-label={`${done} trên ${total} câu đã lưu`} />
+        <div className="flex items-center justify-between text-xs"><span className="font-medium">{t("candidate.assess.interviews.room.answerProgress")}</span><strong>{done}/{total}</strong></div>
+        <progress className="mt-2 h-1.5 w-full accent-[var(--color-primary)]" max={Math.max(total, 1)} value={done} aria-label={t("candidate.assess.interviews.room.answerProgressAria", { done, total })} />
       </div>
     </div>
     <div className="space-y-3 border-t border-[var(--color-border-default)] p-5">
-      <div className="flex items-start gap-3"><MessageSquareText className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" /><div><p className="text-sm font-semibold">Hình thức: Văn bản</p><p className="text-xs text-[var(--color-on-surface-variant)]">Nhập và lưu câu trả lời theo từng câu hỏi.</p></div></div>
-      <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" /><div><p className="text-sm font-semibold">Câu trả lời được bảo toàn</p><p className="text-xs text-[var(--color-on-surface-variant)]">Nội dung đã lưu vẫn còn khi kết nối gián đoạn.</p></div></div>
-      {focusAreas.length > 0 && <div className="border-t border-[var(--color-border-default)] pt-3"><p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]"><Sparkles className="size-4" aria-hidden="true" />Trọng tâm câu hiện tại</p><div className="flex flex-wrap gap-2">{focusAreas.map(area => <span key={area} className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-medium text-brand-primary">{area}</span>)}</div></div>}
+      <div className="flex items-start gap-3"><MessageSquareText className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" /><div><p className="text-sm font-semibold">{t("candidate.assess.interviews.room.textFormatTitle")}</p><p className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.textFormatDesc")}</p></div></div>
+      <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" /><div><p className="text-sm font-semibold">{t("candidate.assess.interviews.room.preservedTitle")}</p><p className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.preservedDesc")}</p></div></div>
+      {focusAreas.length > 0 && <div className="border-t border-[var(--color-border-default)] pt-3"><p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]"><Sparkles className="size-4" aria-hidden="true" />{t("candidate.assess.interviews.room.currentFocusLabel")}</p><div className="flex flex-wrap gap-2">{focusAreas.map(area => <span key={area} className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-medium text-brand-primary">{area}</span>)}</div></div>}
     </div>
   </section>;
 }
@@ -420,33 +518,60 @@ function InvitationCard({ data, busy, onReady }: {
   busy: boolean;
   onReady: (session: ProctorSession) => void | Promise<void>;
 }) {
+  const t = useT();
   const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;
+  const target = data.jobTitle ?? t("candidate.assess.interviews.list.applicationFallback", { id: data.applicationId });
   const facts = [
-    data.conversational ? ["Chủ đề hội thoại", `${data.questionCount} chủ đề`] : data.roadmap ? ["Câu hỏi phỏng vấn", `${count("OPEN")} câu`] : ["Số câu hỏi", `${data.questionCount} câu`],
-    ...(data.roadmap && count("MCQ") > 0 ? [["Mini Assessment", `${count("MCQ")} câu trắc nghiệm`]] : []),
-    ...(data.durationMinutes ? [["Tổng thời gian", `${data.durationMinutes} phút`]] : []),
-    ["Ngưỡng đạt", `${data.passingScore ?? "—"}/100`],
+    data.conversational
+      ? [t("candidate.assess.interviews.room.factTopics"), t("candidate.assess.interviews.room.factTopicsValue", { count: data.questionCount })]
+      : data.roadmap
+        ? [t("candidate.assess.interviews.room.factOpenQuestions"), t("candidate.assess.interviews.room.factQuestionsCount", { count: count("OPEN") })]
+        : [t("candidate.assess.interviews.room.factQuestions"), t("candidate.assess.interviews.room.factQuestionsCount", { count: data.questionCount })],
+    ...(data.roadmap && count("MCQ") > 0
+      ? [[t("candidate.assess.interviews.room.factMiniAssessment"), t("candidate.assess.interviews.room.factMiniAssessmentCount", { count: count("MCQ") })]]
+      : []),
+    ...(data.durationMinutes
+      ? [[t("candidate.assess.interviews.room.factTotalDuration"), t("candidate.assess.common.minutes", { count: data.durationMinutes })]]
+      : []),
+    [t("candidate.assess.interviews.room.factPassingScore"), t("candidate.assess.interviews.room.factPassingScoreValue", { score: data.passingScore ?? "—" })],
   ];
   return <section className={`${card} space-y-5`} aria-labelledby="invitation-title">
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Phòng phỏng vấn AI</p>
-      <h2 id="invitation-title" className="mt-1 text-xl font-semibold">Chuẩn bị làm bài · {data.jobTitle ?? `Hồ sơ #${data.applicationId}`}</h2>
-      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{data.conversational ? "Hoàn tất kiểm tra thiết bị để vào phòng chờ. Đồng hồ chỉ bắt đầu khi AI tạo xong lời chào và phòng chat sẵn sàng." : "Đồng hồ bắt đầu theo giờ máy chủ sau khi bộ câu hỏi sẵn sàng và bạn hoàn tất kiểm tra thiết bị. Không rời khỏi phòng thi sau khi bắt đầu."}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">{t("candidate.assess.interviews.room.invitationEyebrow")}</p>
+      <h2 id="invitation-title" className="mt-1 text-xl font-semibold">{t("candidate.assess.interviews.room.invitationTitle", { target })}</h2>
+      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
+        {data.conversational
+          ? t("candidate.assess.interviews.room.invitationDescConversational")
+          : t("candidate.assess.interviews.room.invitationDescStandard")}
+      </p>
     </div>
     <dl className="grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
       <dt className="text-xs text-[var(--color-on-surface-variant)]">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
-    {data.status === "GENERATING" && <p role="status">AI đang chuẩn bị câu hỏi. Trang sẽ tự cập nhật khi sẵn sàng.</p>}
-    {data.status === "CREATED" && <p role="status">Nhà tuyển dụng đang chuẩn bị câu hỏi. Lời mời sẽ cập nhật khi phiên sẵn sàng.</p>}
+    {data.status === "GENERATING" && <p role="status">{t("candidate.assess.interviews.room.statusGenerating")}</p>}
+    {data.status === "CREATED" && <p role="status">{t("candidate.assess.interviews.room.statusCreated")}</p>}
     {data.status === "QUESTIONS_READY" && <div className="space-y-3">
-      <p className="text-sm">{data.conversational ? "Bấm bắt đầu để vào phòng chờ; chat sẽ tự hiển thị khi AI sẵn sàng. Thời gian chờ không tính vào bài phỏng vấn." : "Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu."}</p>
-      {data.voiceEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />Tôi đồng ý dùng micro, chuyển giọng nói thành transcript và phân tích tín hiệu lời nói{data.recordingEnabled ? ", lưu bản ghi âm riêng tư cho nhà tuyển dụng xem xét sau phiên" : ""}.</label>}
+      <p className="text-sm">
+        {data.conversational
+          ? t("candidate.assess.interviews.room.readyDescConversational")
+          : t("candidate.assess.interviews.room.readyDescStandard")}
+      </p>
+      {data.voiceEnabled && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />
+          {data.recordingEnabled
+            ? t("candidate.assess.interviews.room.voiceConsentWithRecording")
+            : t("candidate.assess.interviews.room.voiceConsentOnly")}
+        </label>
+      )}
       <ProctoringStart busy={busy || !!data.voiceEnabled && !accepted} onReady={onReady} />
     </div>}
   </section>;
 }
 
 function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateInterview; busy: boolean; retrying: boolean; onRetry: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   const finished = ["SCORED", "PASSED", "FAILED"].includes(data.status);
   const failedScoring = data.status === "ERROR";
   const isPassed = data.status === "PASSED";
@@ -492,14 +617,15 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
             </span>
             <h2 className="text-base font-bold text-slate-900 sm:text-lg">
               {finished
-                ? "Kết quả đánh giá AI Interview"
+                ? t("candidate.assess.interviews.room.resultTitleFinished")
                 : failedScoring
-                ? "Trạng thái bài thi: Đã nộp · Chờ chấm lại"
-                : "Trạng thái bài thi: Đã nộp thành công"}
+                  ? t("candidate.assess.interviews.room.resultTitleFailedScoring")
+                  : t("candidate.assess.interviews.room.resultTitleSubmitted")}
             </h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Thời điểm nộp bài: <strong>{new Date(data.completedAt!).toLocaleString("vi-VN")}</strong>
+            {t("candidate.assess.interviews.room.submittedAtLabel")}{" "}
+            <strong>{formatDateTime(data.completedAt!, undefined, locale)}</strong>
           </p>
         </div>
 
@@ -507,25 +633,25 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
           {failedScoring && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200/70">
               <AlertTriangle className="size-3 text-amber-600" />
-              Chờ nhà tuyển dụng chấm lại
+              {t("candidate.assess.interviews.room.badgeFailedScoring")}
             </span>
           )}
           {isScoring && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 animate-pulse">
               <RefreshCw className="size-3 text-blue-600 animate-spin" />
-              AI đang phân tích & chấm điểm
+              {t("candidate.assess.interviews.room.badgeScoring")}
             </span>
           )}
           {isPassed && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
               <CheckCircle2 className="size-3 text-emerald-600" />
-              Đạt tiêu chuẩn
+              {t("candidate.assess.interviews.room.badgePassed")}
             </span>
           )}
           {isFailed && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800 border border-rose-200">
               <AlertCircle className="size-3 text-rose-600" />
-              Chưa đạt ngưỡng
+              {t("candidate.assess.interviews.room.badgeFailed")}
             </span>
           )}
         </div>
@@ -535,10 +661,11 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/40 p-4 text-sm text-slate-700 leading-relaxed shadow-xs">
           <p className="font-semibold flex items-center gap-2 text-amber-900 mb-1.5 text-sm">
             <ShieldCheck className="size-4 text-amber-600" />
-            Bài làm của bạn đã được ghi nhận và bảo vệ an toàn
+            {t("candidate.assess.interviews.room.failedScoringBoxTitle")}
           </p>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Toàn bộ câu trả lời và dữ liệu hội thoại đã được lưu trữ đầy đủ. Dịch vụ AI chấm điểm tạm thời gặp gián đoạn nên bài thi sẽ được nhà tuyển dụng kích hoạt chấm lại. <strong className="text-slate-800 font-semibold">Bạn không cần phải làm lại bài và số lượt thi của bạn hoàn toàn không bị ảnh hưởng.</strong>
+            {t("candidate.assess.interviews.room.failedScoringBoxDescPrefix")}{" "}
+            <strong className="text-slate-800 font-semibold">{t("candidate.assess.interviews.room.failedScoringBoxDescHighlight")}</strong>
           </p>
         </div>
       )}
@@ -546,7 +673,7 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
       {isScoring && (
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-950 leading-relaxed">
           <p className="text-xs sm:text-sm text-blue-900/90">
-            Hệ thống đang tiến hành đánh giá chi tiết theo 4 tiêu chí cốt lõi: <em>Kiến thức kỹ thuật, Khả năng giải quyết vấn đề, Tư duy lập luận</em> và <em>Kỹ năng giao tiếp</em>. Trang sẽ tự động hiển thị bảng điểm khi quá trình chấm hoàn tất.
+            {t("candidate.assess.interviews.room.scoringBoxDesc")}
           </p>
         </div>
       )}
@@ -555,14 +682,14 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
         <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-4 sm:p-5 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Điểm tổng kết</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.overallScoreLabel")}</p>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="text-3xl sm:text-4xl font-extrabold text-[var(--color-primary)]">{data.overallScore}</span>
-                <span className="text-sm font-semibold text-[var(--color-on-surface-variant)]">/ 100 điểm</span>
+                <span className="text-sm font-semibold text-[var(--color-on-surface-variant)]">{t("candidate.assess.interviews.room.pointsDenominator")}</span>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-xs text-[var(--color-on-surface-variant)] block">Ngưỡng điểm đạt</span>
+              <span className="text-xs text-[var(--color-on-surface-variant)] block">{t("candidate.assess.interviews.room.passingThresholdLabel")}</span>
               <span className="text-base font-bold text-[var(--color-on-surface)]">{data.passingScore ?? 70}/100</span>
             </div>
           </div>
@@ -572,13 +699,13 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
       {data.status === "PASSED" && (
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <p className="text-sm text-emerald-800 font-medium">
-            Chúc mừng bạn đã vượt qua vòng AI Interview! Bạn có thể tiếp tục làm bài kiểm tra Assessment.
+            {t("candidate.assess.interviews.room.passedCongrats")}
           </p>
           <Link
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-700 transition-colors"
             to="/assessments"
           >
-            <span>Đến vòng Assessment</span>
+            <span>{t("candidate.assess.interviews.room.goToAssessments")}</span>
             <ArrowLeft className="size-4 rotate-180" aria-hidden="true" />
           </Link>
         </div>
@@ -589,16 +716,16 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
           {data.canRetry ? (
             <div className="space-y-3">
               <p className="text-sm text-[var(--color-on-surface-variant)]">
-                Bạn chưa đạt ngưỡng điểm yêu cầu cho vị trí này, tuy nhiên bạn vẫn còn lượt làm bài trước thời hạn.
+                {t("candidate.assess.interviews.room.failedCanRetry")}
               </p>
               <Button disabled={busy} onClick={onRetry} className="gap-2">
                 <RotateCcw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
-                {retrying ? "Đang tạo lượt mới…" : "Làm lại AI Interview"}
+                {retrying ? t("candidate.assess.interviews.room.creatingRetry") : t("candidate.assess.interviews.room.retryInterview")}
               </Button>
             </div>
           ) : (
             <p className="text-sm text-[var(--color-on-surface-variant)]">
-              Bạn chưa đạt ngưỡng điểm và đã sử dụng hết số lượt làm bài phỏng vấn cho vị trí này.
+              {t("candidate.assess.interviews.room.failedNoRetry")}
             </p>
           )}
         </div>
@@ -607,12 +734,13 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
   );
 }
 
-function submittedAnswer(question: AiQuestion) {
+function submittedAnswer(question: AiQuestion, t: TranslateFn) {
   const text = question.answer?.answerText?.trim();
-  if (!text) return "Chưa trả lời (0 điểm)";
+  if (!text) return t("candidate.assess.interviews.room.unansweredZeroPoints");
   if (question.options?.length) {
     const answer = parseChoiceAnswer(text);
-    return answer.selectedOptions.map(i => `${String.fromCharCode(65 + i)}. ${question.options![i]}`).join("\n") + (answer.explanation ? `\nGiải thích: ${answer.explanation}` : "");
+    return answer.selectedOptions.map(i => `${String.fromCharCode(65 + i)}. ${question.options![i]}`).join("\n")
+      + (answer.explanation ? `\n${t("candidate.assess.interviews.room.submittedExplanation", { text: answer.explanation })}` : "");
   }
   return text;
 }

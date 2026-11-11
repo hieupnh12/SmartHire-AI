@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, CalendarPlus, Video, MapPin, Link2, Clock, Users, User, Briefcase } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { useT } from "@/i18n";
 import type { InterviewMode, InterviewRound, MockInterview } from "../constants/mockInterviews";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, initialDate }: Props) {
+  const t = useT();
   const [candidateName, setCandidateName] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
   const [candidatePhone, setCandidatePhone] = useState("");
@@ -32,7 +34,7 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [interviewerName, setInterviewerName] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("https://meet.google.com/smarthire-interview-room");
-  const [location, setLocation] = useState("Tầng 5, Phòng họp A1 — Trụ sở chính");
+  const [location, setLocation] = useState(() => t("recruiter.ops.schedules.modal.defaultLocation"));
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -50,23 +52,23 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!candidateName.trim()) {
-      setError("Vui lòng nhập họ tên ứng viên");
+      setError(t("recruiter.ops.schedules.modal.errCandidateName"));
       return;
     }
     if (!jobTitle.trim()) {
-      setError("Vui lòng chọn hoặc nhập vị trí tuyển dụng");
+      setError(t("recruiter.ops.schedules.modal.errJobTitle"));
       return;
     }
     if (!startsAt) {
-      setError("Vui lòng chọn thời gian bắt đầu");
+      setError(t("recruiter.ops.schedules.modal.errStartsAt"));
       return;
     }
     if (mode === "ONLINE" && !meetingUrl.trim()) {
-      setError("Vui lòng nhập link meeting trực tuyến (Google Meet/Zoom/Teams)");
+      setError(t("recruiter.ops.schedules.modal.errMeetingUrl"));
       return;
     }
     if (mode === "OFFLINE" && !location.trim()) {
-      setError("Vui lòng nhập địa điểm hoặc phòng họp trực tiếp");
+      setError(t("recruiter.ops.schedules.modal.errLocation"));
       return;
     }
 
@@ -82,7 +84,7 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
       status: "CONFIRMED",
       startsAt: new Date(startsAt).toISOString(),
       durationMinutes: Number(durationMinutes) || 60,
-      interviewerName: interviewerName.trim() || "Hội đồng tuyển dụng SmartHire",
+      interviewerName: interviewerName.trim() || t("recruiter.ops.schedules.modal.defaultInterviewer"),
       locationOrLink: mode === "ONLINE" ? meetingUrl.trim() : location.trim(),
       note: note.trim() || undefined,
     };
@@ -111,17 +113,17 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
             </span>
             <div>
               <h2 id="schedule-dialog-title" className="text-lg font-bold text-[var(--color-on-surface)]">
-                Lên lịch phỏng vấn ứng viên
+                {t("recruiter.ops.schedules.modal.title")}
               </h2>
               <p className="text-xs text-[var(--color-on-surface-variant)]">
-                Tạo lịch hẹn và tự động cập nhật vào bảng lịch của công ty.
+                {t("recruiter.ops.schedules.modal.subtitle")}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng cửa sổ"
+            aria-label={t("recruiter.ops.schedules.modal.closeAria")}
             className="grid size-9 place-items-center rounded-xl text-[var(--color-outline)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-on-surface)]"
           >
             <X className="size-5" aria-hidden="true" />
@@ -139,17 +141,17 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
           {/* Candidate Info */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-outline)]">
-              Thông tin ứng viên
+              {t("recruiter.ops.schedules.modal.sectionCandidate")}
             </h3>
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Họ và tên ứng viên *</span>
+                <span>{t("recruiter.ops.schedules.modal.candidateNameLabel")}</span>
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                   <input
                     type="text"
                     required
-                    placeholder="VD: Nguyễn Văn An"
+                    placeholder={t("recruiter.ops.schedules.modal.candidateNamePlaceholder")}
                     value={candidateName}
                     onChange={(e) => { setCandidateName(e.target.value); setError(null); }}
                     className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 pl-9 pr-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -158,10 +160,10 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
               </label>
 
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Email ứng viên</span>
+                <span>{t("recruiter.ops.schedules.modal.candidateEmailLabel")}</span>
                 <input
                   type="email"
-                  placeholder="ungvien@example.com"
+                  placeholder={t("recruiter.ops.schedules.modal.candidateEmailPlaceholder")}
                   value={candidateEmail}
                   onChange={(e) => setCandidateEmail(e.target.value)}
                   className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 px-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -169,10 +171,10 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
               </label>
 
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Số điện thoại</span>
+                <span>{t("recruiter.ops.schedules.modal.candidatePhoneLabel")}</span>
                 <input
                   type="tel"
-                  placeholder="0912 345 678"
+                  placeholder={t("recruiter.ops.schedules.modal.candidatePhonePlaceholder")}
                   value={candidatePhone}
                   onChange={(e) => setCandidatePhone(e.target.value)}
                   className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 px-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -184,18 +186,18 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
           {/* Job & Round */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-outline)]">
-              Vị trí tuyển dụng & Vòng phỏng vấn
+              {t("recruiter.ops.schedules.modal.sectionJobRound")}
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Vị trí tuyển dụng *</span>
+                <span>{t("recruiter.ops.schedules.modal.jobTitleLabel")}</span>
                 <div className="relative">
                   <Briefcase className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                   <input
                     type="text"
                     required
                     list="available-jobs-list"
-                    placeholder="Chọn hoặc nhập vị trí"
+                    placeholder={t("recruiter.ops.schedules.modal.jobTitlePlaceholder")}
                     value={jobTitle}
                     onChange={(e) => { setJobTitle(e.target.value); setError(null); }}
                     className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 pl-9 pr-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -209,16 +211,16 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
               </label>
 
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Vòng phỏng vấn</span>
+                <span>{t("recruiter.ops.schedules.modal.roundLabel")}</span>
                 <select
                   value={round}
                   onChange={(e) => setRound(e.target.value as InterviewRound)}
                   className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 px-3 text-xs font-medium outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
                 >
-                  <option value="TECHNICAL">Kỹ thuật (Technical Round)</option>
-                  <option value="CULTURE">Văn hóa & Đội ngũ (Culture Fit)</option>
-                  <option value="EXECUTIVE">Phỏng vấn Lãnh đạo (Executive)</option>
-                  <option value="AI_INTERVIEW">Phỏng vấn AI (SmartHire Bot)</option>
+                  <option value="TECHNICAL">{t("recruiter.ops.schedules.modal.roundOptTechnical")}</option>
+                  <option value="CULTURE">{t("recruiter.ops.schedules.modal.roundOptCulture")}</option>
+                  <option value="EXECUTIVE">{t("recruiter.ops.schedules.modal.roundOptExecutive")}</option>
+                  <option value="AI_INTERVIEW">{t("recruiter.ops.schedules.modal.roundOptAi")}</option>
                 </select>
               </label>
             </div>
@@ -227,11 +229,11 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
           {/* Time & Duration */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-outline)]">
-              Thời gian & Địa điểm
+              {t("recruiter.ops.schedules.modal.sectionTimeLocation")}
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Thời gian bắt đầu *</span>
+                <span>{t("recruiter.ops.schedules.modal.startsAtLabel")}</span>
                 <input
                   type="datetime-local"
                   required
@@ -242,7 +244,7 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
               </label>
 
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Thời lượng (phút)</span>
+                <span>{t("recruiter.ops.schedules.modal.durationLabel")}</span>
                 <div className="relative">
                   <Clock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                   <input
@@ -259,7 +261,7 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
 
             {/* Mode: Online / Offline */}
             <div className="space-y-2">
-              <span className="block text-xs font-semibold text-[var(--color-on-surface)]">Hình thức phỏng vấn</span>
+              <span className="block text-xs font-semibold text-[var(--color-on-surface)]">{t("recruiter.ops.schedules.modal.modeLabel")}</span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -271,7 +273,7 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
                   }`}
                 >
                   <Video className="size-4" />
-                  Trực tuyến (Online)
+                  {t("recruiter.ops.schedules.modal.modeOnlineBtn")}
                 </button>
                 <button
                   type="button"
@@ -283,19 +285,19 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
                   }`}
                 >
                   <MapPin className="size-4" />
-                  Trực tiếp (Tại văn phòng)
+                  {t("recruiter.ops.schedules.modal.modeOfflineBtn")}
                 </button>
               </div>
             </div>
 
             {mode === "ONLINE" ? (
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Link phòng họp trực tuyến (Google Meet / Zoom / Teams) *</span>
+                <span>{t("recruiter.ops.schedules.modal.meetingUrlLabel")}</span>
                 <div className="relative">
                   <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                   <input
                     type="url"
-                    placeholder="https://meet.google.com/abc-xyz"
+                    placeholder={t("recruiter.ops.schedules.modal.meetingUrlPlaceholder")}
                     value={meetingUrl}
                     onChange={(e) => setMeetingUrl(e.target.value)}
                     className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 pl-9 pr-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -304,12 +306,12 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
               </label>
             ) : (
               <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-                <span>Địa điểm & Phòng họp *</span>
+                <span>{t("recruiter.ops.schedules.modal.locationLabel")}</span>
                 <div className="relative">
                   <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                   <input
                     type="text"
-                    placeholder="VD: Phòng 801, Tầng 8 - Trụ sở chính"
+                    placeholder={t("recruiter.ops.schedules.modal.locationPlaceholder")}
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 pl-9 pr-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -322,12 +324,12 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
           {/* Interviewer & Notes */}
           <div className="space-y-3">
             <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-              <span>Hội đồng phỏng vấn / Người phụ trách</span>
+              <span>{t("recruiter.ops.schedules.modal.interviewersLabel")}</span>
               <div className="relative">
                 <Users className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" />
                 <input
                   type="text"
-                  placeholder="VD: Lê Minh (Tech Lead), Trần Quân (HR Manager)"
+                  placeholder={t("recruiter.ops.schedules.modal.interviewersPlaceholder")}
                   value={interviewerName}
                   onChange={(e) => setInterviewerName(e.target.value)}
                   className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2.5 pl-9 pr-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -336,10 +338,10 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
             </label>
 
             <label className="block space-y-1 text-xs font-semibold text-[var(--color-on-surface)]">
-              <span>Ghi chú nội bộ hoặc lưu ý cho ứng viên</span>
+              <span>{t("recruiter.ops.schedules.modal.noteLabel")}</span>
               <textarea
                 rows={2}
-                placeholder="Chuẩn bị CV, portfolio hoặc thông tin cần thiết..."
+                placeholder={t("recruiter.ops.schedules.modal.notePlaceholder")}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] p-3 text-xs outline-none transition-all focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
@@ -350,11 +352,11 @@ export function ScheduleModalDialog({ open, onClose, onSave, availableJobs, init
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 border-t border-[var(--color-border-default)] pt-4">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Hủy bỏ
+              {t("recruiter.ops.schedules.modal.cancelBtn")}
             </Button>
             <Button type="submit" variant="primary">
               <CalendarPlus className="mr-1.5 size-4" />
-              Lưu & Xác nhận lịch
+              {t("recruiter.ops.schedules.modal.submitBtn")}
             </Button>
           </div>
         </form>

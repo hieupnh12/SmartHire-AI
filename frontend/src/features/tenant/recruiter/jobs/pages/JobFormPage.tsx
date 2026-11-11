@@ -34,6 +34,7 @@ import {
 import { jobApi } from "@/api/tenant/jobApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import type { CvScreeningConfig, GateScreeningConfig, JobUpsertRequest } from "@/api/types/job";
+import { formatDateTime as formatI18nDateTime, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -46,49 +47,49 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
 
 const CURRENCIES = ["VND", "USD", "EUR", "JPY"];
-// Mirrors CvMatchingService scoring; update both together.
-const CV_WEIGHT_HELP = {
-  required: "Mỗi kỹ năng bắt buộc của job được chấm: CV ghi đúng tên kỹ năng (không phân biệt hoa thường, nhận cả tên gọi khác) hoặc Gemini đánh giá khớp = 100, Gemini đánh giá khớp một phần = 50, không có = 0. Điểm mục này là trung bình các kỹ năng. Thiếu hẳn bất kỳ kỹ năng bắt buộc nào (không khớp cả một phần) thì CV không đạt, dù tổng điểm cao. Trọng số của các mục không áp dụng cho job (vd. job không yêu cầu kinh nghiệm) được cộng dồn vào mục này.",
-  preferred: "Chấm giống Kỹ năng bắt buộc (có = 100, một phần = 50, không có = 0) nhưng cho các kỹ năng không bắt buộc. Thiếu không làm CV trượt. Job không có kỹ năng tùy chọn thì trọng số chuyển sang Kỹ năng bắt buộc.",
-  experience: "Số năm kinh nghiệm trong CV ÷ số năm tối thiểu của job × 100, tối đa 100. Ví dụ: yêu cầu 4 năm, CV có 3 năm → 75 điểm. Job không đặt số năm tối thiểu thì trọng số chuyển sang Kỹ năng bắt buộc.",
-  education: "Bằng cấp cao nhất trong CV đạt hoặc vượt yêu cầu = 100 điểm, thấp hơn một bậc = 50, thấp hơn nữa hoặc không xác định = 0. Job không yêu cầu học vấn thì trọng số chuyển sang Kỹ năng bắt buộc.",
-  jaccard: "Số kỹ năng chung giữa CV và job ÷ tổng số kỹ năng khác nhau của cả hai × 100 (hệ số Jaccard). Ví dụ: job cần 4 kỹ năng, CV liệt kê 6, trùng 3 → 3 ÷ 7 ≈ 43 điểm. CV liệt kê nhiều kỹ năng không liên quan sẽ bị kéo điểm xuống.",
-  semantic: "Gemini đọc CV và đánh giá từng kỹ năng của job, kể cả khi CV dùng cách gọi khác: khớp = 100, một phần = 50, không có = 0. Điểm mục này là trung bình các kỹ năng Gemini đánh giá được. Nếu Gemini không chạy được, trọng số chuyển sang Kỹ năng bắt buộc.",
-  threshold: "Điểm CV = tổng (điểm từng mục × trọng số ÷ 100), thang 0–100. CV đạt khi đủ cả ba điều kiện: điểm ≥ ngưỡng, không thiếu kỹ năng bắt buộc nào, và job có khai báo kỹ năng (hoặc Gemini đã chấm được CV).",
-};
-// Mirrors GateScreeningService scoring; update both together.
-const GATE_WEIGHT_HELP = {
-  cv: "Điểm sàng lọc CV mới nhất của hồ sơ (0–100), tính theo các trọng số CV ở trên.",
-  aiInterview: "Điểm tổng của lượt phỏng vấn AI gần nhất đã chấm xong (0–100). Lượt đang làm hoặc bị lỗi chưa được tính.",
-  assessment: "Điểm bài kiểm tra gần nhất đã chấm xong, quy về thang 100: điểm đạt được ÷ tổng điểm tối đa của đề × 100. Ví dụ đạt 30/40 điểm → 75.",
-  threshold: "Điểm tổng hợp = điểm CV × trọng số CV + điểm phỏng vấn AI × trọng số PV + điểm bài kiểm tra × trọng số BKT, tất cả ÷ 100. Hồ sơ chỉ đạt khi đã có đủ điểm của mọi vòng có trọng số > 0 và tổng ≥ ngưỡng. Vòng nào đặt trọng số 0 thì không cần chờ.",
-};
-const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại học", "Thạc sĩ", "Tiến sĩ"];
-const EMPLOYMENT_TYPES = [
-  { value: "FULL_TIME", label: "Toàn thời gian" },
-  { value: "PART_TIME", label: "Bán thời gian" },
-  { value: "CONTRACT", label: "Hợp đồng" },
-  { value: "INTERNSHIP", label: "Thực tập" },
-];
-const WORK_MODES = [
-  { value: "ONSITE", label: "Tại văn phòng", icon: Building2 },
-  { value: "HYBRID", label: "Kết hợp", icon: Shuffle },
-  { value: "REMOTE", label: "Từ xa", icon: Laptop },
-];
-const SCREENING_MODES = [
+const EDUCATION_LEVEL_OPTIONS = [
+  { value: "Trung học phổ thông", labelKey: "recruiter.ops.educationLevels.highSchool" },
+  { value: "Cao đẳng", labelKey: "recruiter.ops.educationLevels.college" },
+  { value: "Đại học", labelKey: "recruiter.ops.educationLevels.bachelor" },
+  { value: "Thạc sĩ", labelKey: "recruiter.ops.educationLevels.master" },
+  { value: "Tiến sĩ", labelKey: "recruiter.ops.educationLevels.doctorate" },
+] as const;
+const EDUCATION_WIRE_VALUES = new Set<string>(EDUCATION_LEVEL_OPTIONS.map((item) => item.value));
+
+function getEducationDisplay(value: string | undefined, t: TranslateFn) {
+  if (!value) return t("recruiter.ops.common.noRequirement");
+  const found = EDUCATION_LEVEL_OPTIONS.find((item) => item.value === value);
+  return found ? t(found.labelKey) : value;
+}
+
+const EMPLOYMENT_TYPE_DEFS = [
+  { value: "FULL_TIME", labelKey: "recruiter.ops.employmentTypes.FULL_TIME" },
+  { value: "PART_TIME", labelKey: "recruiter.ops.employmentTypes.PART_TIME" },
+  { value: "CONTRACT", labelKey: "recruiter.ops.employmentTypes.CONTRACT" },
+  { value: "INTERNSHIP", labelKey: "recruiter.ops.employmentTypes.INTERNSHIP" },
+] as const;
+
+const WORK_MODE_DEFS = [
+  { value: "ONSITE", labelKey: "recruiter.ops.workModes.ONSITE", icon: Building2 },
+  { value: "HYBRID", labelKey: "recruiter.ops.workModes.HYBRID", icon: Shuffle },
+  { value: "REMOTE", labelKey: "recruiter.ops.workModes.REMOTE", icon: Laptop },
+] as const;
+
+const SCREENING_MODE_DEFS = [
   {
     value: "MANUAL",
-    label: "Lọc thủ công",
+    labelKey: "recruiter.ops.jobs.form.screeningModes.MANUAL.label",
+    descriptionKey: "recruiter.ops.jobs.form.screeningModes.MANUAL.description",
     icon: UserCheck,
-    description: "AI chấm điểm mọi CV, recruiter quyết định ai qua vòng CV.",
   },
   {
     value: "AUTO",
-    label: "Lọc tự động",
+    labelKey: "recruiter.ops.jobs.form.screeningModes.AUTO.label",
+    descriptionKey: "recruiter.ops.jobs.form.screeningModes.AUTO.description",
     icon: Bot,
-    description: "Hệ thống tự cho qua CV đạt ngưỡng và đủ kỹ năng bắt buộc.",
   },
-];
+] as const;
+
 const DEADLINE_PRESETS = [7, 14, 30];
 /** Starting values match the previous CV formula so existing jobs stay comparable. Recruiter must keep each group at 100%. */
 const INITIAL_CV: CvScreeningConfig = {
@@ -108,39 +109,14 @@ const INITIAL_GATE: GateScreeningConfig = {
 };
 
 type Step = { label: string; description: string; icon: LucideIcon; tip: string };
-const STEPS: Step[] = [
-  {
-    label: "Thông tin cơ bản",
-    description: "Vị trí, hình thức làm việc và hạn nhận hồ sơ.",
-    icon: BriefcaseBusiness,
-    tip: "Tiêu đề rõ ràng, có cấp bậc và công nghệ chính (VD: “Senior Backend Developer (Java)”) giúp tin dễ được tìm thấy hơn.",
-  },
-  {
-    label: "Mô tả & quyền lợi",
-    description: "Nội dung tin tuyển dụng và mức lương.",
-    icon: FileText,
-    tip: "Mô tả cụ thể công việc hằng ngày. AI dùng nội dung này làm ngữ cảnh khi chấm CV, nên càng rõ thì điểm càng sát.",
-  },
-  {
-    label: "Yêu cầu ứng viên",
-    description: "Kinh nghiệm, học vấn và kỹ năng cần có.",
-    icon: GraduationCap,
-    tip: "Chỉ đặt Bắt buộc cho kỹ năng thật sự không thể thiếu. CV thiếu kỹ năng bắt buộc sẽ không đạt vòng CV.",
-  },
-  {
-    label: "Sàng lọc & chấm điểm",
-    description: "Chế độ lọc CV và trọng số chấm điểm.",
-    icon: SlidersHorizontal,
-    tip: "Trọng số mặc định phù hợp đa số vị trí kỹ thuật. Mỗi nhóm trọng số phải tổng đúng 100%.",
-  },
-  {
-    label: "Xem lại & đăng",
-    description: "Kiểm tra tin như ứng viên sẽ thấy.",
-    icon: Eye,
-    tip: "Tin đã đăng vẫn sửa được. Có thể lưu nháp để đồng nghiệp xem trước khi đăng.",
-  },
-];
-const LAST_STEP = STEPS.length - 1;
+const STEP_DEFS = [
+  { key: "basic", icon: BriefcaseBusiness },
+  { key: "content", icon: FileText },
+  { key: "requirements", icon: GraduationCap },
+  { key: "screening", icon: SlidersHorizontal },
+  { key: "review", icon: Eye },
+] as const;
+const LAST_STEP = STEP_DEFS.length - 1;
 
 type Issue = { step: number; key: string; message: string; invalid: boolean };
 
@@ -149,6 +125,7 @@ function weightSum(values: number[]) {
 }
 
 export function JobFormPage() {
+  const t = useT();
   const { id } = useParams();
   const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const editing = Boolean(jobId);
@@ -158,12 +135,41 @@ export function JobFormPage() {
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
 
+  const steps: Step[] = useMemo(
+    () =>
+      STEP_DEFS.map((def) => ({
+        label: t(`recruiter.ops.jobs.form.steps.${def.key}.label`),
+        description: t(`recruiter.ops.jobs.form.steps.${def.key}.description`),
+        tip: t(`recruiter.ops.jobs.form.steps.${def.key}.tip`),
+        icon: def.icon,
+      })),
+    [t],
+  );
+  const employmentTypes = useMemo(
+    () => EMPLOYMENT_TYPE_DEFS.map((item) => ({ value: item.value, label: t(item.labelKey) })),
+    [t],
+  );
+  const workModes = useMemo(
+    () => WORK_MODE_DEFS.map((item) => ({ value: item.value, label: t(item.labelKey), icon: item.icon })),
+    [t],
+  );
+  const screeningModes = useMemo(
+    () =>
+      SCREENING_MODE_DEFS.map((item) => ({
+        value: item.value,
+        label: t(item.labelKey),
+        description: t(item.descriptionKey),
+        icon: item.icon,
+      })),
+    [t],
+  );
+
   useEffect(() => {
     if (!editing && user && !canCreateJob) {
-      toast.danger("Bạn không có quyền tạo tin tuyển dụng mới");
+      toast.danger(t("recruiter.ops.jobs.form.noCreatePermission"));
       navigate("/recruiter", { replace: true });
     }
-  }, [editing, user, canCreateJob, navigate]);
+  }, [editing, user, canCreateJob, navigate, t]);
 
   const topRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
@@ -276,7 +282,7 @@ export function JobFormPage() {
       navigate(`/recruiter/jobs/${response.data.id}`);
     },
     onError: (err) => {
-      toast.danger(getApiErrorMessage(err, "Không thể lưu tin tuyển dụng"));
+      toast.danger(getApiErrorMessage(err, t("recruiter.ops.jobs.form.saveError")));
     },
   });
 
@@ -323,17 +329,17 @@ export function JobFormPage() {
   const salaryInvalid = form.salaryMin != null && form.salaryMax != null && Number(form.salaryMin) > Number(form.salaryMax);
   const deadlinePast = Boolean(form.deadline) && new Date(form.deadline!).getTime() <= Date.now();
   const draftIssues: Issue[] = [
-    { step: 0, key: "title", message: "Nhập tiêu đề tin tuyển dụng.", invalid: !form.title.trim() },
-    { step: 0, key: "headcount", message: "Số lượng cần tuyển tối thiểu là 1.", invalid: !(Number(form.headcount) >= 1) },
-    { step: 1, key: "salary", message: "Lương tối thiểu không được lớn hơn lương tối đa.", invalid: salaryInvalid },
-    { step: 3, key: "cv", message: "Trọng số sàng lọc CV phải tổng đúng 100%.", invalid: cvTotal !== 100 },
-    { step: 3, key: "gate", message: "Trọng số đánh giá tổng hợp phải tổng đúng 100%.", invalid: gateTotal !== 100 },
+    { step: 0, key: "title", message: t("recruiter.ops.jobs.form.validation.title"), invalid: !form.title.trim() },
+    { step: 0, key: "headcount", message: t("recruiter.ops.jobs.form.validation.headcount"), invalid: !(Number(form.headcount) >= 1) },
+    { step: 1, key: "salary", message: t("recruiter.ops.jobs.form.validation.salary"), invalid: salaryInvalid },
+    { step: 3, key: "cv", message: t("recruiter.ops.jobs.form.validation.cv"), invalid: cvTotal !== 100 },
+    { step: 3, key: "gate", message: t("recruiter.ops.jobs.form.validation.gate"), invalid: gateTotal !== 100 },
   ];
   const publishIssues: Issue[] = [
     ...draftIssues,
-    { step: 0, key: "deadline", message: "Hạn nhận hồ sơ phải sau thời điểm hiện tại.", invalid: deadlinePast },
-    { step: 1, key: "description", message: "Nhập mô tả công việc để đăng tuyển.", invalid: !(form.description ?? "").trim() },
-    { step: 2, key: "skills", message: "Chọn ít nhất 1 kỹ năng để đăng tuyển.", invalid: selected.length === 0 },
+    { step: 0, key: "deadline", message: t("recruiter.ops.jobs.form.validation.deadline"), invalid: deadlinePast },
+    { step: 1, key: "description", message: t("recruiter.ops.jobs.form.validation.description"), invalid: !(form.description ?? "").trim() },
+    { step: 2, key: "skills", message: t("recruiter.ops.jobs.form.validation.skills"), invalid: selected.length === 0 },
   ];
   const activeIssues = (showErrors === "publish" ? publishIssues : showErrors === "draft" ? draftIssues : [])
     .filter((issue) => issue.invalid);
@@ -374,7 +380,7 @@ export function JobFormPage() {
     .filter((group) => group.skills.length > 0);
   const canAddCustom = query.length > 0 && !selectedNames.has(query)
     && !SKILL_CATALOG.some((group) => group.skills.some((name) => name.toLowerCase() === query));
-  const current = STEPS[step];
+  const current = steps[step];
   const CurrentIcon = current.icon;
   const cancelTo = editing ? `/recruiter/jobs/${id}` : "/recruiter";
   return (
@@ -382,7 +388,7 @@ export function JobFormPage() {
       {existing.isError && <ErrorBox>{getApiErrorMessage(existing.error)}</ErrorBox>}
 
       <div className="grid items-start gap-6 lg:grid-cols-[256px_minmax(0,1fr)] xl:min-h-0 xl:flex-1 xl:grid-cols-[256px_minmax(0,1fr)_320px] xl:items-stretch">
-        <Stepper step={step} complete={stepComplete} issues={activeIssues} onSelect={setStep} />
+        <Stepper steps={steps} step={step} complete={stepComplete} issues={activeIssues} onSelect={setStep} />
         <form
           noValidate
           className={cn(panel, "flex min-w-0 flex-col p-0 xl:h-full xl:min-h-0 xl:overflow-hidden")}
@@ -393,7 +399,9 @@ export function JobFormPage() {
               <CurrentIcon className="size-4" aria-hidden="true" />
             </span>
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-primary)] shadow-sm">Bước {step + 1}/{STEPS.length}</span>
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-primary)] shadow-sm">
+                {t("recruiter.ops.jobs.form.stepCounter", { current: step + 1, total: steps.length })}
+              </span>
               <h2 className="text-base font-semibold leading-6">{current.label}</h2>
               <p className="min-w-0 flex-1 truncate text-xs text-[var(--color-on-surface-variant)] sm:text-right">{current.description}</p>
             </div>
@@ -404,7 +412,7 @@ export function JobFormPage() {
               <div role="alert" className="rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]">
                 <p className="flex items-center gap-2 font-semibold">
                   <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-                  Cần sửa {stepIssues.length} mục trước khi tiếp tục
+                  {t("recruiter.ops.jobs.form.fixIssuesCount", { count: stepIssues.length })}
                 </p>
                 <ul className="mt-1.5 list-disc space-y-0.5 pl-10">
                   {stepIssues.map((issue) => <li key={issue.key}>{issue.message}</li>)}
@@ -414,21 +422,21 @@ export function JobFormPage() {
 
             {step === 0 && (
               <>
-                <FieldGroup title="Vị trí tuyển dụng">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupBasicTitle")}>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Tiêu đề tin tuyển dụng" required error={errorOf("title")} className="sm:col-span-2" counter={`${form.title.length}/120`}>
-                      <input className={inputClass(errorOf("title"))} maxLength={120} placeholder="VD: Senior Backend Developer (Java)" value={form.title} onChange={(e) => set("title", e.target.value)} />
+                    <Field label={t("recruiter.ops.jobs.form.titleLabel")} required error={errorOf("title")} className="sm:col-span-2" counter={`${form.title.length}/120`}>
+                      <input className={inputClass(errorOf("title"))} maxLength={120} placeholder={t("recruiter.ops.jobs.form.titlePlaceholder")} value={form.title} onChange={(e) => set("title", e.target.value)} />
                     </Field>
-                    <Field label="Phòng ban" hint={locationDepts.length > 0 ? `Ưu tiên phòng ban tại ${form.location}` : undefined}>
+                    <Field label={t("recruiter.ops.jobs.form.departmentLabel")} hint={locationDepts.length > 0 ? t("recruiter.ops.jobs.form.departmentHintLocation", { location: form.location ?? "" }) : undefined}>
                       <select className={input} value={form.department} onChange={(e) => set("department", e.target.value)} disabled={directory.isPending}>
-                        <option value="">Chọn phòng ban</option>
+                        <option value="">{t("recruiter.ops.jobs.form.departmentPlaceholder")}</option>
                         {locationDepts.length > 0 ? (
                           <>
-                            <optgroup label={`Phòng ban tại ${form.location}`}>
+                            <optgroup label={t("recruiter.ops.jobs.form.departmentsAtLocation", { location: form.location ?? "" })}>
                               {locationDepts.map((value) => <option key={value} value={value}>{value}</option>)}
                             </optgroup>
                             {otherDepts.length > 0 && (
-                              <optgroup label="Các phòng ban khác">
+                              <optgroup label={t("recruiter.ops.jobs.form.otherDepartments")}>
                                 {otherDepts.map((value) => <option key={value} value={value}>{value}</option>)}
                               </optgroup>
                             )}
@@ -438,40 +446,40 @@ export function JobFormPage() {
                         )}
                       </select>
                     </Field>
-                    <Field label="Số lượng cần tuyển" required error={errorOf("headcount")}>
+                    <Field label={t("recruiter.ops.jobs.form.headcountLabel")} required error={errorOf("headcount")}>
                       <input className={cn(inputClass(errorOf("headcount")), "tabular-nums")} type="number" min={1} value={form.headcount ?? 1} onChange={(e) => set("headcount", Number(e.target.value))} />
                     </Field>
                   </div>
                 </FieldGroup>
 
-                <FieldGroup title="Hình thức làm việc">
-                  <ChoiceGroup label="Loại hình" value={form.employmentType ?? "FULL_TIME"} options={EMPLOYMENT_TYPES} onChange={(v) => set("employmentType", v)} columns="sm:grid-cols-4" />
-                  <ChoiceGroup label="Nơi làm việc" value={form.workMode ?? "HYBRID"} options={WORK_MODES} onChange={(v) => set("workMode", v)} columns="sm:grid-cols-3" />
-                  <Field label="Địa điểm làm việc">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupWorkArrangement")}>
+                  <ChoiceGroup label={t("recruiter.ops.jobs.form.employmentTypeLabel")} value={form.employmentType ?? "FULL_TIME"} options={employmentTypes} onChange={(v) => set("employmentType", v)} columns="sm:grid-cols-4" />
+                  <ChoiceGroup label={t("recruiter.ops.jobs.form.workModeLabel")} value={form.workMode ?? "HYBRID"} options={workModes} onChange={(v) => set("workMode", v)} columns="sm:grid-cols-3" />
+                  <Field label={t("recruiter.ops.jobs.form.locationLabel")}>
                     <span className="relative block">
                       <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
                       <select className={cn(input, "pl-9")} value={form.location} onChange={(e) => set("location", e.target.value)} disabled={directory.isPending}>
-                        <option value="">Chọn địa điểm công ty</option>
+                        <option value="">{t("recruiter.ops.jobs.form.locationPlaceholder")}</option>
                         {(directory.data?.data.locations ?? []).map((value) => <option key={value} value={value}>{value}</option>)}
                       </select>
                     </span>
                   </Field>
                 </FieldGroup>
 
-                <FieldGroup title="Hạn nhận hồ sơ">
-                  <Field label="Hết hạn đăng tin" error={errorOf("deadline")} hint="Hết giờ này job tự đóng và AI chấm toàn bộ CV chưa chấm.">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupDeadline")}>
+                  <Field label={t("recruiter.ops.jobs.form.deadlineLabel")} error={errorOf("deadline")} hint={t("recruiter.ops.jobs.form.deadlineHint")}>
                     <input className={inputClass(errorOf("deadline"))} type="datetime-local" value={form.deadline ?? ""} onChange={(e) => set("deadline", e.target.value)} />
                   </Field>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">Chọn nhanh:</span>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.form.quickSelect")}</span>
                     {DEADLINE_PRESETS.map((days) => (
                       <button key={days} type="button" className={chipClass(false)} onClick={() => set("deadline", deadlineAfter(days))}>
-                        {days} ngày
+                        {t("recruiter.ops.jobs.form.daysPreset", { days })}
                       </button>
                     ))}
                     {form.deadline && (
                       <button type="button" className={chipClass(false)} onClick={() => set("deadline", "")}>
-                        Không giới hạn
+                        {t("recruiter.ops.jobs.form.unlimitedDeadline")}
                       </button>
                     )}
                   </div>
@@ -481,27 +489,27 @@ export function JobFormPage() {
 
             {step === 1 && (
               <>
-                <FieldGroup title="Nội dung tin tuyển dụng">
-                  <Field label="Mô tả công việc" required error={errorOf("description")} counter={`${(form.description ?? "").length} ký tự`}>
-                    <textarea className={inputClass(errorOf("description"))} rows={7} placeholder={"Giới thiệu vị trí, đội ngũ và mục tiêu công việc.\nVD: Tham gia phát triển hệ thống thanh toán phục vụ 2 triệu người dùng…"} value={form.description} onChange={(e) => set("description", e.target.value)} />
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupContentTitle")}>
+                  <Field label={t("recruiter.ops.jobs.form.descriptionLabel")} required error={errorOf("description")} counter={t("recruiter.ops.jobs.form.charCount", { count: (form.description ?? "").length })}>
+                    <textarea className={inputClass(errorOf("description"))} rows={7} placeholder={t("recruiter.ops.jobs.form.descriptionPlaceholder")} value={form.description} onChange={(e) => set("description", e.target.value)} />
                   </Field>
-                  <Field label="Trách nhiệm chính" hint="Mỗi dòng một ý. Ứng viên sẽ thấy dạng danh sách.">
-                    <textarea className={input} rows={5} placeholder={"Thiết kế và phát triển REST API\nReview code cho thành viên trong nhóm"} value={form.responsibilities} onChange={(e) => set("responsibilities", e.target.value)} />
+                  <Field label={t("recruiter.ops.jobs.form.responsibilitiesLabel")} hint={t("recruiter.ops.jobs.form.responsibilitiesHint")}>
+                    <textarea className={input} rows={5} placeholder={t("recruiter.ops.jobs.form.responsibilitiesPlaceholder")} value={form.responsibilities} onChange={(e) => set("responsibilities", e.target.value)} />
                   </Field>
-                  <Field label="Quyền lợi" hint="Mỗi dòng một ý.">
-                    <textarea className={input} rows={5} placeholder={"Lương tháng 13, thưởng hiệu suất\nBảo hiểm sức khỏe cao cấp\n12 ngày phép/năm"} value={form.benefits} onChange={(e) => set("benefits", e.target.value)} />
+                  <Field label={t("recruiter.ops.jobs.form.benefitsLabel")} hint={t("recruiter.ops.jobs.form.benefitsHint")}>
+                    <textarea className={input} rows={5} placeholder={t("recruiter.ops.jobs.form.benefitsPlaceholder")} value={form.benefits} onChange={(e) => set("benefits", e.target.value)} />
                   </Field>
                 </FieldGroup>
 
-                <FieldGroup title="Mức lương">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupSalaryTitle")}>
                   <div className="grid gap-4 sm:grid-cols-[1fr_1fr_140px]">
-                    <Field label="Từ" error={errorOf("salary")}>
+                    <Field label={t("recruiter.ops.jobs.form.salaryFrom")} error={errorOf("salary")}>
                       <input className={cn(inputClass(errorOf("salary")), "tabular-nums")} type="number" min={0} placeholder="15000000" value={form.salaryMin ?? ""} onChange={(e) => set("salaryMin", e.target.value ? Number(e.target.value) : null)} />
                     </Field>
-                    <Field label="Đến">
+                    <Field label={t("recruiter.ops.jobs.form.salaryTo")}>
                       <input className={cn(inputClass(errorOf("salary")), "tabular-nums")} type="number" min={0} placeholder="30000000" value={form.salaryMax ?? ""} onChange={(e) => set("salaryMax", e.target.value ? Number(e.target.value) : null)} />
                     </Field>
-                    <Field label="Tiền tệ">
+                    <Field label={t("recruiter.ops.jobs.form.currencyLabel")}>
                       <select className={input} value={form.salaryCurrency} onChange={(e) => set("salaryCurrency", e.target.value)}>
                         {CURRENCIES.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
                         {form.salaryCurrency && !CURRENCIES.includes(form.salaryCurrency) && (
@@ -511,8 +519,8 @@ export function JobFormPage() {
                     </Field>
                   </div>
                   <SwitchRow
-                    label="Hiển thị mức lương cho ứng viên"
-                    description="Tắt để hiển thị “Thỏa thuận” trên trang tuyển dụng."
+                    label={t("recruiter.ops.jobs.form.salaryVisibleLabel")}
+                    description={t("recruiter.ops.jobs.form.salaryVisibleDesc")}
                     checked={Boolean(form.salaryVisible)}
                     onChange={(checked) => set("salaryVisible", checked)}
                   />
@@ -522,19 +530,21 @@ export function JobFormPage() {
 
             {step === 2 && (
               <>
-                <FieldGroup title="Kinh nghiệm & học vấn">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupExpEduTitle")}>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Số năm kinh nghiệm tối thiểu">
+                    <Field label={t("recruiter.ops.jobs.form.minYearsLabel")}>
                       <span className="relative block">
                         <input className={cn(input, "pr-12 tabular-nums")} type="number" step="0.5" min={0} value={form.minYearsExperience ?? ""} onChange={(e) => set("minYearsExperience", e.target.value ? Number(e.target.value) : null)} />
-                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-[var(--color-on-surface-variant)]">năm</span>
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.form.yearsUnit")}</span>
                       </span>
                     </Field>
-                    <Field label="Trình độ học vấn">
+                    <Field label={t("recruiter.ops.jobs.form.educationLabel")}>
                       <select className={input} value={form.educationLevel} onChange={(e) => set("educationLevel", e.target.value)}>
-                        <option value="">Không yêu cầu</option>
-                        {EDUCATION_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-                        {form.educationLevel && !EDUCATION_LEVELS.includes(form.educationLevel) && (
+                        <option value="">{t("recruiter.ops.common.noRequirement")}</option>
+                        {EDUCATION_LEVEL_OPTIONS.map((level) => (
+                          <option key={level.value} value={level.value}>{t(level.labelKey)}</option>
+                        ))}
+                        {form.educationLevel && !EDUCATION_WIRE_VALUES.has(form.educationLevel) && (
                           <option value={form.educationLevel}>{form.educationLevel}</option>
                         )}
                       </select>
@@ -543,21 +553,21 @@ export function JobFormPage() {
                 </FieldGroup>
 
                 <FieldGroup
-                  title="Kỹ năng yêu cầu"
+                  title={t("recruiter.ops.jobs.form.groupSkillsTitle")}
                   aside={(
                     <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-primary-hover)]">
-                      {selected.length} kỹ năng · {requiredCount} bắt buộc
+                      {t("recruiter.ops.jobs.form.skillsCounter", { total: selected.length, required: requiredCount })}
                     </span>
                   )}
                 >
                   {errorOf("skills") && <InlineError>{errorOf("skills")}</InlineError>}
                   <div className="flex gap-2">
                     <label className="relative block flex-1">
-                      <span className="sr-only">Tìm hoặc thêm kỹ năng</span>
+                      <span className="sr-only">{t("recruiter.ops.jobs.form.searchSkillsSr")}</span>
                       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
                       <input
                         className={cn(input, "pl-9")}
-                        placeholder="Tìm kỹ năng hoặc nhập kỹ năng mới rồi nhấn Enter"
+                        placeholder={t("recruiter.ops.jobs.form.searchSkillsPlaceholder")}
                         value={skillQuery}
                         onChange={(e) => setSkillQuery(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
@@ -565,17 +575,19 @@ export function JobFormPage() {
                     </label>
                     <Button variant="secondary" disabled={!canAddCustom} onClick={addCustomSkill}>
                       <Plus className="size-4" aria-hidden="true" />
-                      Thêm
+                      {t("recruiter.ops.jobs.form.addSkillBtn")}
                     </Button>
                   </div>
 
                   <div className="space-y-4">
                     {catalog.length === 0 && (
-                      <p className="text-sm text-[var(--color-on-surface-variant)]">Không có trong danh mục. Nhấn “Thêm” để dùng kỹ năng “{skillQuery.trim()}”.</p>
+                      <p className="text-sm text-[var(--color-on-surface-variant)]">
+                        {t("recruiter.ops.jobs.form.skillNotInCatalog", { query: skillQuery.trim() })}
+                      </p>
                     )}
                     {catalog.map((group) => (
                       <div key={group.category} className="space-y-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{group.label}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t(group.labelKey)}</p>
                         <div className="flex flex-wrap gap-2">
                           {group.skills.map((name) => {
                             const active = selectedNames.has(name.toLowerCase());
@@ -592,9 +604,9 @@ export function JobFormPage() {
                   </div>
 
                   <div className="space-y-2 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
-                    <p className="text-sm font-semibold">Kỹ năng đã chọn</p>
+                    <p className="text-sm font-semibold">{t("recruiter.ops.jobs.form.selectedSkillsTitle")}</p>
                     {selected.length === 0 && (
-                      <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa chọn kỹ năng nào. Cần ít nhất 1 kỹ năng để đăng tuyển.</p>
+                      <p className="text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.form.noSkillsSelected")}</p>
                     )}
                     <ul className="flex flex-col gap-2">
                       {selected.map((skill) => (
@@ -602,14 +614,17 @@ export function JobFormPage() {
                           <span className="text-sm font-medium">{skill.name}</span>
                           <span className="flex items-center gap-2">
                             <Segmented
-                              label={`Mức yêu cầu của ${skill.name}`}
+                              label={t("recruiter.ops.jobs.form.skillRequirementAria", { name: skill.name })}
                               value={skill.required ? "required" : "optional"}
-                              options={[{ value: "required", label: "Bắt buộc" }, { value: "optional", label: "Tùy chọn" }]}
+                              options={[
+                                { value: "required", label: t("recruiter.ops.jobs.form.skillRequired") },
+                                { value: "optional", label: t("recruiter.ops.jobs.form.skillOptional") },
+                              ]}
                               onChange={(value) => { if ((value === "required") !== skill.required) toggleRequired(skill.name); }}
                             />
                             <button
                               type="button"
-                              aria-label={`Bỏ ${skill.name}`}
+                              aria-label={t("recruiter.ops.jobs.form.removeSkillAria", { name: skill.name })}
                               onClick={() => toggleSkill(skill.name, skill.category ?? "")}
                               className="grid size-8 place-items-center rounded-lg text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)]"
                             >
@@ -626,80 +641,88 @@ export function JobFormPage() {
 
             {step === 3 && (
               <>
-                <FieldGroup title="Chế độ sàng lọc CV" description="Khi job đóng, AI luôn chấm toàn bộ CV chưa chấm. Chế độ quyết định ai cho ứng viên qua vòng CV.">
+                <FieldGroup title={t("recruiter.ops.jobs.form.groupScreeningMode")} description={t("recruiter.ops.jobs.form.groupScreeningModeDesc")}>
                   <ChoiceGroup
-                    label="Chế độ sàng lọc CV"
+                    label={t("recruiter.ops.jobs.form.groupScreeningMode")}
                     hideLabel
                     value={form.screeningMode ?? "MANUAL"}
-                    options={SCREENING_MODES}
+                    options={screeningModes}
                     onChange={(v) => set("screeningMode", v)}
                     columns="sm:grid-cols-2"
                   />
                 </FieldGroup>
 
                 <FieldGroup
-                  title="Trọng số sàng lọc CV"
-                  description="Chỉ dùng để tính điểm CV. Tổng phải bằng 100%."
+                  title={t("recruiter.ops.jobs.form.groupCvWeights")}
+                  description={t("recruiter.ops.jobs.form.groupCvWeightsDesc")}
                   aside={<TotalBadge total={cvTotal} />}
                 >
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <WeightField label="Kỹ năng bắt buộc" help={CV_WEIGHT_HELP.required} value={cv.skillWeight} onChange={(v) => setCv("skillWeight", v)} />
-                    <WeightField label="Kỹ năng tùy chọn" help={CV_WEIGHT_HELP.preferred} value={cv.preferredWeight} onChange={(v) => setCv("preferredWeight", v)} />
-                    <WeightField label="Kinh nghiệm" help={CV_WEIGHT_HELP.experience} value={cv.experienceWeight} onChange={(v) => setCv("experienceWeight", v)} />
-                    <WeightField label="Học vấn" help={CV_WEIGHT_HELP.education} value={cv.educationWeight} onChange={(v) => setCv("educationWeight", v)} />
-                    <WeightField label="Độ trùng khớp kỹ năng" help={CV_WEIGHT_HELP.jaccard} value={cv.jaccardWeight} onChange={(v) => setCv("jaccardWeight", v)} />
-                    <WeightField label="Ngữ nghĩa" help={CV_WEIGHT_HELP.semantic} value={cv.semanticWeight} onChange={(v) => setCv("semanticWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvRequiredLabel")} help={t("recruiter.ops.jobs.form.cvHelp.required")} value={cv.skillWeight} onChange={(v) => setCv("skillWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvPreferredLabel")} help={t("recruiter.ops.jobs.form.cvHelp.preferred")} value={cv.preferredWeight} onChange={(v) => setCv("preferredWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvExperienceLabel")} help={t("recruiter.ops.jobs.form.cvHelp.experience")} value={cv.experienceWeight} onChange={(v) => setCv("experienceWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvEducationLabel")} help={t("recruiter.ops.jobs.form.cvHelp.education")} value={cv.educationWeight} onChange={(v) => setCv("educationWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvJaccardLabel")} help={t("recruiter.ops.jobs.form.cvHelp.jaccard")} value={cv.jaccardWeight} onChange={(v) => setCv("jaccardWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.cvSemanticLabel")} help={t("recruiter.ops.jobs.form.cvHelp.semantic")} value={cv.semanticWeight} onChange={(v) => setCv("semanticWeight", v)} />
                   </div>
                   <TotalMeter total={cvTotal} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WeightField
-                      label="Ngưỡng đạt CV"
-                      help={CV_WEIGHT_HELP.threshold}
+                      label={t("recruiter.ops.jobs.form.cvThresholdLabel")}
+                      help={t("recruiter.ops.jobs.form.cvHelp.threshold")}
                       suffix="/100"
                       value={cv.passThreshold}
                       onChange={(v) => setCv("passThreshold", v)}
-                      hint="CV đạt khi điểm ≥ ngưỡng và không thiếu kỹ năng bắt buộc."
+                      hint={t("recruiter.ops.jobs.form.cvThresholdHint")}
                     />
                   </div>
                 </FieldGroup>
 
                 <FieldGroup
-                  title="Trọng số đánh giá tổng hợp"
-                  description="Tổng hợp điểm CV, phỏng vấn AI và bài kiểm tra. Độc lập với trọng số CV."
+                  title={t("recruiter.ops.jobs.form.groupGateWeights")}
+                  description={t("recruiter.ops.jobs.form.groupGateWeightsDesc")}
                   aside={<TotalBadge total={gateTotal} />}
                 >
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <WeightField label="Điểm CV" help={GATE_WEIGHT_HELP.cv} value={gate.cvWeight} onChange={(v) => setGate("cvWeight", v)} />
-                    <WeightField label="Phỏng vấn AI" help={GATE_WEIGHT_HELP.aiInterview} value={gate.aiInterviewWeight} onChange={(v) => setGate("aiInterviewWeight", v)} />
-                    <WeightField label="Bài kiểm tra" help={GATE_WEIGHT_HELP.assessment} value={gate.assessmentWeight} onChange={(v) => setGate("assessmentWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.gateCvLabel")} help={t("recruiter.ops.jobs.form.gateHelp.cv")} value={gate.cvWeight} onChange={(v) => setGate("cvWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.gateAiLabel")} help={t("recruiter.ops.jobs.form.gateHelp.aiInterview")} value={gate.aiInterviewWeight} onChange={(v) => setGate("aiInterviewWeight", v)} />
+                    <WeightField label={t("recruiter.ops.jobs.form.gateAssessmentLabel")} help={t("recruiter.ops.jobs.form.gateHelp.assessment")} value={gate.assessmentWeight} onChange={(v) => setGate("assessmentWeight", v)} />
                   </div>
                   <TotalMeter total={gateTotal} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WeightField
-                      label="Ngưỡng đạt tổng hợp"
-                      help={GATE_WEIGHT_HELP.threshold}
+                      label={t("recruiter.ops.jobs.form.gateThresholdLabel")}
+                      help={t("recruiter.ops.jobs.form.gateHelp.threshold")}
                       suffix="/100"
                       value={gate.passThreshold}
                       onChange={(v) => setGate("passThreshold", v)}
-                      hint="Chỉ đạt khi đã có đủ điểm các vòng có trọng số > 0."
+                      hint={t("recruiter.ops.jobs.form.gateThresholdHint")}
                     />
                   </div>
                 </FieldGroup>
               </>
             )}
 
-            {step === 4 && <ReviewStep form={form} onEdit={setStep} />}
+            {step === 4 && (
+              <ReviewStep
+                form={form}
+                employmentTypes={employmentTypes}
+                workModes={workModes}
+                screeningModes={screeningModes}
+                onEdit={setStep}
+              />
+            )}
           </div>
 
           <div className="z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-b-3xl border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)]/95 px-6 py-4 backdrop-blur">
             <div className="flex flex-wrap items-center gap-2">
               <Link to={cancelTo} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius-md)] px-3 text-sm font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-on-surface)]">
-                Hủy
+                {t("recruiter.ops.common.cancel")}
               </Link>
               {step < LAST_STEP && (
                 <Button variant="secondary" disabled={save.isPending} onClick={() => submit(false)}>
                   <Save className="size-4" aria-hidden="true" />
-                  {editing ? "Lưu thay đổi" : "Lưu nháp"}
+                  {editing ? t("recruiter.ops.jobs.form.saveChangesBtn") : t("recruiter.ops.jobs.form.saveDraftBtn")}
                 </Button>
               )}
             </div>
@@ -707,7 +730,7 @@ export function JobFormPage() {
               {step > 0 && (
                 <Button variant="ghost" onClick={() => setStep((s) => Math.max(s - 1, 0))}>
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Quay lại
+                  {t("recruiter.ops.common.back")}
                 </Button>
               )}
               {save.isError && (
@@ -718,18 +741,18 @@ export function JobFormPage() {
               )}
               {step < LAST_STEP ? (
                 <Button type="submit">
-                  Tiếp tục
+                  {t("recruiter.ops.jobs.form.continueBtn")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Button>
               ) : editing && status !== "DRAFT" ? (
                 <Button disabled={save.isPending} onClick={() => submit(false)}>
                   <Save className="size-4" aria-hidden="true" />
-                  {save.isPending ? "Đang lưu…" : "Lưu thay đổi"}
+                  {save.isPending ? t("recruiter.ops.common.saving") : t("recruiter.ops.jobs.form.saveChangesBtn")}
                 </Button>
               ) : (
                 <Button disabled={save.isPending} onClick={() => submit(true)}>
                   <Send className="size-4" aria-hidden="true" />
-                  {save.isPending ? "Đang đăng…" : "Đăng tuyển"}
+                  {save.isPending ? t("recruiter.ops.jobs.form.publishingBtn") : t("recruiter.ops.jobs.form.publishBtn")}
                 </Button>
               )}
             </div>
@@ -737,10 +760,10 @@ export function JobFormPage() {
         </form>
 
         <aside className="flex flex-col gap-4 lg:col-start-2 xl:col-start-3 xl:row-start-1 xl:h-full xl:overflow-hidden">
-          <PreviewCard form={form} />
+          <PreviewCard form={form} employmentTypes={employmentTypes} workModes={workModes} />
           <div className={cn(panel, "space-y-3 p-5")}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">Sẵn sàng đăng tuyển</h2>
+              <h2 className="text-sm font-semibold">{t("recruiter.ops.jobs.form.readyToPublishTitle")}</h2>
               <span className="text-xs font-semibold tabular-nums text-[var(--color-on-surface-variant)]">{readyCount}/{publishIssues.length}</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-container)]">
@@ -753,8 +776,12 @@ export function JobFormPage() {
                     {issue.invalid
                       ? <Circle className="mt-0.5 size-4 shrink-0 text-[var(--color-outline-variant)]" aria-hidden="true" />
                       : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />}
-                    <span className={issue.invalid ? "text-[var(--color-on-surface-variant)]" : ""}>{CHECK_LABEL[issue.key]}</span>
-                    <span className="sr-only">{issue.invalid ? "(chưa xong)" : "(đã xong)"}</span>
+                    <span className={issue.invalid ? "text-[var(--color-on-surface-variant)]" : ""}>
+                      {t(`recruiter.ops.jobs.form.checklistLabels.${issue.key}`)}
+                    </span>
+                    <span className="sr-only">
+                      {issue.invalid ? t("recruiter.ops.jobs.form.srIncomplete") : t("recruiter.ops.jobs.form.srComplete")}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -766,36 +793,29 @@ export function JobFormPage() {
   );
 }
 
-const CHECK_LABEL: Record<string, string> = {
-  title: "Tiêu đề tin tuyển dụng",
-  headcount: "Số lượng cần tuyển",
-  salary: "Khoảng lương hợp lệ",
-  cv: "Trọng số CV đủ 100%",
-  gate: "Trọng số tổng hợp đủ 100%",
-  deadline: "Hạn nhận hồ sơ trong tương lai",
-  description: "Mô tả công việc",
-  skills: "Ít nhất 1 kỹ năng",
-};
-
-function Stepper({ step, complete, issues, onSelect }: {
+function Stepper({ steps, step, complete, issues, onSelect }: {
+  steps: Step[];
   step: number;
   complete: boolean[];
   issues: Issue[];
   onSelect: (step: number) => void;
 }) {
+  const t = useT();
   return (
-    <nav aria-label="Các bước đăng tin" className={cn(panel, "p-4 lg:sticky lg:top-24 lg:p-3")}>
+    <nav aria-label={t("recruiter.ops.jobs.form.stepperAria")} className={cn(panel, "p-4 lg:sticky lg:top-24 lg:p-3")}>
       <div className="lg:hidden">
-        <p className="mb-3 text-sm font-semibold">Bước {step + 1}/{STEPS.length}: {STEPS[step].label}</p>
+        <p className="mb-3 text-sm font-semibold">
+          {t("recruiter.ops.jobs.form.stepSummaryMobile", { current: step + 1, total: steps.length, label: steps[step].label })}
+        </p>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-container)]">
-          <div className="h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+          <div className="h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
         </div>
       </div>
       <p className="hidden px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)] lg:block">
-        Các bước đăng tin
+        {t("recruiter.ops.jobs.form.stepperAria")}
       </p>
       <ol className="hidden flex-col lg:flex">
-        {STEPS.map((item, index) => {
+        {steps.map((item, index) => {
           const active = index === step;
           const hasIssue = issues.some((issue) => issue.step === index);
           const done = complete[index] && !active && !hasIssue;
@@ -836,8 +856,8 @@ function Stepper({ step, complete, issues, onSelect }: {
                   </span>
                   <span className="mt-0.5 block text-xs leading-4 text-[var(--color-on-surface-variant)]">{item.description}</span>
                 </span>
-                {hasIssue && <span className="sr-only">(cần sửa)</span>}
-                {done && <span className="sr-only">(đã xong)</span>}
+                {hasIssue && <span className="sr-only">{t("recruiter.ops.jobs.form.srNeedsFix")}</span>}
+                {done && <span className="sr-only">{t("recruiter.ops.jobs.form.srComplete")}</span>}
               </button>
             </li>
           );
@@ -847,27 +867,37 @@ function Stepper({ step, complete, issues, onSelect }: {
   );
 }
 
-function PreviewCard({ form }: { form: JobUpsertRequest }) {
+function PreviewCard({ form, employmentTypes, workModes }: {
+  form: JobUpsertRequest;
+  employmentTypes: { value: string; label: string }[];
+  workModes: { value: string; label: string }[];
+}) {
+  const t = useT();
+  const locale = useLocale();
   const skills = form.skills ?? [];
   return (
     <div className={cn(panel, "space-y-4 p-5")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Xem trước tin đăng</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.form.previewTitle")}</p>
       <div className="space-y-1">
         <h3 className={cn("text-base font-semibold leading-6", !form.title.trim() && "text-[var(--color-outline)]")}>
-          {form.title.trim() || "Tiêu đề tin tuyển dụng"}
+          {form.title.trim() || t("recruiter.ops.jobs.form.titleFallback")}
         </h3>
         {form.department && <p className="text-xs text-[var(--color-on-surface-variant)]">{form.department}</p>}
       </div>
       <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-primary-hover)]">
         <Wallet className="size-4 shrink-0" aria-hidden="true" />
-        {salaryText(form)}
+        {salaryText(form, t)}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        <MetaChip icon={MapPin}>{form.location?.trim() || "Chưa có địa điểm"}</MetaChip>
-        <MetaChip icon={BriefcaseBusiness}>{labelOf(EMPLOYMENT_TYPES, form.employmentType)}</MetaChip>
-        <MetaChip icon={Building2}>{labelOf(WORK_MODES, form.workMode)}</MetaChip>
-        <MetaChip icon={Users}>{form.headcount ?? 1} người</MetaChip>
-        {form.deadline && <MetaChip icon={CalendarClock}>Hạn {formatDateTime(form.deadline)}</MetaChip>}
+        <MetaChip icon={MapPin}>{form.location?.trim() || t("recruiter.ops.jobs.form.locationFallback")}</MetaChip>
+        <MetaChip icon={BriefcaseBusiness}>{labelOf(employmentTypes, form.employmentType)}</MetaChip>
+        <MetaChip icon={Building2}>{labelOf(workModes, form.workMode)}</MetaChip>
+        <MetaChip icon={Users}>{t("recruiter.ops.jobs.detail.headcountUnit", { count: form.headcount ?? 1 })}</MetaChip>
+        {form.deadline && (
+          <MetaChip icon={CalendarClock}>
+            {t("recruiter.ops.jobs.form.deadlinePrefix", { date: formatLocalDateTime(form.deadline, locale) })}
+          </MetaChip>
+        )}
       </div>
       {skills.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-t border-[var(--color-border-default)] pt-3">
@@ -881,41 +911,56 @@ function PreviewCard({ form }: { form: JobUpsertRequest }) {
   );
 }
 
-function ReviewStep({ form, onEdit }: { form: JobUpsertRequest; onEdit: (step: number) => void }) {
+function ReviewStep({ form, employmentTypes, workModes, screeningModes, onEdit }: {
+  form: JobUpsertRequest;
+  employmentTypes: { value: string; label: string }[];
+  workModes: { value: string; label: string }[];
+  screeningModes: { value: string; label: string; description: string; icon: LucideIcon }[];
+  onEdit: (step: number) => void;
+}) {
+  const t = useT();
+  const locale = useLocale();
   const skills = form.skills ?? [];
-  const mode = SCREENING_MODES.find((item) => item.value === form.screeningMode) ?? SCREENING_MODES[0];
+  const mode = screeningModes.find((item) => item.value === form.screeningMode) ?? screeningModes[0];
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-5">
-        <h3 className="text-xl font-semibold">{form.title.trim() || "Tiêu đề tin tuyển dụng"}</h3>
+        <h3 className="text-xl font-semibold">{form.title.trim() || t("recruiter.ops.jobs.form.titleFallback")}</h3>
         <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-[var(--color-primary-hover)]">
           <Wallet className="size-4" aria-hidden="true" />
-          {salaryText(form)}
+          {salaryText(form, t)}
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <MetaChip icon={MapPin}>{form.location?.trim() || "Chưa có địa điểm"}</MetaChip>
-          <MetaChip icon={BriefcaseBusiness}>{labelOf(EMPLOYMENT_TYPES, form.employmentType)}</MetaChip>
-          <MetaChip icon={Building2}>{labelOf(WORK_MODES, form.workMode)}</MetaChip>
-          <MetaChip icon={Users}>{form.headcount ?? 1} người</MetaChip>
-          <MetaChip icon={CalendarClock}>{form.deadline ? `Hạn ${formatDateTime(form.deadline)}` : "Không giới hạn thời gian"}</MetaChip>
+          <MetaChip icon={MapPin}>{form.location?.trim() || t("recruiter.ops.jobs.form.locationFallback")}</MetaChip>
+          <MetaChip icon={BriefcaseBusiness}>{labelOf(employmentTypes, form.employmentType)}</MetaChip>
+          <MetaChip icon={Building2}>{labelOf(workModes, form.workMode)}</MetaChip>
+          <MetaChip icon={Users}>{t("recruiter.ops.jobs.detail.headcountUnit", { count: form.headcount ?? 1 })}</MetaChip>
+          <MetaChip icon={CalendarClock}>
+            {form.deadline
+              ? t("recruiter.ops.jobs.form.deadlinePrefix", { date: formatLocalDateTime(form.deadline, locale) })
+              : t("recruiter.ops.jobs.form.deadlineUnlimited")}
+          </MetaChip>
         </div>
       </div>
 
-      <ReviewSection title="Mô tả công việc" onEdit={() => onEdit(1)}>
-        <MultilineText value={form.description} empty="Chưa có mô tả." />
+      <ReviewSection title={t("recruiter.ops.jobs.form.reviewDescriptionTitle")} onEdit={() => onEdit(1)}>
+        <MultilineText value={form.description} empty={t("recruiter.ops.jobs.form.reviewDescriptionEmpty")} />
       </ReviewSection>
-      <ReviewSection title="Trách nhiệm chính" onEdit={() => onEdit(1)}>
-        <BulletList value={form.responsibilities} empty="Chưa nhập trách nhiệm." />
+      <ReviewSection title={t("recruiter.ops.jobs.form.reviewResponsibilitiesTitle")} onEdit={() => onEdit(1)}>
+        <BulletList value={form.responsibilities} empty={t("recruiter.ops.jobs.form.reviewResponsibilitiesEmpty")} />
       </ReviewSection>
-      <ReviewSection title="Quyền lợi" onEdit={() => onEdit(1)}>
-        <BulletList value={form.benefits} empty="Chưa nhập quyền lợi." />
+      <ReviewSection title={t("recruiter.ops.jobs.form.reviewBenefitsTitle")} onEdit={() => onEdit(1)}>
+        <BulletList value={form.benefits} empty={t("recruiter.ops.jobs.form.reviewBenefitsEmpty")} />
       </ReviewSection>
-      <ReviewSection title="Yêu cầu ứng viên" onEdit={() => onEdit(2)}>
+      <ReviewSection title={t("recruiter.ops.jobs.form.reviewRequirementsTitle")} onEdit={() => onEdit(2)}>
         <p className="text-sm">
-          Tối thiểu {form.minYearsExperience ?? 0} năm kinh nghiệm · Học vấn: {form.educationLevel || "Không yêu cầu"}
+          {t("recruiter.ops.jobs.form.reviewExpEduSummary", {
+            years: form.minYearsExperience ?? 0,
+            education: getEducationDisplay(form.educationLevel ?? undefined, t),
+          })}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {skills.length === 0 && <span className="text-sm text-[var(--color-on-surface-variant)]">Chưa chọn kỹ năng.</span>}
+          {skills.length === 0 && <span className="text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.form.reviewSkillsEmpty")}</span>}
           {skills.map((skill) => (
             <span
               key={skill.name}
@@ -924,18 +969,22 @@ function ReviewStep({ form, onEdit }: { form: JobUpsertRequest; onEdit: (step: n
                 skill.required ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]" : "bg-[var(--color-surface-container-low)]",
               )}
             >
-              {skill.name}{skill.required ? " · Bắt buộc" : ""}
+              {skill.name}{skill.required ? t("recruiter.ops.jobs.detail.requiredSkillSuffix") : ""}
             </span>
           ))}
         </div>
       </ReviewSection>
-      <ReviewSection title="Sàng lọc" onEdit={() => onEdit(3)}>
+      <ReviewSection title={t("recruiter.ops.jobs.form.reviewScreeningTitle")} onEdit={() => onEdit(3)}>
         <p className="flex items-center gap-2 text-sm font-medium">
           <mode.icon className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
           {mode.label}
         </p>
         <p className="mt-0.5 text-sm text-[var(--color-on-surface-variant)]">
-          {mode.description} Ngưỡng CV {form.cvScreening?.passThreshold ?? INITIAL_CV.passThreshold}/100 · Ngưỡng tổng hợp {form.gateScreening?.passThreshold ?? INITIAL_GATE.passThreshold}/100.
+          {t("recruiter.ops.jobs.form.reviewScreeningSummary", {
+            description: mode.description,
+            cvThreshold: form.cvScreening?.passThreshold ?? INITIAL_CV.passThreshold,
+            gateThreshold: form.gateScreening?.passThreshold ?? INITIAL_GATE.passThreshold,
+          })}
         </p>
       </ReviewSection>
     </div>
@@ -943,6 +992,7 @@ function ReviewStep({ form, onEdit }: { form: JobUpsertRequest; onEdit: (step: n
 }
 
 function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: ReactNode }) {
+  const t = useT();
   return (
     <section className="rounded-2xl border border-[var(--color-border-default)] p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -956,7 +1006,7 @@ function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () 
           className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-subtle)]"
         >
           <Pencil className="size-3.5" aria-hidden="true" />
-          Sửa
+          {t("recruiter.ops.jobs.form.reviewEditBtn")}
         </button>
       </div>
       {children}
@@ -1164,6 +1214,7 @@ function WeightField({ label, value, onChange, suffix = "%", hint, help }: {
   hint?: string;
   help?: string;
 }) {
+  const t = useT();
   const id = useId();
   const control = (
     <span className="relative block">
@@ -1189,7 +1240,7 @@ function WeightField({ label, value, onChange, suffix = "%", hint, help }: {
         <span className="group inline-flex">
           <button
             type="button"
-            aria-label={`Cách tính điểm ${label}`}
+            aria-label={t("recruiter.ops.jobs.form.weightCalcAria", { label })}
             aria-describedby={`${id}-help`}
             className="grid size-5 place-items-center rounded-full text-[var(--color-outline)] transition-colors hover:text-brand-primary focus-visible:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary"
           >
@@ -1211,16 +1262,18 @@ function WeightField({ label, value, onChange, suffix = "%", hint, help }: {
 }
 
 function TotalBadge({ total }: { total: number }) {
+  const t = useT();
   const ok = total === 100;
   return (
     <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums", ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
       {ok ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <AlertTriangle className="size-3.5" aria-hidden="true" />}
-      Tổng {total}%
+      {t("recruiter.ops.jobs.form.totalBadge", { total })}
     </span>
   );
 }
 
 function TotalMeter({ total }: { total: number }) {
+  const t = useT();
   const ok = total === 100;
   const diff = Math.round((100 - total) * 100) / 100;
   return (
@@ -1232,7 +1285,11 @@ function TotalMeter({ total }: { total: number }) {
         />
       </div>
       <p className={cn("text-xs", ok ? "text-[var(--color-on-surface-variant)]" : "text-[var(--color-error)]")} role="status">
-        {ok ? "Đã đủ 100%." : diff > 0 ? `Còn thiếu ${diff}% để đủ 100%.` : `Vượt ${Math.abs(diff)}% so với 100%.`}
+        {ok
+          ? t("recruiter.ops.jobs.form.totalExact")
+          : diff > 0
+            ? t("recruiter.ops.jobs.form.totalShortfall", { diff })
+            : t("recruiter.ops.jobs.form.totalExcess", { diff: Math.abs(diff) })}
       </p>
     </div>
   );
@@ -1255,15 +1312,13 @@ function labelOf(options: { value: string; label: string }[], value?: string) {
   return options.find((option) => option.value === value)?.label ?? value ?? "—";
 }
 
-function salaryText(form: JobUpsertRequest) {
-  if (!form.salaryVisible) return "Thỏa thuận";
+function salaryText(form: JobUpsertRequest, t: TranslateFn) {
+  if (!form.salaryVisible) return t("recruiter.ops.jobs.form.salaryNegotiable");
   return formatSalaryRange(form.salaryMin, form.salaryMax, form.salaryCurrency ?? "VND");
 }
 
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+function formatLocalDateTime(value: string, locale: Locale) {
+  return formatI18nDateTime(value, { dateStyle: "short", timeStyle: "short" }, locale);
 }
 
 function deadlineAfter(days: number) {

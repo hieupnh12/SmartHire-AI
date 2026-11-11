@@ -1,3 +1,5 @@
+import { t as globalT } from "@/i18n";
+
 const LOGO_SIZE = 400;
 /** Photos keep their full frame (cropping is a saved focus, not a cut), so they get more pixels than logos. */
 export const PHOTO_SIZE = 1000;
@@ -10,7 +12,7 @@ export async function fitImage(file: File, maxSize = LOGO_SIZE): Promise<Blob> {
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("Trình duyệt không hỗ trợ xử lý ảnh.");
+  if (!context) throw new Error(globalT("candidate.cv.avatar.browserUnsupported"));
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
@@ -20,5 +22,5 @@ export async function fitImage(file: File, maxSize = LOGO_SIZE): Promise<Blob> {
 
 function toJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Không xử lý được ảnh."))), "image/jpeg", 0.9));
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(globalT("candidate.cv.avatar.processFailed")))), "image/jpeg", 0.9));
 }

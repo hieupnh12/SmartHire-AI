@@ -4,6 +4,7 @@ import { Eye, EyeOff, GripVertical } from "lucide-react";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { RecruitmentStageCode, StageItemInput, StageView } from "@/api/types/job";
 import { Button } from "@/components/ux/Button";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { button, muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
@@ -73,6 +74,7 @@ type Props = {
 };
 
 export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: Props) {
+  const t = useT();
   const initialRows = useMemo(() => mergeFromViews(stages), [stages]);
   const [rows, setRows] = useState(initialRows);
   const initialPayload = useMemo(() => {
@@ -95,11 +97,17 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
     mutationFn: () => jobApi.updateStages(jobId, { stages: draftPayload }),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã lưu quy trình tuyển dụng");
+      toast.success(t("recruiter.ops.jobs.stagesPanel.savedToast"));
       onSaved?.();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không lưu được quy trình")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("recruiter.ops.jobs.stagesPanel.saveError"))),
   });
+
+  const stageDisplayName = (row: StageRow) => {
+    const key = `recruiter.ops.jobs.stagesPanel.stageNames.${row.stageCode}`;
+    const label = t(key);
+    return label === key ? row.name : label;
+  };
 
   const toggleActive = (code: RecruitmentStageCode) => {
     setRows((current) =>
@@ -127,7 +135,7 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
     return (
       <div className="space-y-3">
         <p className={`text-sm ${muted}`}>
-          Chỉ người phụ trách chính (Primary Recruiter) hoặc quản trị viên mới được chỉnh quy trình.
+          {t("recruiter.ops.jobs.stagesPanel.readOnlyNotice")}
         </p>
         <ol className="flex flex-wrap gap-2 text-sm">
           {ordered.list.map((stage, index) => (
@@ -135,9 +143,9 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
               key={stage.stageCode}
               className={`rounded-lg border border-[var(--color-border-default)] px-3 py-1 ${!stage.active ? "opacity-50 line-through" : ""}`}
             >
-              {index + 1}. {stage.name}
-              {stage.terminal ? " · Kết thúc" : ""}
-              {!stage.active ? " · Ẩn" : ""}
+              {index + 1}. {stageDisplayName(stage)}
+              {stage.terminal ? t("recruiter.ops.jobs.stagesPanel.terminalSuffix") : ""}
+              {!stage.active ? t("recruiter.ops.jobs.stagesPanel.hiddenSuffix") : ""}
             </li>
           ))}
         </ol>
@@ -150,8 +158,7 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
   return (
     <div className="space-y-4">
       <p className={`text-sm ${muted}`}>
-        Giai đoạn Applied và Hired luôn cố định. Kéo thả các giai đoạn giữa để sắp xếp; bấm biểu tượng mắt để ẩn giai
-        đoạn khỏi quy trình (không xóa dữ liệu).
+        {t("recruiter.ops.jobs.stagesPanel.editableHint")}
       </p>
       <ul className="space-y-2">
         {ordered.list.map((row) => {
@@ -188,19 +195,19 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
                 <span className="size-4 shrink-0" aria-hidden />
               )}
               <span className="min-h-10 min-w-[12rem] flex-1 rounded-lg border border-transparent px-3 py-2 text-sm font-medium">
-                {row.name}
+                {stageDisplayName(row)}
               </span>
               {row.terminal ? (
                 <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-brand-primary">
-                  Kết thúc
+                  {t("recruiter.ops.jobs.stagesPanel.badgeTerminal")}
                 </span>
               ) : row.active ? (
                 <span className="rounded-full bg-[var(--color-surface-alt)] px-2.5 py-1 text-xs text-[var(--color-on-surface-variant)]">
-                  Đang diễn ra
+                  {t("recruiter.ops.jobs.stagesPanel.badgeActive")}
                 </span>
               ) : (
                 <span className="rounded-full bg-[var(--color-surface-alt)] px-2.5 py-1 text-xs text-[var(--color-on-surface-variant)]">
-                  Đã ẩn
+                  {t("recruiter.ops.jobs.stagesPanel.badgeHidden")}
                 </span>
               )}
               {isMiddle ? (
@@ -208,7 +215,7 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
                   type="button"
                   className={button}
                   onClick={() => toggleActive(row.stageCode)}
-                  aria-label={row.active ? "Ẩn giai đoạn" : "Hiện giai đoạn"}
+                  aria-label={row.active ? t("recruiter.ops.jobs.stagesPanel.hideStageAria") : t("recruiter.ops.jobs.stagesPanel.showStageAria")}
                 >
                   {row.active ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
@@ -221,7 +228,7 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
       </ul>
       <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-border-default)] pt-4">
         <Button type="button" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "Đang lưu…" : "Lưu quy trình"}
+          {save.isPending ? t("recruiter.ops.common.saving") : t("recruiter.ops.jobs.stagesPanel.saveBtn")}
         </Button>
         {dirty && (
           <button
@@ -229,7 +236,7 @@ export function JobRecruitmentStagesPanel({ jobId, stages, editable, onSaved }: 
             className={`text-sm font-semibold text-brand-primary ${button}`}
             onClick={() => setRows(initialRows)}
           >
-            Hoàn tác
+            {t("recruiter.ops.jobs.stagesPanel.undoBtn")}
           </button>
         )}
       </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { authApi } from "@/api/tenant/authApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { t as globalT, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromSubdomain, getBaseDomain, buildTenantUrl } from "@/lib/tenant";
 
@@ -20,12 +21,13 @@ function authenticateGoogleOnce(idToken: string) {
 }
 
 export function OAuthCallbackPage() {
+  const t = useT();
   const navigate = useNavigate();
   const setTokens = useAuthStore((s) => s.setTokens);
   const setUser = useAuthStore((s) => s.setUser);
 
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
-  const [statusMessage, setStatusMessage] = useState("Đang xử lý phản hồi từ Google...");
+  const [statusMessage, setStatusMessage] = useState(() => globalT("auth.oauth.processingGoogle"));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,8 +35,6 @@ export function OAuthCallbackPage() {
 
     const handleCallback = async () => {
       try {
-        // 1. Extract Hash or Query Parameters from Google Redirect
-        // Google implicit flow returns: #id_token=...&access_token=...&state=...
         const hash = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : window.location.hash;
         const search = window.location.search.startsWith("?") ? window.location.search.substring(1) : window.location.search;
         const params = new URLSearchParams(hash || search);
@@ -44,7 +44,7 @@ export function OAuthCallbackPage() {
           const errorDesc = params.get("error_description") || error;
           if (!isCancelled) {
             setStatus("error");
-            setErrorMessage(`Lỗi từ Google: ${errorDesc}`);
+            setErrorMessage(globalT("auth.oauth.googleError", { error: errorDesc }));
           }
           return;
         }
@@ -61,7 +61,6 @@ export function OAuthCallbackPage() {
             if (decoded.tenant) targetTenant = decoded.tenant;
             if (decoded.redirectUrl) redirectUrl = decoded.redirectUrl;
           } catch {
-            // Fallback if rawState is a plain tenant string
             targetTenant = rawState;
           }
         }
@@ -72,21 +71,19 @@ export function OAuthCallbackPage() {
         const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
         const onTenantHost = Boolean(getTenantIdFromSubdomain());
 
-        // Google returns to the central callback; hop onto the tenant host before calling the API.
         if (!onTenantHost && targetTenant && targetTenant !== "smarthire") {
           if (!isCancelled) {
-            setStatusMessage(`Đang chuyển hướng về không gian ${targetTenant}...`);
+            setStatusMessage(globalT("auth.oauth.redirectingWorkspace", { tenant: targetTenant }));
           }
           const host = isLocal ? `${targetTenant}.localhost` : `${targetTenant}.${baseDomain}`;
           window.location.href = `${window.location.protocol}//${host}${port}/oauth/callback${window.location.search}${window.location.hash}`;
           return;
         }
 
-        // 3. We are on the target tenant (or local environment)
         if (!idToken) {
           if (!isCancelled) {
             setStatus("error");
-            setErrorMessage("Không nhận được Google ID Token hợp lệ từ máy chủ Google.");
+            setErrorMessage(globalT("auth.oauth.missingIdToken"));
           }
           return;
         }
@@ -96,10 +93,9 @@ export function OAuthCallbackPage() {
         }
 
         if (!isCancelled) {
-          setStatusMessage("Đang xác thực thông tin tài khoản với SmartHire...");
+          setStatusMessage(globalT("auth.oauth.verifyingSmartHire"));
         }
 
-        // 4. Authenticate with Backend (deduplicated across React StrictMode double-mounts)
         const response = await authenticateGoogleOnce(idToken);
 
         if (isCancelled) return;
@@ -118,7 +114,7 @@ export function OAuthCallbackPage() {
           });
 
           setStatus("success");
-          setStatusMessage("Đăng nhập thành công! Đang chuyển hướng...");
+          setStatusMessage(globalT("auth.oauth.loginSuccessRedirect"));
 
           window.setTimeout(() => {
             const targetUrl = buildTenantUrl(subdomain, redirectUrl);
@@ -130,12 +126,12 @@ export function OAuthCallbackPage() {
           }, 600);
         } else {
           setStatus("error");
-          setErrorMessage(response.message || "Đăng nhập bằng Google không thành công. Vui lòng thử lại.");
+          setErrorMessage(response.message || globalT("auth.oauth.googleLoginFailed"));
         }
       } catch (err: unknown) {
         if (isCancelled) return;
         setStatus("error");
-        setErrorMessage(getApiErrorMessage(err, "Đã có lỗi xảy ra khi xác thực với máy chủ SmartHire."));
+        setErrorMessage(getApiErrorMessage(err, globalT("auth.oauth.authServerError")));
       }
     };
 
@@ -154,7 +150,7 @@ export function OAuthCallbackPage() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-[#3b82f6]">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-            <h2 className="font-display text-xl font-bold text-[#1e293b]">Đang xác thực Google</h2>
+            <h2 className="font-display text-xl font-bold text-[#1e293b]">{t("auth.oauth.verifyingTitle")}</h2>
             <p className="text-sm text-[#64748b]">{statusMessage}</p>
           </div>
         )}
@@ -164,7 +160,7 @@ export function OAuthCallbackPage() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-8 w-8" />
             </div>
-            <h2 className="font-display text-xl font-bold text-[#1e293b]">Đăng nhập thành công</h2>
+            <h2 className="font-display text-xl font-bold text-[#1e293b]">{t("auth.oauth.successTitle")}</h2>
             <p className="text-sm text-[#64748b]">{statusMessage}</p>
           </div>
         )}
@@ -175,7 +171,7 @@ export function OAuthCallbackPage() {
               <AlertCircle className="h-8 w-8" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-[#1e293b]">Xác thực thất bại</h2>
+              <h2 className="font-display text-xl font-bold text-[#1e293b]">{t("auth.oauth.failedTitle")}</h2>
               <p className="text-sm text-red-600">{errorMessage}</p>
             </div>
             <button
@@ -184,7 +180,7 @@ export function OAuthCallbackPage() {
               className="inline-flex items-center justify-center gap-2 rounded-[8px] bg-[#1e293b] px-4 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[#0f172a]"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Quay lại trang đăng nhập</span>
+              <span>{t("auth.oauth.backToLogin")}</span>
             </button>
           </div>
         )}

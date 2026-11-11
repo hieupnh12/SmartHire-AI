@@ -9,6 +9,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { QrCodeView } from "@/components/shared/QrCodeView";
+import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 
@@ -29,6 +30,7 @@ export function MobileAppHeaderButton({
   primaryColor = "#2563eb",
   className = "",
 }: MobileAppHeaderButtonProps) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -87,14 +89,13 @@ export function MobileAppHeaderButton({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Trigger Button: Chỉ giữ icon mã QR */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        aria-label="Quét mã QR kết nối ứng dụng di động"
-        title="Quét mã QR mở trên App di động"
+        aria-label={t("candidate.core.mobileApp.header.triggerAria")}
+        title={t("candidate.core.mobileApp.header.triggerTitle")}
         className={`grid size-10 place-items-center rounded-xl border transition-all duration-150 active:scale-95 ${isOpen
           ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] text-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20 shadow-xs"
           : "border-slate-200 bg-white text-slate-700 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]/50 hover:text-[var(--color-primary)] shadow-2xs"
@@ -107,7 +108,7 @@ export function MobileAppHeaderButton({
       {isOpen && (
         <div
           role="dialog"
-          aria-label={`Mã QR kết nối Tenant ${tenantName}`}
+          aria-label={t("candidate.core.mobileApp.header.dialogAria", { tenantName })}
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)] transition-all animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header */}
@@ -124,14 +125,14 @@ export function MobileAppHeaderButton({
                 )}
               </div>
               <h3 className="min-w-0 text-[15px] font-semibold text-slate-900 leading-snug">
-                Quét mã để kết nối ứng dụng di động
+                {t("candidate.core.mobileApp.header.heading")}
               </h3>
             </div>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
               className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-              aria-label="Đóng popup"
+              aria-label={t("common.close")}
             >
               <X className="size-4" />
             </button>
@@ -145,11 +146,11 @@ export function MobileAppHeaderButton({
                 size={160}
                 logoUrl={logoUrl}
                 logoText={tenantName}
-                label={`QR kết nối ${tenantName}`}
+                label={t("candidate.core.mobileApp.header.qrLabel", { tenantName })}
               />
             </div>
             <p className="mt-3 text-center text-xs text-slate-500">
-              Mở app SmartHire trên điện thoại để quét mã kết nối
+              {t("candidate.core.mobileApp.header.subtitle")}
             </p>
           </div>
         </div>
@@ -177,6 +178,7 @@ export function MobileAppSyncModal({
   tenantId,
   tenantName = "SmartHire",
 }: MobileAppSyncModalProps) {
+  const t = useT();
   const user = useAuthStore((state) => state.user);
   const resolvedTenantId = tenantId || tenantCode || "acme";
   const [syncCode, setSyncCode] = useState(() =>
@@ -221,17 +223,20 @@ export function MobileAppSyncModal({
   const handleRefresh = () => {
     setSyncCode(Math.floor(100000 + Math.random() * 900000).toString());
     setCountdown(300);
-    toast.info("Đã tạo mã xác thực mới!");
+    toast.info(t("candidate.core.mobileApp.sync.codeRefreshed"));
   };
 
   const handleCopyCode = () => {
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(syncCode);
       setCopiedCode(true);
-      toast.success(`Đã sao chép mã liên kết: ${syncCode}`);
+      toast.success(t("candidate.core.mobileApp.sync.codeCopiedToast", { code: syncCode }));
       setTimeout(() => setCopiedCode(false), 2000);
     }
   };
+
+  const [validBefore, validAfter] = t("candidate.core.mobileApp.sync.codeValidFor", { timer: "\0" }).split("\0");
+  const [step2Before, step2After] = t("candidate.core.mobileApp.sync.step2", { tenantId: "\0" }).split("\0");
 
   return (
     <div
@@ -249,7 +254,7 @@ export function MobileAppSyncModal({
           type="button"
           onClick={onClose}
           className="absolute right-5 top-5 grid size-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          aria-label="Đóng"
+          aria-label={t("common.close")}
         >
           <X className="size-5" />
         </button>
@@ -262,19 +267,17 @@ export function MobileAppSyncModal({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
-                Mobile App Sync
+                {t("candidate.core.mobileApp.sync.eyebrow")}
               </span>
               <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
-                Tenant: {resolvedTenantId}
+                {t("candidate.core.mobileApp.tenantLabel", { tenantId: resolvedTenantId })}
               </span>
             </div>
             <h2 id="sync-modal-title" className="text-xl font-bold text-slate-900">
-              Đăng nhập nhanh trên điện thoại
+              {t("candidate.core.mobileApp.sync.title")}
             </h2>
           </div>
         </div>
-
-
 
         {/* Dynamic QR Code */}
         <div className="mt-5 flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100/70 p-5 border border-slate-200/80">
@@ -282,13 +285,15 @@ export function MobileAppSyncModal({
             value={syncPayload}
             size={170}
             logoText="SH"
-            label="Mã QR đăng nhập nhanh"
+            label={t("candidate.core.mobileApp.sync.qrLabel")}
           />
 
           {/* Sync code & Countdown */}
           <div className="mt-4 flex w-full items-center justify-between rounded-xl bg-white px-4 py-2.5 border border-slate-200 shadow-2xs">
             <div>
-              <span className="block text-[11px] font-medium text-slate-500">Mã liên kết 6 số</span>
+              <span className="block text-[11px] font-medium text-slate-500">
+                {t("candidate.core.mobileApp.sync.codeLabel")}
+              </span>
               <span className="font-mono text-xl font-bold tracking-widest text-blue-700">
                 {syncCode.slice(0, 3)} {syncCode.slice(3)}
               </span>
@@ -298,16 +303,16 @@ export function MobileAppSyncModal({
                 type="button"
                 onClick={handleCopyCode}
                 className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                title="Sao chép mã"
+                title={t("candidate.core.mobileApp.sync.copyCodeTitle")}
               >
                 {copiedCode ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-                <span>{copiedCode ? "Đã chép" : "Chép mã"}</span>
+                <span>{copiedCode ? t("candidate.core.mobileApp.sync.copied") : t("candidate.core.mobileApp.sync.copyCode")}</span>
               </button>
               <button
                 type="button"
                 onClick={handleRefresh}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                title="Tạo mã mới"
+                title={t("candidate.core.mobileApp.sync.refreshCodeTitle")}
               >
                 <RefreshCw className="size-4" />
               </button>
@@ -315,7 +320,9 @@ export function MobileAppSyncModal({
           </div>
 
           <p className="mt-2 text-[11px] text-slate-500">
-            Mã xác thực có hiệu lực trong: <strong className="font-semibold text-slate-700">{timerText}</strong>
+            {validBefore}
+            <strong className="font-semibold text-slate-700">{timerText}</strong>
+            {validAfter}
           </p>
         </div>
 
@@ -325,19 +332,23 @@ export function MobileAppSyncModal({
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
               1
             </span>
-            <span>Mở ứng dụng SmartHire trên điện thoại của bạn.</span>
+            <span>{t("candidate.core.mobileApp.sync.step1")}</span>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
               2
             </span>
-            <span>Chọn biểu tượng quét mã QR để đồng bộ theo Tenant ID <strong className="text-slate-800">{resolvedTenantId}</strong>.</span>
+            <span>
+              {step2Before}
+              <strong className="text-slate-800">{resolvedTenantId}</strong>
+              {step2After}
+            </span>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
               3
             </span>
-            <span>Xác nhận để hoàn tất đăng nhập một chạm tức thì.</span>
+            <span>{t("candidate.core.mobileApp.sync.step3")}</span>
           </div>
         </div>
 
@@ -348,7 +359,7 @@ export function MobileAppSyncModal({
             onClick={onClose}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
           >
-            Đóng
+            {t("common.close")}
           </button>
         </div>
       </div>
@@ -375,6 +386,7 @@ export function MobileAppSyncCard({
   variant = "full",
   className = "",
 }: MobileAppSyncCardProps) {
+  const t = useT();
   const [modalOpen, setModalOpen] = useState(false);
   const resolvedTenantId = tenantId || tenantCode || "acme";
 
@@ -391,14 +403,14 @@ export function MobileAppSyncCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-slate-900 truncate">
-                  Liên kết ứng dụng di động (Mobile App Sync)
+                  {t("candidate.core.mobileApp.card.title")}
                 </h3>
                 <span className="hidden sm:inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                  Tenant: {resolvedTenantId}
+                  {t("candidate.core.mobileApp.tenantLabel", { tenantId: resolvedTenantId })}
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5 truncate">
-                Đăng nhập nhanh & theo dõi trạng thái ứng tuyển, lịch phỏng vấn ngay trên điện thoại.
+                {t("candidate.core.mobileApp.card.compactDesc")}
               </p>
             </div>
           </div>
@@ -409,7 +421,7 @@ export function MobileAppSyncCard({
             className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 active:scale-95 transition-all"
           >
             <QrCode className="size-4" />
-            <span>Đăng nhập nhanh trên điện thoại</span>
+            <span>{t("candidate.core.mobileApp.card.cta")}</span>
           </button>
         </div>
 
@@ -438,25 +450,25 @@ export function MobileAppSyncCard({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id="mobile-sync-card-title" className="text-base font-semibold text-slate-900">
-                  Liên kết ứng dụng di động (Mobile App Sync)
+                  {t("candidate.core.mobileApp.card.title")}
                 </h2>
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-                  Tenant: {resolvedTenantId}
+                  {t("candidate.core.mobileApp.tenantLabel", { tenantId: resolvedTenantId })}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
                   <ShieldCheck className="size-3.5" />
-                  Sẵn sàng kết nối
+                  {t("candidate.core.mobileApp.card.readyBadge")}
                 </span>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
                 <span className="flex items-center gap-1.5">
                   <Check className="size-3.5 text-blue-600" />
-                  Đăng nhập một chạm không cần gõ mật khẩu
+                  {t("candidate.core.mobileApp.card.benefitOneTap")}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Check className="size-3.5 text-blue-600" />
-                  Đồng bộ Tenant ID tự động
+                  {t("candidate.core.mobileApp.card.benefitAutoTenant")}
                 </span>
               </div>
             </div>
@@ -469,9 +481,9 @@ export function MobileAppSyncCard({
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all"
             >
               <QrCode className="size-4" />
-              <span>Đăng nhập nhanh trên điện thoại</span>
+              <span>{t("candidate.core.mobileApp.card.cta")}</span>
             </button>
-            <span className="text-[11px] text-slate-400">Hỗ trợ iOS và Android</span>
+            <span className="text-[11px] text-slate-400">{t("candidate.core.mobileApp.card.platforms")}</span>
           </div>
         </div>
       </section>

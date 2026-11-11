@@ -1,3 +1,4 @@
+import { t as globalT } from "@/i18n";
 import type { ProctorSession } from "@/features/tenant/candidate/interviews/utils/proctorDevices";
 
 type FullscreenDocument = Document & {
@@ -27,7 +28,7 @@ function requestDocumentFullscreen() {
     root.webkitRequestFullscreen();
     return Promise.resolve();
   }
-  return Promise.reject(new Error("Trình duyệt không hỗ trợ toàn màn hình."));
+  return Promise.reject(new Error(globalT("candidate.assess.examFullscreen.notSupported")));
 }
 
 async function exitDocumentFullscreen() {
@@ -81,21 +82,19 @@ export function expandExamToScreen(session: ProctorSession | null) {
     try {
       request = requestDocumentFullscreen();
     } catch (cause) {
-      return Promise.reject(cause instanceof Error ? cause : new Error("Không mở được toàn màn hình."));
+      return Promise.reject(cause instanceof Error ? cause : new Error(globalT("candidate.assess.examFullscreen.openFailed")));
     }
     return request
       .catch((cause: unknown) => {
         const name = cause instanceof DOMException ? cause.name : "";
         if (name === "NotAllowedError" || name === "SecurityError") {
-          throw new Error("Trình duyệt chặn toàn màn hình. Hãy bấm Bắt đầu lại khi cửa sổ Chrome đang được focus.");
+          throw new Error(globalT("candidate.assess.examFullscreen.blockedByBrowser"));
         }
-        throw cause instanceof Error ? cause : new Error("Không mở được toàn màn hình.");
+        throw cause instanceof Error ? cause : new Error(globalT("candidate.assess.examFullscreen.openFailed"));
       })
       .then(async () => {
         if (await settleFullscreen()) return;
-        throw new Error(
-          "Trình duyệt chưa vào chế độ toàn màn hình. Hãy bấm lại nút để tiếp tục.",
-        );
+        throw new Error(globalT("candidate.assess.examFullscreen.notEntered"));
       });
   };
 

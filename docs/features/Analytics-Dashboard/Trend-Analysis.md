@@ -29,6 +29,8 @@ Phân tích xu hướng theo thời gian (applications, hires, scores).
 | GET | `/api/v1/dashboard/trends` |
 | GET | `/api/v1/analytics/recruiter/quality` |
 
+`GET /api/v1/analytics/recruiter/quality` hỗ trợ `jobId` (optional), tự động chọn độ mịn `DAY` / `WEEK` / `MONTH` theo khoảng ngày `from..to`, kết hợp `candidate_quality_snapshots` với tổng lượng hồ sơ & số trúng tuyển theo kỳ để vẽ biểu đồ Recharts tại `/recruiter/jobs/{jobId}/analytics`.
+
 ## Database liên quan
 
 - `candidate_quality_snapshots` lưu lịch sử điểm dạng append-only; dữ liệu được giới hạn theo recruiter hiện tại.

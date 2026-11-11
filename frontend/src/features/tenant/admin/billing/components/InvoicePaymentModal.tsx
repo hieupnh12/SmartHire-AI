@@ -19,6 +19,7 @@ import { Button } from "@/components/ux/Button";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { formatNumber, useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
@@ -43,6 +44,8 @@ export function InvoicePaymentModal({
   onClose,
   onPaid,
 }: InvoicePaymentModalProps) {
+  const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<PaymentTab>("TRANSFER");
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -69,8 +72,8 @@ export function InvoicePaymentModal({
     handledPaidRef.current = invId;
     await queryClient.invalidateQueries({ queryKey: ["tenant-subscription-quota"] });
     toast.success(
-      "Thanh toán thành công",
-      `Hóa đơn #${invoiceNumber} đã được xác nhận. Gói dịch vụ và hạn mức đã được cập nhật.`,
+      t("tenantAdmin.billing.paymentModal.toasts.paidTitle"),
+      t("tenantAdmin.billing.paymentModal.toasts.paidDesc", { invoiceNumber }),
     );
     onPaid();
   };
@@ -92,7 +95,12 @@ export function InvoicePaymentModal({
         } else if (statusRes.status === "CANCELLED") {
           window.clearInterval(interval);
           await queryClient.invalidateQueries({ queryKey: ["tenant-subscription-quota"] });
-          toast.warning("Hóa đơn đã bị hủy", `Hóa đơn #${order.invoiceNumber} không còn hiệu lực thanh toán.`);
+          toast.warning(
+            t("tenantAdmin.billing.paymentModal.toasts.canceledTitle"),
+            t("tenantAdmin.billing.paymentModal.toasts.canceledDesc", {
+              invoiceNumber: order.invoiceNumber,
+            }),
+          );
           onClose();
         }
       } catch {
@@ -108,12 +116,12 @@ export function InvoicePaymentModal({
     try {
       await navigator.clipboard.writeText(value);
       setCopiedField(fieldKey);
-      toast.success(`Đã sao chép ${label}`);
+      toast.success(t("tenantAdmin.billing.paymentModal.toasts.copiedLabel", { label }));
       window.setTimeout(() => {
         setCopiedField((cur) => (cur === fieldKey ? null : cur));
       }, 1800);
     } catch {
-      toast.error("Không thể sao chép vào clipboard");
+      toast.error(t("tenantAdmin.billing.paymentModal.toasts.copyFailed"));
     }
   };
 
@@ -131,7 +139,7 @@ export function InvoicePaymentModal({
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-      toast.success("Đã tải mã QR thanh toán");
+      toast.success(t("tenantAdmin.billing.paymentModal.toasts.qrDownloaded"));
     } catch {
       window.open(qrSource, "_blank", "noopener,noreferrer");
     }
@@ -149,10 +157,10 @@ export function InvoicePaymentModal({
       if (res?.paymentUrl) {
         window.location.href = res.paymentUrl;
       } else {
-        toast.error("Không nhận được đường dẫn thanh toán từ cổng VNPay");
+        toast.error(t("tenantAdmin.billing.paymentModal.toasts.vnpayNoUrl"));
       }
     } catch (err) {
-      toast.error("Không thể kết nối cổng VNPay", getApiErrorMessage(err));
+      toast.error(t("tenantAdmin.billing.paymentModal.toasts.vnpayError"), getApiErrorMessage(err));
     } finally {
       setVnpayLoading(false);
     }
@@ -164,7 +172,13 @@ export function InvoicePaymentModal({
     <DetailDialog
       open={Boolean(invoiceId)}
       size="wide"
-      title={order ? `Thanh toán hóa đơn #${order.invoiceNumber}` : "Thanh toán hóa đơn dịch vụ"}
+      title={
+        order
+          ? t("tenantAdmin.billing.paymentModal.titleWithOrder", {
+              invoiceNumber: order.invoiceNumber,
+            })
+          : t("tenantAdmin.billing.paymentModal.titleDefault")
+      }
       onClose={onClose}
     >
       {checkoutQuery.isLoading ? (
@@ -178,7 +192,7 @@ export function InvoicePaymentModal({
             {getApiErrorMessage(checkoutQuery.error)}
           </p>
           <Button variant="secondary" size="sm" onClick={() => void checkoutQuery.refetch()}>
-            Thử lại
+            {t("tenantAdmin.billing.paymentModal.retry")}
           </Button>
         </div>
       ) : order ? (
@@ -193,18 +207,25 @@ export function InvoicePaymentModal({
                     #{order.invoiceNumber}
                   </span>
                   <span className="rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-xs font-semibold text-brand-primary">
-                    {formatInvoiceTypeLabel(invoiceType)}
+                    {formatInvoiceTypeLabel(invoiceType, t)}
                   </span>
-                  <StatusPill status={order.status} label={formatInvoiceStatusLabel(order.status)} />
+                  <StatusPill status={order.status} label={formatInvoiceStatusLabel(order.status, t)} />
                 </div>
                 <p className="text-xs text-[var(--color-text-secondary)]">
-                  Gói áp dụng: <strong className="text-[var(--color-text-primary)]">{formatPlanDisplayName(order.planName)}</strong>
+                  {t("tenantAdmin.billing.paymentModal.appliedPlanLabel")}{" "}
+                  <strong className="text-[var(--color-text-primary)]">
+                    {formatPlanDisplayName(order.planName, t)}
+                  </strong>
                 </p>
               </div>
               <div className="text-left sm:text-right">
-                <p className="text-xs text-[var(--color-text-secondary)]">Số tiền cần thanh toán</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  {t("tenantAdmin.billing.paymentModal.amountDueLabel")}
+                </p>
                 <p className="font-display text-2xl font-bold text-brand-primary">
-                  {Number(order.amountVnd || 0).toLocaleString("vi-VN")} ₫
+                  {t("tenantAdmin.billing.paymentModal.amountVndValue", {
+                    amount: formatNumber(Number(order.amountVnd || 0), undefined, locale),
+                  })}
                 </p>
               </div>
             </div>
@@ -213,12 +234,14 @@ export function InvoicePaymentModal({
           {order.status === "PAID" ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center space-y-3">
               <CheckCircle2 className="mx-auto size-12 text-emerald-600" />
-              <h3 className="text-lg font-bold text-emerald-950">Hóa đơn đã được thanh toán hoàn tất</h3>
+              <h3 className="text-lg font-bold text-emerald-950">
+                {t("tenantAdmin.billing.paymentModal.paidTitle")}
+              </h3>
               <p className="text-sm text-emerald-800">
-                Gói dịch vụ và hạn mức mới đã có hiệu lực cho doanh nghiệp của bạn.
+                {t("tenantAdmin.billing.paymentModal.paidDesc")}
               </p>
               <div className="pt-2">
-                <Button onClick={onClose}>Đóng</Button>
+                <Button onClick={onClose}>{t("tenantAdmin.billing.paymentModal.close")}</Button>
               </div>
             </div>
           ) : (
@@ -236,7 +259,7 @@ export function InvoicePaymentModal({
                   )}
                 >
                   <QrCode className="size-4" />
-                  <span>VietQR / Chuyển khoản</span>
+                  <span>{t("tenantAdmin.billing.paymentModal.tabs.transfer")}</span>
                 </button>
                 <button
                   type="button"
@@ -249,7 +272,7 @@ export function InvoicePaymentModal({
                   )}
                 >
                   <CreditCard className="size-4" />
-                  <span>Thẻ ATM (VNPay)</span>
+                  <span>{t("tenantAdmin.billing.paymentModal.tabs.domesticCard")}</span>
                 </button>
                 <button
                   type="button"
@@ -262,7 +285,7 @@ export function InvoicePaymentModal({
                   )}
                 >
                   <Globe className="size-4" />
-                  <span>Thẻ quốc tế / PayPal</span>
+                  <span>{t("tenantAdmin.billing.paymentModal.tabs.intlCard")}</span>
                 </button>
               </div>
 
@@ -272,7 +295,9 @@ export function InvoicePaymentModal({
                   <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--color-border-default)] bg-surface-muted p-4">
                     <img
                       src={order.qrUrl || "/sepay_qr.png"}
-                      alt={`VietQR ${order.invoiceNumber}`}
+                      alt={t("tenantAdmin.billing.paymentModal.transfer.qrAlt", {
+                        invoiceNumber: order.invoiceNumber,
+                      })}
                       className="size-48 rounded-lg border border-[var(--color-border-default)] bg-white object-contain p-2"
                     />
                     <button
@@ -281,31 +306,41 @@ export function InvoicePaymentModal({
                       className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:underline cursor-pointer"
                     >
                       <Download className="size-3.5" />
-                      <span>Tải mã VietQR</span>
+                      <span>{t("tenantAdmin.billing.paymentModal.transfer.downloadQr")}</span>
                     </button>
                   </div>
 
                   <div className="flex flex-col justify-center space-y-3 text-sm">
                     <p className="font-semibold text-[var(--color-text-primary)]">
-                      Thông tin chuyển khoản ngân hàng
+                      {t("tenantAdmin.billing.paymentModal.transfer.heading")}
                     </p>
 
                     <div className="divide-y divide-[var(--color-border-default)] rounded-xl border border-[var(--color-border-default)] bg-surface-muted/60 px-4">
                       <div className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="text-xs text-[var(--color-text-secondary)]">Ngân hàng</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.paymentModal.transfer.bankName")}
+                        </span>
                         <span className="font-semibold text-[var(--color-text-primary)]">{order.bankName}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="text-xs text-[var(--color-text-secondary)]">Số tài khoản</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.paymentModal.transfer.accountNumber")}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-[var(--color-text-primary)]">
                             {order.accountNumber}
                           </span>
                           <button
                             type="button"
-                            onClick={() => void handleCopy(order.accountNumber, "account", "số tài khoản")}
+                            onClick={() =>
+                              void handleCopy(
+                                order.accountNumber,
+                                "account",
+                                t("tenantAdmin.billing.paymentModal.transfer.copyAccountLabel"),
+                              )
+                            }
                             className="rounded p-1 text-brand-primary hover:bg-[var(--color-primary-soft)] cursor-pointer"
-                            title="Sao chép số tài khoản"
+                            title={t("tenantAdmin.billing.paymentModal.transfer.copyAccountTitle")}
                           >
                             {copiedField === "account" ? (
                               <Check className="size-3.5 text-emerald-600" />
@@ -316,22 +351,32 @@ export function InvoicePaymentModal({
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="text-xs text-[var(--color-text-secondary)]">Chủ tài khoản</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.paymentModal.transfer.accountHolder")}
+                        </span>
                         <span className="font-semibold text-[var(--color-text-primary)]">{order.accountName}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="text-xs text-[var(--color-text-secondary)]">Số tiền chính xác</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.paymentModal.transfer.exactAmount")}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-brand-primary">
-                            {Number(order.amountVnd || 0).toLocaleString("vi-VN")} ₫
+                            {t("tenantAdmin.billing.paymentModal.amountVndValue", {
+                              amount: formatNumber(Number(order.amountVnd || 0), undefined, locale),
+                            })}
                           </span>
                           <button
                             type="button"
                             onClick={() =>
-                              void handleCopy(String(Math.round(Number(order.amountVnd || 0))), "amount", "số tiền")
+                              void handleCopy(
+                                String(Math.round(Number(order.amountVnd || 0))),
+                                "amount",
+                                t("tenantAdmin.billing.paymentModal.transfer.copyAmountLabel"),
+                              )
                             }
                             className="rounded p-1 text-brand-primary hover:bg-[var(--color-primary-soft)] cursor-pointer"
-                            title="Sao chép số tiền"
+                            title={t("tenantAdmin.billing.paymentModal.transfer.copyAmountTitle")}
                           >
                             {copiedField === "amount" ? (
                               <Check className="size-3.5 text-emerald-600" />
@@ -342,7 +387,9 @@ export function InvoicePaymentModal({
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="text-xs text-[var(--color-text-secondary)]">Nội dung chuyển khoản</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.paymentModal.transfer.transferContent")}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-[var(--color-text-primary)]">
                             {order.transferSyntax}
@@ -350,10 +397,14 @@ export function InvoicePaymentModal({
                           <button
                             type="button"
                             onClick={() =>
-                              void handleCopy(order.transferSyntax, "syntax", "nội dung chuyển khoản")
+                              void handleCopy(
+                                order.transferSyntax,
+                                "syntax",
+                                t("tenantAdmin.billing.paymentModal.transfer.copySyntaxLabel"),
+                              )
                             }
                             className="rounded p-1 text-brand-primary hover:bg-[var(--color-primary-soft)] cursor-pointer"
-                            title="Sao chép nội dung"
+                            title={t("tenantAdmin.billing.paymentModal.transfer.copySyntaxTitle")}
                           >
                             {copiedField === "syntax" ? (
                               <Check className="size-3.5 text-emerald-600" />
@@ -376,22 +427,22 @@ export function InvoicePaymentModal({
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
-                      Thanh toán qua cổng VNPay (Thẻ ATM nội địa / Napas / QR Bank)
+                      {t("tenantAdmin.billing.paymentModal.vnpay.heading")}
                     </h4>
                     <p className="mx-auto max-w-lg text-xs text-[var(--color-text-secondary)]">
-                      Hệ thống sẽ chuyển hướng an toàn sang cổng thanh toán VNPay và quay lại trang quản lý Gói &amp; Hóa đơn ngay khi giao dịch hoàn tất.
+                      {t("tenantAdmin.billing.paymentModal.vnpay.description")}
                     </p>
                   </div>
                   <Button disabled={vnpayLoading} onClick={() => void handlePayWithVnPay()}>
                     {vnpayLoading ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
-                        <span>Đang tạo liên kết VNPay...</span>
+                        <span>{t("tenantAdmin.billing.paymentModal.vnpay.loading")}</span>
                       </>
                     ) : (
                       <>
                         <ExternalLink className="size-4" />
-                        <span>Tiến hành thanh toán VNPay</span>
+                        <span>{t("tenantAdmin.billing.paymentModal.vnpay.button")}</span>
                       </>
                     )}
                   </Button>
@@ -403,26 +454,28 @@ export function InvoicePaymentModal({
                 <div className="rounded-2xl border border-[var(--color-border-default)] bg-surface-muted p-6 space-y-4">
                   <div className="text-center space-y-1">
                     <h4 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
-                      Thanh toán thẻ quốc tế / PayPal (Visa, Mastercard, JCB)
+                      {t("tenantAdmin.billing.paymentModal.paypal.heading")}
                     </h4>
                     <p className="text-xs text-[var(--color-text-secondary)]">
-                      Quy đổi tham chiếu theo tỷ giá 25.000 VNĐ/USD:{" "}
+                      {t("tenantAdmin.billing.paymentModal.paypal.exchangeRatePrefix")}
                       <strong className="text-[var(--color-text-primary)]">
-                        ${usdAmount.toFixed(2)} USD
+                        {t("tenantAdmin.billing.paymentModal.paypal.exchangeRateValue", {
+                          amount: usdAmount.toFixed(2),
+                        })}
                       </strong>
                     </p>
                   </div>
 
                   {usdAmount < 0.01 ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs text-amber-900">
-                      Giá trị quy đổi nhỏ hơn mức tối thiểu $0.01 USD của PayPal. Vui lòng sử dụng VietQR hoặc VNPay.
+                      {t("tenantAdmin.billing.paymentModal.paypal.minAmountWarning")}
                     </div>
                   ) : (
                     <div className="mx-auto max-w-md pt-1">
                       {paypalVerifying && (
                         <div className="mb-3 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-primary-soft)] px-3 py-2 text-xs font-semibold text-brand-primary">
                           <Loader2 className="size-4 animate-spin" />
-                          <span>Đang xác thực giao dịch PayPal với hệ thống...</span>
+                          <span>{t("tenantAdmin.billing.paymentModal.paypal.verifying")}</span>
                         </div>
                       )}
                       <PayPalScriptProvider
@@ -464,23 +517,29 @@ export function InvoicePaymentModal({
                                   await notifyPaidSuccess(order.invoiceId, order.invoiceNumber);
                                 } else {
                                   toast.error(
-                                    "Xác thực PayPal thất bại",
-                                    res.message || "Vui lòng liên hệ hỗ trợ.",
+                                    t("tenantAdmin.billing.paymentModal.toasts.paypalFailedTitle"),
+                                    res.message || t("tenantAdmin.billing.paymentModal.toasts.paypalFailedFallback"),
                                   );
                                 }
                               } else {
-                                toast.warning("Giao dịch PayPal chưa hoàn tất", details.status);
+                                toast.warning(
+                                  t("tenantAdmin.billing.paymentModal.toasts.paypalIncompleteTitle"),
+                                  details.status,
+                                );
                               }
                             } catch (err) {
-                              toast.error("Lỗi xác thực PayPal", getApiErrorMessage(err));
+                              toast.error(
+                                t("tenantAdmin.billing.paymentModal.toasts.paypalErrorTitle"),
+                                getApiErrorMessage(err),
+                              );
                             } finally {
                               setPaypalVerifying(false);
                             }
                           }}
                           onError={() => {
                             toast.error(
-                              "Không thể thực hiện thanh toán PayPal",
-                              "Vui lòng thử lại hoặc chuyển sang VietQR / VNPay.",
+                              t("tenantAdmin.billing.paymentModal.toasts.paypalCannotPayTitle"),
+                              t("tenantAdmin.billing.paymentModal.toasts.paypalCannotPayDesc"),
                             );
                           }}
                         />

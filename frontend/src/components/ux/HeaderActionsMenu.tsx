@@ -145,7 +145,7 @@ export function HeaderActionsMenu({
               onClick={() => setOpen(false)}
             >
               <Bell className="size-4" aria-hidden="true" />
-              Cài đặt thông báo
+              {t("nav.notificationSettings")}
             </Link>
           )}
           {showHomeLink && (

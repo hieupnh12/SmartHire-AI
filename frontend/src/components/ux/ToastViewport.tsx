@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Pause, X } from "lucide-react";
+import { useT } from "@/i18n";
 import { useToastStore, type ToastItem, type ToastTone } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ function ToastCard({
   item: ToastItem;
   onDismiss: (id: string) => void;
 }) {
+  const t = useT();
   const [remaining, setRemaining] = useState(item.duration);
   const [isHovered, setIsHovered] = useState(false);
   const isHoveredRef = useRef(false);
@@ -125,7 +127,7 @@ function ToastCard({
             </p>
             {isHovered && item.duration > 0 && (
               <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 animate-fadeIn">
-                <Pause className="size-2.5" /> Tạm dừng
+                <Pause className="size-2.5" /> {t("ux.toastPaused")}
               </span>
             )}
           </div>
@@ -140,7 +142,7 @@ function ToastCard({
           type="button"
           className="grid size-7 place-items-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
           onClick={() => onDismiss(item.id)}
-          aria-label="Đóng thông báo"
+          aria-label={t("ux.dismissNotification")}
         >
           <X className="size-4" />
         </button>
@@ -166,6 +168,7 @@ function ToastCard({
 }
 
 export function ToastViewport() {
+  const t = useT();
   const items = useToastStore((s) => s.items);
   const dismiss = useToastStore((s) => s.dismiss);
 
@@ -174,7 +177,7 @@ export function ToastViewport() {
   return (
     <aside
       className="pointer-events-none fixed top-5 right-5 z-[9999] flex w-[min(100%-2rem,24rem)] flex-col gap-2.5"
-      aria-label="Thông báo hệ thống"
+      aria-label={t("ux.systemNotifications")}
       aria-live="polite"
       aria-relevant="additions text"
     >
