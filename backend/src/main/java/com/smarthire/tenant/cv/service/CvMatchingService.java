@@ -267,7 +267,9 @@ public class CvMatchingService {
         var decision = advisor.decide(advisorContext, formulaPassed);
         if (decision.isPresent()) {
             decisionSource = "ai";
-            verdict = decision.get().verdict();
+            if (!decision.get().verdict().isBlank()) {
+                verdict = decision.get().verdict();
+            }
             advice = decision.get().advice();
             candidateAdvice = decision.get().candidateAdvice();
             strengths = decision.get().strengths();
@@ -275,6 +277,10 @@ public class CvMatchingService {
             interviewQuestions = decision.get().interviewQuestions();
             passed = formulaPassed && decision.get().passed();
         }
+        strengths = CvScreeningInsightFallback.ensureStrengths(
+                strengths, breakdown, advisorContext.path("candidateProfile"), candidateSkills, analysis);
+        risks = CvScreeningInsightFallback.ensureRisks(
+                risks, breakdown, cv.getJob().getTitle(), score, passThreshold, formulaPassed);
         breakdown.put("verdict", verdict);
         breakdown.put("explanation", verdict);
         if (!advice.isBlank()) breakdown.put("advice", advice);

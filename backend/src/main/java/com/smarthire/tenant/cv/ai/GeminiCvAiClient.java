@@ -333,6 +333,9 @@ public class GeminiCvAiClient implements CvAiClient {
                         .addObject().putArray("parts").addObject().put("text", promptText == null ? "" : promptText);
                 var generationConfig = requestBody.putObject("generationConfig");
                 generationConfig.put("responseMimeType", "application/json");
+                if (model != null && model.startsWith("gemini-2.5-flash")) {
+                    generationConfig.putObject("thinkingConfig").put("thinkingBudget", 0);
+                }
                 if (temperature != null) {
                     generationConfig.put("temperature", temperature);
                 }
@@ -355,10 +358,7 @@ public class GeminiCvAiClient implements CvAiClient {
                 completionTokens = tokens[1];
             }
 
-            int start = text.indexOf('{');
-            int end = text.lastIndexOf('}');
-            if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
-            String json = text.substring(start, end + 1);
+            String json = extractJsonObject(text);
             mapper.readTree(json);
             success = true;
             return new AiJsonCompletion(json, promptTokens, completionTokens, provider, model);
@@ -378,10 +378,34 @@ public class GeminiCvAiClient implements CvAiClient {
         return INSTRUCTION + "\n\n" + job + "\n\nCV text:\n" + truncate(rawText);
     }
 
-    private String readText(String response) throws Exception {
+    static String extractJsonObject(String text) {
+        if (text == null) throw new IllegalStateException("AI returned no JSON");
+        String cleaned = text
+                .replaceAll("(?is)<think>.*?</think>", " ")
+                .replaceAll("(?i)```(?:json)?", " ")
+                .replace("```", " ")
+                .trim();
+        int start = cleaned.indexOf('{');
+        int end = cleaned.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
+        return cleaned.substring(start, end + 1);
+    }
+
+    String readText(String response) throws Exception {
         JsonNode root = mapper.readTree(response);
-        JsonNode text = root.path("candidates").path(0).path("content").path("parts").path(0).path("text");
-        return text.isMissingNode() ? "" : text.asText();
+        JsonNode parts = root.path("candidates").path(0).path("content").path("parts");
+        if (!parts.isArray() || parts.isEmpty()) return "";
+        StringBuilder primary = new StringBuilder();
+        StringBuilder fallback = new StringBuilder();
+        for (JsonNode part : parts) {
+            String t = part.path("text").asText("");
+            if (t.isEmpty()) continue;
+            fallback.append(t);
+            if (!part.path("thought").asBoolean(false)) {
+                primary.append(t);
+            }
+        }
+        return primary.length() > 0 ? primary.toString() : fallback.toString();
     }
 
     private String readOpenAiText(String response) throws Exception {

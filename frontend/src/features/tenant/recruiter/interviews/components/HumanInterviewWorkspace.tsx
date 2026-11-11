@@ -577,7 +577,7 @@ export function HumanInterviewWorkspace(p: Props) {
                 Culture
               </span>
               <span className="flex items-center gap-1">
-                <span className="size-2 rounded-full bg-violet-500" />
+                <span className="size-2 rounded-full bg-amber-500" />
                 Executive
               </span>
             </div>

@@ -19,7 +19,7 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { cn } from "@/lib/utils";
-import { createRankingSocket } from "@/lib/ws";
+import { closeSocketSafely, createRankingSocket } from "@/lib/ws";
 import { RankingDetail } from "../components/RankingDetail";
 import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
 import { applicationStatusLabel, button, labels, scoreText } from "../components/rankingUi";
@@ -503,10 +503,17 @@ export function RankingPage() {
 
   useEffect(() => {
     if (!token || isPreview) return;
-    const socket = createRankingSocket(token, (event) => {
-      if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
-    });
-    return () => socket?.close();
+    let socket: WebSocket | null = null;
+    // Defer past StrictMode's immediate unmount/remount to avoid churning an in-flight handshake.
+    const connectTimer = window.setTimeout(() => {
+      socket = createRankingSocket(token, (event) => {
+        if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
+      });
+    }, 50);
+    return () => {
+      window.clearTimeout(connectTimer);
+      closeSocketSafely(socket);
+    };
   }, [client, isPreview, jobId, tenantKey, token]);
 
   const cohorts = board?.cohorts ?? [];

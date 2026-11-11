@@ -1,43 +1,32 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ChevronUp,
-  CircleDashed,
   FileText,
+  GitBranch,
   Inbox,
   ListChecks,
   Loader2,
-  LoaderCircle,
-  RefreshCw,
-  Trash2,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
+import type { CvSummary } from "@/api/types/cv";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { useUiStore } from "@/stores/uiStore";
-import { toast } from "@/stores/toastStore";
-import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import { DetailDialog } from "@/components/ux/DetailDialog";
-import { CvFilePreview } from "@/components/shared/CvFilePreview";
-import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
-import { GithubEvidencePanel } from "@/features/tenant/recruiter/cv-screening/components/GithubEvidencePanel";
-import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
-import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
-import type { CvDetail, CvStatus } from "@/api/types/cv";
+import { CvStatusBadge, cvInitials, formatCvDate } from "@/features/tenant/recruiter/cv-screening/components/CvStatusBadge";
+import { Skeleton } from "@/components/ux/Skeleton";
 
-type Tone = "done" | "work" | "idle" | "fail";
 type Tab = "ALL" | "SCORED" | "PROCESSING" | "FAILED";
 type Sort = "newest" | "score";
 
@@ -168,6 +157,11 @@ function TableRowsSkeleton({ rows = 10 }: { rows?: number }) {
             </div>
           </td>
 
+          {/* Cột GitHub */}
+          <td className="px-4 py-3.5">
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </td>
+
           {/* Cột Thao tác: 1 chữ mờ đại diện cho nút Chi tiết */}
           <td className="py-3.5 pr-6 text-right">
             <Skeleton className="ml-auto h-8 w-20 rounded-lg" />
@@ -178,41 +172,14 @@ function TableRowsSkeleton({ rows = 10 }: { rows?: number }) {
   );
 }
 
-const STATUS: Record<CvStatus, { label: string; tone: Tone }> = {
-  UPLOADED: { label: "Chờ phân tích", tone: "idle" },
-  PARSING: { label: "Đang đọc file", tone: "work" },
-  PARSED: { label: "Đã đọc file", tone: "work" },
-  EXTRACTING: { label: "Đang trích xuất", tone: "work" },
-  ANALYZING: { label: "Đang phân tích", tone: "work" },
-  ANALYZED: { label: "Đã phân tích", tone: "done" },
-  FAILED: { label: "Lỗi xử lý", tone: "fail" },
-};
-
-const TONE_CLASS: Record<Tone, string> = {
-  done: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]",
-  work: "bg-[var(--color-surface-container-high)] text-[var(--color-primary)]",
-  idle: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
-  fail: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]",
-};
-
-function initials(name: string) {
-  return name.split(" ").filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase() || "?";
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 export function CvScreeningPage() {
   const token = useAuthStore((s) => s.accessToken);
-  const client = useQueryClient();
-  const askConfirm = useUiStore((s) => s.askConfirm);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { id: routeJobId } = useParams<{ id?: string }>();
   const [params, setParams] = useSearchParams();
   const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
   const requestedCvId = Number(params.get("cvId"));
-  const [selectedId, setSelectedId] = useState<number | null>(Number.isInteger(requestedCvId) && requestedCvId > 0 ? requestedCvId : null);
 
   const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
   const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
@@ -242,37 +209,12 @@ export function CvScreeningPage() {
     enabled: jobId !== null && !!token,
     refetchInterval: 5_000,
   });
-  const detail = useQuery({
-    queryKey: queryKeys.cvs.detail(selectedId ?? 0),
-    queryFn: () => cvApi.get(selectedId!),
-    enabled: selectedId !== null,
-    refetchInterval: 4_000,
-  });
   const skills = useQuery({ queryKey: ["job-skills", jobId], queryFn: () => jobApi.skills(jobId!), enabled: jobId !== null });
-  const retryParse = useMutation({
-    mutationFn: (cvId: number) => cvApi.parse(cvId),
-    onSuccess: (response, cvId) => {
-      client.setQueryData(queryKeys.cvs.detail(cvId), response);
-      void list.refetch();
-      void detail.refetch();
-      toast.success("Đã phân tích CV");
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (cvId: number) => cvApi.remove(cvId),
-    onSuccess: (_response, cvId) => {
-      setSelectedId(null);
-      client.removeQueries({ queryKey: queryKeys.cvs.detail(cvId) });
-      void list.refetch();
-      toast.success("Đã xóa CV");
-    },
-  });
 
   const pageResult = list.data?.data;
   const rows = pageResult?.items ?? [];
   const rowsPending = list.isPending;
   const rowsError = list.error;
-  const cv = detail.data?.data;
   const jobSkills = skills.data?.data ?? [];
   const requiredSkills = jobSkills.filter((skill) => skill.required);
   const preferredSkills = jobSkills.filter((skill) => !skill.required);
@@ -368,17 +310,6 @@ export function CvScreeningPage() {
     }
   }, [list.isFetching, totalItems, page, totalPages]);
 
-  const confirmDelete = (target: CvDetail) =>
-    askConfirm({
-      title: "Xóa CV này khỏi job?",
-      description: `CV của ${target.candidateName} và kết quả phân tích sẽ bị xóa. Không thể hoàn tác.`,
-      confirmLabel: "Xóa CV",
-      danger: true,
-      onConfirm: async () => {
-        await remove.mutateAsync(target.id);
-      },
-    });
-
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "ALL", label: "Tất cả", count: counts.all },
     { id: "SCORED", label: "Đã chấm điểm", count: counts.scored },
@@ -389,6 +320,13 @@ export function CvScreeningPage() {
   if (!jobId) {
     return <Navigate to="/recruiter" replace />;
   }
+
+  if (Number.isInteger(requestedCvId) && requestedCvId > 0) {
+    return <Navigate to={`/recruiter/jobs/${jobId}/cvs/${requestedCvId}`} replace />;
+  }
+
+  const openCvDetail = (cvId: number) =>
+    navigate(`/recruiter/jobs/${jobId}/cvs/${cvId}`, { state: { backSearch: location.search } });
 
   return (
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 text-[var(--color-on-surface)]">
@@ -458,13 +396,14 @@ export function CvScreeningPage() {
       {/* 3. Candidate CV Data Table (Khối 3) */}
       <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
         <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[940px] border-collapse text-left text-sm">
             <thead>
               <tr className="h-11 select-none border-b border-slate-200/80 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-700">
                 <th className="py-3 pl-6 pr-4">Ứng viên</th>
                 <th className="px-4 py-3">File CV</th>
                 <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-4 py-3">Điểm sàng lọc</th>
+                <th className="px-4 py-3">GitHub</th>
                 <th className="py-3 pr-6 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -472,22 +411,22 @@ export function CvScreeningPage() {
               {isInitialLoading || isTableTransitioning || rowsPending ? (
                 <TableRowsSkeleton rows={pageSize} />
               ) : rowsError ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm" role="alert">{getApiErrorMessage(rowsError)}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm" role="alert">{getApiErrorMessage(rowsError)}</td></tr>
               ) : paginatedRows.length > 0 ? (
                 paginatedRows.map((row) => (
                   <tr
                     key={row.id}
                     className="cursor-pointer transition-colors hover:bg-slate-50/80"
-                    onClick={() => setSelectedId(row.id)}
+                    onClick={() => openCvDetail(row.id)}
                   >
                     <td className="py-3.5 pl-6 pr-4">
                       <div className="flex items-center gap-3">
                         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary">
-                          {initials(row.candidateName)}
+                          {cvInitials(row.candidateName)}
                         </div>
                         <div className="flex min-w-0 flex-col">
                           <span className="truncate font-semibold text-slate-900 leading-tight">{row.candidateName}</span>
-                          <span className="text-xs text-slate-500">Nộp {formatDate(row.createdAt)}</span>
+                          <span className="text-xs text-slate-500">Nộp {formatCvDate(row.createdAt)}</span>
                         </div>
                       </div>
                     </td>
@@ -506,10 +445,11 @@ export function CvScreeningPage() {
                     </td>
                     <td className="px-4 py-3.5"><CvStatusBadge status={row.status} /></td>
                     <td className="px-4 py-3.5"><ScoreCell score={row.matchScore} /></td>
+                    <td className="px-4 py-3.5"><GithubSummaryCell row={row} /></td>
                     <td className="py-3.5 pr-6 text-right">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setSelectedId(row.id); }}
+                        onClick={(e) => { e.stopPropagation(); openCvDetail(row.id); }}
                         className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand-primary/10 px-3 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white"
                       >
                         Chi tiết
@@ -520,7 +460,7 @@ export function CvScreeningPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-4 py-14">
+                  <td colSpan={6} className="px-4 py-14">
                     <div className="flex flex-col items-center text-center">
                       <Inbox className="size-8 text-slate-400" aria-hidden="true" />
                       <p className="mt-3 text-sm font-semibold text-slate-800">{rows.length === 0 ? "Chưa có CV cho job này" : "Không có CV phù hợp bộ lọc"}</p>
@@ -720,33 +660,6 @@ export function CvScreeningPage() {
           </div>
         ) : null}
       </div>
-
-          <DetailDialog open={selectedId != null} size="wide" title={cv?.candidateName ?? "Chi tiết CV"} onClose={() => setSelectedId(null)}>
-        {detail.isPending && selectedId != null && (
-          <div className="space-y-4" role="status" aria-busy="true">
-            <div className="flex items-center gap-3">
-              <Skeleton className="size-12 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-5 w-48" />
-                <Skeleton className="h-3.5 w-32" />
-              </div>
-            </div>
-            <SkeletonCard className="h-56" />
-            <SkeletonCard className="h-44" />
-            <span className="sr-only">Đang tải chi tiết CV…</span>
-          </div>
-        )}
-        {cv && (
-          <CvDetailPanel
-            cv={cv}
-            onRetry={() => retryParse.mutate(cv.id)}
-            retryPending={retryParse.isPending}
-            onDelete={() => confirmDelete(cv)}
-            deletePending={remove.isPending}
-          />
-        )}
-        {retryParse.isError && <p role="alert" className="mt-3 rounded-xl bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]">{getApiErrorMessage(retryParse.error)}</p>}
-      </DetailDialog>
     </section>
   );
 }
@@ -899,14 +812,61 @@ function CompactMetricToolbar({
   );
 }
 
-function CvStatusBadge({ status }: { status: CvStatus }) {
-  const meta = STATUS[status] ?? { label: status, tone: "idle" as Tone };
-  const Icon = meta.tone === "done" ? CheckCircle2 : meta.tone === "fail" ? AlertTriangle : meta.tone === "work" ? LoaderCircle : CircleDashed;
+function GithubSummaryCell({ row }: { row: CvSummary }) {
+  const status = row.githubStatus;
+  if (!status || status === "NOT_PROVIDED") {
+    return <span className="text-xs text-slate-400">Không có</span>;
+  }
+  if (status === "PENDING" || status === "PROCESSING") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+        <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+        Đang quét
+      </span>
+    );
+  }
+  if (status === "FAILED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+        <GitBranch className="size-3" aria-hidden="true" />
+        Không đọc được
+      </span>
+    );
+  }
+
+  const trust = row.githubTrustLevel;
+  const isWarning = trust === "WARNING";
+  const isHighTrust = trust === "HIGH";
+  const num = row.githubScore != null ? Number(row.githubScore) : null;
+
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold", TONE_CLASS[meta.tone])}>
-      <Icon className={cn("size-3.5", meta.tone === "work" && "animate-spin motion-reduce:animate-none")} aria-hidden="true" />
-      {meta.label}
-    </span>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        {num != null ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--color-primary-hover)]">
+            <GitBranch className="size-3" aria-hidden="true" />
+            {num.toLocaleString("vi-VN", { maximumFractionDigits: 0 })}đ
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+            <GitBranch className="size-3" aria-hidden="true" />
+            Một phần
+          </span>
+        )}
+        {isWarning && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700" title="Cần kiểm tra tác giả / fork / trùng lặp">
+            <ShieldAlert className="size-3" aria-hidden="true" />
+            Cảnh báo
+          </span>
+        )}
+        {isHighTrust && !isWarning && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700" title="Xác thực commit tốt">
+            <ShieldCheck className="size-3" aria-hidden="true" />
+            Uy tín
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -957,100 +917,6 @@ function ScoreCell({ score }: { score: number | null }) {
           className={cn("h-full rounded-full transition-all duration-300", levelColor.bar)}
           style={{ width: `${pct}%` }}
         />
-      </div>
-    </div>
-  );
-}
-
-function CvDetailPanel({ cv, onRetry, retryPending, onDelete, deletePending }: {
-  cv: CvDetail;
-  onRetry: () => void;
-  retryPending: boolean;
-  onDelete: () => void;
-  deletePending: boolean;
-}) {
-  const canAnalyze = cv.status === "UPLOADED" || cv.status === "FAILED" || cv.status === "ANALYZED";
-  const analyzed = cv.status === "ANALYZED";
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 rounded-2xl bg-[var(--color-surface-container-low)] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-sm font-bold text-[var(--color-primary-hover)]">
-            {initials(cv.candidateName)}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-semibold">{cv.candidateName}</p>
-            <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{cv.originalFilename} · Nộp {formatDate(cv.createdAt)}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <CvStatusBadge status={cv.status} />
-              <span className="rounded-full bg-[var(--color-surface-card)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-on-surface-variant)]">
-                {cv.extractionModel ?? "Chưa phân tích"}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {canAnalyze && (
-            <button type="button" className={primary} disabled={retryPending || deletePending} onClick={onRetry}>
-              {retryPending
-                ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                : <RefreshCw className="size-4" aria-hidden="true" />}
-              {retryPending ? "Đang phân tích…" : analyzed ? "Phân tích lại" : "Phân tích CV"}
-            </button>
-          )}
-          <button
-            type="button"
-            className={cn(button, "hover:border-[var(--color-error)] hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)]")}
-            disabled={deletePending}
-            onClick={onDelete}
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-            {deletePending ? "Đang xóa…" : "Xóa CV"}
-          </button>
-        </div>
-      </div>
-
-      {cv.errorMessage && (
-        <div role="alert" className="flex items-start gap-2 rounded-xl bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>{cv.errorMessage}</span>
-        </div>
-      )}
-
-      {cv.match
-        ? <ScreeningBreakdown wide score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={cv.match.breakdown} />
-        : (
-          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] p-4 text-sm text-[var(--color-on-surface-variant)]">
-            <CircleDashed className="size-5 shrink-0" aria-hidden="true" />
-            Chưa có điểm sàng lọc. Bấm “Phân tích CV” để chấm theo yêu cầu của job.
-          </div>
-        )}
-
-      <GithubEvidencePanel analysis={cv.githubAnalysis} />
-
-      {cv.applicationId != null && <CvScreeningDecision applicationId={cv.applicationId} />}
-
-      {(cv.skills.length > 0 || cv.analysis?.yearsExperience != null) && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">Kỹ năng trích từ CV</h3>
-            {cv.analysis?.yearsExperience != null && (
-              <span className="text-xs text-[var(--color-on-surface-variant)]">{cv.analysis.yearsExperience} năm kinh nghiệm</span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {cv.skills.map((skill) => (
-              <span key={skill.canonicalName} className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-medium">
-                {skill.skillName}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold">File CV</h3>
-        <CvFilePreview cvId={cv.id} mimeType={cv.mimeType} filename={cv.originalFilename} />
       </div>
     </div>
   );

@@ -55,8 +55,8 @@ export function AiRealtimeProgressCard({
       case "generating":
         return {
           icon: Brain,
-          iconColor: "text-[#0066FF]",
-          bgColor: "bg-[#0066FF]/10 border-[#0066FF]/20",
+          iconColor: "text-[var(--color-primary)]",
+          bgColor: "bg-[var(--color-primary-soft)] border-[var(--color-primary)]/20",
           title: `Đang biên soạn ${count} câu hỏi ${questionType === "CODING" ? "Bài code" : questionType === "ESSAY" ? "Tự luận" : "Trắc nghiệm"} ${skill}...`,
           description: "Thiết lập cấu trúc đề bài, phương án đáp án và xây dựng giải thích chi tiết.",
           step: 2,
@@ -64,8 +64,8 @@ export function AiRealtimeProgressCard({
       case "verifying":
         return {
           icon: ShieldCheck,
-          iconColor: "text-indigo-600 dark:text-indigo-400",
-          bgColor: "bg-indigo-50 border-indigo-200/80 dark:bg-indigo-950/40 dark:border-indigo-900/60",
+          iconColor: "text-[var(--color-primary-hover)]",
+          bgColor: "bg-[var(--color-primary-subtle)] border-[var(--color-primary)]/25",
           title: "Đang thẩm định logic đáp án & đối soát ngân hàng câu hỏi...",
           description: "Rà soát tính duy nhất của đáp án đúng, kiểm duyệt rubric và quét trùng lặp dữ liệu.",
           step: 3,
@@ -91,7 +91,7 @@ export function AiRealtimeProgressCard({
         "relative overflow-hidden rounded-2xl border transition-all p-5 shadow-sm",
         stage === "completed"
           ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/60 dark:bg-emerald-950/20"
-          : "border-blue-200/90 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white dark:border-blue-900/60 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900",
+          : "border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)]",
         className,
       )}
     >
@@ -171,13 +171,13 @@ export function AiRealtimeProgressCard({
           <div className="mt-3 space-y-1.5">
             <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
               <span>Tiến trình xử lý</span>
-              <span className="font-bold text-[#0066FF] dark:text-blue-400">
+              <span className="font-bold text-[var(--color-primary)]">
                 {Math.round(progressPercent)}%
               </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#0066FF] to-indigo-500 transition-all duration-300 ease-out"
+                className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-300 ease-out"
                 style={{ width: `${Math.min(100, Math.max(8, progressPercent))}%` }}
               />
             </div>
@@ -191,7 +191,7 @@ export function AiRealtimeProgressCard({
           className={cn(
             "flex flex-col items-center justify-center rounded-xl p-2 text-center text-[11px] transition-all",
             current.step >= 1
-              ? "bg-blue-50/80 font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+              ? "bg-[var(--color-primary-soft)] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
               : "bg-slate-50 text-slate-400 dark:bg-slate-800/40",
           )}
         >
@@ -201,7 +201,7 @@ export function AiRealtimeProgressCard({
           className={cn(
             "flex flex-col items-center justify-center rounded-xl p-2 text-center text-[11px] transition-all",
             current.step >= 2
-              ? "bg-blue-50/80 font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+              ? "bg-[var(--color-primary-soft)] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
               : "bg-slate-50 text-slate-400 dark:bg-slate-800/40",
           )}
         >
@@ -211,7 +211,7 @@ export function AiRealtimeProgressCard({
           className={cn(
             "flex flex-col items-center justify-center rounded-xl p-2 text-center text-[11px] transition-all",
             current.step >= 3
-              ? "bg-blue-50/80 font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+              ? "bg-[var(--color-primary-soft)] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
               : "bg-slate-50 text-slate-400 dark:bg-slate-800/40",
           )}
         >

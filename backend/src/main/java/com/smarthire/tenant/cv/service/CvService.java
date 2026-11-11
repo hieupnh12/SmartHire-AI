@@ -8,6 +8,7 @@ import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
+import com.smarthire.domain.tenant.entity.GithubAnalysis;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
@@ -421,8 +422,9 @@ public class CvService {
         Map<Long, com.smarthire.domain.tenant.entity.MatchScore> scoreMap = scores.findByJob_Id(jobId).stream()
                 .filter(s -> s.getCv() != null)
                 .collect(java.util.stream.Collectors.toMap(s -> s.getCv().getId(), s -> s, (a, b) -> a));
+        Map<Long, GithubAnalysis> githubMap = githubMapByJob(jobId);
         return cvs.findByJob_IdOrderByIdDesc(jobId).stream()
-                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId())))
+                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId()), githubMap.get(cv.getId())))
                 .toList();
     }
 
@@ -435,9 +437,10 @@ public class CvService {
         Map<Long, com.smarthire.domain.tenant.entity.MatchScore> scoreMap = scores.findByJob_Id(jobId).stream()
                 .filter(s -> s.getCv() != null)
                 .collect(java.util.stream.Collectors.toMap(s -> s.getCv().getId(), s -> s, (a, b) -> a));
+        Map<Long, GithubAnalysis> githubMap = githubMapByJob(jobId);
 
         List<CvSummary> allSummaries = jobCvs.stream()
-                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId())))
+                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId()), githubMap.get(cv.getId())))
                 .toList();
 
         long totalCount = allSummaries.size();
@@ -608,6 +611,13 @@ public class CvService {
             return;
         }
         run.run();
+    }
+
+    private Map<Long, GithubAnalysis> githubMapByJob(long jobId) {
+        if (!access.staff()) return Map.of();
+        return githubAnalyses.findByJob_Id(jobId).stream()
+                .filter(g -> g.getCv() != null)
+                .collect(java.util.stream.Collectors.toMap(g -> g.getCv().getId(), g -> g, (a, b) -> a));
     }
 
     private CvDetail toDetail(Cv cv) {

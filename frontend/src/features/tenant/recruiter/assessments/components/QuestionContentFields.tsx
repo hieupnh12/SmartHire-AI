@@ -400,7 +400,7 @@ export function CodingStarterFields({
             <span className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--color-primary)]">
               {language}
               {jobLanguages.some(jl => jl.id === language) && (
-                <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
                   Kỹ năng Job
                 </span>
               )}
@@ -472,7 +472,7 @@ export function CodingStarterFields({
               <button
                 key={l.id}
                 type="button"
-                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300"
+                className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-1 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 hover:bg-[var(--color-primary-subtle)]"
                 onClick={() => addLanguage(l.id)}
               >
                 <Plus className="size-3" />
@@ -1171,8 +1171,8 @@ export function QuestionContentFields({
                   className={cn(
                     "rounded-full px-2.5 py-0.5 text-xs font-medium",
                     test.sample
-                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
-                      : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
+                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
+                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   )}
                 >
                   {test.sample ? "Công khai cho ứng viên" : `Test ẩn (Trọng số: ${test.weight ?? 0}%)`}

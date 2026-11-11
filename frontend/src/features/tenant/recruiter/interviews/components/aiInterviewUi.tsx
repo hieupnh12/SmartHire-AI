@@ -39,12 +39,17 @@ export function formatDateTime(value: string | null | undefined) {
   });
 }
 
+export function formatInterviewScore(value: number | null | undefined) {
+  if (value == null) return "—";
+  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+}
+
 export const aiStatusTone: Record<AiInterviewStatus, string> = {
   CREATED: "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
-  GENERATING: "bg-violet-50 text-violet-700 border border-violet-200/70 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800/40",
+  GENERATING: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25",
   QUESTIONS_READY: "bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40",
   IN_PROGRESS: "bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40",
-  SCORING: "bg-blue-50 text-[#0066FF] border border-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40",
+  SCORING: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25",
   SCORED: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
   PASSED: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
   FAILED: "bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40",
@@ -53,10 +58,10 @@ export const aiStatusTone: Record<AiInterviewStatus, string> = {
 
 export const aiStatusDot: Record<AiInterviewStatus, string> = {
   CREATED: "bg-slate-400",
-  GENERATING: "bg-violet-500 animate-pulse",
+  GENERATING: "bg-[var(--color-primary)] animate-pulse",
   QUESTIONS_READY: "bg-amber-500",
   IN_PROGRESS: "bg-sky-500 animate-pulse",
-  SCORING: "bg-blue-500 animate-spin",
+  SCORING: "bg-[var(--color-primary)] animate-spin",
   SCORED: "bg-emerald-500",
   PASSED: "bg-emerald-500",
   FAILED: "bg-rose-500",

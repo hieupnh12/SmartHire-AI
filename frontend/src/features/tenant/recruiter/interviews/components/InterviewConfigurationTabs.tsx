@@ -128,7 +128,7 @@ export function InterviewConfigurationTabs({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+            <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-[12px] font-semibold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
               Thời lượng: {interviewDurationMinutes(processes)} phút · {processCount(processes)} câu hỏi
             </span>
             <button
@@ -147,7 +147,7 @@ export function InterviewConfigurationTabs({
             <button
               type="submit"
               disabled={busy || (!form.formState.isDirty && !exerciseDirty)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#0066FF] px-3.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Save className="size-3.5" />
               <span>{busy ? "Đang lưu…" : "Lưu cấu hình"}</span>
@@ -173,7 +173,7 @@ export function InterviewConfigurationTabs({
               Thiết lập phiên
             </legend>
             <label className="mb-2 flex min-h-10 items-center gap-3 text-xs font-semibold text-slate-800 dark:text-slate-200">
-              <input type="checkbox" className="size-4 accent-[#0066FF] rounded cursor-pointer" {...form.register("enabled")} disabled={busy} />
+              <input type="checkbox" className="size-4 accent-[var(--color-primary)] rounded cursor-pointer" {...form.register("enabled")} disabled={busy} />
               Cho phép AI Interview và tự tạo lời mời khi CV đạt
             </label>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -270,11 +270,11 @@ export function InterviewConfigurationTabs({
               {jobSkills.map(skill => (
                 <label
                   key={skill}
-                  className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50 has-[:checked]:border-[#0066FF] has-[:checked]:bg-blue-50 has-[:checked]:text-[#0066FF] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:has-[:checked]:bg-blue-950/60 dark:has-[:checked]:text-blue-300"
+                  className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50 has-[:checked]:border-[var(--color-primary)] has-[:checked]:bg-[var(--color-primary-soft)] has-[:checked]:text-[var(--color-primary-hover)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                 >
                   <input
                     type="checkbox"
-                    className="accent-[#0066FF] rounded"
+                    className="accent-[var(--color-primary)] rounded"
                     checked={form.watch("policy.selectedSkills").includes(skill)}
                     onChange={() => {
                       const selected = form.getValues("policy.selectedSkills");
@@ -346,7 +346,7 @@ const card = "space-y-4 rounded-xl border border-slate-200/80 bg-slate-50/40 p-5
 
 function Intro({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-blue-200/60 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/30">
+    <div className="rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/70 p-4">
       <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{title}</p>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{description}</p>
     </div>
@@ -363,7 +363,7 @@ function TabButton({ active, label, icon: Icon, onClick }: { active: boolean; la
       className={cn(
         "inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap",
         active
-          ? "border-[#0066FF] text-[#0066FF] dark:text-blue-400 dark:border-blue-400"
+          ? "border-[var(--color-primary)] text-[var(--color-primary)]"
           : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200"
       )}
     >

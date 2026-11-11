@@ -100,7 +100,7 @@ export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
                       className={cn(
                         "w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all cursor-pointer group",
                         isActive
-                          ? "bg-blue-50 text-[#0066FF] font-semibold dark:bg-blue-950/40 dark:text-blue-300 shadow-2xs"
+                          ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                           : "text-[#475467] hover:bg-slate-50 hover:text-[#101828] dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-white"
                       )}
                     >
@@ -108,13 +108,13 @@ export function AiInterviewConfigPanel({ jobId, onOpenDetail }: Props) {
                         className={cn(
                           "size-4 shrink-0 transition-colors",
                           isActive
-                            ? "text-[#0066FF] dark:text-blue-400"
+                            ? "text-[var(--color-primary)]"
                             : "text-[#667085] group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300"
                         )}
                       />
                       <span className="flex-1 text-[13px] font-medium leading-tight">{item.title}</span>
                       {isActive && (
-                        <ChevronRight className="size-3.5 shrink-0 text-[#0066FF] self-center ml-auto dark:text-blue-400" />
+                        <ChevronRight className="size-3.5 shrink-0 text-[var(--color-primary)] self-center ml-auto" />
                       )}
                     </button>
                   );

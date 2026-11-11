@@ -1473,7 +1473,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
-            <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+            <HelpCircle className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
             Hướng dẫn & Phím tắt
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
@@ -1570,7 +1570,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                     active
-                      ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                      ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-2xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
                   )}
                 >
@@ -1579,7 +1579,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     className={cn(
                       "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
                       active
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                        ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                         : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
                     )}
                   >
@@ -1595,7 +1595,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                 view === "schema"
-                  ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                  ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-2xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
               )}
             >
@@ -1604,7 +1604,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 className={cn(
                   "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
                   view === "schema"
-                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                    ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                     : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
                 )}
               >
@@ -1621,7 +1621,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               onClick={() => setShowHelpModal(true)}
               title="Xem cẩm nang dán Excel & phím tắt (?)"
             >
-              <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              <HelpCircle className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
               <span className="hidden sm:inline">Cẩm nang</span>
             </Button>
             {view === "all" && (
@@ -1650,12 +1650,12 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           <>
             {typeFilter !== "SUBJECTIVE" && <>
                 <div className="flex items-center gap-2.5 border-b border-slate-200/80 bg-slate-50/50 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900/40">
-                  <div className="flex h-7 min-w-14 items-center justify-center rounded-md border border-blue-200/80 bg-blue-50/80 px-2 font-mono text-xs font-bold text-blue-700 shadow-2xs dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+                  <div className="flex h-7 min-w-14 items-center justify-center rounded-md border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-2 font-mono text-xs font-bold text-[var(--color-primary-hover)] shadow-2xs">
                     {activeCell}
                   </div>
                   <span className="select-none font-mono text-xs font-bold italic text-slate-400">fx</span>
                   <input
-                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-blue-400 dark:disabled:bg-slate-800"
+                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-[var(--color-primary)] dark:disabled:bg-slate-800"
                     value={formula}
                     onChange={(event) => applyEdit(event.target.value)}
                     onPasteCapture={handleTablePaste}
@@ -2511,7 +2511,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             <button
               type="button"
               onClick={() => setShowHelpModal(true)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
             >
               <HelpCircle className="size-3.5" aria-hidden="true" />
               Cẩm nang & Phím tắt (?)
@@ -2528,7 +2528,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 text-[var(--color-primary)]">
               <ListChecks className="size-4" aria-hidden="true" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Dán dữ liệu từ Excel</h3>
             </div>
@@ -2537,7 +2537,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 <strong className="text-slate-800 dark:text-slate-200">Dán trực tiếp:</strong> Dán vào đúng ô đang chọn. Clipboard có ký tự tab hoặc sao chép từ Excel/Google Sheets sẽ tự động phân tách các cột <em>content / type / score / difficulty / skill</em>.
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Chuỗi dính liền:</strong> Nếu chuỗi văn bản chứa loại câu (vd: <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400">...Authorization.Tự luận3.0MediumSecurity</span>), hệ thống sẽ tự động tách cột thông minh.
+                <strong className="text-slate-800 dark:text-slate-200">Chuỗi dính liền:</strong> Nếu chuỗi văn bản chứa loại câu (vd: <span className="font-mono text-[11px] text-[var(--color-primary-hover)] dark:text-[var(--color-primary)]">...Authorization.Tự luận3.0MediumSecurity</span>), hệ thống sẽ tự động tách cột thông minh.
               </li>
               <li>
                 <strong className="text-slate-800 dark:text-slate-200">Tự luận & Đáp án mẫu:</strong> Dán thêm dòng chứa <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">Đáp án mẫu: ...</span> để hệ thống tự động đưa vào lời giải chuẩn.
@@ -2567,7 +2567,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           </div>
 
           <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+            <div className="flex items-center gap-2 text-[var(--color-primary)]">
               <ShieldCheck className="size-4" aria-hidden="true" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">AI Tự động Kiểm tra</h3>
             </div>

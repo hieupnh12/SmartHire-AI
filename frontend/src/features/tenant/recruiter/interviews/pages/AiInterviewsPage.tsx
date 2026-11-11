@@ -1,6 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -47,7 +47,6 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
-import { AiInterviewDetailDrawer } from "../components/AiInterviewDetailDrawer";
 import {
   AI_INTERVIEW_STATUSES,
   AiStatusBadge,
@@ -134,7 +133,7 @@ function exportCsv(rows: AiInterviewRow[], jobTitle: string) {
 
 function ScoreCell({ row }: { row: AiInterviewRow }) {
   if (row.status === "SCORING") {
-    return <span className="text-xs italic text-blue-600 dark:text-blue-400">Đang tổng hợp điểm...</span>;
+    return <span className="text-xs italic text-[var(--color-primary)]">Đang tổng hợp điểm...</span>;
   }
   if (row.overallScore == null) {
     return <span className="text-xs italic text-slate-400 dark:text-slate-500">Chưa có điểm</span>;
@@ -227,6 +226,8 @@ function ActionMenu({
 
 export function AiInterviewsPage() {
   const job = useRecruitmentJob();
+  const navigate = useNavigate();
+  const location = useLocation();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [params, setParams] = useSearchParams();
@@ -245,9 +246,14 @@ export function AiInterviewsPage() {
   const [jumpVal, setJumpVal] = useState("");
   const [isTableTransitioning, setIsTableTransitioning] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<"status" | "time" | "export" | null>(null);
+
+  const openSessionDetail = (interviewId: number) => {
+    navigate(`/recruiter/jobs/${job.id}/ai-interviews/${interviewId}`, {
+      state: { backSearch: location.search },
+    });
+  };
 
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
@@ -255,18 +261,21 @@ export function AiInterviewsPage() {
   });
   const sub = subQuery.data?.data;
 
-  // Sync direct URL parameters (e.g. from RankingDetail)
+  // Redirect direct URL parameters (e.g. from RankingDetail) to the dedicated detail page
   useEffect(() => {
     const appId = params.get("applicationId");
     const intId = params.get("interviewId");
+    if (intId && /^\d+$/.test(intId)) {
+      navigate(`/recruiter/jobs/${job.id}/ai-interviews/${intId}`, { replace: true });
+      return;
+    }
     if (appId && rows.length > 0) {
       const match = rows.find((r) => String(r.applicationId) === appId);
-      if (match) setDetailId(match.id);
-    } else if (intId && rows.length > 0) {
-      const match = rows.find((r) => String(r.id) === intId);
-      if (match) setDetailId(match.id);
+      if (match) {
+        navigate(`/recruiter/jobs/${job.id}/ai-interviews/${match.id}`, { replace: true });
+      }
     }
-  }, [params, rows]);
+  }, [params, rows, job.id, navigate]);
 
   // Click outside listener for dropdowns
   useEffect(() => {
@@ -328,8 +337,6 @@ export function AiInterviewsPage() {
     [filtered, startIndex, pageSize],
   );
   const pageItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
-
-  const detailRow = rows.find((r) => r.id === detailId);
 
   const triggerTableTransition = (action: () => void) => {
     setIsTableTransitioning(true);
@@ -437,7 +444,7 @@ export function AiInterviewsPage() {
       {/* TAB CONTENT: CẤU HÌNH (CONFIG) */}
       {activeSubNavTab === "config" && (
         <div className="animate-in fade-in-50 duration-200">
-          <AiInterviewConfigPanel jobId={job.id} onOpenDetail={(id) => setDetailId(id)} />
+          <AiInterviewConfigPanel jobId={job.id} onOpenDetail={openSessionDetail} />
         </div>
       )}
 
@@ -450,7 +457,7 @@ export function AiInterviewsPage() {
             <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng số phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/40 dark:text-blue-400">
+                <div className="grid size-8 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
                   <LayoutList className="size-4" />
                 </div>
               </div>
@@ -459,7 +466,7 @@ export function AiInterviewsPage() {
                   <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                     {counts.all}
                   </p>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-[#0066FF] dark:bg-blue-950/50 dark:text-blue-300">
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                     Đang mở
                   </span>
                 </div>
@@ -530,7 +537,7 @@ export function AiInterviewsPage() {
             <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tỷ lệ hoàn tất phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
+                <div className="grid size-8 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
                   <Sparkles className="size-4" />
                 </div>
               </div>
@@ -539,13 +546,13 @@ export function AiInterviewsPage() {
                   <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                     {completionRate}%
                   </p>
-                  <span className="inline-flex items-center text-[11px] font-semibold text-[#0066FF]">
+                  <span className="inline-flex items-center text-[11px] font-semibold text-[var(--color-primary-hover)]">
                     <ArrowUpRight className="size-3.5" aria-hidden="true" /> {counts.scored}/{counts.all} phiên
                   </span>
                 </div>
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   <div
-                    className="h-full rounded-full bg-[#0066FF] transition-all duration-500"
+                    className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
                     style={{ width: `${completionRate}%` }}
                   />
                 </div>
@@ -560,7 +567,7 @@ export function AiInterviewsPage() {
           {sub && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400">
+                <div className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
                   <Bot className="size-5" />
                 </div>
                 <div>
@@ -584,7 +591,7 @@ export function AiInterviewsPage() {
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
-                      className="h-full rounded-full bg-[#0066FF] transition-all"
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all"
                       style={{
                         width: `${Math.min(100, Math.round(((sub.usedAiInterviewSeconds / 3600) / sub.maxAiInterviewHours) * 100))}%`,
                       }}
@@ -609,7 +616,7 @@ export function AiInterviewsPage() {
               <button
                 type="button"
                 onClick={() => handleSubNavChange("sessions")}
-                className="text-xs font-semibold text-[#0066FF] hover:underline cursor-pointer"
+                className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
               >
                 Xem toàn bộ phiên →
               </button>
@@ -632,7 +639,7 @@ export function AiInterviewsPage() {
                         className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex size-9 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                          <div className="flex size-9 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                             {initials(name)}
                           </div>
                           <div>
@@ -649,10 +656,10 @@ export function AiInterviewsPage() {
                           <ScoreCell row={row} />
                           <button
                             type="button"
-                            onClick={() => setDetailId(row.id)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            onClick={() => openSessionDetail(row.id)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                           >
-                            <Eye className="size-3.5 text-slate-400" />
+                            <Eye className="size-3.5 text-[var(--color-primary)]" />
                             <span>Xem báo cáo</span>
                           </button>
                         </div>
@@ -670,7 +677,7 @@ export function AiInterviewsPage() {
         <>
           {/* Multi-Select Floating / Top Batch Action Bar */}
           {selected.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#213145] px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
                   {selected.length}
@@ -678,7 +685,7 @@ export function AiInterviewsPage() {
                 <span className="font-medium">Đã chọn {selected.length} phiên phỏng vấn</span>
                 <button
                   type="button"
-                  className="text-xs text-sky-200 hover:underline cursor-pointer"
+                  className="text-xs text-[var(--color-primary)] hover:underline cursor-pointer"
                   onClick={() => setSelected(pageRows.map((row) => row.id))}
                 >
                   Chọn toàn bộ {pageRows.length} phiên trên trang
@@ -724,7 +731,7 @@ export function AiInterviewsPage() {
                       className={cn(
                         "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
                         active
-                          ? "bg-white font-semibold text-[#0066FF] shadow-xs dark:bg-slate-900 dark:text-blue-400"
+                          ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                           : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                       )}
                     >
@@ -736,7 +743,7 @@ export function AiInterviewsPage() {
                         className={cn(
                           "rounded-full px-1.5 py-0.2 text-[10px] font-mono",
                           active
-                            ? "bg-blue-50 text-[#0066FF] dark:bg-blue-950/80 dark:text-blue-300"
+                            ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                             : "bg-slate-200/70 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400"
                         )}
                       >
@@ -761,7 +768,7 @@ export function AiInterviewsPage() {
                     )}
                     aria-label="Xem dạng bảng"
                   >
-                    <LayoutList className="size-3.5 text-[#0066FF]" aria-hidden="true" />
+                    <LayoutList className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
                     <span>Bảng</span>
                   </button>
                   <button
@@ -789,7 +796,7 @@ export function AiInterviewsPage() {
                 <div className="relative min-w-[220px] max-w-sm flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                   <input
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
                     placeholder="Tìm theo ứng viên, email, mã #AI-..."
                     value={query}
                     onChange={(e) => {
@@ -820,7 +827,7 @@ export function AiInterviewsPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       statusFilter !== "all"
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "status"}
@@ -847,7 +854,7 @@ export function AiInterviewsPage() {
                         className={cn(
                           "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                           statusFilter === "all"
-                            ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                            ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                         )}
                       >
@@ -870,7 +877,7 @@ export function AiInterviewsPage() {
                             className={cn(
                               "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                               statusFilter === s
-                                ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                                ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                             )}
                           >
@@ -882,7 +889,7 @@ export function AiInterviewsPage() {
                               <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
                                 {rowCount}
                               </span>
-                              {statusFilter === s && <Check className="size-3.5 text-[#0066FF]" />}
+                              {statusFilter === s && <Check className="size-3.5 text-[var(--color-primary)]" />}
                             </div>
                           </button>
                         );
@@ -899,7 +906,7 @@ export function AiInterviewsPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       timeRange !== "all"
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "time"}
@@ -932,12 +939,12 @@ export function AiInterviewsPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             timeRange === item.value
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
                           <span>{item.label}</span>
-                          {timeRange === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                          {timeRange === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                       ))}
                     </div>
@@ -985,7 +992,7 @@ export function AiInterviewsPage() {
                           }}
                           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
                         >
-                          <Download className="size-4 text-blue-600" />
+                          <Download className="size-4 text-[var(--color-primary)]" />
                           <div className="text-left">
                             <p className="font-semibold">Xuất phiên đã chọn</p>
                             <p className="text-[10px] text-slate-400">{selected.length} phiên đã chọn</p>
@@ -1012,7 +1019,7 @@ export function AiInterviewsPage() {
                     "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer",
                     sub && !sub.aiInterviewAllowed
                       ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none dark:bg-slate-800 dark:text-slate-400"
-                      : "bg-[#0066FF] text-white hover:bg-blue-700"
+                      : "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
                   )}
                 >
                   {sub && !sub.aiInterviewAllowed ? (
@@ -1035,12 +1042,12 @@ export function AiInterviewsPage() {
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
                 <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
                 {query && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                     Từ khóa: "{query}"
                     <button
                       type="button"
                       onClick={() => setQuery("")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                       aria-label="Xóa từ khóa tìm kiếm"
                     >
                       <X className="size-3" />
@@ -1048,12 +1055,12 @@ export function AiInterviewsPage() {
                   </span>
                 )}
                 {statusFilter !== "all" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                     Trạng thái: {aiStatusLabel[statusFilter]}
                     <button
                       type="button"
                       onClick={() => setStatusFilter("all")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                       aria-label="Xóa lọc trạng thái"
                     >
                       <X className="size-3" />
@@ -1061,12 +1068,12 @@ export function AiInterviewsPage() {
                   </span>
                 )}
                 {timeRange !== "all" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                     Thời gian: {timeRange} ngày qua
                     <button
                       type="button"
                       onClick={() => setTimeRange("all")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                       aria-label="Xóa lọc thời gian"
                     >
                       <X className="size-3" />
@@ -1074,12 +1081,12 @@ export function AiInterviewsPage() {
                   </span>
                 )}
                 {tab !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                     Tab: {tabsConfig.find((t) => t.id === tab)?.label}
                     <button
                       type="button"
                       onClick={() => setTab("ALL")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                       aria-label="Về tab tất cả"
                     >
                       <X className="size-3" />
@@ -1089,7 +1096,7 @@ export function AiInterviewsPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="ml-auto text-xs font-semibold text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+                  className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
                 >
                   Xóa tất cả bộ lọc
                 </button>
@@ -1106,7 +1113,7 @@ export function AiInterviewsPage() {
             {/* Empty state */}
             {interviews.isSuccess && !pageRows.length && (
               <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-                <div className="grid size-12 place-items-center rounded-2xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400 shadow-2xs">
+                <div className="grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)] shadow-2xs">
                   <Bot className="size-6" aria-hidden="true" />
                 </div>
                 <div>
@@ -1123,7 +1130,7 @@ export function AiInterviewsPage() {
                   <button
                     type="button"
                     onClick={() => setCreating(true)}
-                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0066FF] px-4 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
+                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition-colors cursor-pointer"
                   >
                     <PlusCircle className="size-4" aria-hidden="true" />
                     Tạo phỏng vấn mới
@@ -1148,7 +1155,7 @@ export function AiInterviewsPage() {
                           <th className="w-10 px-3 py-2 text-center">
                             <input
                               type="checkbox"
-                              className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                              className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                               checked={allPageSelected}
                               onChange={toggleAllPage}
                               aria-label="Chọn tất cả phiên trên trang"
@@ -1176,14 +1183,14 @@ export function AiInterviewsPage() {
                               className={cn(
                                 "group transition-colors",
                                 isRowSelected
-                                  ? "bg-blue-50/50 dark:bg-blue-950/30"
+                                  ? "bg-[var(--color-primary-subtle)]/50"
                                   : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                               )}
                             >
                               <td className="w-10 px-3 py-3 text-center">
                                 <input
                                   type="checkbox"
-                                  className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                                  className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                                   checked={isRowSelected}
                                   onChange={() => toggleOne(row.id)}
                                   aria-label={`Chọn phiên ${row.id}`}
@@ -1193,8 +1200,8 @@ export function AiInterviewsPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <button
                                     type="button"
-                                    onClick={() => setDetailId(row.id)}
-                                    className="text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-[#0066FF] dark:text-slate-100 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-[var(--color-primary)] dark:text-slate-100 transition-colors cursor-pointer"
                                   >
                                     AI Interview · {job.title}
                                   </button>
@@ -1208,7 +1215,7 @@ export function AiInterviewsPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 shadow-2xs">
+                                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs">
                                     {initials(name)}
                                   </div>
                                   <div className="flex flex-col min-w-0">
@@ -1218,7 +1225,7 @@ export function AiInterviewsPage() {
                                     <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
                                       {row.application?.candidateEmail ?? "—"}
                                     </span>
-                                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[#0066FF] dark:text-blue-400">
+                                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                                       <FileText className="size-2.5" aria-hidden="true" />
                                       Đơn #{row.applicationId}
                                     </span>
@@ -1258,8 +1265,8 @@ export function AiInterviewsPage() {
                                 <div className="relative flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => setDetailId(row.id)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-xl bg-blue-50 px-2.5 text-xs font-semibold text-[#0066FF] hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="inline-flex h-8 items-center gap-1 rounded-xl bg-[var(--color-primary-soft)] px-2.5 text-xs font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
                                   >
                                     <span>{row.status === "SCORED" || row.status === "PASSED" || row.status === "FAILED" ? "Xem feedback" : "Chi tiết"}</span>
                                     <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -1318,7 +1325,7 @@ export function AiInterviewsPage() {
                       <div className="flex items-center gap-1.5">
                         <span>Dòng mỗi trang:</span>
                         <select
-                          className="h-8 rounded-lg border border-slate-200 bg-slate-50/60 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-[#0066FF] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                          className="h-8 rounded-lg border border-slate-200 bg-slate-50/60 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
                           value={pageSize}
                           onChange={(e) => {
                             const newSize = Number(e.target.value);
@@ -1372,7 +1379,7 @@ export function AiInterviewsPage() {
                               className={cn(
                                 "flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                                 isCurrent
-                                  ? "bg-[#0066FF] text-white shadow-2xs"
+                                  ? "bg-[var(--color-primary)] text-white shadow-2xs"
                                   : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                               )}
                             >
@@ -1419,7 +1426,7 @@ export function AiInterviewsPage() {
                             }
                           }}
                           placeholder={String(currentPage)}
-                          className="h-8 w-12 rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-center text-xs outline-none focus:border-[#0066FF] dark:border-slate-700 dark:bg-slate-800"
+                          className="h-8 w-12 rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-center text-xs outline-none focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800"
                         />
                       </div>
                     </div>
@@ -1440,7 +1447,7 @@ export function AiInterviewsPage() {
             <div className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-center">
               <div className="flex max-w-md flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
                     <Sparkles className="size-4" aria-hidden="true" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -1466,10 +1473,10 @@ export function AiInterviewsPage() {
                       className="flex flex-col gap-1 rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                        <span className="flex size-5 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                           {step.n}
                         </span>
-                        <StepIcon className="size-3.5 text-[#0066FF] dark:text-blue-400" aria-hidden="true" />
+                        <StepIcon className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
                       </div>
                       <span className="mt-1 text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {step.title}
@@ -1486,7 +1493,7 @@ export function AiInterviewsPage() {
         </>
       )}
 
-      {/* Dialogs & Drawers */}
+      {/* Dialogs */}
       {creating && (
         <CreateAiInterviewDialog
           jobId={job.id}
@@ -1495,17 +1502,8 @@ export function AiInterviewsPage() {
           onClose={() => setCreating(false)}
           onCreated={(created) => {
             setCreating(false);
-            setDetailId(created.id);
+            openSessionDetail(created.id);
           }}
-        />
-      )}
-
-      {detailId != null && (
-        <AiInterviewDetailDrawer
-          interviewId={detailId}
-          jobId={job.id}
-          candidateName={detailRow ? candidateName(detailRow) : `Phiên #AI-${detailId}`}
-          onClose={() => setDetailId(null)}
         />
       )}
     </section>
