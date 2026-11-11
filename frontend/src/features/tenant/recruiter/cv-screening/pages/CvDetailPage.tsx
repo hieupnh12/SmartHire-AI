@@ -23,7 +23,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
-import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, primary, stickyDetailSidebar } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import {
@@ -335,7 +335,7 @@ export function CvDetailPage() {
       {/* 3. Main 2-Column Workspace (Left Section Nav + Right Content Panel) */}
       <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
         {/* Left Sidebar */}
-        <aside className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-2xs lg:sticky lg:top-4">
+        <aside className={cn("rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-2xs", stickyDetailSidebar)}>
           <p className="px-2.5 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Các mục đánh giá
           </p>
