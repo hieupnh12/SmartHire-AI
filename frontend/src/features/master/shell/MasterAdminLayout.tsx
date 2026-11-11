@@ -10,39 +10,42 @@ import {
   Bell,
 } from "lucide-react";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT, type TranslateFn } from "@/i18n";
 import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
 
-function getAdminPageTitle(pathname: string): string {
-  if (pathname.startsWith("/admin/dashboard")) return "SmartHire AI";
-  if (pathname.startsWith("/admin/analytics")) return "Thống Kê";
-  if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) return "Danh Bạ Doanh Nghiệp";
-  if (pathname.startsWith("/admin/tenants/create")) return "Khởi Tạo Doanh Nghiệp";
-  if (pathname.startsWith("/admin/tenants/provisioning")) return "Cấp Phát Tài Nguyên";
-  if (pathname.startsWith("/admin/tenants")) return "Quản Lý Doanh Nghiệp";
-  if (pathname.startsWith("/admin/subscriptions")) return "Gói Dịch Vụ";
-  if (pathname.startsWith("/admin/billing/invoices")) return "Hóa Đơn & Thu Phí";
-  if (pathname.startsWith("/admin/billing/vnpay")) return "Cổng VNPay";
-  if (pathname.startsWith("/admin/billing")) return "Gói & Thanh Toán";
-  if (pathname.startsWith("/admin/contracts/create")) return "Tạo Hợp Đồng";
-  if (pathname.startsWith("/admin/contracts")) return "Hợp Đồng & Ký Số";
-  if (pathname.startsWith("/admin/leads")) return "Yêu Cầu Demo & Báo Giá";
-  if (pathname.startsWith("/admin/system/ai-config")) return "Cấu Hình AI Engine";
-  if (pathname.startsWith("/admin/system/audit-logs")) return "Nhật Ký Hệ Thống";
-  if (pathname.startsWith("/admin/system")) return "Quản Trị Hệ Thống";
-  if (pathname.startsWith("/admin/account/profile")) return "Hồ Sơ Của Bạn";
-  if (pathname.startsWith("/admin/account/security")) return "Tài Khoản Và Bảo Mật";
-  if (pathname.startsWith("/admin/account/accessibility")) return "Khả Năng Tiếp Cận";
-  if (pathname.startsWith("/admin/account/notifications")) return "Tùy Chọn Thông Báo";
-  if (pathname.startsWith("/admin/account")) return "Tài Khoản";
-  return "Quản Trị Nền Tảng";
+function getAdminPageTitle(pathname: string, t: TranslateFn): string {
+  if (pathname.startsWith("/admin/dashboard")) return t("master.shell.titles.dashboard");
+  if (pathname.startsWith("/admin/analytics")) return t("master.shell.titles.analytics");
+  if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) return t("master.shell.titles.tenantDirectory");
+  if (pathname.startsWith("/admin/tenants/create")) return t("master.shell.titles.tenantCreate");
+  if (pathname.startsWith("/admin/tenants/provisioning")) return t("master.shell.titles.tenantProvisioning");
+  if (pathname.startsWith("/admin/tenants")) return t("master.shell.titles.tenants");
+  if (pathname.startsWith("/admin/subscriptions")) return t("master.shell.titles.subscriptions");
+  if (pathname.startsWith("/admin/billing/invoices")) return t("master.shell.titles.invoices");
+  if (pathname.startsWith("/admin/billing/vnpay")) return t("master.shell.titles.vnpay");
+  if (pathname.startsWith("/admin/billing")) return t("master.shell.titles.billing");
+  if (pathname.startsWith("/admin/contracts/create")) return t("master.shell.titles.contractCreate");
+  if (pathname.startsWith("/admin/contracts")) return t("master.shell.titles.contracts");
+  if (pathname.startsWith("/admin/leads")) return t("master.shell.titles.leads");
+  if (pathname.startsWith("/admin/system/ai-config")) return t("master.shell.titles.aiConfig");
+  if (pathname.startsWith("/admin/system/audit-logs")) return t("master.shell.titles.auditLogs");
+  if (pathname.startsWith("/admin/system")) return t("master.shell.titles.system");
+  if (pathname.startsWith("/admin/account/profile")) return t("master.shell.titles.accountProfile");
+  if (pathname.startsWith("/admin/account/security")) return t("master.shell.titles.accountSecurity");
+  if (pathname.startsWith("/admin/account/accessibility")) return t("master.shell.titles.accountAccessibility");
+  if (pathname.startsWith("/admin/account/notifications")) return t("master.shell.titles.accountNotifications");
+  if (pathname.startsWith("/admin/account")) return t("master.shell.titles.account");
+  return t("master.shell.titles.platformAdmin");
 }
 
 export function MasterAdminLayout() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const askConfirm = useUiStore((state) => state.askConfirm);
-  const pageTitle = getAdminPageTitle(location.pathname);
+  const pageTitle = getAdminPageTitle(location.pathname, t);
 
   const handleLogout = async () => {
     try {
@@ -145,7 +148,7 @@ export function MasterAdminLayout() {
           type="button"
           className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px] md:hidden"
           onClick={() => setIsMobileOpen(false)}
-          aria-label="Đóng điều hướng quản trị"
+          aria-label={t("master.shell.closeAdminNav")}
         />
       )}
 
@@ -164,8 +167,8 @@ export function MasterAdminLayout() {
               type="button"
               onClick={handleToggle}
               className="flex size-10 items-center justify-center text-slate-700 hover:text-blue-600 transition-colors focus-visible:outline-none"
-              aria-label={isSidebarOpen ? "Thu gọn thanh bên" : "Mở rộng thanh bên"}
-              title={isSidebarOpen ? "Thu gọn thanh bên" : "Mở rộng thanh bên"}
+              aria-label={isSidebarOpen ? t("master.shell.collapseSidebar") : t("master.shell.expandSidebar")}
+              title={isSidebarOpen ? t("master.shell.collapseSidebar") : t("master.shell.expandSidebar")}
             >
               <ToggleMenuIcon className="size-7" />
             </button>
@@ -183,7 +186,9 @@ export function MasterAdminLayout() {
             {/* Dynamic Page Action Portal Slot */}
             <div id="master-header-actions-portal" className="flex items-center gap-2" />
 
-            {/* Account Dropdown (matching user screenshot) */}
+            <LanguageSwitcher variant="icon" />
+
+            {/* Account Dropdown */}
             <div className="relative" ref={accountRef}>
               <button
                 type="button"
@@ -196,7 +201,7 @@ export function MasterAdminLayout() {
                 aria-haspopup="true"
               >
                 <CircleUserRound className="size-5 text-blue-600 shrink-0" />
-                <span className="font-semibold text-slate-800 text-sm">Tài khoản</span>
+                <span className="font-semibold text-slate-800 text-sm">{t("master.shell.accountBtn")}</span>
                 <ChevronDown
                   className={cn(
                     "size-4 text-slate-400 transition-transform duration-200",
@@ -214,8 +219,8 @@ export function MasterAdminLayout() {
                       W
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-bold text-slate-900">Workspace Admin</div>
-                      <div className="truncate text-[11px] font-medium text-slate-500">Platform Landlord</div>
+                      <div className="truncate text-xs font-bold text-slate-900">{t("master.shell.roleName")}</div>
+                      <div className="truncate text-[11px] font-medium text-slate-500">{t("master.shell.roleSubtitle")}</div>
                     </div>
                   </div>
 
@@ -232,7 +237,7 @@ export function MasterAdminLayout() {
                       )}
                     >
                       <CircleUserRound className="size-4 text-blue-600 shrink-0" />
-                      <span>Hồ sơ của bạn</span>
+                      <span>{t("master.shell.profileLink")}</span>
                     </Link>
 
                     <Link
@@ -246,7 +251,7 @@ export function MasterAdminLayout() {
                       )}
                     >
                       <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
-                      <span>Tài khoản và bảo mật</span>
+                      <span>{t("master.shell.securityLink")}</span>
                     </Link>
 
                     <Link
@@ -260,7 +265,7 @@ export function MasterAdminLayout() {
                       )}
                     >
                       <Eye className="size-4 text-amber-600 shrink-0" />
-                      <span>Khả năng tiếp cận</span>
+                      <span>{t("master.shell.accessibilityLink")}</span>
                     </Link>
 
                     <Link
@@ -274,7 +279,7 @@ export function MasterAdminLayout() {
                       )}
                     >
                       <Bell className="size-4 text-purple-600 shrink-0" />
-                      <span>Tùy chọn thông báo</span>
+                      <span>{t("master.shell.notificationsLink")}</span>
                     </Link>
                   </div>
 
@@ -287,9 +292,9 @@ export function MasterAdminLayout() {
                     onClick={() => {
                       setIsAccountOpen(false);
                       askConfirm({
-                        title: "Đăng xuất khỏi quản trị?",
-                        description: "Bạn sẽ được chuyển về màn hình đăng nhập Master Admin.",
-                        confirmLabel: "Đăng xuất",
+                        title: t("master.shell.logoutConfirmTitle"),
+                        description: t("master.shell.logoutConfirmDesc"),
+                        confirmLabel: t("master.shell.logoutBtn"),
                         danger: true,
                         onConfirm: handleLogout,
                       });
@@ -297,7 +302,7 @@ export function MasterAdminLayout() {
                     className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
                   >
                     <LogOut className="size-4 shrink-0" />
-                    <span>Đăng xuất</span>
+                    <span>{t("master.shell.logoutBtn")}</span>
                   </button>
                 </div>
               )}
@@ -313,7 +318,7 @@ export function MasterAdminLayout() {
         {/* Footer */}
         <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
           <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8">
-            <span>SmartHire-AI Platform © 2026 · Cổng Quản Trị Trung Tâm</span>
+            <span>{t("master.shell.footer")}</span>
           </div>
         </footer>
       </div>

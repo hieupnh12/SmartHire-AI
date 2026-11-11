@@ -1,12 +1,13 @@
 import { Plus, RotateCcw, Sliders, Sparkles, StopCircle } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { assessmentInput } from "@/components/ux/assessmentUi";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { JobDetail } from "@/api/types/job";
 import {
-  DIFFICULTIES,
-  QUESTION_TYPES,
-  QUICK_PROMPTS,
+  getDifficulties,
+  getQuestionTypes,
+  getQuickPrompts,
   type CodingLanguage,
   type QuestionKind,
 } from "../types";
@@ -68,6 +69,10 @@ export function AiConfigSidebar({
   onGenerate,
   onCancel,
 }: AiConfigSidebarProps) {
+  const t = useT();
+  const questionTypes = getQuestionTypes(t);
+  const difficulties = getDifficulties(t);
+  const quickPrompts = getQuickPrompts(t);
   const coding = questionType === "CODING";
   const maxCount = coding ? 5 : 10;
 
@@ -75,11 +80,11 @@ export function AiConfigSidebar({
     <aside className="sticky top-4 flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/60">
       <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800">
         <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-          <Sliders className="size-3.5 text-[var(--color-primary)]" /> Cấu hình tham số sinh
+          <Sliders className="size-3.5 text-[var(--color-primary)]" /> {t("recruiter.assessments.aiStudio.configHeading")}
         </span>
         {batchCount > 0 && (
           <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
-            Đã sinh {batchCount} đợt
+            {t("recruiter.assessments.aiStudio.batchesGenerated", { count: batchCount })}
           </span>
         )}
       </div>
@@ -88,7 +93,7 @@ export function AiConfigSidebar({
       <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <label className="block space-y-1">
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Kỹ năng chuyên môn
+            {t("recruiter.assessments.aiStudio.skillLabel")}
           </span>
           <select
             disabled={busy}
@@ -107,7 +112,7 @@ export function AiConfigSidebar({
         {coding ? (
           <label className="block space-y-1">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-              Ngôn ngữ lập trình
+              {t("recruiter.assessments.aiStudio.codingLangLabel")}
             </span>
             <select
               disabled={busy}
@@ -115,16 +120,16 @@ export function AiConfigSidebar({
               value={codingLanguage}
               onChange={(e) => setCodingLanguage(e.target.value as CodingLanguage)}
             >
-              <option value="java">Java (JDK 21)</option>
-              <option value="python">Python 3.x</option>
-              <option value="javascript">JavaScript / TypeScript</option>
-              <option value="sql">SQL (PostgreSQL / MySQL)</option>
+              <option value="java">{t("recruiter.assessments.aiStudio.codingLangOptions.java")}</option>
+              <option value="python">{t("recruiter.assessments.aiStudio.codingLangOptions.python")}</option>
+              <option value="javascript">{t("recruiter.assessments.aiStudio.codingLangOptions.javascript")}</option>
+              <option value="sql">{t("recruiter.assessments.aiStudio.codingLangOptions.sql")}</option>
             </select>
           </label>
         ) : (
           <label className="block space-y-1">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-              Ngôn ngữ hiển thị đề
+              {t("recruiter.assessments.aiStudio.promptLangLabel")}
             </span>
             <select
               disabled={busy}
@@ -132,8 +137,8 @@ export function AiConfigSidebar({
               value={language}
               onChange={(e) => setLanguage(e.target.value as "vi" | "en")}
             >
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
+              <option value="vi">{t("recruiter.assessments.aiStudio.langVi")}</option>
+              <option value="en">{t("recruiter.assessments.aiStudio.langEn")}</option>
             </select>
           </label>
         )}
@@ -142,10 +147,10 @@ export function AiConfigSidebar({
       {/* 2. Loại câu hỏi (4 Cards) */}
       <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-          Định dạng câu hỏi
+          {t("recruiter.assessments.aiStudio.questionFormatLabel")}
         </span>
         <div className="grid grid-cols-2 gap-2">
-          {QUESTION_TYPES.map((qt) => {
+          {questionTypes.map((qt) => {
             const Icon = qt.icon;
             const isSelected = questionType === qt.id;
             return (
@@ -179,10 +184,10 @@ export function AiConfigSidebar({
       <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <div className="space-y-1.5">
           <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Mức độ khó
+            {t("recruiter.assessments.aiStudio.difficultyLabel")}
           </span>
           <div className="grid grid-cols-3 gap-1.5">
-            {DIFFICULTIES.map((d) => (
+            {difficulties.map((d) => (
               <button
                 key={d.id}
                 type="button"
@@ -204,9 +209,9 @@ export function AiConfigSidebar({
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-              Số lượng câu muốn sinh
+              {t("recruiter.assessments.aiStudio.countLabel")}
             </span>
-            <span className="text-xs font-bold text-[var(--color-primary)]">{count} câu</span>
+            <span className="text-xs font-bold text-[var(--color-primary)]">{t("recruiter.assessments.aiStudio.countBadge", { count })}</span>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -237,7 +242,7 @@ export function AiConfigSidebar({
       <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <label className="block space-y-1">
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Chủ đề / Yêu cầu bổ sung
+            {t("recruiter.assessments.aiStudio.topicLabel")}
           </span>
           <textarea
             rows={2}
@@ -248,15 +253,15 @@ export function AiConfigSidebar({
             onChange={(e) => setTopic(e.target.value)}
             placeholder={
               coding
-                ? "VD: Thuật toán quy hoạch động, thao tác mảng 2 chiều, tối ưu thời gian O(N)..."
-                : "VD: Cấu trúc bộ nhớ JVM, tối ưu câu lệnh SQL JOIN, kiến trúc Microservices..."
+                ? t("recruiter.assessments.aiStudio.topicCodingPlaceholder")
+                : t("recruiter.assessments.aiStudio.topicGeneralPlaceholder")
             }
           />
         </label>
 
         {/* Gợi ý chủ đề nhanh */}
         <div className="flex flex-wrap gap-1 pt-1">
-          {QUICK_PROMPTS.map((qp) => (
+          {quickPrompts.map((qp) => (
             <button
               key={qp}
               type="button"
@@ -279,7 +284,7 @@ export function AiConfigSidebar({
               className="size-3.5 rounded border-slate-300 accent-[var(--color-primary)]"
             />
             <span className="text-xs text-slate-600 dark:text-slate-300">
-              Áp dụng ngữ cảnh JD công việc
+              {t("recruiter.assessments.aiStudio.includeJdLabel")}
             </span>
           </label>
         )}
@@ -289,7 +294,7 @@ export function AiConfigSidebar({
       {draftsCount > 0 && (
         <div className="space-y-2 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)] p-3.5">
           <span className="block text-xs font-bold text-[var(--color-primary-hover)]">
-            Chế độ sinh câu hỏi tiếp theo
+            {t("recruiter.assessments.aiStudio.nextGenModeLabel")}
           </span>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -304,7 +309,7 @@ export function AiConfigSidebar({
               )}
             >
               <Plus className="size-3.5" />
-              <span>Thêm vào đầu (Đợt {batchCount + 1})</span>
+              <span>{t("recruiter.assessments.aiStudio.appendPrependBtn", { batch: batchCount + 1 })}</span>
             </button>
             <button
               type="button"
@@ -318,13 +323,13 @@ export function AiConfigSidebar({
               )}
             >
               <RotateCcw className="size-3.5" />
-              <span>Làm mới (Ghi đè)</span>
+              <span>{t("recruiter.assessments.aiStudio.replaceBtn")}</span>
             </button>
           </div>
           <p className="text-[11px] text-slate-600 dark:text-slate-300">
             {generationMode === "APPEND"
-              ? "Giữ nguyên các câu hiện có và đưa đợt sinh mới lên trên đầu danh sách nháp."
-              : "Xóa toàn bộ câu nháp cũ và thay thế bằng đợt sinh mới."}
+              ? t("recruiter.assessments.aiStudio.appendPrependHint")
+              : t("recruiter.assessments.aiStudio.replaceHint")}
           </p>
         </div>
       )}
@@ -337,7 +342,7 @@ export function AiConfigSidebar({
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-rose-700 active:scale-[0.98] transition-all"
         >
           <StopCircle className="size-4 animate-pulse" />
-          <span>🛑 Hủy sinh câu hỏi</span>
+          <span>{t("recruiter.assessments.aiStudio.cancelGenerateBtn")}</span>
         </button>
       ) : (
         <Button
@@ -350,10 +355,10 @@ export function AiConfigSidebar({
           <Sparkles className="size-4" />
           <span>
             {draftsCount === 0
-              ? `Sinh nháp bằng AI (${count} câu)`
+              ? t("recruiter.assessments.aiStudio.generateFirstBtn", { count })
               : generationMode === "APPEND"
-                ? `+ Sinh thêm đợt ${batchCount + 1} (${count} câu)`
-                : `Sinh mới danh sách (${count} câu)`}
+                ? t("recruiter.assessments.aiStudio.generateMoreBtn", { batch: batchCount + 1, count })
+                : t("recruiter.assessments.aiStudio.generateReplaceBtn", { count })}
           </span>
         </Button>
       )}

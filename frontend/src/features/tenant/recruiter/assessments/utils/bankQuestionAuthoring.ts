@@ -1,15 +1,16 @@
 import type { BankQuestion as ApiBankQuestion } from "@/api/types/questionBank";
+import { t as globalT, type TranslateFn } from "@/i18n";
 import { blankQuestion, type BankQuestion } from "../constants/excelTemplateMock";
 
 export type BankSaveActions = { onSave: (questions: BankQuestion[]) => Promise<void>; busy: boolean; error: unknown };
 
-export function bankQuestionAuthoring(item: ApiBankQuestion): BankQuestion {
+export function bankQuestionAuthoring(item: ApiBankQuestion, t: TranslateFn = globalT): BankQuestion {
   const question = item.question;
   const metadata = item.authoringMetadata as Partial<BankQuestion> | null;
   const kind = question.questionType === "MCQ" ? "TRAC_NGHIEM_DON" : question.questionType === "MULTIPLE_CHOICE" ? "NHIEU_DAP_AN" : question.questionType === "CODING" || metadata?.kind === "TU_LUAN_CODE" ? "TU_LUAN_CODE" : "TINH_HUONG_SYSTEM";
   const answers = question.options.flatMap((option, index) => option.correct ? [String.fromCharCode(65 + index)] : []);
   return {
-    ...blankQuestion(kind), ...metadata,
+    ...blankQuestion(kind, t), ...metadata,
     rubricJsonText: question.rubricJson ? JSON.stringify(question.rubricJson, null, 2) : metadata?.rubricJsonText,
     codingJsonText: question.coding ? JSON.stringify(question.coding, null, 2) : metadata?.codingJsonText,
     id: `Q${question.id}`, kind, content: question.questionText, score: String(question.points),

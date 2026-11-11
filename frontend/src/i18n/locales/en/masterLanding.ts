@@ -1,0 +1,707 @@
+export const masterLandingEn = {
+  shared: {
+    consultTier: "Enterprise Solution Consultation",
+    customTier: "Custom Enterprise Plan",
+    enterpriseTier: "Enterprise Plan",
+    liveDemoTier: "1:1 Live Demo Experience",
+    roiQuoteTier: "Pricing & ROI Calculation Consultation",
+    roiReportTier: "Custom ROI Assessment Report Request",
+    securityAuditTier: "Data Security Audit & Contract Consultation",
+    securityNdaTier: "Security Documentation & NDA Request",
+    currencyVnd: "VND",
+  },
+  plans: {
+    badge: "Enterprise Solution Plans",
+    title: "Flexible by Company Scale & Hiring Goals",
+    subtitle:
+      "We partner with your organization through in-depth consultation, live hands-on evaluation, and clear service agreements.",
+    customPrompt: "Have a different organization scale?",
+    quote1on1Btn: "1:1 Custom Quote",
+    empty: "No subscription plans are currently available.",
+    mostPopular: "Most Popular Choice",
+    tierSmall: "Small Business",
+    tierMedium: "Mid-Market",
+    tierLarge: "Enterprise",
+    defaultDescription:
+      "Optimized for organizations standardizing their end-to-end hiring workflow.",
+    suitableScale: "Recommended headcount",
+    scaleUnder50: "Under 50 employees",
+    scale50To200: "50 - 200 employees",
+    scaleOver200: "200+ employees",
+    perYear: "year",
+    contactQuote: "Contact for pricing",
+    annualLicenseNote: "All-inclusive annual enterprise license",
+    isolatedDbFeature: "Isolated dedicated database & security",
+    unlimited: "Unlimited",
+    jobsFeature: "{count} open job positions",
+    cvFeature: "Screen {count} CVs / month",
+    aiFeature: "AI Interview Assistant: {hours}",
+    hoursSuffix: "h",
+    ssoFeature: "Supports {tech} integration",
+    ssoHighlight: "SSO SAML / OIDC",
+    consultQuoteBtn: "1:1 Quote Consultation",
+    buyNowBtn: "Buy Now",
+  },
+  pipelineMockup: {
+    liveBadge: "Live Recruitment Workspace",
+    previewBadge: "Full Enterprise Recruitment Kanban Overview",
+    col1Title: "1. CV Screening",
+    col1Cand1Name: "Minh Anh Nguyen",
+    col1Cand1Match: "96% Match",
+    col1Cand1Role: "Senior Java & React · 5 yrs exp",
+    col1Cand2Name: "Quoc Bao Tran",
+    col1Cand2Match: "88% Match",
+    col1Cand2Role: "Fullstack Engineer · 3 yrs exp",
+    col2Title: "2. Code Assessment",
+    col2Cand1Name: "Hoang Nam Le",
+    col2Cand1Meta: "Coding Challenge: 4/4 Test Passed",
+    col2Cand1Note: "Anti-cheat: Verified clean session",
+    col3Title: "3. AI Interview",
+    col3Cand1Name: "Thuy Vy Pham",
+    col3Cand1Meta: "AI Voice STT: Excellent communication",
+    col3Cand1Note: "Recommended: Strong culture & logic fit",
+    col4Title: "4. Offer Stage",
+    col4Cand1Name: "Dinh Khoa Vu",
+    col4Cand1Status: "Accepted",
+    col4Cand1Role: "Role: Lead Software Engineer",
+    col4Cand1Note: "Offer letter signed",
+  },
+  saas: {
+    hero: {
+      titlePrefix: "Elevate Hiring Performance With",
+      titleHighlight: "Artificial Intelligence",
+      subtitle:
+        "An end-to-end platform empowering enterprises to automate resume screening, technical assessment, and preliminary interviews. Cut time-to-hire by 70%, optimize recruiting costs, and secure top talent.",
+      primaryCta: "Book Consultation & 1:1 Demo",
+      secondaryCta: "Explore Live Preview",
+      chipLeftTitle: "Screened {count} CVs today",
+      chipLeftSub: "Processing speed: 1.2s / resume",
+      chipRightTitle: "96.4% Candidate Match Accuracy",
+      chipRightSub: "Automated AI interview invites",
+    },
+    trust: {
+      heading:
+        "Researched and trusted by leading technology enterprises and organizations",
+    },
+    solutionsTeaser: {
+      badge: "Recruitment Ecosystem",
+      title: "5 Specialized AI Modules Optimizing Every Hiring Touchpoint",
+      subtitle:
+        "From resume intake to coding tests and live voice interviews, AI partners with your HR team at every step.",
+      exploreLink: "Explore capability",
+      viewAllBtn: "View Full AI Solution Ecosystem Details",
+      card1Title: "1. CV Screening & JD Matching",
+      card1Desc:
+        "Parse PDF and Word resumes in 1.2s, perform semantic job matching, and automatically rank top candidates.",
+      card2Title: "2. Code Assessment & Docker Sandbox",
+      card2Desc:
+        "Isolated coding environment with instant grading via hidden test cases and algorithmic complexity analysis.",
+      card3Title: "3. 24/7 AI Voice Interview",
+      card3Desc:
+        "Natural two-way conversational voice AI with real-time speech recognition and critical-thinking evaluation.",
+    },
+    valueRoi: {
+      badge: "Proven Business Value",
+      title: "Transform Hiring Efficiency With Measurable Impact",
+      subtitle:
+        "Free your talent acquisition team from repetitive manual screening so they can focus on engaging and retaining exceptional talent.",
+      stat1Label: "Screening Time Saved",
+      stat1Desc:
+        "Automatically classify and parse hundreds of resumes in minutes instead of weeks of manual review.",
+      stat2Label: "Hiring Velocity",
+      stat2Desc:
+        "Compress average hiring cycles from 32 days down to 9 days per open technical or business role.",
+      stat3Label: "Accuracy & Objectivity",
+      stat3Desc:
+        "Eliminate unconscious bias during initial screening through standardized criteria and measurable scoring.",
+      stat4Label: "Cost Reduction",
+      stat4Desc:
+        "Lower screening labor overhead and reclaim valuable engineering hours spent by Tech Leads on early rounds.",
+      ctaLink: "Explore Full Cost Breakdown & ROI Analysis",
+    },
+    security: {
+      titleHighlight: "Protect Talent Data",
+      titleRest: "& Enterprise Reputation",
+      check1: "Strict physical data isolation for every organization",
+      check2: "End-to-end AES-256 & TLS 1.3 encryption",
+      check3: "Vietnam Decree 13/2023/ND-CP compliance & NDA commitment",
+      check4: "Enterprise SSO integration & 99.9% SLA commitment",
+      tryFreeBtn: "Try for free",
+      learnMoreBtn: "Learn more",
+      imageAlt: "SmartHire-AI Enterprise Security",
+      imageBadge: "Experience SmartHire-AI Security Now",
+    },
+    pricingViewAllBtn: "View Full Feature Comparison Matrix",
+    faq: {
+      badge: "Frequently Asked Questions",
+      title: "Platform Questions Answered",
+      subtitle:
+        "Key questions enterprise teams ask before rolling out SmartHire-AI.",
+      q1: "Does the platform protect and isolate recruitment data between different companies?",
+      a1: "Absolutely. Each enterprise is provisioned a completely isolated data environment and workspace using our Separate Database per Tenant architecture. Candidate profiles, interview recordings, and compensation offers are never shared or leaked across organizations.",
+      q2: "How long does enterprise onboarding and deployment take?",
+      a2: "For standard plans, your digital recruitment workspace is automatically provisioned and ready within 24 hours. For large enterprises requiring Single Sign-On (SSO) or internal server integration, our solutions engineers complete end-to-end deployment in 3 to 5 business days.",
+      q3: "Will the AI voice interview feel unnatural or stressful for candidates?",
+      a3: "The experience is designed to be warm, conversational, and accessible. Candidates can respond via microphone on mobile or desktop 24/7 at their convenience. Our AI conducts natural two-way dialogue and produces an objective summary, reducing interview anxiety.",
+      q4: "Can our company customize technical assessments and scoring weights?",
+      a4: "Yes. You can draw from SmartHire-AI's standardized question bank or author custom multiple-choice and coding challenges, while tuning scoring weights across experience and core competencies to match each department's hiring bar.",
+    },
+    bottomCta: {
+      badge: "Digital Hiring Transformation",
+      title: "Ready to Scale Your Enterprise Hiring Capability?",
+      subtitle:
+        "Schedule a deep-dive session and watch our AI workflow run live on your organization's real hiring scenarios.",
+      primaryBtn: "Book 1:1 Expert Consultation",
+      secondaryBtn: "Enter Workspace",
+    },
+  },
+  solutions: {
+    hero: {
+      title: "Multiply HR Productivity With 5 Specialized AI Modules",
+      subtitle:
+        "Combining Large Language Models (LLMs), Realtime Voice STT/TTS, and isolated Docker Coding Sandboxes to standardize your entire enterprise hiring funnel.",
+      primaryCta: "Book Consultation & 1:1 Demo",
+      secondaryCta: "Explore Live Preview",
+    },
+    tryFeatureBtn: "Try this capability",
+    modules: {
+      cvScreening: {
+        badge: "AI CV Screening & Semantic Matching",
+        title: "Intelligent Resume Parsing & JD Matching",
+        description:
+          "Automatically extract and understand resumes across formats (PDF, DOCX, images) using advanced OCR and NLP. Semantic search evaluates real experience, skills, and role alignment against your Job Description.",
+        f1: "Accurately extracts years of experience, education, tech stack, and certifications",
+        f2: "Scores JD alignment (Match Score 0–100%) with transparent AI reasoning",
+        f3: "Automatically detects keyword stuffing, duplicated CVs, or inflated claims",
+        f4: "Auto-ranks the top 10% highest-potential candidates to advance immediately",
+      },
+      techAssessment: {
+        badge: "Automated Coding Sandbox & Anti-Cheat",
+        title: "Technical Assessment & Isolated Docker Sandbox",
+        description:
+          "Automated deep technical and coding evaluation environment. Industry-grade assessments are compiled and graded instantaneously inside isolated Docker sandboxes.",
+        f1: "Supports 15+ languages: Java, Python, Go, C++, TypeScript, SQL, and more",
+        f2: "Runs dozens of hidden test cases while analyzing Time & Space complexity",
+        f3: "Smart proctoring & anti-cheat: fullscreen lock, tab-switch alerts, paste controls",
+        f4: "Generates detailed engineering evaluation reports directly for Tech Leads",
+      },
+      aiInterview: {
+        badge: "Realtime Voice STT & Soft-skills Assessment",
+        title: "24/7 Conversational AI Voice Interview Assistant",
+        description:
+          "Candidates engage in natural voice interviews with our AI assistant whenever convenient. Ultra-low-latency Speech-to-Text captures responses and evaluates communication depth and composure.",
+        f1: "Smooth two-way conversations in Vietnamese and English with minimal latency",
+        f2: "Adaptive follow-up questions tailored dynamically to the candidate's prior answers",
+        f3: "Scores 5 soft-skill dimensions: critical thinking, clarity, attitude, and problem solving",
+        f4: "Records audio and generates full transcripts with structured hiring recommendations",
+      },
+      matchingRanking: {
+        badge: "Predictive Ranking & Talent Insights",
+        title: "Multi-Dimensional Ranking & Fit Prediction",
+        description:
+          "Synthesizes signals from resumes, coding assessments, and AI interviews into a holistic candidate score—helping teams make objective, data-backed hiring decisions.",
+        f1: "Flexible scoring weights configurable per department and enterprise standard",
+        f2: "Predicts long-term retention likelihood and organizational culture alignment",
+        f3: "Side-by-side candidate comparisons within every active hiring campaign",
+        f4: "Builds and reactivates a searchable Talent Pool for upcoming requisitions",
+      },
+      workflowAutomation: {
+        badge: "End-to-End Pipeline Automation",
+        title: "Fully Automated End-to-End Hiring Workflow",
+        description:
+          "Automatically trigger downstream pipeline actions: send confirmation emails, issue coding tests, schedule AI voice interviews, and notify candidates of results.",
+        f1: "Visual drag-and-drop Kanban pipeline across every hiring stage",
+        f2: "Automated branded emails with unique assessment codes and interview links",
+        f3: "Dedicated branded Career Portal tailored to each enterprise workspace",
+        f4: "Real-time analytics on conversion rates, cost-per-hire, and Time-to-Hire",
+      },
+    },
+    mockups: {
+      cv: {
+        initials: "NA",
+        candidateName: "Tuan Anh Nguyen",
+        appliedRole: "Applied: Backend Tech Lead (Java)",
+        matchBadge: "96% JD Match",
+        extractedSkillsTitle: "Extracted core skills:",
+        skill1: "✓ Spring Boot (5 yrs)",
+        skill2: "✓ Microservices Architecture",
+        skill3: "✓ Distributed Cache & RabbitMQ",
+        aiEvalTitle: "SmartHire AI Evaluation:",
+        aiEvalBody:
+          "Candidate brings strong experience architecting high-throughput systems and fulfills all technical requirements in the JD. Recommended for automated coding assessment.",
+      },
+      code: {
+        fileHeader: "Solution.java (Coding Challenge)",
+        testsPassed: "4 / 4 Test Cases Passed",
+        metrics: "Runtime: 12ms · Memory: 41.2MB",
+        sandboxScore: "Sandbox Score: 100/100",
+      },
+      voice: {
+        sessionTitle: "AI Voice Interview Session",
+        questionLabel: "AI Assistant question:",
+        questionText:
+          '"How would you diagnose and resolve a database connection pool bottleneck during peak traffic hours?"',
+        analysisTitle: "Candidate response analysis:",
+        metric1Label: "Clarity & coherence",
+        metric2Label: "Problem-solving mindset",
+      },
+      ranking: {
+        title: "Top Candidate Ranking",
+        badge: "Top Picks",
+        cand1Name: "#1. Minh Anh Nguyen",
+        cand1Meta: "CV: 96% · Code: 100/100 · AI Interview: 9.2",
+        cand1Score: "98.4 Total",
+        cand2Name: "#2. Hoang Nam Le",
+        cand2Meta: "CV: 91% · Code: 95/100 · AI Interview: 8.8",
+        cand2Score: "92.1 Total",
+      },
+      pipeline: {
+        step1Label: "1. CV Screen",
+        step1Tag: "Automated",
+        step2Label: "2. Code Test",
+        step2Tag: "Sandbox",
+        step3Label: "3. AI Interview",
+        step3Tag: "Voice 24/7",
+      },
+    },
+    comparison: {
+      badge: "Performance Benchmark",
+      title: "Traditional Recruiting vs. SmartHire-AI",
+      subtitle:
+        "A clear leap from fragmented manual workflows to intelligent end-to-end automation.",
+      colStage: "Stage & Criteria",
+      colTraditional: "Traditional Process",
+      colSmartHire: "SmartHire-AI Solution",
+      row1Feature: "Resume screening time",
+      row1Trad: "5–15 minutes per CV; fatigue-prone and easy to miss top talent",
+      row1Smart:
+        "Just 1.2s per CV, automatically analyzing thousands of profiles in parallel",
+      row2Feature: "Technical test grading",
+      row2Trad: "Tech Leads spend 2–3 hours manually reviewing each submission",
+      row2Smart:
+        "Docker Sandbox automatically grades code and runs hidden test cases instantly",
+      row3Feature: "Preliminary interview scheduling",
+      row3Trad:
+        "Days of back-and-forth emails and high candidate no-show rates",
+      row3Smart:
+        "24/7 AI voice interviews completed on-demand by candidates anytime",
+      row4Feature: "Evaluation objectivity",
+      row4Trad: "Susceptible to subjective bias and time pressure",
+      row4Smart: "100% standardized with transparent, measurable data criteria",
+      row5Feature: "Candidate experience",
+      row5Trad: "Slow responses, often waiting weeks without updates",
+      row5Smart:
+        "Instant feedback that elevates your employer brand professionalism",
+    },
+    bottomCta: {
+      title: "Ready to Experience the AI Recruitment Ecosystem?",
+      subtitle:
+        "Our specialists will design a reference hiring workflow tailored precisely to your company's structure.",
+      primaryBtn: "Book 1:1 Expert Consultation",
+      secondaryBtn: "View Pricing Plans",
+    },
+  },
+  preview: {
+    hero: {
+      badge: "Interactive Technology Experience Lab",
+      titlePrefix: "Interact Directly With the",
+      titleHighlight: "AI Recruitment Workspace",
+      subtitle:
+        "See how SmartHire-AI parses candidate resumes, grades code inside an isolated Sandbox, and conducts real-time voice interviews.",
+      tabScreening: "1. Smart CV Screening",
+      tabAssessment: "2. Technical Assessment",
+      tabInterview: "3. AI Voice Interview",
+    },
+    tabs: {
+      screening: {
+        badge: "AI Parsing & Match Scoring",
+        title: "Parse & rank candidate resumes in 1 second",
+        description:
+          "AI automatically reads any CV format (PDF, DOCX), extracts years of experience and technical capabilities, and semantically matches them against your Job Description (JD).",
+        b1: "Automatically filters spam applications and detects keyword stuffing",
+        b2: "Surfaces the top 10% highest-fit candidates for the next round",
+        b3: "Explains clearly why each profile matches or lacks key criteria",
+        initials: "NA",
+        candidateName: "Tuan Anh Nguyen",
+        appliedRole: "Applied: Backend Tech Lead",
+        matchStatus: "Strong Fit",
+        matchedSkillsLabel: "Skills directly matched to JD:",
+        skill1: "✓ Spring Boot (5 yrs)",
+        skill2: "✓ Microservices Architecture",
+        skill3: "✓ Redis & RabbitMQ",
+        aiCommentLabel: "AI Assessment:",
+        aiCommentBody:
+          "Candidate has deep experience architecting large-scale distributed systems and has led a 15-engineer team. Recommended to advance to technical assessment.",
+      },
+      assessment: {
+        badge: "Coding Sandbox & Anti-Cheat",
+        title: "Real-world engineering skills & anti-cheat protection",
+        description:
+          "Interactive technical quizzes and live coding challenges. Code is compiled, executed against test cases in an isolated Sandbox, and scored automatically.",
+        b1: "Locks exam session and alerts proctors on tab switching",
+        b2: "Reports algorithmic efficiency (Time & Space Complexity)",
+        b3: "Bank of 500+ LeetCode-grade engineering challenges",
+        fileHeader: "Solution.java (Coding Challenge)",
+        testsPassed: "4 / 4 Test Cases Passed",
+        execTime: "Execution time: 12ms",
+        perfectScore: "Perfect score: 100/100",
+      },
+      interview: {
+        badge: "Realtime Voice STT & NLP Analysis",
+        title: "24/7 conversational interviews with AI Assistant",
+        description:
+          "Candidates complete natural voice interviews anytime. AI performs instant Speech-to-Text recognition and evaluates reasoning clarity and delivery.",
+        b1: "Candidates join whenever convenient without HR scheduling bottlenecks",
+        b2: "Detailed rubric scoring across 5 core soft-skill dimensions",
+        b3: "Stores complete audio recordings and searchable transcripts",
+        sessionStatus: "AI Voice Session: Interviewing",
+        questionLabel: "Question from AI Assistant:",
+        questionText:
+          '"How would you diagnose and resolve a database connection pool bottleneck during peak traffic hours?"',
+        analysisTitle: "Candidate response analysis:",
+        metric1Label: "Clarity & coherence",
+        metric2Label: "Problem-solving capability",
+      },
+    },
+    flow: {
+      badge: "How It Works",
+      title: "4 Steps to Automated Enterprise Hiring",
+      subtitle:
+        "Simply provide your Job Description—SmartHire-AI handles the entire initial screening pipeline.",
+      s1Title: "Publish Jobs & Collect CVs",
+      s1Desc:
+        "Launch hiring campaigns connected to your Career Site. Candidates apply via portal or HR bulk-uploads resumes.",
+      s2Title: "AI Screening & Ranking",
+      s2Desc:
+        "In 1.2s per CV, AI parses credentials, scores JD fit, and automatically invites top applicants to assessments.",
+      s3Title: "Assessment & AI Interview",
+      s3Desc:
+        "Candidates complete coding tests in a secure Sandbox and take the AI voice interview on their own schedule.",
+      s4Title: "Reports & Final Offer",
+      s4Desc:
+        "HR and hiring panels review multi-dimensional AI reports, run final interviews, and issue job offers faster.",
+    },
+    bottomCta: {
+      title: "Want a Live Demo Using Your Own Hiring Data?",
+      subtitle:
+        "We offer a complimentary 30-minute 1:1 walkthrough tailored to your organization's real open roles.",
+      button: "Book a 1:1 Demo Now",
+    },
+  },
+  roi: {
+    hero: {
+      badge: "Economic Impact & Proven ROI",
+      titlePrefix: "Optimize Hiring Costs &",
+      titleHighlight: "Accelerate Recruiting 3.5x",
+      subtitle:
+        "Shift your organization from repetitive manual screening to data-driven talent acquisition with measurable financial returns.",
+      primaryCta: "Get Your Custom ROI Calculation",
+      secondaryCta: "Explore Solution Plans",
+    },
+    metrics: {
+      m1Label: "Screening Time Saved",
+      m1Desc:
+        "Automatically classify, parse, and match hundreds of resumes in minutes instead of weeks of manual work.",
+      m2Label: "Hiring Velocity",
+      m2Desc:
+        "Shorten application-to-offer turnaround from an average of 32 days down to just 9 days.",
+      m3Label: "Accuracy & Objectivity",
+      m3Desc:
+        "Eliminate unconscious screening bias through standardized scoring rubrics and transparent skill verification.",
+      m4Label: "Cost Savings",
+      m4Desc:
+        "Reduce early-stage screening overhead and save senior Tech Leads from unproductive first-round interviews.",
+    },
+    model: {
+      badge: "ROI Model",
+      title: "Annual Recruitment Economics Breakdown",
+      subtitle:
+        "Modeled for an enterprise hiring an average of 50 technology roles per year.",
+      tradTitle: "Traditional Hiring Process",
+      tradRow1Label: "Manual screening of {count} CVs:",
+      tradRow1Value: "~250 working hours",
+      tradRow2Label: "Tech Lead grading coding tests:",
+      tradRow2Value: "~150 engineering hours",
+      tradRow3Label: "Unqualified initial phone screens:",
+      tradRow3Value: "~120 wasted hours",
+      tradRow4Label: "Average time to close a hire:",
+      tradRow4Value: "32 days average",
+      tradTotalLabel: "Estimated wasted labor cost:",
+      tradTotalValue: "~{amount} VND / year",
+      smartTitle: "Deployed with SmartHire-AI",
+      smartRow1Label: "AI parsing & matching {count} CVs:",
+      smartRow1Value: "Automated in ~50 mins",
+      smartRow2Label: "Sandbox auto-compilation & grading:",
+      smartRow2Value: "0 Tech Lead hours",
+      smartRow3Label: "24/7 AI voice preliminary interviews:",
+      smartRow3Value: "100% automated",
+      smartRow4Label: "Average time to close a hire:",
+      smartRow4Value: "Only 9 days",
+      smartTotalLabel: "Net annual cost savings:",
+      smartTotalValue: "~{amount} VND / year",
+    },
+    roles: {
+      badge: "Stakeholder Value",
+      title: "Tangible Benefits for Every Role in Your Organization",
+      subtitle:
+        "Aligned efficiency from executive HR leadership to hands-on hiring teams.",
+      chroTitle: "For Chief HR Officers (CHRO / HRD)",
+      chroP1:
+        "Full visibility into hiring performance via real-time dashboards and funnel conversion analytics",
+      chroP2:
+        "Save hundreds of millions in sourcing spend and opportunity cost from delayed hires",
+      chroP3:
+        "Elevate candidate experience and position your brand as a modern tech-first employer",
+      chroP4:
+        "Safeguard HR records under strict regulatory privacy and compliance controls",
+      recruiterTitle: "For Talent Acquisition Specialists (Recruiters)",
+      recruiterP1:
+        "Eliminate the burden of manually reading and sorting hundreds of resumes every day",
+      recruiterP2:
+        "Automate 100% of candidate notifications, test invitations, and interview scheduling",
+      recruiterP3:
+        "Focus high-touch interviews strictly on pre-qualified, high-potential candidates",
+      recruiterP4:
+        "Intuitive drag-and-drop pipeline makes collaborating with Hiring Managers effortless",
+      techLeadTitle: "For Engineering Leads (Tech Leads)",
+      techLeadP1:
+        "Stop spending 2–3 hours per week manually grading coding assignments",
+      techLeadP2:
+        "Receive automated complexity analysis reports alongside AI interview recordings",
+      techLeadP3:
+        "Only meet battle-tested candidates with verified coding skills and strong logic",
+      techLeadP4:
+        "Standardized coding challenge bank means never writing tests from scratch",
+    },
+    bottomCta: {
+      title: "Calculate Cost & Time Savings for Your Company",
+      subtitle:
+        "Share your headcount and annual hiring volume to receive a personalized ROI breakdown from our solutions team.",
+      button: "Request 1:1 ROI Assessment Report",
+    },
+  },
+  security: {
+    hero: {
+      badge: "Enterprise-Grade Security & Data Protection",
+      titlePrefix: "Protect Talent Data &",
+      titleHighlight: "Enterprise Trust",
+      subtitle:
+        "Candidate profiles and compensation records are mission-critical enterprise assets. SmartHire-AI is engineered with multi-layered security to satisfy the strictest compliance audits.",
+      primaryCta: "Request Security Audit Package",
+      secondaryCta: "Explore Solution Plans",
+    },
+    arch: {
+      badge: "Enterprise Multi-Tenant Architecture",
+      title: "Every Enterprise Owns an Isolated Physical Database",
+      p1Before:
+        "Most conventional SaaS tools co-mingle thousands of companies inside a single shared database separated only by a",
+      p1After:
+        "column—creating cross-tenant leak risks if application logic ever fails.",
+      p2Before: "SmartHire-AI implements a true",
+      p2Highlight: "Separate Database per Tenant",
+      p2After:
+        "architecture: every enterprise receives a dedicated database, dedicated HikariCP connection pool, and independent encryption keys for complete physical isolation.",
+      b1: "Zero risk of cross-tenant data leakage from shared query mistakes",
+      b2: "Cleanly export and permanently purge all tenant data upon contract end",
+      b3: "Audit-ready for banking, fintech, and large enterprise security reviews",
+      topologyTitle: "Database Topology",
+      topologyStatus: "Isolated Physical Schemas",
+      t1Meta: "Dedicated Schema · AES-256 Encrypted",
+      t1Status: "Active (Tenant 01)",
+      t2Meta: "Dedicated Schema · Dedicated Pool",
+      t2Status: "Active (Tenant 02)",
+      t3Meta: "Dedicated Schema · On-Demand Replica",
+      t3Status: "Active (Tenant 03)",
+      topologyFooter:
+        "Hibernate Dynamic Multi-Tenancy · Connection Routing per Request",
+    },
+    pillars: {
+      p1Badge: "Enterprise Standard",
+      p1Title: "Physical Data Isolation (Separate DB Per Tenant)",
+      p1Desc:
+        "Each enterprise is provisioned a completely separate physical database. Candidate resumes, interview history, and salary offers never share tables with other organizations.",
+      p2Badge: "Vietnam Compliance",
+      p2Title:
+        "Compliant With 2025 Personal Data Protection Law & Decree 356/2025/ND-CP",
+      p2Desc:
+        "Built to meet Vietnam's 2025 Personal Data Protection Law and Decree 356/2025/ND-CP, featuring explicit candidate consent workflows, data access inspection, and Right to be Forgotten deletion.",
+      p3Badge: "Identity Security",
+      p3Title: "Enterprise Single Sign-On (SSO)",
+      p3Desc:
+        "Seamlessly connects with your corporate identity provider via Google Workspace, Microsoft 365 (Azure AD), and Okta SAML 2.0 / OIDC—enabling instant offboarding access revocation.",
+      p4Badge: "AES-256 & TLS 1.3",
+      p4Title: "Comprehensive At-Rest & In-Transit Encryption",
+      p4Desc:
+        "All network traffic is protected by TLS 1.3, while stored resumes, voice interview recordings, and hiring panel notes are encrypted at rest with military-grade AES-256.",
+      p5Badge: "SLA Commitment",
+      p5Title: "99.9% Uptime & Daily Automated Backups",
+      p5Desc:
+        "Hosted on enterprise cloud infrastructure with instant failover and automated daily backups so critical recruitment records are never lost.",
+      p6Badge: "Legal Assurance",
+      p6Title: "Mutual Non-Disclosure Agreement (NDA)",
+      p6Desc:
+        "SmartHire-AI executes a legally binding mutual NDA before onboarding and contractually guarantees your proprietary data will never train public AI models.",
+    },
+    checklist: {
+      badge: "Security Checklist",
+      title: "Standard Security Controls for Enterprise SecOps Teams",
+      subtitle:
+        "Designed to help your organization pass rigorous infosec audits smoothly.",
+      c1: "Granular Role-Based Access Control (Admin, Recruiter, Interviewer)",
+      c2: "Full Audit Logs tracking every CV view, edit, and download event",
+      c3: "IP spoofing defense & API rate limiting",
+      c4: "Periodic vulnerability scanning aligned with OWASP Top 10",
+      c5: "Customer-specific Key Management Service (KMS) policies",
+      c6: "Private Cloud or On-Premise deployment options for financial enterprises",
+    },
+    bottomCta: {
+      title: "Need to Execute an NDA Prior to Evaluation?",
+      subtitle:
+        "We are ready to share our standard Mutual NDA draft and recent Penetration Testing Report with your legal and security teams.",
+      button: "Contact Legal & Security Team",
+    },
+  },
+  pricing: {
+    srTitle: "SmartHire AI Pricing & Enterprise Recruitment Plans",
+    matrix: {
+      badge: "Feature Breakdown",
+      title: "Complete Plan Feature Comparison",
+      subtitle:
+        "Review technical quotas, capabilities, and governance controls across every tier.",
+      colFeature: "Capability",
+      fallbackStarter: "Starter",
+      fallbackPro: "Professional",
+      fallbackEnterprise: "Enterprise",
+      cvSuffix: " CVs/month",
+      hoursSuffix: " hrs",
+      fallbackCvStarter: "{count} CVs/month",
+      fallbackCvPro: "{count} CVs/month",
+      fallbackHoursStarter: "Up to 10 hrs",
+      fallbackHoursPro: "Up to 50 hrs",
+      fallbackJobsStarter: "Up to 5",
+      fallbackJobsPro: "Up to 20",
+      cat1: "AI Resume Screening & Analysis",
+      c1f1: "Monthly AI CV screening quota",
+      c1f2: "Multi-format parsing (PDF, DOCX, scanned images)",
+      c1f3: "JD Match Scoring (0–100%)",
+      c1f4: "Keyword spam & duplicate CV detection",
+      c1f5: "Automated Top Candidate ranking",
+      cat2: "Technical Assessment",
+      c2f1: "Coding & multiple-choice question bank",
+      c2f1Starter: "Basic",
+      c2f1Pro: "Standard bank",
+      c2f1Ent: "Custom private question bank",
+      c2f2: "Automated Docker Sandbox code grading",
+      c2f2Starter: "5 languages",
+      c2f2Pro: "10 languages",
+      c2f2Ent: "20+ languages",
+      c2f3: "Time & Space complexity evaluation",
+      c2f4: "Anti-cheat & tab-switch monitoring",
+      cat3: "AI Voice Interview",
+      c3f1: "Monthly AI voice interview allowance",
+      c3f2: "Real-time Vietnamese & English conversation",
+      c3f3: "Logic & soft-skills analysis",
+      c3f4: "Automated audio recording & transcripts",
+      cat4: "Accounts & Workspace Governance",
+      c4f1: "Active open job positions",
+      c4f2: "Branded enterprise Career Site",
+      c4f3: "Department-level Role Access Control (RBAC)",
+      c4f3Starter: "Basic",
+      c4f3Pro: "Standard",
+      c4f3Ent: "Advanced customization",
+      c4f4: "Visual Kanban hiring pipeline",
+      cat5: "Security & Enterprise Infrastructure",
+      c5f1: "Separate Database per Tenant architecture",
+      c5f2: "Enterprise Single Sign-On (SSO SAML / OIDC)",
+      c5f3: "Private Cloud or On-Premise deployment option",
+      c5f4: "Signed Non-Disclosure Agreement (NDA)",
+      c5f5: "Service Level Agreement (SLA)",
+      c5f5Ent: "99.99% Dedicated",
+    },
+    faq: {
+      badge: "Pricing FAQ",
+      title: "Common Enterprise Billing Questions",
+      q1: "Does SmartHire-AI issue official corporate invoices?",
+      a1: "Yes. Every subscription plan and service contract includes full electronic tax invoices and official payment receipts issued to your registered legal entity immediately upon payment.",
+      q2: "What payment methods does your company support?",
+      a2: "You can pay instantly online via VNPAY or corporate credit card, or settle via corporate bank transfer under a stamped service contract.",
+      q3: "What happens if our hiring exceeds the monthly CV screening quota?",
+      a3: "You will receive an alert when usage reaches 90% of your quota. You can purchase CV top-up packs or upgrade directly to a higher tier with zero interruption to live hiring campaigns.",
+      q4: "Is our data protected if we pause our subscription?",
+      a4: "All records inside your dedicated tenant database remain safely preserved for 30 days after subscription expiration. You can export all data or request permanent deletion anytime.",
+    },
+    bottomCta: {
+      title: "Need Custom Enterprise Pricing for Your Organization?",
+      subtitle:
+        "We offer dedicated volume discounts for 12–24 month agreements and organizations requiring custom private infrastructure.",
+      button: "Request Detailed Quote & Sample Contract",
+    },
+  },
+  demoPage: {
+    backHome: "Home",
+    demoTitle: "Book a 1:1 Demo Experience",
+    quoteTitle: "Pricing & Contract Consultation",
+    demoSubtitle:
+      "A solutions specialist will reach out within 2 hours to prepare a tailored demo.",
+    quoteSubtitle:
+      "Our Enterprise team will follow up with detailed pricing and SLA terms.",
+    demoTab: "Book 1:1 Demo",
+    quoteTab: "Enterprise Quote & Contract",
+    defaultNeed: "Automate CV screening and AI preliminary interviews",
+    invalidData: "Invalid input data. Please review and try again.",
+    backendError:
+      "Unable to connect to Backend server (Port 8080). Please ensure the Backend service is running.",
+    submitFailed:
+      "Unable to submit your request right now. Please try again or email contact@smarthire.top",
+    companyLabel: "Company / Organization Name",
+    companyPlaceholder: "Acme Technology Group...",
+    companySizeLabel: "Company Headcount",
+    selectPlaceholder: "Select...",
+    companySizePlaceholder: "Select company size...",
+    contactNameLabel: "Contact Full Name",
+    contactNamePlaceholder: "Alex Morgan",
+    jobTitleLabel: "Job Title",
+    jobTitlePlaceholder: "Select or enter job title...",
+    useCustomJobTitle: 'Use "{title}"',
+    workEmailLabel: "Contact Email",
+    workEmailPlaceholder: "name@company.com",
+    phoneLabel: "Contact Phone Number",
+    phonePlaceholder: "+84 912 345 678",
+    notesLabel: "Specific Requirements or Notes (Optional)",
+    notesPlaceholder:
+      "Example: Looking to integrate automated coding tests and AI interviews for IT hiring...",
+    submitting: "Submitting request...",
+    submitDemo: "Submit Demo Request",
+    submitQuote: "Request Quote & Contract",
+    receivedTitle: "Request Received!",
+    receivedDescBefore: "Thank you,",
+    receivedDescMiddle:
+      ". A SmartHire-AI solutions specialist will contact you directly via email",
+    receivedDescAnd: "and phone",
+    receivedDescAfter: "within 2 business hours.",
+    goHomeBtn: "Back to Home",
+    sizeUnder100: "Under 100 employees",
+    size100To500: "100 – 500 employees",
+    size500To2000: "500 – 2,000 employees",
+    size2000Plus: "Over 2,000 employees",
+    jobTitles: {
+      chro: "Chief Human Resources Officer (CHRO)",
+      hrManager: "HR Manager",
+      taManager: "Talent Acquisition Manager",
+      recruiter: "Recruitment Specialist",
+      ceo: "Chief Executive Officer (CEO)",
+      cto: "Chief Technology Officer (CTO)",
+      techLead: "Engineering / Tech Lead",
+      pm: "Project Manager",
+      coo: "Chief Operating Officer (COO)",
+      founder: "Founder / Business Owner",
+      adminManager: "Administration Manager",
+      bdManager: "Business Development Manager",
+    },
+  },
+  legal: {
+    back: "Back",
+    headerTitle: "SmartHire-AI Legal Documents & Service Agreements",
+    goToCheckout: "Go to Checkout >",
+  },
+} as const;

@@ -8,6 +8,7 @@ import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useUiStore } from "@/stores/uiStore";
@@ -33,16 +34,17 @@ function TransferOwnerModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useT();
   const [newOwnerId, setNewOwnerId] = useState("");
   const mutation = useMutation({
     mutationFn: () => jobAssignmentsApi.transferOwner(jobId, Number(newOwnerId)),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã chuyển quyền sở hữu thành công");
+      toast.success(t("tenantAdmin.assignments.transferModal.success"));
       onSuccess();
       onClose();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không chuyển được quyền sở hữu")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.assignments.transferModal.error"))),
   });
 
   // Only candidates who have permission to create jobs can become OWNER
@@ -52,25 +54,29 @@ function TransferOwnerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="transfer-owner-title">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between">
-          <h2 id="transfer-owner-title" className="text-base font-semibold">Chuyển quyền sở hữu (OWNER)</h2>
-          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg hover:bg-[var(--color-surface-alt)]" aria-label="Đóng">
+          <h2 id="transfer-owner-title" className="text-base font-semibold">{t("tenantAdmin.assignments.transferModal.title")}</h2>
+          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg hover:bg-[var(--color-surface-alt)]" aria-label={t("tenantAdmin.assignments.transferModal.closeAria")}>
             <X className="size-4" />
           </button>
         </div>
         <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-          Người nhận quyền OWNER mới <strong>bắt buộc phải có quyền Tạo tin tuyển dụng (`JOBS_CREATE`)</strong>. OWNER hiện tại sẽ trở thành <strong>Người phụ trách</strong>.
+          {t("tenantAdmin.assignments.transferModal.descriptionPrefix")}
+          <strong>{t("tenantAdmin.assignments.transferModal.descriptionBold")}</strong>
+          {t("tenantAdmin.assignments.transferModal.descriptionMiddle")}
+          <strong>{t("tenantAdmin.assignments.transferModal.descriptionRole")}</strong>
+          {t("tenantAdmin.assignments.transferModal.descriptionSuffix")}
         </p>
 
         {candidates.length === 0 ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            Không có nhân viên nào khác có quyền Tạo tin tuyển dụng để chuyển quyền sở hữu. Vui lòng cấp quyền Tạo job trong trang Phân quyền trước.
+            {t("tenantAdmin.assignments.transferModal.noCandidates")}
           </div>
         ) : (
           <div className="mt-4 space-y-3">
             <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Chọn OWNER mới (Chỉ hiện người có quyền Tạo job)</span>
+              <span className="font-medium">{t("tenantAdmin.assignments.transferModal.selectLabel")}</span>
               <select className={inputClass} value={newOwnerId} onChange={(e) => setNewOwnerId(e.target.value)}>
-                <option value="">-- Chọn nhân viên có quyền Tạo job --</option>
+                <option value="">{t("tenantAdmin.assignments.transferModal.selectPlaceholder")}</option>
                 {candidates.map((row) => (
                   <option key={row.id} value={row.id}>{row.fullName} · {row.role}</option>
                 ))}
@@ -80,9 +86,9 @@ function TransferOwnerModal({
         )}
 
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>Hủy</Button>
+          <Button variant="ghost" onClick={onClose}>{t("tenantAdmin.assignments.transferModal.cancel")}</Button>
           <Button disabled={!newOwnerId || mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Đang chuyển…" : "Xác nhận chuyển"}
+            {mutation.isPending ? t("tenantAdmin.assignments.transferModal.transferring") : t("tenantAdmin.assignments.transferModal.confirm")}
           </Button>
         </div>
       </div>
@@ -91,6 +97,7 @@ function TransferOwnerModal({
 }
 
 export function AssignmentsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [searchParams] = useSearchParams();
@@ -170,28 +177,28 @@ export function AssignmentsPage() {
     },
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã gán người phụ trách");
+      toast.success(t("tenantAdmin.assignments.assignSuccess"));
       setUserId("");
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gán được người phụ trách")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.assignments.assignError"))),
   });
 
   const removeMutation = useMutation({
     mutationFn: (id: number) => jobAssignmentsApi.remove(selectedJobId as number, id),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã gỡ quyền phụ trách");
+      toast.success(t("tenantAdmin.assignments.removeSuccess"));
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gỡ được quyền")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.assignments.removeError"))),
   });
 
   const askRemove = (row: JobAssignment) => {
     askConfirm({
-      title: `Gỡ người phụ trách ${row.fullName}?`,
-      description: "Nhân sự này sẽ không còn quyền truy cập vào tin tuyển dụng này.",
-      confirmLabel: "Gỡ phụ trách",
+      title: t("tenantAdmin.assignments.removeConfirmTitle", { name: row.fullName }),
+      description: t("tenantAdmin.assignments.removeConfirmDesc"),
+      confirmLabel: t("tenantAdmin.assignments.removeConfirmLabel"),
       danger: true,
       onConfirm: () => removeMutation.mutate(row.userId),
     });
@@ -211,32 +218,36 @@ export function AssignmentsPage() {
       )}
 
       <div>
-        <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">Quản lý công việc</h1>
+        <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.assignments.title")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-          Phân công nhân sự phụ trách từng tin tuyển dụng. Mỗi job có đúng <strong>1 Chủ sở hữu (OWNER)</strong> và các <strong>Người phụ trách</strong>.
+          {t("tenantAdmin.assignments.subtitlePrefix")}
+          <strong>{t("tenantAdmin.assignments.subtitleOwner")}</strong>
+          {t("tenantAdmin.assignments.subtitleMiddle")}
+          <strong>{t("tenantAdmin.assignments.subtitleCollaborator")}</strong>
+          {t("tenantAdmin.assignments.subtitleSuffix")}
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(16rem,22rem)_1fr] lg:items-start">
         {/* Left Column: Job Selector */}
         <Card className="space-y-3">
-          <h2 className="text-base font-semibold">Tin tuyển dụng</h2>
+          <h2 className="text-base font-semibold">{t("tenantAdmin.assignments.jobsTitle")}</h2>
           <input
             className={inputClass}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tìm theo tiêu đề, địa điểm, phòng ban"
+            placeholder={t("tenantAdmin.assignments.searchPlaceholder")}
           />
           {jobsQuery.isLoading && (
             <div className="space-y-2 py-1" role="status" aria-busy="true">
               {Array.from({ length: 4 }, (_, i) => (
                 <Skeleton key={i} className="h-10 w-full rounded-[var(--radius-md)]" />
               ))}
-              <span className="sr-only">Đang tải danh sách công việc…</span>
+              <span className="sr-only">{t("tenantAdmin.assignments.loadingJobsSr")}</span>
             </div>
           )}
-          {jobsQuery.isError && <p className="text-sm text-status-danger" role="alert">{getApiErrorMessage(jobsQuery.error, "Không tải được danh sách job")}</p>}
-          {jobs.length === 0 && !jobsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Chưa có tin tuyển dụng.</p>}
+          {jobsQuery.isError && <p className="text-sm text-status-danger" role="alert">{getApiErrorMessage(jobsQuery.error, t("tenantAdmin.assignments.loadJobsError"))}</p>}
+          {jobs.length === 0 && !jobsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.assignments.emptyJobs")}</p>}
           <ul className="space-y-1">
             {jobs.map((job) => (
               <li key={job.id}>
@@ -262,7 +273,7 @@ export function AssignmentsPage() {
           {selectedJob == null && (
             <div className="py-12 text-center text-sm text-[var(--color-text-secondary)]">
               <ShieldCheck className="mx-auto size-10 stroke-1 text-slate-300 mb-2" />
-              Chọn một tin tuyển dụng bên trái để quản lý người phụ trách.
+              {t("tenantAdmin.assignments.emptySelection")}
             </div>
           )}
           {selectedJob != null && (
@@ -273,8 +284,8 @@ export function AssignmentsPage() {
                   <h2 className="text-lg font-bold text-[var(--color-text-primary)]">{selectedJob.title}</h2>
                   <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
                     {assigned.length === 0
-                      ? "Chưa có nhân sự phụ trách — chỉ Admin hoặc người có quyền JOBS_ALL nhìn thấy job này."
-                      : `${assigned.length} nhân sự đang phụ trách job`}
+                      ? t("tenantAdmin.assignments.noAssignees")
+                      : t("tenantAdmin.assignments.assigneesCount", { count: assigned.length })}
                   </p>
                 </div>
                 <button
@@ -283,7 +294,7 @@ export function AssignmentsPage() {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
                 >
                   <ArrowRightLeft className="size-3.5" aria-hidden="true" />
-                  Chuyển OWNER
+                  {t("tenantAdmin.assignments.transferOwnerButton")}
                 </button>
               </div>
 
@@ -293,13 +304,17 @@ export function AssignmentsPage() {
                   <ShieldCheck className="size-4 shrink-0 text-brand-primary mt-0.5" />
                   <div className="space-y-1">
                     <p className="font-semibold text-xs text-[var(--color-text-primary)]">
-                      Nguyên tắc phân định quyền hạn:
+                      {t("tenantAdmin.assignments.rbacBannerTitle")}
                     </p>
                     <p>
-                      • <strong>Chủ sở hữu (OWNER)</strong>: Người tạo job hoặc nhận chuyển giao (bắt buộc phải có quyền Tạo job `JOBS_CREATE`).
+                      {t("tenantAdmin.assignments.rbacOwnerRulePrefix")}
+                      <code>`JOBS_CREATE`</code>
+                      {t("tenantAdmin.assignments.rbacOwnerRuleSuffix")}
                     </p>
                     <p>
-                      • <strong>Người phụ trách</strong>: Được gán quyền vào job này. Mọi thao tác (sửa JD, xem ứng viên, đánh giá, chấm phỏng vấn...) được quyết định chặt chẽ bởi bảng <strong>Phân quyền chi tiết</strong> của vai trò nhân sự đó.
+                      {t("tenantAdmin.assignments.rbacCollaboratorRulePrefix")}
+                      <strong>{t("tenantAdmin.assignments.rbacCollaboratorRuleBold")}</strong>
+                      {t("tenantAdmin.assignments.rbacCollaboratorRuleSuffix")}
                     </p>
                   </div>
                 </div>
@@ -308,7 +323,7 @@ export function AssignmentsPage() {
               {/* Add Member Section */}
               <div className="rounded-xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm space-y-3">
                 <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                  Gán người phụ trách
+                  {t("tenantAdmin.assignments.assignCardTitle")}
                 </h3>
                 <form
                   className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end"
@@ -319,13 +334,13 @@ export function AssignmentsPage() {
                   }}
                 >
                   <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
-                    <span>Chọn nhân viên Recruiter / HR</span>
+                    <span>{t("tenantAdmin.assignments.selectRecruiterLabel")}</span>
                     <select
                       className={inputClass}
                       value={userId}
                       onChange={(event) => setUserId(event.target.value)}
                     >
-                      <option value="">-- Chọn nhân viên để phân công --</option>
+                      <option value="">{t("tenantAdmin.assignments.selectRecruiterPlaceholder")}</option>
                       {availableStaff.map((row) => (
                         <option key={row.id} value={row.id}>
                           {row.fullName} · {row.role}
@@ -340,11 +355,11 @@ export function AssignmentsPage() {
                     className="min-h-10"
                   >
                     <UserPlus className="size-4 mr-1.5" />
-                    {assignMutation.isPending ? "Đang gán…" : "Gán phụ trách"}
+                    {assignMutation.isPending ? t("tenantAdmin.assignments.assigning") : t("tenantAdmin.assignments.assignButton")}
                   </Button>
                 </form>
                 <p className="text-xs text-[var(--color-text-secondary)]">
-                  ℹ️ Người phụ trách được quyền truy cập job này. Các quyền hạn cụ thể (xem/sửa job, xem ứng viên, chấm điểm...) hoàn toàn tuân theo vai trò của người đó trong hệ thống.
+                  {t("tenantAdmin.assignments.assignNote")}
                 </p>
               </div>
 
@@ -353,12 +368,12 @@ export function AssignmentsPage() {
                   {Array.from({ length: 3 }, (_, i) => (
                     <Skeleton key={i} className="h-12 w-full rounded-xl" />
                   ))}
-                  <span className="sr-only">Đang tải danh sách phụ trách…</span>
+                  <span className="sr-only">{t("tenantAdmin.assignments.loadingAssignmentsSr")}</span>
                 </div>
               )}
               {assignmentsQuery.isError && (
                 <p className="text-sm text-status-danger" role="alert">
-                  {getApiErrorMessage(assignmentsQuery.error, "Không tải được danh sách phụ trách")}
+                  {getApiErrorMessage(assignmentsQuery.error, t("tenantAdmin.assignments.loadAssignmentsError"))}
                 </p>
               )}
 
@@ -366,10 +381,10 @@ export function AssignmentsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                    Nhân sự phụ trách công việc ({assigned.length})
+                    {t("tenantAdmin.assignments.teamTitle", { count: assigned.length })}
                   </h3>
                   <span className="text-xs text-[var(--color-text-secondary)]">
-                    Gồm 1 OWNER và các Người phụ trách
+                    {t("tenantAdmin.assignments.teamSummary")}
                   </span>
                 </div>
 
@@ -383,12 +398,13 @@ export function AssignmentsPage() {
                             <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{row.fullName}</p>
                             {row.isCreator && (
                               <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
-                                Người tạo job
+                                {t("tenantAdmin.assignments.jobCreatorBadge")}
                               </span>
                             )}
                           </div>
                           <p className="truncate text-xs text-[var(--color-text-secondary)]">
-                            {row.email} · Vai trò tài khoản: <span className="font-medium text-[var(--color-text-primary)]">{row.role}</span>
+                            {row.email} · {t("tenantAdmin.assignments.accountRoleLabel")}{" "}
+                            <span className="font-medium text-[var(--color-text-primary)]">{row.role}</span>
                           </p>
                         </div>
 
@@ -396,23 +412,23 @@ export function AssignmentsPage() {
                           {isOwner ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 shadow-xs">
                               <Crown className="size-3.5 text-amber-600" />
-                              Chủ sở hữu (OWNER)
+                              {t("tenantAdmin.assignments.ownerBadge")}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                               <UserCheck className="size-3.5 text-blue-600" />
-                              Người phụ trách
+                              {t("tenantAdmin.assignments.collaboratorBadge")}
                             </span>
                           )}
 
                           {!isOwner && !row.isCreator && (
                             <button
                               type="button"
-                              aria-label={`Gỡ ${row.fullName}`}
+                              aria-label={t("tenantAdmin.assignments.removeAria", { name: row.fullName })}
                               disabled={removeMutation.isPending}
                               onClick={() => askRemove(row)}
                               className="inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-status-danger)] hover:bg-[var(--color-status-danger)]/10 transition-colors"
-                              title="Gỡ khỏi tin tuyển dụng này"
+                              title={t("tenantAdmin.assignments.removeTitle")}
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -430,5 +446,3 @@ export function AssignmentsPage() {
     </section>
   );
 }
-
-

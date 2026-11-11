@@ -5,9 +5,10 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getApiErrorMessage } from "@/lib/axios";
-import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
+import { getRankingPreview, PREVIEW_JOB_ID } from "../data/rankingPreview";
 import {
   RankingCandidateDetailView,
   RankingDetailError,
@@ -16,6 +17,7 @@ import {
 import type { RankingRow } from "../types/ranking";
 
 export function RankingCandidateDetailPage() {
+  const t = useT();
   const { id, applicationId: applicationIdParam } = useParams<{ id: string; applicationId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,6 +34,8 @@ export function RankingCandidateDetailPage() {
 
   const locationState = location.state as { row?: RankingRow; jobTitle?: string } | undefined;
 
+  const previewBoard = useMemo(() => (isPreview ? getRankingPreview(t) : null), [isPreview, t]);
+
   const jobQuery = useQuery({
     queryKey: ["jobs", jobId],
     queryFn: () => jobApi.get(jobId),
@@ -44,13 +48,13 @@ export function RankingCandidateDetailPage() {
     enabled: validApplicationId && !isPreview && !!token,
   });
 
-  const previewRow = isPreview
-    ? rankingPreview.rows.find((r) => r.applicationId === applicationId) || rankingPreview.rows[0]
+  const previewRow = previewBoard
+    ? previewBoard.rows.find((r) => r.applicationId === applicationId) || previewBoard.rows[0]
     : undefined;
 
-  const jobTitle = isPreview
-    ? rankingPreview.jobTitle
-    : locationState?.jobTitle || jobQuery.data?.data?.title || "Công việc tuyển dụng";
+  const jobTitle = previewBoard
+    ? previewBoard.jobTitle
+    : locationState?.jobTitle || jobQuery.data?.data?.title || t("recruiter.screening.rankingDetailPage.defaultJobTitle");
 
   const row = previewRow || detailQuery.data?.data || locationState?.row;
 
@@ -62,7 +66,7 @@ export function RankingCandidateDetailPage() {
     return (
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
         <p role="status" className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
-          Đăng nhập bằng tài khoản Recruiter để xem chi tiết xếp hạng ứng viên.
+          {t("recruiter.screening.rankingDetailPage.authRequired")}
         </p>
       </div>
     );
@@ -72,16 +76,16 @@ export function RankingCandidateDetailPage() {
     return (
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700" role="alert">
-          <p className="font-semibold">Đường dẫn không hợp lệ</p>
+          <p className="font-semibold">{t("recruiter.screening.rankingDetailPage.invalidTitle")}</p>
           <p className="mt-1 text-xs text-rose-600">
-            Mã công việc hoặc mã ứng viên không đúng định dạng.
+            {t("recruiter.screening.rankingDetailPage.invalidDesc")}
           </p>
           <Link
             to="/recruiter"
             className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-rose-800 underline hover:no-underline"
           >
             <ArrowLeft className="size-3.5" />
-            <span>Quay lại trang tuyển dụng</span>
+            <span>{t("recruiter.screening.rankingDetailPage.backToWorkspace")}</span>
           </Link>
         </div>
       </div>
@@ -105,7 +109,7 @@ export function RankingCandidateDetailPage() {
   if (!row) {
     return (
       <RankingDetailError
-        message="Không tìm thấy thông tin đánh giá của ứng viên này trong hệ thống."
+        message={t("recruiter.screening.rankingDetailPage.notFound")}
         onBack={handleBack}
       />
     );
@@ -113,18 +117,20 @@ export function RankingCandidateDetailPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 pb-12">
-      {/* Breadcrumb strip */}
       <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-slate-500">
         <Link
           to={`/recruiter/jobs/${jobId}/rank`}
           className="hover:text-brand-primary transition-colors font-medium flex items-center gap-1.5"
         >
           <Sparkles className="size-3.5 text-brand-primary" />
-          <span>Bảng xếp hạng: {jobTitle}</span>
+          <span>{t("recruiter.screening.rankingDetailPage.breadcrumbPrefix", { jobTitle })}</span>
         </Link>
         <span aria-hidden="true" className="text-slate-300">/</span>
         <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-          {row.candidateName} (Hồ sơ #{row.applicationId})
+          {t("recruiter.screening.rankingDetailPage.candidateRecord", {
+            name: row.candidateName,
+            id: row.applicationId,
+          })}
         </span>
       </nav>
 

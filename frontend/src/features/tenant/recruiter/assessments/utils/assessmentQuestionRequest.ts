@@ -1,4 +1,5 @@
-import { rubricSchema, codingSchema } from "./questionContentValidation";
+import { t as globalT, type TranslateFn } from "@/i18n";
+import { createRubricSchema, createCodingSchema } from "./questionContentValidation";
 import type { QuestionRequest } from "@/api/types/assessment";
 import { isSubjectiveKind } from "../constants/excelTemplateMock";
 import type { ImportRow } from "./excelImportValidation";
@@ -6,9 +7,37 @@ import type { ImportRow } from "./excelImportValidation";
 function mapDifficulty(raw: string): QuestionRequest["difficulty"] {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
-  if (value === "easy" || value.includes("dễ") || value.includes("co ban") || value.includes("cơ bản")) return "Easy";
-  if (value === "hard" || value.includes("khó") || value.includes("nâng cao") || value.includes("nang cao")) return "Hard";
-  if (value === "medium" || value.includes("vận dụng") || value.includes("van dung") || value.includes("trung")) return "Medium";
+  if (
+    value === "easy" ||
+    value.includes("dễ") ||
+    value.includes("co ban") ||
+    value.includes("cơ bản") ||
+    value.includes("初級") ||
+    value.includes("基礎") ||
+    value.includes("易")
+  ) {
+    return "Easy";
+  }
+  if (
+    value === "hard" ||
+    value.includes("khó") ||
+    value.includes("nâng cao") ||
+    value.includes("nang cao") ||
+    value.includes("上級") ||
+    value.includes("難")
+  ) {
+    return "Hard";
+  }
+  if (
+    value === "medium" ||
+    value.includes("vận dụng") ||
+    value.includes("van dung") ||
+    value.includes("trung") ||
+    value.includes("中級") ||
+    value.includes("応用")
+  ) {
+    return "Medium";
+  }
   return null;
 }
 
@@ -23,7 +52,12 @@ function selectedLetters(answer: string): Set<string> {
   );
 }
 
-export function toQuestionRequest(item: ImportRow, index: number, defaultScore: number): QuestionRequest {
+export function toQuestionRequest(
+  item: ImportRow,
+  index: number,
+  defaultScore: number,
+  t: TranslateFn = globalT,
+): QuestionRequest {
   const row = item.row;
   const base = {
     questionText: row.content.trim(),
@@ -43,11 +77,16 @@ export function toQuestionRequest(item: ImportRow, index: number, defaultScore: 
       if (!parsed || !Array.isArray(parsed.criteria) || parsed.criteria.length === 0) {
         parsed = {
           category: "ESSAY_CONCEPTUAL",
-          referenceAnswer: row.sample.trim() || "Tiêu chuẩn đánh giá",
+          referenceAnswer:
+            row.sample.trim() || t("recruiter.assessments.coding.request.defaultReferenceAnswer"),
           criteria: [{
-            name: "Bản chất cốt lõi & Nguyên lý",
-            guide: row.rubric?.map((item) => item.text).filter(Boolean).join("; ") || "Giải thích đúng nguyên lý kỹ thuật",
-            description: row.rubric?.map((item) => item.text).filter(Boolean).join("; ") || "Technical correctness and completeness",
+            name: t("recruiter.assessments.coding.request.defaultCriterionName"),
+            guide:
+              row.rubric?.map((item) => item.text).filter(Boolean).join("; ") ||
+              t("recruiter.assessments.coding.request.defaultCriterionGuide"),
+            description:
+              row.rubric?.map((item) => item.text).filter(Boolean).join("; ") ||
+              t("recruiter.assessments.coding.request.defaultCriterionDescription"),
             weight: 100,
           }],
         };
@@ -55,14 +94,17 @@ export function toQuestionRequest(item: ImportRow, index: number, defaultScore: 
       if (row.sample.trim()) {
         parsed.referenceAnswer = row.sample.trim();
       }
-      rubricJson = rubricSchema.parse(parsed);
+      rubricJson = createRubricSchema(t).parse(parsed);
     }
 
     return {
       ...base,
       questionType: row.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY",
       rubricJson,
-      coding: row.kind === "TU_LUAN_CODE" ? codingSchema.parse(JSON.parse(row.codingJsonText || "null")) : null,
+      coding:
+        row.kind === "TU_LUAN_CODE"
+          ? createCodingSchema(t).parse(JSON.parse(row.codingJsonText || "null"))
+          : null,
       explanation: row.sample.trim() || row.explanation.trim() || null,
       options: [],
     };

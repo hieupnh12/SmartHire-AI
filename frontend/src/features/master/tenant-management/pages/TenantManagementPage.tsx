@@ -4,6 +4,7 @@ import { TenantManagementHub, type TenantHubTab } from "../components/TenantMana
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useT } from "@/i18n";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
@@ -13,6 +14,7 @@ function currentTab(pathname: string): TenantHubTab {
 }
 
 export function TenantManagementPage() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -28,19 +30,19 @@ export function TenantManagementPage() {
     const status = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     const updated = await masterAdminApi.updateTenantStatus(tenant.id, status);
     setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-    triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
+    triggerNotification(t("master.ops.tenants.toasts.statusUpdated", { code: tenant.code, status }));
   };
 
   const softDeleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(`Bạn có chắc muốn xoá mềm (lưu trữ) tenant ${tenant.code}? Database vẫn được giữ lại và có thể khôi phục sau.`)) {
+    if (!confirm(t("master.ops.tenants.toasts.confirmSoftDelete", { code: tenant.code }))) {
       return;
     }
     try {
       const updated = await masterAdminApi.softDeleteTenant(tenant.id);
       setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(`Đã xoá mềm tenant ${tenant.code}.`);
+      triggerNotification(t("master.ops.tenants.toasts.softDeleteSuccess", { code: tenant.code }));
     } catch {
-      toast.danger("Lỗi khi xoá mềm tenant.");
+      toast.danger(t("master.ops.tenants.toasts.softDeleteError"));
     }
   };
 
@@ -48,9 +50,9 @@ export function TenantManagementPage() {
     try {
       const updated = await masterAdminApi.restoreTenant(tenant.id);
       setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(`Đã khôi phục tenant ${tenant.code} về trạng thái SUSPENDED.`);
+      triggerNotification(t("master.ops.tenants.toasts.restoreSuccess", { code: tenant.code }));
     } catch {
-      toast.danger("Lỗi khi khôi phục tenant.");
+      toast.danger(t("master.ops.tenants.toasts.restoreError"));
     }
   };
 

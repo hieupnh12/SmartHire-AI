@@ -4,21 +4,13 @@ import { Expand, TriangleAlert } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { Button } from "@/components/ux/Button";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { useT } from "@/i18n";
 import type { ProctorSession } from "@/features/tenant/candidate/interviews/utils/proctorDevices";
 import { expandExamToScreen, examIsFullscreen } from "../utils/examFullscreen";
 import { watchFacePresence, type FacePresenceStatus } from "../utils/facePresence";
 
 const MAX_VIOLATIONS = 3;
 const EXAM_ROOT_ID = "exam-room-root";
-
-const FACE_LABEL: Record<FacePresenceStatus, string> = {
-  loading: "Đang tải nhận diện…",
-  ready: "Đang nhận diện…",
-  present: "Mặt trong khung",
-  absent: "Mất mặt",
-  multi: "Nhiều người",
-  unavailable: "Không nhận diện được",
-};
 
 const ProctorChromeContext = createContext<ReactNode>(null);
 const ExpandContext = createContext<(() => Promise<void>) | null>(null);
@@ -29,6 +21,7 @@ export function ExamMonitor() {
 }
 
 export function ExamFullscreenButton() {
+  const t = useT();
   const expand = useContext(ExpandContext);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -48,13 +41,13 @@ export function ExamFullscreenButton() {
           setError(null);
           void expand()
             .catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : "Không mở được toàn màn hình.");
+              setError(cause instanceof Error ? cause.message : t("candidate.assess.proctorGuard.fullscreenFallbackError"));
             })
             .finally(() => setPending(false));
         }}
       >
         <Expand className="size-4" aria-hidden="true" />
-        {pending ? "Đang mở toàn màn hình…" : "Mở toàn màn hình"}
+        {pending ? t("candidate.assess.proctorGuard.openingFullscreen") : t("candidate.assess.proctorGuard.openFullscreen")}
       </Button>
     </>
   );
@@ -69,6 +62,7 @@ type Props = {
 
 /** Client-side exam proctoring (fullscreen, tab, copy/paste, device tracks). */
 export function AssessmentProctorGuard({ submissionId, session = null, children, onAutoSubmit }: Props) {
+  const t = useT();
   const user = useAuthStore((state) => state.user);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -97,14 +91,16 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
     setViolations(next);
     warningOpen.current = true;
     setWarning(
-      `${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Bài sẽ được tự động nộp." : "Vui lòng quay lại phòng thi."}`,
+      next >= MAX_VIOLATIONS
+        ? t("candidate.assess.proctorGuard.violationWillAutoSubmit", { message, count: next, max: MAX_VIOLATIONS })
+        : t("candidate.assess.proctorGuard.violationWarning", { message, count: next, max: MAX_VIOLATIONS }),
     );
 
     if (next >= MAX_VIOLATIONS && !autoSubmitted.current) {
       autoSubmitted.current = true;
       window.setTimeout(() => autoSubmitRef.current(), 800);
     }
-  }, [report]);
+  }, [report, t]);
 
   useEffect(() => {
     if (!session) return;
@@ -123,10 +119,10 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       onViolation: (reason) => {
         if (!active || ignoreTransient.current || warningOpen.current) return;
         if (reason === "multi") {
-          violate("Phát hiện nhiều khuôn mặt trong khung hình camera", "MULTI_FACE");
+          violate(t("candidate.assess.proctorGuard.violations.multiFace"), "MULTI_FACE");
           return;
         }
-        violate("Khuôn mặt không còn trong khung hình camera", "LOST_FACE");
+        violate(t("candidate.assess.proctorGuard.violations.lostFace"), "LOST_FACE");
       },
     }).then((watcher) => {
       if (!active) {
@@ -139,7 +135,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       active = false;
       handle?.stop();
     };
-  }, [session, violate]);
+  }, [session, violate, t]);
 
   const bindVideo = (node: HTMLVideoElement | null) => {
     videoRef.current = node;
@@ -148,7 +144,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Phòng thi";
+    document.title = t("candidate.assess.proctorGuard.examRoomTitle");
     const root = document.documentElement;
     const previousOverflow = root.style.overflow;
     root.style.overflow = "hidden";
@@ -156,15 +152,15 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       document.title = previousTitle;
       root.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!session) return;
     const microphoneTrack = session.camera.getAudioTracks()[0];
     const cameraTrack = session.camera.getVideoTracks()[0];
     const screenTrack = session.screen?.getVideoTracks()[0];
-    const microphoneLost = () => violate("Microphone đã bị tắt", "MICROPHONE_LOST");
-    const cameraLost = () => violate("Camera đã bị tắt", "CAMERA_LOST");
+    const microphoneLost = () => violate(t("candidate.assess.proctorGuard.violations.microphoneLost"), "MICROPHONE_LOST");
+    const cameraLost = () => violate(t("candidate.assess.proctorGuard.violations.cameraLost"), "CAMERA_LOST");
     const screenLost = () => onScreenEnded.current();
     microphoneTrack?.addEventListener("ended", microphoneLost);
     cameraTrack?.addEventListener("ended", cameraLost);
@@ -174,40 +170,40 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       cameraTrack?.removeEventListener("ended", cameraLost);
       screenTrack?.removeEventListener("ended", screenLost);
     };
-  }, [session, violate]);
+  }, [session, violate, t]);
 
   useEffect(() => {
     const fullscreen = () => {
       if (ignoreTransient.current) return;
-      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình", "FULLSCREEN_EXIT");
+      if (!examIsFullscreen()) violate(t("candidate.assess.proctorGuard.violations.fullscreenExit"), "FULLSCREEN_EXIT");
     };
     const visibility = () => {
       if (ignoreTransient.current) return;
       if (document.hidden) {
         hiddenAt.current = Date.now();
-        violate("Bạn đã chuyển tab hoặc ẩn trang thi", "PAGE_HIDDEN");
+        violate(t("candidate.assess.proctorGuard.violations.pageHidden"), "PAGE_HIDDEN");
       } else {
         hiddenAt.current = null;
       }
     };
     const blur = () => {
       if (ignoreTransient.current) return;
-      if (!document.hidden) violate("Cửa sổ thi đã mất tiêu điểm", "WINDOW_BLUR");
+      if (!document.hidden) violate(t("candidate.assess.proctorGuard.violations.windowBlur"), "WINDOW_BLUR");
     };
     const block = (event: Event, message: string, code: string) => {
       event.preventDefault();
       violate(message, code);
     };
-    const contextmenu = (event: MouseEvent) => block(event, "Menu chuột phải đã bị chặn", "CONTEXT_MENU");
-    const copy = (event: ClipboardEvent) => block(event, "Sao chép nội dung đã bị chặn", "COPY_ATTEMPT");
-    const paste = (event: ClipboardEvent) => block(event, "Dán nội dung đã bị chặn", "PASTE_ATTEMPT");
+    const contextmenu = (event: MouseEvent) => block(event, t("candidate.assess.proctorGuard.violations.contextMenu"), "CONTEXT_MENU");
+    const copy = (event: ClipboardEvent) => block(event, t("candidate.assess.proctorGuard.violations.copyAttempt"), "COPY_ATTEMPT");
+    const paste = (event: ClipboardEvent) => block(event, t("candidate.assess.proctorGuard.violations.pasteAttempt"), "PASTE_ATTEMPT");
     const keydown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const blocked =
         event.key === "F12" ||
         (event.ctrlKey && ["c", "v", "a", "p", "u"].includes(key)) ||
         (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
-      if (blocked) block(event, `Phím tắt ${event.key} đã bị chặn`, "BLOCKED_SHORTCUT");
+      if (blocked) block(event, t("candidate.assess.proctorGuard.violations.blockedShortcut", { key: event.key }), "BLOCKED_SHORTCUT");
     };
     document.addEventListener("fullscreenchange", fullscreen);
     document.addEventListener("visibilitychange", visibility);
@@ -225,11 +221,11 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       document.removeEventListener("paste", paste);
       document.removeEventListener("keydown", keydown, true);
     };
-  }, [violate]);
+  }, [violate, t]);
 
   onScreenEnded.current = () => {
     if (ignoreTransient.current) return;
-    violate("Chia sẻ màn hình đã dừng", "SCREEN_SHARE_STOPPED");
+    violate(t("candidate.assess.proctorGuard.violations.screenShareStopped"), "SCREEN_SHARE_STOPPED");
   };
   const expand = useCallback(() => {
     ignoreTransient.current = true;
@@ -240,7 +236,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
     });
   }, [session]);
 
-  const watermark = `${user?.fullName ?? "Candidate"} · ${user?.email ?? "SmartHire"} · ASM-${submissionId}`;
+  const watermark = `${user?.fullName ?? t("candidate.assess.proctorGuard.defaultCandidate")} · ${user?.email ?? "SmartHire"} · ASM-${submissionId}`;
   const hasCamera = !!session && session.camera.getVideoTracks().length > 0;
   const faceDot =
     faceStatus === "present"
@@ -257,10 +253,10 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       )}
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
         <span className={`size-2 rounded-full ${hasCamera ? faceDot : "bg-emerald-400"}`} />
-        {hasCamera ? FACE_LABEL[faceStatus] : "Toàn màn hình"}
+        {hasCamera ? t(`candidate.assess.proctorGuard.face.${faceStatus}`) : t("candidate.assess.proctorGuard.fullscreenLabel")}
       </span>
       <span className="tabular-nums">
-        Vi phạm: <strong className="font-semibold text-rose-300">{violations}</strong>/{MAX_VIOLATIONS}
+        {t("candidate.assess.proctorGuard.violationsPrefix")} <strong className="font-semibold text-rose-300">{violations}</strong>/{MAX_VIOLATIONS}
       </span>
     </div>
   );
@@ -289,7 +285,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <TriangleAlert className="size-9 text-amber-600" aria-hidden="true" />
             <h2 id="assessment-proctor-warning-title" className="mt-3 text-xl font-semibold">
-              Cảnh báo giám sát
+              {t("candidate.assess.proctorGuard.warningTitle")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">{warning}</p>
             {violations < MAX_VIOLATIONS && (
@@ -302,7 +298,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
                 }}
               >
                 <Expand className="size-4" aria-hidden="true" />
-                Quay lại bài thi
+                {t("candidate.assess.proctorGuard.returnToExam")}
               </Button>
             )}
           </div>

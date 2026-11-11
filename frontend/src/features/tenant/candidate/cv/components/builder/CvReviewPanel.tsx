@@ -1,4 +1,5 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { useT } from "@/i18n";
 import type { CvReview, ReviewTarget } from "../../utils/reviewCv";
 
 const selectors: Record<ReviewTarget["kind"], string> = {
@@ -23,29 +24,30 @@ export function scoreTone(score: number) {
 }
 
 export function CvReviewPanel({ review, pages, onClose }: { review: CvReview; pages: number; onClose: () => void }) {
+  const t = useT();
   const errors = review.issues.filter((issue) => issue.level === "error");
   const warnings = review.issues.filter((issue) => issue.level === "warning");
   return (
-    <aside aria-label="Đánh giá CV" className="cv-print-hidden fixed bottom-4 right-4 top-20 z-40 flex w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+    <aside aria-label={t("candidate.cv.review.title")} className="cv-print-hidden fixed bottom-4 right-4 top-20 z-40 flex w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
       <header className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Đánh giá CV</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Theo bộ quy tắc CV IT, cập nhật khi bạn gõ. Chỉ để tham khảo.</p>
+          <h2 className="text-base font-semibold text-slate-900">{t("candidate.cv.review.title")}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{t("candidate.cv.review.subtitle")}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Đóng" className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X className="size-4" aria-hidden="true" /></button>
+        <button type="button" onClick={onClose} aria-label={t("candidate.cv.review.close")} className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X className="size-4" aria-hidden="true" /></button>
       </header>
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
         <div className="flex items-end gap-3">
           <span className={`text-4xl font-bold ${scoreTone(review.score)}`}>{review.score}</span>
-          <span className="pb-1 text-sm text-slate-500">/ 100 · {errors.length} lỗi, {warnings.length} nhắc nhở</span>
+          <span className="pb-1 text-sm text-slate-500">{t("candidate.cv.review.scoreSummary", { errors: errors.length, warnings: warnings.length })}</span>
         </div>
         <dl className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">Chỉ số định lượng</dt><dd className="text-lg font-semibold text-slate-800">{review.metrics}</dd></div>
-          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">Số trang</dt><dd className="text-lg font-semibold text-slate-800">{pages}/{review.pageLimit}</dd></div>
-          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">Kinh nghiệm</dt><dd className="text-lg font-semibold text-slate-800">{review.years === null ? "—" : `${Math.round(review.years * 10) / 10} năm`}</dd></div>
+          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">{t("candidate.cv.review.metricsLabel")}</dt><dd className="text-lg font-semibold text-slate-800">{review.metrics}</dd></div>
+          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">{t("candidate.cv.review.pagesLabel")}</dt><dd className="text-lg font-semibold text-slate-800">{pages}/{review.pageLimit}</dd></div>
+          <div className="rounded-xl bg-slate-50 px-2 py-2"><dt className="text-[11px] text-slate-500">{t("candidate.cv.review.experienceLabel")}</dt><dd className="text-lg font-semibold text-slate-800">{review.years === null ? "—" : t("candidate.cv.review.yearsValue", { years: Math.round(review.years * 10) / 10 })}</dd></div>
         </dl>
         {review.issues.length === 0 ? (
-          <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700"><CheckCircle2 className="size-4" aria-hidden="true" />CV đã đạt các quy tắc cơ bản.</p>
+          <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700"><CheckCircle2 className="size-4" aria-hidden="true" />{t("candidate.cv.review.allPassed")}</p>
         ) : (
           <ul className="space-y-2">
             {[...errors, ...warnings].map((issue) => {

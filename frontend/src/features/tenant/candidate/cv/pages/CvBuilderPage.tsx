@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check } from "lucide-react";
 import { cvApi } from "@/api/tenant/cvApi";
 import type { CvBuilderData } from "@/api/types/cv";
+import { formatTime, useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -32,6 +33,8 @@ function readAccentColor(element: HTMLElement | null) {
 }
 
 export function CvBuilderPage() {
+  const t = useT();
+  const locale = useLocale();
   const { cvId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -57,7 +60,7 @@ export function CvBuilderPage() {
   const [pages, setPages] = useState(1);
   const [downloading, setDownloading] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const review = useMemo(() => (cv ? reviewCv(cv, pages) : null), [cv, pages]);
+  const review = useMemo(() => (cv ? reviewCv(cv, pages, t) : null), [cv, pages, t]);
 
   const editingId = cvId && /^\d+$/.test(cvId) ? Number(cvId) : null;
   const importParam = params.get("import");
@@ -116,7 +119,7 @@ export function CvBuilderPage() {
   const onSave = () => {
     if (!cv) return;
     if (!cv.personalInfo.fullName.trim()) {
-      setFormError("Vui lòng nhập họ và tên trước khi lưu CV.");
+      setFormError(t("candidate.cv.builder.errors.fullNameRequired"));
       return;
     }
     setFormError(null);
@@ -137,16 +140,16 @@ export function CvBuilderPage() {
     return <Notice message={getApiErrorMessage(saved.error)} />;
   }
   if (importId !== null && saved.data && !importSource) {
-    return <Notice message="CV này chưa được AI phân tích xong nên chưa thể nhập vào trình tạo CV." />;
+    return <Notice message={t("candidate.cv.builder.errors.notAnalyzedForImport")} />;
   }
   if (editingId !== null && saved.data && !savedData) {
-    return <Notice message="CV này được tải lên từ file nên không thể chỉnh sửa bằng trình tạo CV." />;
+    return <Notice message={t("candidate.cv.builder.errors.uploadedNotEditable")} />;
   }
   if (!cv || !review) return <SkeletonCard className="min-h-[60vh]" />;
 
   const error = formError ?? (save.isError ? getApiErrorMessage(save.error) : null);
 
-  const cvTitle = [cv.personalInfo.fullName.trim() || "CV chưa đặt tên", cv.personalInfo.title.trim()].filter(Boolean).join(" – ");
+  const cvTitle = [cv.personalInfo.fullName.trim() || t("candidate.cv.builder.untitledCv"), cv.personalInfo.title.trim()].filter(Boolean).join(" – ");
 
   return (
     <div className="space-y-4">
@@ -186,8 +189,8 @@ export function CvBuilderPage() {
         <h1 className="truncate text-lg font-bold text-slate-900">{cvTitle}</h1>
         <p className="mt-0.5 flex min-h-5 items-center justify-center gap-1 text-xs text-slate-500" role="status">
           {draftSavedAt
-            ? <><Check className="size-3.5 text-emerald-600" aria-hidden="true" />Đã lưu nháp lúc {draftSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Nhấp trực tiếp vào nội dung để chỉnh sửa</>
-            : "Nhấp trực tiếp vào nội dung để chỉnh sửa. Bản nháp tự lưu trên trình duyệt này."}
+            ? <><Check className="size-3.5 text-emerald-600" aria-hidden="true" />{t("candidate.cv.builder.draftSaved", { time: formatTime(draftSavedAt, { hour: "2-digit", minute: "2-digit", second: "2-digit" }, locale) })}</>
+            : t("candidate.cv.builder.draftHint")}
         </p>
       </div>
       {error && (
@@ -206,11 +209,12 @@ export function CvBuilderPage() {
 }
 
 function Notice({ message }: { message: string }) {
+  const t = useT();
   return (
     <div className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
       <AlertTriangle className="size-9 text-amber-500" aria-hidden="true" />
       <p className="mt-3 max-w-md font-semibold text-slate-800">{message}</p>
-      <Link to="/cv" className="mt-5 inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Về Quản lý CV</Link>
+      <Link to="/cv" className="mt-5 inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">{t("candidate.cv.builder.backToMyCv")}</Link>
     </div>
   );
 }

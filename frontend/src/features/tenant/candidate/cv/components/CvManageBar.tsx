@@ -3,12 +3,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, CopyPlus, Link2, Link2Off, Loader2, PencilLine, X } from "lucide-react";
 import { cvApi } from "@/api/tenant/cvApi";
 import type { CvDetail } from "@/api/types/cv";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 
 const buttonClass = "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-60";
 
 export function CvManageBar({ cv, onDuplicated }: { cv: CvDetail; onDuplicated: (id: number) => void }) {
+  const t = useT();
   const client = useQueryClient();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState("");
@@ -62,24 +64,24 @@ export function CvManageBar({ cv, onDuplicated }: { cv: CvDetail; onDuplicated: 
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
       {renaming ? (
         <form onSubmit={submitRename} className="flex flex-wrap items-center gap-2">
-          <label htmlFor="cv-rename" className="sr-only">Tên CV mới</label>
+          <label htmlFor="cv-rename" className="sr-only">{t("candidate.cv.manage.newNameLabel")}</label>
           <input id="cv-rename" autoFocus value={name} maxLength={200} onChange={(event) => setName(event.target.value)} className="min-h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-primary)_25%,white)]" />
-          <button type="submit" disabled={rename.isPending || !name.trim()} className={buttonClass}>{rename.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Check className="size-4" aria-hidden="true" />}Lưu tên</button>
-          <button type="button" onClick={() => setRenaming(false)} className={buttonClass}><X className="size-4" aria-hidden="true" />Hủy</button>
+          <button type="submit" disabled={rename.isPending || !name.trim()} className={buttonClass}>{rename.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Check className="size-4" aria-hidden="true" />}{t("candidate.cv.manage.saveName")}</button>
+          <button type="button" onClick={() => setRenaming(false)} className={buttonClass}><X className="size-4" aria-hidden="true" />{t("candidate.cv.manage.cancel")}</button>
         </form>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => { setName(cv.originalFilename.replace(/\.[^.]+$/, "")); setRenaming(true); }} className={buttonClass}>
-            <PencilLine className="size-4" aria-hidden="true" />Đổi tên
+            <PencilLine className="size-4" aria-hidden="true" />{t("candidate.cv.manage.rename")}
           </button>
           {fromBuilder && (
             <>
               <button type="button" onClick={() => duplicate.mutate()} disabled={duplicate.isPending} className={buttonClass}>
-                {duplicate.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CopyPlus className="size-4" aria-hidden="true" />}Nhân bản
+                {duplicate.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CopyPlus className="size-4" aria-hidden="true" />}{t("candidate.cv.manage.duplicate")}
               </button>
               <button type="button" onClick={() => share.mutate(!shareUrl)} disabled={share.isPending} className={buttonClass}>
                 {share.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : shareUrl ? <Link2Off className="size-4" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}
-                {shareUrl ? "Tắt chia sẻ" : "Chia sẻ link"}
+                {shareUrl ? t("candidate.cv.manage.unshare") : t("candidate.cv.manage.shareLink")}
               </button>
             </>
           )}
@@ -87,11 +89,11 @@ export function CvManageBar({ cv, onDuplicated }: { cv: CvDetail; onDuplicated: 
       )}
       {shareUrl && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[color-mix(in_srgb,var(--color-primary)_8%,white)] p-2">
-          <input readOnly value={shareUrl} aria-label="Link chia sẻ CV" onFocus={(event) => event.currentTarget.select()} className="min-h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700" />
+          <input readOnly value={shareUrl} aria-label={t("candidate.cv.manage.shareLinkAria")} onFocus={(event) => event.currentTarget.select()} className="min-h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700" />
           <button type="button" onClick={() => void copyLink()} className={buttonClass}>
-            {copied ? <Check className="size-4 text-emerald-600" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}{copied ? "Đã sao chép" : "Sao chép"}
+            {copied ? <Check className="size-4 text-emerald-600" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}{copied ? t("candidate.cv.manage.copied") : t("candidate.cv.manage.copy")}
           </button>
-          <p className="w-full px-1 text-xs text-slate-500">Ai có link đều xem được CV này (không cần đăng nhập). Tắt chia sẻ để vô hiệu hóa link cũ.</p>
+          <p className="w-full px-1 text-xs text-slate-500">{t("candidate.cv.manage.shareHint")}</p>
         </div>
       )}
       {error && <p role="alert" className="text-sm text-red-600">{getApiErrorMessage(error)}</p>}

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
+import { useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -44,31 +45,35 @@ type OverviewSubTab = "ai" | "score";
 
 const SECTION_TABS: readonly SectionTab[] = ["overview", "skills", "github", "file"];
 
-function githubBadge(analysis: GithubAnalysisView | null | undefined) {
-  if (!analysis) return "Chưa có";
-  if (analysis.score != null) return `${formatScreeningScore(analysis.score)} đ`;
+function githubBadge(analysis: GithubAnalysisView | null | undefined, t: TranslateFn, locale: Locale) {
+  if (!analysis) return t("recruiter.screening.cvDetail.githubBadge.noneYet");
+  if (analysis.score != null) {
+    return t("recruiter.screening.common.pointsShort", { score: formatScreeningScore(analysis.score, locale) });
+  }
   switch (analysis.status) {
     case "NOT_PROVIDED":
-      return "Không có";
+      return t("recruiter.screening.cvDetail.githubBadge.notProvided");
     case "PENDING":
     case "PROCESSING":
-      return "Đang chạy";
+      return t("recruiter.screening.cvDetail.githubBadge.running");
     case "FAILED":
-      return "Lỗi";
+      return t("recruiter.screening.cvDetail.githubBadge.failed");
     case "PARTIAL":
-      return "Một phần";
+      return t("recruiter.screening.cvDetail.githubBadge.partial");
     default:
-      return "Đã xong";
+      return t("recruiter.screening.cvDetail.githubBadge.done");
   }
 }
 
-function fileBadge(filename: string) {
+function fileBadge(filename: string, fallback: string) {
   const dot = filename.lastIndexOf(".");
-  if (dot < 0 || dot === filename.length - 1) return "FILE";
+  if (dot < 0 || dot === filename.length - 1) return fallback;
   return filename.slice(dot + 1, dot + 6).toUpperCase();
 }
 
 export function CvDetailPage() {
+  const t = useT();
+  const locale = useLocale();
   const { id: routeJobId, cvId: routeCvId } = useParams<{ id?: string; cvId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -118,7 +123,7 @@ export function CvDetailPage() {
       client.setQueryData(queryKeys.cvs.detail(targetId), response);
       void client.invalidateQueries({ queryKey: queryKeys.cvs.byJob(jobId ?? 0) });
       void detail.refetch();
-      toast.success("Đã phân tích CV");
+      toast.success(t("recruiter.screening.cvDetail.toastAnalyzed"));
     },
   });
 
@@ -127,7 +132,7 @@ export function CvDetailPage() {
     onSuccess: (_response, targetId) => {
       client.removeQueries({ queryKey: queryKeys.cvs.detail(targetId) });
       void client.invalidateQueries({ queryKey: queryKeys.cvs.byJob(jobId ?? 0) });
-      toast.success("Đã xóa CV");
+      toast.success(t("recruiter.screening.cvDetail.toastDeleted"));
       navigate(listUrl, { replace: true });
     },
   });
@@ -137,13 +142,13 @@ export function CvDetailPage() {
   }
 
   const cv = detail.data?.data;
-  const jobTitle = jobQuery.data?.data?.title ?? `Vị trí #${jobId}`;
+  const jobTitle = jobQuery.data?.data?.title ?? t("recruiter.screening.cvDetail.jobFallback", { id: jobId });
 
   const confirmDelete = (target: CvDetail) =>
     askConfirm({
-      title: "Xóa CV này khỏi job?",
-      description: `CV của ${target.candidateName} và kết quả phân tích sẽ bị xóa. Không thể hoàn tác.`,
-      confirmLabel: "Xóa CV",
+      title: t("recruiter.screening.cvDetail.confirmDeleteTitle"),
+      description: t("recruiter.screening.cvDetail.confirmDeleteDesc", { name: target.candidateName }),
+      confirmLabel: t("recruiter.screening.cvDetail.confirmDeleteBtn"),
       danger: true,
       onConfirm: async () => {
         await remove.mutateAsync(target.id);
@@ -159,7 +164,7 @@ export function CvDetailPage() {
           <SkeletonCard className="h-64" />
           <SkeletonCard className="h-96" />
         </div>
-        <span className="sr-only">Đang tải chi tiết CV…</span>
+        <span className="sr-only">{t("recruiter.screening.cvDetail.loadingSr")}</span>
       </section>
     );
   }
@@ -169,13 +174,13 @@ export function CvDetailPage() {
       <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
         <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-8 text-center">
           <AlertTriangle className="mx-auto size-8 text-[var(--color-error)]" aria-hidden="true" />
-          <h1 className="mt-3 text-lg font-semibold">Không thể tải chi tiết CV</h1>
+          <h1 className="mt-3 text-lg font-semibold">{t("recruiter.screening.cvDetail.errorTitle")}</h1>
           <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]" role="alert">
-            {detail.error ? getApiErrorMessage(detail.error) : "CV không tồn tại hoặc đã bị xóa."}
+            {detail.error ? getApiErrorMessage(detail.error) : t("recruiter.screening.cvDetail.errorFallback")}
           </p>
           <Link to={listUrl} className={cn(button, "mt-4 inline-flex")}>
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Quay lại danh sách CV
+            {t("recruiter.screening.cvDetail.backToList")}
           </Link>
         </div>
       </section>
@@ -203,44 +208,54 @@ export function CvDetailPage() {
   }> = [
     {
       id: "overview",
-      label: "Tổng quan & AI",
-      badge: hasMatch ? `${formatScreeningScore(match.score)} đ` : "Chưa chấm",
+      label: t("recruiter.screening.cvDetail.tabs.overview"),
+      badge: hasMatch
+        ? t("recruiter.screening.common.pointsShort", { score: formatScreeningScore(match.score, locale) })
+        : t("recruiter.screening.cvDetail.tabs.unscoredBadge"),
       icon: Sparkles,
     },
     {
       id: "skills",
-      label: "Đối chiếu JD & Kỹ năng",
-      badge: totalReq > 0 ? `${matchedCount}/${totalReq} khớp` : `${cv.skills.length} kỹ năng`,
+      label: t("recruiter.screening.cvDetail.tabs.skills"),
+      badge: totalReq > 0
+        ? t("recruiter.screening.cvDetail.tabs.matchedRatio", { matched: matchedCount, total: totalReq })
+        : t("recruiter.screening.cvDetail.tabs.skillCount", { count: cv.skills.length }),
       icon: ListChecks,
     },
     {
       id: "github",
-      label: "Bằng chứng GitHub",
-      badge: githubBadge(cv.githubAnalysis),
+      label: t("recruiter.screening.cvDetail.tabs.github"),
+      badge: githubBadge(cv.githubAnalysis, t, locale),
       icon: GitBranch,
     },
     {
       id: "file",
-      label: "File CV gốc",
-      badge: fileBadge(cv.originalFilename),
+      label: t("recruiter.screening.cvDetail.tabs.file"),
+      badge: fileBadge(cv.originalFilename, t("recruiter.screening.cvDetail.tabs.fileDefaultBadge")),
       icon: FileText,
     },
   ];
 
+  const modelLabel = match?.modelVersion
+    ? (match.modelVersion === "hybrid-v1"
+        ? t("recruiter.screening.breakdown.models.hybrid-v1")
+        : match.modelVersion)
+    : null;
+
   return (
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 pb-10 text-[var(--color-on-surface)]">
-      {/* 1. Breadcrumb Trail (khớp bố cục Xếp hạng) */}
+      {/* 1. Breadcrumb Trail */}
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 px-1 text-xs sm:text-sm">
         <Sparkles className="size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
         <Link
           to={listUrl}
           className="font-medium text-slate-600 transition-colors hover:text-[var(--color-primary)]"
         >
-          Sàng lọc CV: {jobTitle}
+          {t("recruiter.screening.cvDetail.breadcrumbPrefix", { jobTitle })}
         </Link>
         <span className="text-slate-400" aria-hidden="true">/</span>
         <span className="truncate font-semibold text-slate-900">
-          {cv.candidateName} <span className="font-normal text-slate-500">(CV #{cv.id})</span>
+          {cv.candidateName} <span className="font-normal text-slate-500">{t("recruiter.screening.cvDetail.cvCode", { id: cv.id })}</span>
         </span>
       </nav>
 
@@ -249,8 +264,8 @@ export function CvDetailPage() {
         <div className="flex min-w-0 items-center gap-3.5">
           <Link
             to={listUrl}
-            aria-label="Quay lại danh sách CV"
-            title="Quay lại danh sách CV"
+            aria-label={t("recruiter.screening.cvDetail.backToList")}
+            title={t("recruiter.screening.cvDetail.backToList")}
             className="grid size-9 shrink-0 place-items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -268,28 +283,32 @@ export function CvDetailPage() {
                   )}
                 >
                   {passed ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <XCircle className="size-3.5" aria-hidden="true" />}
-                  {passed ? "Đạt vòng CV" : "Chưa đạt vòng CV"}
+                  {passed ? t("recruiter.screening.cvDetail.cvPassed") : t("recruiter.screening.cvDetail.cvFailed")}
                 </span>
               )}
             </div>
             <p className="truncate text-xs text-slate-500 sm:text-[13px]">
-              {cv.originalFilename} · Nộp {formatCvDate(cv.createdAt)}
+              {cv.originalFilename} · {t("recruiter.screening.cvDetail.submittedAt", { date: formatCvDate(cv.createdAt, locale) })}
               {cv.extractionModel ? ` · ${cv.extractionModel}` : ""}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-3 lg:border-t-0 lg:pt-0">
-          {/* Score highlight matching TỔNG ĐIỂM XẾP HẠNG */}
+          {/* Score highlight */}
           <div className="lg:border-l lg:border-slate-200 lg:pl-5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Điểm sàng lọc CV</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {t("recruiter.screening.breakdown.scoreCardTitle")}
+            </p>
             <p className="mt-0.5 flex items-baseline gap-1.5 tabular-nums">
               <span className={cn("text-2xl font-bold", hasMatch ? (passed ? "text-emerald-600" : "text-[var(--color-primary)]") : "text-slate-400")}>
-                {hasMatch ? formatScreeningScore(match.score) : "—"}
+                {hasMatch ? formatScreeningScore(match.score, locale) : "—"}
               </span>
               <span className="text-xs text-slate-400">/ 100</span>
               {threshold != null && (
-                <span className="text-xs font-medium text-slate-500">(Ngưỡng: {formatScreeningScore(threshold)})</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {t("recruiter.screening.cvDetail.thresholdParen", { threshold: formatScreeningScore(threshold, locale) })}
+                </span>
               )}
             </p>
           </div>
@@ -305,7 +324,11 @@ export function CvDetailPage() {
                 {retryParse.isPending
                   ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                   : <RefreshCw className="size-4" aria-hidden="true" />}
-                {retryParse.isPending ? "Đang phân tích…" : analyzed ? "Phân tích lại" : "Phân tích CV"}
+                {retryParse.isPending
+                  ? t("recruiter.screening.cvDetail.analyzingBtn")
+                  : analyzed
+                    ? t("recruiter.screening.cvDetail.reanalyzeBtn")
+                    : t("recruiter.screening.cvDetail.analyzeBtn")}
               </button>
             )}
             <button
@@ -315,11 +338,13 @@ export function CvDetailPage() {
               onClick={() => confirmDelete(cv)}
             >
               <Trash2 className="size-4" aria-hidden="true" />
-              {remove.isPending ? "Đang xóa…" : "Xóa CV"}
+              {remove.isPending
+                ? t("recruiter.screening.cvDetail.deletingBtn")
+                : t("recruiter.screening.cvDetail.deleteBtn")}
             </button>
             <Link to={listUrl} className={button}>
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Quay lại
+              {t("recruiter.screening.common.back")}
             </Link>
           </div>
         </div>
@@ -337,9 +362,9 @@ export function CvDetailPage() {
         {/* Left Sidebar */}
         <aside className={cn("rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-2xs", stickyDetailSidebar)}>
           <p className="px-2.5 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Các mục đánh giá
+            {t("recruiter.screening.cvDetail.sidebarHeading")}
           </p>
-          <nav className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label="Các mục đánh giá CV">
+          <nav className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label={t("recruiter.screening.cvDetail.sidebarNavAria")}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = activeSection === item.id;
@@ -385,7 +410,7 @@ export function CvDetailPage() {
             <>
               {hasMatch ? (
                 <div className="space-y-5">
-                  {/* Summary Header Card (matching Xếp hạng right card) */}
+                  {/* Summary Header Card */}
                   <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex items-start gap-3">
@@ -394,7 +419,9 @@ export function CvDetailPage() {
                         </span>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-base font-bold text-slate-900">Kết quả sàng lọc CV · CV #{cv.id}</h2>
+                            <h2 className="text-base font-bold text-slate-900">
+                              {t("recruiter.screening.cvDetail.overview.cardTitle", { id: cv.id })}
+                            </h2>
                             <span
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -402,24 +429,31 @@ export function CvDetailPage() {
                               )}
                             >
                               <span className={cn("size-1.5 rounded-full", passed ? "bg-emerald-600" : "bg-rose-600")} aria-hidden="true" />
-                              {passed ? "Đạt yêu cầu" : "Chưa đạt"}
+                              {passed
+                                ? t("recruiter.screening.cvDetail.overview.passed")
+                                : t("recruiter.screening.cvDetail.overview.failed")}
                             </span>
-                            {match.modelVersion && (
+                            {modelLabel && (
                               <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                                {match.modelVersion === "hybrid-v1" ? "Sàng lọc kết hợp" : match.modelVersion}
+                                {modelLabel}
                               </span>
                             )}
                           </div>
                           <p className="mt-1 text-xs text-slate-500">
-                            {jobTitle} · Cập nhật từ dữ liệu trích xuất {cv.extractionModel ?? "mặc định"}
+                            {t("recruiter.screening.cvDetail.overview.extractedWith", {
+                              jobTitle,
+                              model: cv.extractionModel ?? t("recruiter.screening.cvDetail.overview.defaultModel"),
+                            })}
                           </p>
                         </div>
                       </div>
 
                       <div className="shrink-0 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-4 py-2.5 text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Điểm sàng lọc</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {t("recruiter.screening.cvDetail.overview.screeningScoreLabel")}
+                        </p>
                         <p className={cn("mt-0.5 text-2xl font-bold tabular-nums", passed ? "text-emerald-600" : "text-[var(--color-primary)]")}>
-                          {formatScreeningScore(match.score)}
+                          {formatScreeningScore(match.score, locale)}
                           <span className="text-xs font-normal text-slate-400"> /100</span>
                         </p>
                       </div>
@@ -428,28 +462,36 @@ export function CvDetailPage() {
                     {/* 4 KPI Summary Tiles */}
                     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                       <KpiBox
-                        label="Ngưỡng đạt yêu cầu"
-                        value={threshold != null ? `${formatScreeningScore(threshold)} / 100 đ` : "Chưa đặt"}
+                        label={t("recruiter.screening.cvDetail.overview.kpiThreshold")}
+                        value={threshold != null
+                          ? `${formatScreeningScore(threshold, locale)} ${t("recruiter.screening.common.pointsOutOf", { total: 100 })}`
+                          : t("recruiter.screening.cvDetail.overview.kpiThresholdNotSet")}
                       />
                       <KpiBox
-                        label="Trùng khớp kỹ năng"
-                        value={breakdown?.jaccardSimilarity != null ? formatScreeningScore(breakdown.jaccardSimilarity) : "—"}
-                        hint="Jaccard"
+                        label={t("recruiter.screening.cvDetail.overview.kpiSkillOverlap")}
+                        value={breakdown?.jaccardSimilarity != null ? formatScreeningScore(breakdown.jaccardSimilarity, locale) : "—"}
+                        hint={t("recruiter.screening.cvDetail.overview.kpiJaccardHint")}
                       />
                       <KpiBox
-                        label="Kỹ năng theo JD"
-                        value={totalReq > 0 ? `${matchedCount}/${totalReq} khớp` : `${cv.skills.length} kỹ năng`}
-                        hint={requiredMissingCount > 0 ? `Thiếu ${requiredMissingCount} bắt buộc` : undefined}
+                        label={t("recruiter.screening.cvDetail.overview.kpiJobSkills")}
+                        value={totalReq > 0
+                          ? t("recruiter.screening.cvDetail.tabs.matchedRatio", { matched: matchedCount, total: totalReq })
+                          : t("recruiter.screening.cvDetail.tabs.skillCount", { count: cv.skills.length })}
+                        hint={requiredMissingCount > 0
+                          ? t("recruiter.screening.cvDetail.overview.kpiMissingRequired", { count: requiredMissingCount })
+                          : undefined}
                       />
                       <KpiBox
-                        label="Đánh giá chung"
-                        value={passed ? "Đạt chuẩn" : "Chưa đạt"}
+                        label={t("recruiter.screening.cvDetail.overview.kpiOverall")}
+                        value={passed
+                          ? t("recruiter.screening.cvDetail.overview.kpiOverallPass")
+                          : t("recruiter.screening.cvDetail.overview.kpiOverallFail")}
                         tone={passed ? "pass" : "fail"}
                       />
                     </div>
 
-                    {/* Sub-tabs inside Overview matching Image 2 */}
-                    <div className="mt-5 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label="Chi tiết đánh giá sàng lọc">
+                    {/* Sub-tabs inside Overview */}
+                    <div className="mt-5 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label={t("recruiter.screening.cvDetail.overview.subTabsAria")}>
                       <button
                         type="button"
                         role="tab"
@@ -463,7 +505,7 @@ export function CvDetailPage() {
                         )}
                       >
                         <Sparkles className="size-4" aria-hidden="true" />
-                        Nhận xét & Khuyến nghị AI
+                        {t("recruiter.screening.cvDetail.overview.subTabAi")}
                       </button>
                       <button
                         type="button"
@@ -478,7 +520,7 @@ export function CvDetailPage() {
                         )}
                       >
                         <SlidersHorizontal className="size-4" aria-hidden="true" />
-                        Thành phần điểm & Độ phù hợp
+                        {t("recruiter.screening.cvDetail.overview.subTabScore")}
                       </button>
                     </div>
 
@@ -511,9 +553,11 @@ export function CvDetailPage() {
                 <div className="space-y-4">
                   <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center">
                     <CircleDashed className="size-8 text-slate-400" aria-hidden="true" />
-                    <h2 className="mt-3 text-base font-semibold text-slate-900">Chưa có kết quả sàng lọc AI</h2>
+                    <h2 className="mt-3 text-base font-semibold text-slate-900">
+                      {t("recruiter.screening.cvDetail.overview.emptyTitle")}
+                    </h2>
                     <p className="mt-1 max-w-md text-sm text-slate-500">
-                      Bấm “Phân tích CV” ở góc trên để chấm điểm theo yêu cầu job và sinh nhận xét AI cho nhà tuyển dụng.
+                      {t("recruiter.screening.cvDetail.overview.emptyDesc")}
                     </p>
                   </div>
                   {cv.applicationId != null && (
@@ -538,25 +582,25 @@ export function CvDetailPage() {
                   <RequirementGroups
                     wide
                     groups={[
-                      { title: "Khớp yêu cầu", items: breakdown?.matched },
-                      { title: "Khớp một phần", items: breakdown?.partialMatches },
-                      { title: "Thiếu so với yêu cầu", items: breakdown?.missing },
+                      { title: t("recruiter.screening.breakdown.reqMatched"), items: breakdown?.matched },
+                      { title: t("recruiter.screening.breakdown.reqPartial"), items: breakdown?.partialMatches },
+                      { title: t("recruiter.screening.breakdown.reqMissing"), items: breakdown?.missing },
                     ]}
                   />
                 </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-8 text-center text-sm text-slate-500">
-                  Chưa có dữ liệu đối chiếu yêu cầu công việc cho CV này.
+                  {t("recruiter.screening.cvDetail.skills.emptyCompare")}
                 </div>
               )}
 
               {(cv.skills.length > 0 || cv.analysis?.yearsExperience != null) && (
                 <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">Kỹ năng trích từ CV</h3>
+                    <h3 className="text-sm font-semibold">{t("recruiter.screening.cvDetail.skills.extractedTitle")}</h3>
                     {cv.analysis?.yearsExperience != null && (
                       <span className="rounded-full bg-[var(--color-surface-container-low)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-on-surface-variant)]">
-                        {cv.analysis.yearsExperience} năm kinh nghiệm
+                        {t("recruiter.screening.cvDetail.skills.yearsExp", { years: cv.analysis.yearsExperience })}
                       </span>
                     )}
                   </div>
@@ -581,7 +625,9 @@ export function CvDetailPage() {
                   <FileText className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
                   <h2 className="text-sm font-semibold text-slate-900">{cv.originalFilename}</h2>
                 </div>
-                <span className="text-xs text-slate-500">Nộp {formatCvDate(cv.createdAt)}</span>
+                <span className="text-xs text-slate-500">
+                  {t("recruiter.screening.cvDetail.submittedAt", { date: formatCvDate(cv.createdAt, locale) })}
+                </span>
               </div>
               <CvFilePreview cvId={cv.id} mimeType={cv.mimeType} filename={cv.originalFilename} />
             </div>

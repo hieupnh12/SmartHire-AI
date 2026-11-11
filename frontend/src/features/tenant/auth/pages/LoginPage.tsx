@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "@/api/tenant/authApi";
 import { useAuthStore } from "../stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
-import { useT } from "@/i18n";
+import { useT, type TranslateFn } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { toast } from "@/stores/toastStore";
 import { getTenantIdFromWindow, buildTenantUrl } from "@/lib/tenant";
@@ -26,12 +26,14 @@ import {
   Loader2,
 } from "lucide-react";
 
-const loginSchema = z.object({
-  email: z.string().email("Vui lòng nhập đúng định dạng email"),
-  password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự"),
-});
+function createLoginSchema(t: TranslateFn) {
+  return z.object({
+    email: z.string().email(t("auth.validation.emailInvalid")),
+    password: z.string().min(6, t("auth.validation.passwordMin6")),
+  });
+}
 
-type LoginForm = z.infer<typeof loginSchema>;
+type LoginForm = z.infer<ReturnType<typeof createLoginSchema>>;
 
 function homeForRole(role?: string, workspace?: RoleWorkspace, permissions?: string[]) {
   const ws = workspaceOf(role, workspace);
@@ -69,6 +71,7 @@ export function LoginPage() {
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
 
+  const loginSchema = useMemo(() => createLoginSchema(t), [t]);
   const {
     register,
     handleSubmit,
@@ -89,7 +92,7 @@ export function LoginPage() {
       }
       if (user) setUser(user);
 
-      toast.success("Đăng nhập thành công 🎉");
+      toast.success(t("auth.login.loginSuccessToast"));
       const targetPath = resumePath(from, user?.role, user?.workspace, user?.permissions) ?? homeForRole(user?.role, user?.workspace, user?.permissions);
       const tenantCode = res.data.tenantId || rawTenantCode || "acme";
       localStorage.setItem("tenantId", tenantCode);
@@ -107,16 +110,16 @@ export function LoginPage() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail.trim()) {
-      toast.danger("Vui lòng nhập địa chỉ email");
+      toast.danger(t("auth.login.forgotEmailRequired"));
       return;
     }
     setIsSubmittingForgot(true);
     try {
       await authApi.forgotPassword(forgotEmail.trim());
-      toast.success("Mã OTP đã được gửi đến email nếu tài khoản tồn tại trong hệ thống");
+      toast.success(t("auth.login.otpSentToast"));
       setForgotStep(2);
     } catch (err) {
-      toast.danger(getApiErrorMessage(err, "Không thể gửi mã OTP. Vui lòng thử lại sau."));
+      toast.danger(getApiErrorMessage(err, t("auth.login.otpSendFailed")));
     } finally {
       setIsSubmittingForgot(false);
     }
@@ -125,11 +128,11 @@ export function LoginPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotOtp.trim() || forgotOtp.trim().length !== 6) {
-      toast.danger("Vui lòng nhập mã OTP 6 chữ số");
+      toast.danger(t("auth.login.otpInvalid6Digits"));
       return;
     }
     if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      toast.danger("Mật khẩu mới tối thiểu 6 ký tự");
+      toast.danger(t("auth.login.newPasswordMin6"));
       return;
     }
     setIsSubmittingForgot(true);
@@ -139,14 +142,14 @@ export function LoginPage() {
         otp: forgotOtp.trim(),
         newPassword: forgotNewPassword,
       });
-      toast.success("Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.");
+      toast.success(t("auth.login.resetSuccessToast"));
       setValue("email", forgotEmail.trim());
       setShowForgotModal(false);
       setForgotStep(1);
       setForgotOtp("");
       setForgotNewPassword("");
     } catch (err) {
-      toast.danger(getApiErrorMessage(err, "Đặt lại mật khẩu không thành công. Vui lòng kiểm tra lại OTP."));
+      toast.danger(getApiErrorMessage(err, t("auth.login.resetFailed")));
     } finally {
       setIsSubmittingForgot(false);
     }
@@ -170,7 +173,7 @@ export function LoginPage() {
               {theme.code.charAt(0).toUpperCase()}
             </div>
             <h1 className="text-2xl font-bold font-display text-[#1e293b]">
-              Đăng Nhập Workspace
+              {t("auth.login.workspaceTitle")}
             </h1>
           </div>
 
@@ -179,7 +182,7 @@ export function LoginPage() {
             {/* Email Input */}
             <div>
               <label className="block font-semibold text-[#1e293b] mb-1.5" htmlFor="email">
-                Email *
+                {t("auth.login.emailRequiredLabel")}
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -203,7 +206,7 @@ export function LoginPage() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block font-semibold text-[#1e293b]" htmlFor="password">
-                  Mật Khẩu *
+                  {t("auth.login.passwordRequiredLabel")}
                 </label>
                 <button
                   type="button"
@@ -213,7 +216,7 @@ export function LoginPage() {
                   }}
                   className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors"
                 >
-                  Quên mật khẩu?
+                  {t("auth.login.forgotPassword")}
                 </button>
               </div>
               <div className="relative">
@@ -249,10 +252,10 @@ export function LoginPage() {
               className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md shadow-[#3b82f6]/20 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50`}
             >
               {mutation.isPending ? (
-                <span>Đang đăng nhập...</span>
+                <span>{t("auth.login.signingInDots")}</span>
               ) : (
                 <>
-                  <span>Đăng Nhập Workspace</span>
+                  <span>{t("auth.login.submitWorkspace")}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -263,7 +266,7 @@ export function LoginPage() {
         {/* Footer Links & Actions */}
         <div className="w-full max-w-[420px] flex items-center justify-between px-4">
           <span onClick={() => navigate("/")} className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer flex items-center gap-1">
-            &larr; Về Trang Chủ
+            &larr; {t("auth.login.backToHome")}
           </span>
           <div className="scale-90 origin-right opacity-80 hover:opacity-100 transition-opacity">
             <LanguageSwitcher />
@@ -278,12 +281,13 @@ export function LoginPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-slate-900 font-display font-bold text-lg">
                 <KeyRound className="size-5 text-blue-600" />
-                <span>Khôi phục Mật khẩu</span>
+                <span>{t("auth.login.forgotModalTitle")}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowForgotModal(false)}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label={t("common.close")}
               >
                 <X className="size-5" />
               </button>
@@ -292,11 +296,11 @@ export function LoginPage() {
             {forgotStep === 1 ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Nhập địa chỉ email đăng ký trong doanh nghiệp. Hệ thống sẽ gửi một mã OTP gồm 6 chữ số có hiệu lực trong 15 phút.
+                  {t("auth.login.forgotStep1Desc")}
                 </p>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Email tài khoản *
+                    {t("auth.login.accountEmailLabel")}
                   </label>
                   <input
                     type="email"
@@ -315,21 +319,21 @@ export function LoginPage() {
                   {isSubmittingForgot ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
-                      <span>Đang gửi mã OTP...</span>
+                      <span>{t("auth.login.sendingOtp")}</span>
                     </>
                   ) : (
-                    <span>Gửi mã xác thực OTP</span>
+                    <span>{t("auth.login.sendOtp")}</span>
                   )}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Mã OTP đã được gửi đến <strong>{forgotEmail}</strong>. Vui lòng nhập mã OTP và mật khẩu mới.
+                  {t("auth.login.forgotStep2DescPrefix")} <strong>{forgotEmail}</strong>{t("auth.login.forgotStep2DescSuffix")}
                 </p>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Mã xác thực OTP (6 chữ số) *
+                    {t("auth.login.otpLabel")}
                   </label>
                   <input
                     type="text"
@@ -343,7 +347,7 @@ export function LoginPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Mật khẩu mới *
+                    {t("auth.login.newPasswordLabel")}
                   </label>
                   <input
                     type="password"
@@ -351,7 +355,7 @@ export function LoginPage() {
                     minLength={6}
                     value={forgotNewPassword}
                     onChange={(e) => setForgotNewPassword(e.target.value)}
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder={t("auth.login.newPasswordPlaceholder")}
                     className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
@@ -361,7 +365,7 @@ export function LoginPage() {
                     onClick={() => setForgotStep(1)}
                     className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
                   >
-                    Quay lại
+                    {t("common.back")}
                   </button>
                   <button
                     type="submit"
@@ -371,10 +375,10 @@ export function LoginPage() {
                     {isSubmittingForgot ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
-                        <span>Đang xử lý...</span>
+                        <span>{t("auth.login.processing")}</span>
                       </>
                     ) : (
-                      <span>Xác nhận đổi mật khẩu</span>
+                      <span>{t("auth.login.confirmChangePassword")}</span>
                     )}
                   </button>
                 </div>
@@ -386,7 +390,7 @@ export function LoginPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#e2e8f0] py-4 text-center text-xs text-[#64748b] bg-white">
-        {theme.name} Internal Portal © 2026.
+        {t("auth.login.internalPortalFooter", { name: theme.name })}
       </footer>
     </div>
   );

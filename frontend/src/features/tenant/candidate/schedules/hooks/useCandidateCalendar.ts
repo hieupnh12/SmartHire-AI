@@ -3,10 +3,12 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
 import { candidateInterviewApi } from "@/features/tenant/candidate/interviews/api/candidateInterviewApi";
+import { useT } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { buildCalendarEvents } from "../services/buildCalendarEvents";
 
 export function useCandidateCalendar() {
+  const t = useT();
   const applications = useQuery({ queryKey: queryKeys.applicants.mine, queryFn: applicantApi.mine });
   const rows = useMemo(() => (applications.data?.data ?? []).filter((row) => row.status !== "WITHDRAWN"), [applications.data?.data]);
   const details = useQueries({
@@ -20,6 +22,7 @@ export function useCandidateCalendar() {
     details: details.map((query) => query.data).filter((value) => value !== undefined),
     aiInterviews: aiInterviews.data ?? [],
     humanInterviews: humanInterviews.data ?? [],
+    t,
   });
 
   const jobs = useMemo(() => [...new Map(rows.map((row) => [row.jobId, row.jobTitle])).entries()].map(([id, title]) => ({ id, title })), [rows]);

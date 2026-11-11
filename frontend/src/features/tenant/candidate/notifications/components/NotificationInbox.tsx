@@ -5,11 +5,13 @@ import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { useNotifications } from "@/hooks/useNotifications";
 import { notificationApi } from "@/api/tenant/notificationApi";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { NotificationCard } from "./NotificationCard";
 
 export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
+  const t = useT();
   const [page, setPage] = useState(0);
   const inbox = useNotifications(true, page, jobId);
   const client = useQueryClient();
@@ -21,7 +23,11 @@ export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
     mutationFn: () => notificationApi.markAllRead(jobId),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["notifications"] });
-      toast.success(jobId ? "Đã đánh dấu tất cả thông báo của tin tuyển dụng này là đã đọc" : "Đã đánh dấu tất cả thông báo là đã đọc");
+      toast.success(
+        jobId
+          ? t("candidate.core.notifications.inbox.markAllReadJobToast")
+          : t("candidate.core.notifications.inbox.markAllReadToast"),
+      );
     },
     onError: (err) => toast.error(getApiErrorMessage(err)),
   });
@@ -31,8 +37,8 @@ export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
   return <div className="space-y-5">
     {jobId && (
       <div className="flex items-center justify-between rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/40 px-4 py-2.5 text-xs text-[var(--color-primary)]">
-        <span className="font-semibold">Đang lọc thông báo cho tin tuyển dụng #{jobId}</span>
-        <span className="text-[11px] text-[var(--color-on-surface-variant)]">Chỉ hiển thị các hoạt động thuộc công việc này</span>
+        <span className="font-semibold">{t("candidate.core.notifications.inbox.jobFilterBanner", { jobId })}</span>
+        <span className="text-[11px] text-[var(--color-on-surface-variant)]">{t("candidate.core.notifications.inbox.jobFilterHint")}</span>
       </div>
     )}
     {inbox.isPending && (
@@ -46,17 +52,17 @@ export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
             </div>
           </div>
         ))}
-        <span className="sr-only">Đang tải thông báo…</span>
+        <span className="sr-only">{t("candidate.core.notifications.inbox.loading")}</span>
       </div>
     )}
-    {inbox.isError && <div role="alert"><p>{getApiErrorMessage(inbox.error)}</p><Button onClick={() => void inbox.refetch()}>Thử lại</Button></div>}
+    {inbox.isError && <div role="alert"><p>{getApiErrorMessage(inbox.error)}</p><Button onClick={() => void inbox.refetch()}>{t("common.retry")}</Button></div>}
     {read.isError && <p role="alert">{getApiErrorMessage(read.error)}</p>}
-    {inbox.isSuccess && inbox.data.length === 0 && <p className="py-8 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có thông báo nào.</p>}
+    {inbox.isSuccess && inbox.data.length === 0 && <p className="py-8 text-center text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.notifications.inbox.empty")}</p>}
     {inbox.data && inbox.data.length > 0 && (
       <>
         {hasUnread && (
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2 border border-slate-200">
-            <span className="text-xs font-medium text-slate-600">Bạn có thông báo chưa đọc</span>
+            <span className="text-xs font-medium text-slate-600">{t("candidate.core.notifications.inbox.hasUnread")}</span>
             <button
               type="button"
               onClick={() => markAllRead.mutate()}
@@ -64,7 +70,7 @@ export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
               <CheckCheck className="size-3.5" aria-hidden="true" />
-              Đánh dấu tất cả đã đọc
+              {t("candidate.core.notifications.inbox.markAllRead")}
             </button>
           </div>
         )}
@@ -75,6 +81,6 @@ export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
         </ul>
       </>
     )}
-    <div className="flex gap-3"><Button variant="secondary" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Trang trước</Button><Button variant="secondary" disabled={!inbox.data || inbox.data.length < 50} onClick={() => setPage(p => p + 1)}>Trang sau</Button></div>
+    <div className="flex gap-3"><Button variant="secondary" disabled={page === 0} onClick={() => setPage(p => p - 1)}>{t("candidate.core.notifications.inbox.prevPage")}</Button><Button variant="secondary" disabled={!inbox.data || inbox.data.length < 50} onClick={() => setPage(p => p + 1)}>{t("candidate.core.notifications.inbox.nextPage")}</Button></div>
   </div>;
 }

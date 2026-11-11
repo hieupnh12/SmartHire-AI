@@ -5,6 +5,7 @@ import { jobApi } from "@/api/tenant/jobApi";
 import type { JobDetail } from "@/api/types/job";
 
 import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 
 const JobContext = createContext<JobDetail | null>(null);
 
@@ -19,6 +20,7 @@ export function useOptionalRecruitmentJob() {
 }
 
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
+  const t = useT();
   const { id, assessmentId } = useParams();
   const location = useLocation();
   // Assessment and Interview module pages use the shared Breadcrumb / SubNav instead of the job title link.
@@ -32,14 +34,14 @@ export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
 
   if (!valid || job.isError) return (
     <div role="alert" className="space-y-3">
-      <p>Không thể mở vị trí tuyển dụng này.</p>
-      <Link to="/recruiter" className="text-[var(--color-primary)]">Về danh sách việc làm</Link>
-      {valid && <button type="button" onClick={() => void job.refetch()} className="ml-4 text-[var(--color-primary)]">Thử lại</button>}
+      <p>{t("recruiter.ops.jobs.workspace.loadError")}</p>
+      <Link to="/recruiter" className="text-[var(--color-primary)]">{t("recruiter.ops.jobs.workspace.backToJobs")}</Link>
+      {valid && <button type="button" onClick={() => void job.refetch()} className="ml-4 text-[var(--color-primary)]">{t("recruiter.ops.common.retry")}</button>}
     </div>
   );
   if (!job.data) {
     return (
-      <LoadingState label="Đang tải dữ liệu vị trí tuyển dụng" className="space-y-6">
+      <LoadingState label={t("recruiter.ops.jobs.workspace.loading")} className="space-y-6">
         <div className="space-y-2">
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-8 w-72 max-w-full" />

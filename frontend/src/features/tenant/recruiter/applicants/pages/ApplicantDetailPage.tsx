@@ -31,12 +31,14 @@ import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
+import { useLocale, useT, type TranslateFn } from "@/i18n";
 import { ApplicantRounds } from "@/features/tenant/recruiter/applicants/components/ApplicantRounds";
 import { HiringDecisionPanel } from "@/features/tenant/recruiter/applicants/components/HiringDecisionPanel";
 import {
-  ACTION_TOAST,
   ApplicantStatusPill,
   formatApplicantDateTime,
+  getActionToast,
+  getApplicantStatusLabel,
   sourceLabel,
   splitApplicantTags,
 } from "@/features/tenant/recruiter/applicants/components/applicantUi";
@@ -47,7 +49,7 @@ import {
   ScreeningBreakdown,
 } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import { ApplicationPipeline, pipelineIndex } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
-import { applicationStatusLabel, button, input, primary, stickyDetailSidebar } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, input, primary, stickyDetailSidebar } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
 type SectionTab = "overview" | "cv" | "manage" | "history";
 type OverviewSubTab = "rounds" | "info";
@@ -55,38 +57,18 @@ type CvSubTab = "ai" | "file";
 
 const SECTION_TABS: readonly SectionTab[] = ["overview", "cv", "manage", "history"];
 
-function roundStatusSummary(status?: string, passed?: boolean | null) {
-  if (passed === true || status === "PASSED") return "Đạt";
-  if (passed === false || status === "FAILED") return "Chưa đạt";
-  switch (status) {
-    case "SCORED":
-      return "Đã chấm";
-    case "GRADED":
-      return "Đã chấm";
-    case "SUBMITTED":
-      return "Đã nộp";
-    case "IN_PROGRESS":
-      return "Đang làm";
-    case "QUESTIONS_READY":
-      return "Sẵn sàng";
-    case "SCORING":
-      return "Đang chấm";
-    case "INVITED":
-      return "Đã gửi mời";
-    case "CREATED":
-      return "Đã tạo phiên";
-    case "NOT_STARTED":
-      return "Chưa làm";
-    case "EXPIRED":
-      return "Hết hạn";
-    case "ERROR":
-      return "Lỗi";
-    default:
-      return "Chưa có";
-  }
+function roundStatusSummary(t: TranslateFn, status?: string, passed?: boolean | null) {
+  if (passed === true || status === "PASSED") return t("recruiter.ops.applicants.rounds.summaryStatus.PASSED");
+  if (passed === false || status === "FAILED") return t("recruiter.ops.applicants.rounds.summaryStatus.FAILED");
+  const code = status ?? "MISSING";
+  const key = `recruiter.ops.applicants.rounds.summaryStatus.${code}`;
+  const label = t(key);
+  return label === key ? t("recruiter.ops.applicants.rounds.summaryStatus.MISSING") : label;
 }
 
 export function ApplicantDetailPage() {
+  const t = useT();
+  const locale = useLocale();
   const { id: routeJobId, applicationId: routeAppId } = useParams<{ id?: string; applicationId?: string }>();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -167,7 +149,7 @@ export function ApplicantDetailPage() {
       void cvDetailQuery.refetch();
       void detailQuery.refetch();
       void client.invalidateQueries({ queryKey: queryKeys.cvs.byJob(jobId ?? 0) });
-      toast.success("Đã phân tích CV");
+      toast.success(t("recruiter.ops.applicants.detail.cvAnalyzedToast"));
     },
   });
 
@@ -179,7 +161,7 @@ export function ApplicantDetailPage() {
         assigneeEmail: assigneeEmail.trim() || undefined,
       }),
     onSuccess: () => {
-      toast.success("Đã lưu ghi chú và phân công");
+      toast.success(t("recruiter.ops.applicants.detail.manageSavedToast"));
       setAssigneeEmail("");
       refreshAll();
     },
@@ -192,7 +174,7 @@ export function ApplicantDetailPage() {
       return applicantApi.restore(detail!.id);
     },
     onSuccess: (_response, action) => {
-      toast.success(ACTION_TOAST[action]);
+      toast.success(getActionToast(action, t));
       refreshAll();
     },
   });
@@ -210,7 +192,7 @@ export function ApplicantDetailPage() {
           <SkeletonCard className="h-64" />
           <SkeletonCard className="h-96" />
         </div>
-        <span className="sr-only">Đang tải hồ sơ ứng viên…</span>
+        <span className="sr-only">{t("recruiter.ops.applicants.detail.loadingSr")}</span>
       </section>
     );
   }
@@ -220,20 +202,25 @@ export function ApplicantDetailPage() {
       <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
         <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-8 text-center">
           <AlertTriangle className="mx-auto size-8 text-[var(--color-error)]" aria-hidden="true" />
-          <h1 className="mt-3 text-lg font-semibold">Không thể tải hồ sơ ứng viên</h1>
+          <h1 className="mt-3 text-lg font-semibold">{t("recruiter.ops.applicants.detail.loadErrorTitle")}</h1>
           <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]" role="alert">
-            {detailQuery.error ? getApiErrorMessage(detailQuery.error) : "Hồ sơ không tồn tại hoặc đã bị xóa."}
+            {detailQuery.error
+              ? getApiErrorMessage(detailQuery.error)
+              : t("recruiter.ops.applicants.detail.notFoundFallback")}
           </p>
           <Link to={listUrl} className={cn(button, "mt-4 inline-flex")}>
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Quay lại danh sách ứng viên
+            {t("recruiter.ops.applicants.detail.backToList")}
           </Link>
         </div>
       </section>
     );
   }
 
-  const jobTitle = detail.jobTitle || jobQuery.data?.data?.title || `Vị trí #${jobId}`;
+  const jobTitle =
+    detail.jobTitle ||
+    jobQuery.data?.data?.title ||
+    t("recruiter.ops.applicants.detail.jobFallbackTitle", { id: jobId });
   const rounds = detail.rounds;
   const gate = detail.gateScore;
   const cvDetail = cvDetailQuery.data?.data;
@@ -241,7 +228,11 @@ export function ApplicantDetailPage() {
 
   const hasGateScore = gate?.score != null;
   const hasCvScore = rounds?.cv.score != null;
-  const headerMetricLabel = hasGateScore ? "Điểm tổng hợp (Gate)" : hasCvScore ? "Điểm sàng lọc CV" : "Tiến độ vòng thi";
+  const headerMetricLabel = hasGateScore
+    ? t("recruiter.ops.applicants.detail.metricGate")
+    : hasCvScore
+      ? t("recruiter.ops.applicants.detail.metricCv")
+      : t("recruiter.ops.applicants.detail.metricProgress");
   const headerMetricValue = hasGateScore
     ? formatScreeningScore(gate!.score)
     : hasCvScore
@@ -251,7 +242,10 @@ export function ApplicantDetailPage() {
   const headerPassed = hasGateScore ? gate?.passed === true : hasCvScore ? rounds?.cv.passed === true : false;
 
   const stepIndex = pipelineIndex(detail.status);
-  const currentStepBadge = stepIndex >= 0 ? `Vòng ${stepIndex + 1}/5` : applicationStatusLabel(detail.status);
+  const currentStepBadge =
+    stepIndex >= 0
+      ? t("recruiter.ops.applicants.detail.stepBadge", { current: stepIndex + 1 })
+      : getApplicantStatusLabel(detail.status, t);
   const tagList = splitApplicantTags(detail.tags);
 
   const navItems: Array<{
@@ -262,26 +256,37 @@ export function ApplicantDetailPage() {
   }> = [
     {
       id: "overview",
-      label: "Tổng quan & Vòng thi",
-      badge: hasGateScore ? `${formatScreeningScore(gate!.score)} đ` : currentStepBadge,
+      label: t("recruiter.ops.applicants.detail.navOverview"),
+      badge: hasGateScore
+        ? t("recruiter.ops.applicants.detail.scoreBadgeShort", { score: formatScreeningScore(gate!.score) })
+        : currentStepBadge,
       icon: Sparkles,
     },
     {
       id: "cv",
-      label: "CV & Phân tích AI",
-      badge: hasCvScore ? `${formatScreeningScore(rounds!.cv.score)} đ` : activeCvs.length > 0 ? `${activeCvs.length} file` : "Chưa nộp",
+      label: t("recruiter.ops.applicants.detail.navCv"),
+      badge: hasCvScore
+        ? t("recruiter.ops.applicants.detail.scoreBadgeShort", { score: formatScreeningScore(rounds!.cv.score) })
+        : activeCvs.length > 0
+          ? t("recruiter.ops.applicants.detail.filesCountBadge", { count: activeCvs.length })
+          : t("recruiter.ops.applicants.detail.cvNotSubmitted"),
       icon: FileText,
     },
     {
       id: "manage",
-      label: "Ghi chú & Xử lý",
-      badge: tagList.length > 0 ? `${tagList.length} tag` : detail.notes ? "Có ghi chú" : "Quản lý",
+      label: t("recruiter.ops.applicants.detail.navManage"),
+      badge:
+        tagList.length > 0
+          ? t("recruiter.ops.applicants.detail.tagsCountBadge", { count: tagList.length })
+          : detail.notes
+            ? t("recruiter.ops.applicants.detail.hasNotesBadge")
+            : t("recruiter.ops.applicants.detail.manageBadge"),
       icon: StickyNote,
     },
     {
       id: "history",
-      label: "Lịch sử trạng thái",
-      badge: `${detail.history.length} mốc`,
+      label: t("recruiter.ops.applicants.detail.navHistory"),
+      badge: t("recruiter.ops.applicants.detail.historyCountBadge", { count: detail.history.length }),
       icon: History,
     },
   ];
@@ -289,10 +294,13 @@ export function ApplicantDetailPage() {
   const canReject = detail.status !== "REJECTED" && detail.status !== "WITHDRAWN";
   const confirmReject = () =>
     askConfirm({
-      title: "Từ chối ứng viên?",
-      description: `${detail.candidateName} sẽ chuyển sang trạng thái Đã từ chối.${reason.trim() ? "" : " Bạn chưa nhập lý do từ chối."}`,
+      title: t("recruiter.ops.applicants.detail.confirmRejectTitle"),
+      description: t("recruiter.ops.applicants.detail.confirmRejectDesc", {
+        name: detail.candidateName,
+        reasonSuffix: reason.trim() ? "" : t("recruiter.ops.applicants.detail.confirmRejectNoReason"),
+      }),
       danger: true,
-      confirmLabel: "Từ chối",
+      confirmLabel: t("recruiter.ops.applicants.detail.confirmRejectBtn"),
       onConfirm: async () => {
         await act.mutateAsync("reject");
       },
@@ -307,11 +315,14 @@ export function ApplicantDetailPage() {
           to={listUrl}
           className="font-medium text-slate-600 transition-colors hover:text-[var(--color-primary)]"
         >
-          Ứng viên: {jobTitle}
+          {t("recruiter.ops.applicants.detail.breadcrumbApplicants", { jobTitle })}
         </Link>
         <span className="text-slate-400" aria-hidden="true">/</span>
         <span className="truncate font-semibold text-slate-900">
-          {detail.candidateName} <span className="font-normal text-slate-500">(Hồ sơ #{detail.id})</span>
+          {detail.candidateName}{" "}
+          <span className="font-normal text-slate-500">
+            {t("recruiter.ops.applicants.detail.breadcrumbApplicationId", { id: detail.id })}
+          </span>
         </span>
       </nav>
 
@@ -320,8 +331,8 @@ export function ApplicantDetailPage() {
         <div className="flex min-w-0 items-center gap-3.5">
           <Link
             to={listUrl}
-            aria-label="Quay lại danh sách ứng viên"
-            title="Quay lại danh sách ứng viên"
+            aria-label={t("recruiter.ops.applicants.detail.backToList")}
+            title={t("recruiter.ops.applicants.detail.backToList")}
             className="grid size-9 shrink-0 place-items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -333,18 +344,26 @@ export function ApplicantDetailPage() {
               <ApplicantStatusPill status={detail.status} />
               {detail.candidateApplicationCount > 1 && (
                 <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                  {detail.candidateApplicationCount} hồ sơ
+                  {t("recruiter.ops.applicants.detail.applicationCountBadge", {
+                    count: detail.candidateApplicationCount,
+                  })}
                 </span>
               )}
               {detail.archived && (
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                  Đã lưu trữ
+                  {t("recruiter.ops.applicants.list.archivedBadge")}
                 </span>
               )}
             </div>
             <p className="truncate text-xs text-slate-500 sm:text-[13px]">
-              {detail.candidateEmail} · Nộp {formatApplicantDateTime(detail.createdAt)} · Nguồn: {sourceLabel(detail.source)}
-              {detail.assigneeName ? ` · Phụ trách: ${detail.assigneeName}` : ""}
+              {t("recruiter.ops.applicants.detail.headerSubline", {
+                email: detail.candidateEmail,
+                date: formatApplicantDateTime(detail.createdAt, locale),
+                source: sourceLabel(detail.source, t),
+              })}
+              {detail.assigneeName
+                ? t("recruiter.ops.applicants.detail.headerAssigneeInline", { name: detail.assigneeName })
+                : ""}
             </p>
           </div>
         </div>
@@ -367,7 +386,11 @@ export function ApplicantDetailPage() {
               </span>
               <span className="text-xs text-slate-400">/ 100</span>
               {headerMetricThreshold != null && (
-                <span className="text-xs font-medium text-slate-500">(Ngưỡng: {formatScreeningScore(headerMetricThreshold)})</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {t("recruiter.ops.applicants.detail.thresholdParen", {
+                    score: formatScreeningScore(headerMetricThreshold),
+                  })}
+                </span>
               )}
             </p>
           </div>
@@ -383,7 +406,11 @@ export function ApplicantDetailPage() {
                 {analyzeCv.isPending
                   ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                   : <RefreshCw className="size-4" aria-hidden="true" />}
-                {analyzeCv.isPending ? "Đang phân tích…" : selectedCv.status === "ANALYZED" ? "Phân tích lại CV" : "Phân tích CV"}
+                {analyzeCv.isPending
+                  ? t("recruiter.ops.applicants.detail.analyzingCv")
+                  : selectedCv.status === "ANALYZED"
+                    ? t("recruiter.ops.applicants.detail.reanalyzeCvBtn")
+                    : t("recruiter.ops.applicants.detail.analyzeCvBtn")}
               </button>
             )}
             <button
@@ -393,11 +420,13 @@ export function ApplicantDetailPage() {
               onClick={() => act.mutate(detail.archived ? "restore" : "archive")}
             >
               {detail.archived ? <ArchiveRestore className="size-4" aria-hidden="true" /> : <Archive className="size-4" aria-hidden="true" />}
-              {detail.archived ? "Khôi phục" : "Lưu trữ"}
+              {detail.archived
+                ? t("recruiter.ops.applicants.detail.restoreBtn")
+                : t("recruiter.ops.applicants.detail.archiveBtn")}
             </button>
             <Link to={listUrl} className={button}>
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Quay lại
+              {t("recruiter.ops.common.back")}
             </Link>
           </div>
         </div>
@@ -414,9 +443,9 @@ export function ApplicantDetailPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className={cn("rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-2xs", stickyDetailSidebar)}>
           <p className="px-2.5 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Các mục đánh giá
+            {t("recruiter.ops.applicants.detail.sectionsLabel")}
           </p>
-          <nav className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label="Các mục đánh giá hồ sơ ứng viên">
+          <nav className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label={t("recruiter.ops.applicants.detail.sectionsNavAria")}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = activeSection === item.id;
@@ -469,22 +498,31 @@ export function ApplicantDetailPage() {
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-bold text-slate-900">Hồ sơ ứng tuyển · #{detail.id}</h2>
+                        <h2 className="text-base font-bold text-slate-900">
+                          {t("recruiter.ops.applicants.detail.applicationTitle", { id: detail.id })}
+                        </h2>
                         <ApplicantStatusPill status={detail.status} />
                         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                          {sourceLabel(detail.source)}
+                          {sourceLabel(detail.source, t)}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        {jobTitle} · Phụ trách: {detail.assigneeName ?? "Chưa phân công"}
-                        {detail.referralCode ? ` · Mã giới thiệu: ${detail.referralCode}` : ""}
+                        {t("recruiter.ops.applicants.detail.summaryMeta", {
+                          jobTitle,
+                          assignee: detail.assigneeName ?? t("recruiter.ops.common.unassigned"),
+                        })}
+                        {detail.referralCode
+                          ? t("recruiter.ops.applicants.detail.referralInline", { code: detail.referralCode })
+                          : ""}
                       </p>
                     </div>
                   </div>
 
                   <div className="shrink-0 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-4 py-2.5 text-right">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {hasGateScore ? "Điểm tổng hợp" : "Điểm sàng lọc CV"}
+                      {hasGateScore
+                        ? t("recruiter.ops.applicants.detail.compositeScoreLabel")
+                        : t("recruiter.ops.applicants.detail.cvScoreLabel")}
                     </p>
                     <p className={cn("mt-0.5 text-2xl font-bold tabular-nums", headerPassed ? "text-emerald-600" : "text-[var(--color-primary)]")}>
                       {headerMetricValue}
@@ -496,27 +534,63 @@ export function ApplicantDetailPage() {
                 {/* 4 KPI Summary Tiles */}
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <KpiBox
-                    label="Sàng lọc CV"
-                    value={rounds?.cv.score != null ? `${formatScreeningScore(rounds.cv.score)} / 100 đ` : roundStatusSummary(rounds?.cv.status, rounds?.cv.passed)}
-                    hint={rounds?.cv.threshold != null ? `Ngưỡng: ${formatScreeningScore(rounds.cv.threshold)} đ` : undefined}
+                    label={t("recruiter.ops.applicants.rounds.cvScreening")}
+                    value={
+                      rounds?.cv.score != null
+                        ? t("recruiter.ops.applicants.rounds.scoreOutOf100Pts", {
+                            score: formatScreeningScore(rounds.cv.score),
+                          })
+                        : roundStatusSummary(t, rounds?.cv.status, rounds?.cv.passed)
+                    }
+                    hint={
+                      rounds?.cv.threshold != null
+                        ? t("recruiter.ops.applicants.detail.thresholdShort", {
+                            score: formatScreeningScore(rounds.cv.threshold),
+                          })
+                        : undefined
+                    }
                     tone={rounds?.cv.passed === true ? "pass" : rounds?.cv.passed === false ? "fail" : undefined}
                   />
                   <KpiBox
-                    label="Phỏng vấn AI"
-                    value={rounds?.aiInterview.score != null ? `${formatScreeningScore(rounds.aiInterview.score)} / 100 đ` : roundStatusSummary(rounds?.aiInterview.status, rounds?.aiInterview.passed)}
-                    hint={roundStatusSummary(rounds?.aiInterview.status, rounds?.aiInterview.passed)}
+                    label={t("recruiter.ops.applicants.rounds.aiInterview")}
+                    value={
+                      rounds?.aiInterview.score != null
+                        ? t("recruiter.ops.applicants.rounds.scoreOutOf100Pts", {
+                            score: formatScreeningScore(rounds.aiInterview.score),
+                          })
+                        : roundStatusSummary(t, rounds?.aiInterview.status, rounds?.aiInterview.passed)
+                    }
+                    hint={roundStatusSummary(t, rounds?.aiInterview.status, rounds?.aiInterview.passed)}
                     tone={rounds?.aiInterview.passed === true ? "pass" : rounds?.aiInterview.passed === false ? "fail" : undefined}
                   />
                   <KpiBox
-                    label="Bài kiểm tra"
-                    value={rounds?.assessment.score != null ? `${formatScreeningScore(rounds.assessment.score)} / 100 đ` : roundStatusSummary(rounds?.assessment.status, rounds?.assessment.passed)}
-                    hint={roundStatusSummary(rounds?.assessment.status, rounds?.assessment.passed)}
+                    label={t("recruiter.ops.applicants.rounds.assessment")}
+                    value={
+                      rounds?.assessment.score != null
+                        ? t("recruiter.ops.applicants.rounds.scoreOutOf100Pts", {
+                            score: formatScreeningScore(rounds.assessment.score),
+                          })
+                        : roundStatusSummary(t, rounds?.assessment.status, rounds?.assessment.passed)
+                    }
+                    hint={roundStatusSummary(t, rounds?.assessment.status, rounds?.assessment.passed)}
                     tone={rounds?.assessment.passed === true ? "pass" : rounds?.assessment.passed === false ? "fail" : undefined}
                   />
                   <KpiBox
-                    label="Đánh giá chung"
-                    value={gate?.complete ? (gate.passed ? "Đạt chuẩn" : "Chưa đạt") : applicationStatusLabel(detail.status)}
-                    hint={gate?.passThreshold != null ? `Ngưỡng tổng: ${formatScreeningScore(gate.passThreshold)} đ` : currentStepBadge}
+                    label={t("recruiter.ops.applicants.detail.overallEvalLabel")}
+                    value={
+                      gate?.complete
+                        ? gate.passed
+                          ? t("recruiter.ops.applicants.detail.gateQualified")
+                          : t("recruiter.ops.applicants.detail.gateNotQualified")
+                        : getApplicantStatusLabel(detail.status, t)
+                    }
+                    hint={
+                      gate?.passThreshold != null
+                        ? t("recruiter.ops.applicants.detail.gateTotalThreshold", {
+                            score: formatScreeningScore(gate.passThreshold),
+                          })
+                        : currentStepBadge
+                    }
                     tone={gate?.complete ? (gate.passed ? "pass" : "fail") : detail.status === "HIRED" ? "pass" : detail.status === "REJECTED" ? "fail" : undefined}
                   />
                 </div>
@@ -527,26 +601,38 @@ export function ApplicantDetailPage() {
                     {detail.candidateApplicationCount > 1 && (
                       <div className="flex items-center gap-2 rounded-xl border border-amber-200/80 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800">
                         <Info className="size-4 shrink-0 text-amber-600" aria-hidden="true" />
-                        <span>Ứng viên đang có {detail.candidateApplicationCount} hồ sơ ứng tuyển trong hệ thống.</span>
+                        <span>
+                          {t("recruiter.ops.applicants.detail.multipleApplicationsAlert", {
+                            count: detail.candidateApplicationCount,
+                          })}
+                        </span>
                       </div>
                     )}
                     {detail.rejectReason && (
                       <div className="flex items-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800">
                         <XCircle className="size-4 shrink-0 text-rose-600" aria-hidden="true" />
-                        <span>Lý do từ chối: {detail.rejectReason}</span>
+                        <span>
+                          {t("recruiter.ops.applicants.detail.rejectReasonAlert", {
+                            reason: detail.rejectReason,
+                          })}
+                        </span>
                       </div>
                     )}
                     {detail.withdrawReason && (
                       <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-medium text-slate-700">
                         <Info className="size-4 shrink-0 text-slate-500" aria-hidden="true" />
-                        <span>Ứng viên đã rút hồ sơ: {detail.withdrawReason}</span>
+                        <span>
+                          {t("recruiter.ops.applicants.detail.withdrawReasonAlert", {
+                            reason: detail.withdrawReason,
+                          })}
+                        </span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Sub-tabs inside Overview */}
-                <div className="mt-5 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label="Chi tiết hồ sơ">
+                <div className="mt-5 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label={t("recruiter.ops.applicants.detail.overviewSubTabsAria")}>
                   <button
                     type="button"
                     role="tab"
@@ -560,7 +646,7 @@ export function ApplicantDetailPage() {
                     )}
                   >
                     <Workflow className="size-4" aria-hidden="true" />
-                    Tiến trình & Kết quả vòng
+                    {t("recruiter.ops.applicants.detail.subTabRounds")}
                   </button>
                   <button
                     type="button"
@@ -575,7 +661,7 @@ export function ApplicantDetailPage() {
                     )}
                   >
                     <Info className="size-4" aria-hidden="true" />
-                    Thông tin ứng viên & Ghi chú
+                    {t("recruiter.ops.applicants.detail.subTabInfo")}
                   </button>
                 </div>
 
@@ -583,7 +669,9 @@ export function ApplicantDetailPage() {
                   {overviewSubTab === "rounds" ? (
                     <div className="space-y-5">
                       <div className="space-y-2.5">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tiến trình tuyển dụng</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          {t("recruiter.ops.applicants.detail.pipelineTitle")}
+                        </p>
                         <ApplicationPipeline status={detail.status} />
                       </div>
                       <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/50 p-4">
@@ -593,20 +681,32 @@ export function ApplicantDetailPage() {
                   ) : (
                     <div className="space-y-4">
                       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <MetaTile label="Họ và tên" value={detail.candidateName} />
-                        <MetaTile label="Email" value={detail.candidateEmail} />
-                        <MetaTile label="Vị trí ứng tuyển" value={jobTitle} />
-                        <MetaTile label="Ngày nộp" value={formatApplicantDateTime(detail.createdAt)} />
+                        <MetaTile label={t("recruiter.ops.applicants.detail.metaFullName")} value={detail.candidateName} />
+                        <MetaTile label={t("recruiter.ops.common.email")} value={detail.candidateEmail} />
+                        <MetaTile label={t("recruiter.ops.applicants.detail.metaJobTitle")} value={jobTitle} />
+                        <MetaTile label={t("recruiter.ops.applicants.detail.metaAppliedDate")} value={formatApplicantDateTime(detail.createdAt, locale)} />
                         <MetaTile
-                          label="Nguồn"
-                          value={`${sourceLabel(detail.source)}${detail.referralCode ? ` · mã ${detail.referralCode}` : ""}`}
+                          label={t("recruiter.ops.common.source")}
+                          value={
+                            detail.referralCode
+                              ? t("recruiter.ops.applicants.detail.metaSourceReferral", {
+                                  source: sourceLabel(detail.source, t),
+                                  code: detail.referralCode,
+                                })
+                              : sourceLabel(detail.source, t)
+                          }
                         />
-                        <MetaTile label="Phụ trách" value={detail.assigneeName ?? "Chưa phân công"} />
+                        <MetaTile
+                          label={t("recruiter.ops.common.assignee")}
+                          value={detail.assigneeName ?? t("recruiter.ops.common.unassigned")}
+                        />
                       </dl>
 
                       {tagList.length > 0 && (
                         <div className="rounded-xl border border-slate-200/80 bg-[var(--color-surface-alt)] px-4 py-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Tag nội bộ</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                            {t("recruiter.ops.applicants.detail.internalTagsTitle")}
+                          </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {tagList.map((tag) => (
                               <span
@@ -622,7 +722,9 @@ export function ApplicantDetailPage() {
 
                       {detail.notes && (
                         <div className="rounded-xl border border-slate-200/80 bg-[var(--color-surface-alt)] px-4 py-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Ghi chú gần nhất</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                            {t("recruiter.ops.applicants.detail.latestNotesTitle")}
+                          </p>
                           <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-on-surface)]">
                             {detail.notes}
                           </p>
@@ -632,7 +734,7 @@ export function ApplicantDetailPage() {
                       <div className="flex justify-end">
                         <button type="button" onClick={() => setActiveSection("manage")} className={button}>
                           <StickyNote className="size-4" aria-hidden="true" />
-                          Chỉnh sửa ghi chú & phân công
+                          {t("recruiter.ops.applicants.detail.editNotesAssignBtn")}
                         </button>
                       </div>
                     </div>
@@ -662,7 +764,10 @@ export function ApplicantDetailPage() {
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          CV #{selectedCv.id} · Nộp {formatApplicantDateTime(selectedCv.createdAt)}
+                          {t("recruiter.ops.applicants.detail.cvMetaLine", {
+                            id: selectedCv.id,
+                            date: formatApplicantDateTime(selectedCv.createdAt, locale),
+                          })}
                           {cvDetail?.extractionModel ? ` · ${cvDetail.extractionModel}` : ""}
                         </p>
                       </div>
@@ -672,7 +777,7 @@ export function ApplicantDetailPage() {
                       {activeCvs.length > 1 && (
                         <select
                           className={cn(input, "w-auto min-w-[180px]")}
-                          aria-label="Chọn CV"
+                          aria-label={t("recruiter.ops.applicants.detail.selectCvAria")}
                           value={selectedCv.id}
                           onChange={(e) => setSelectedCvId(Number(e.target.value))}
                         >
@@ -687,14 +792,14 @@ export function ApplicantDetailPage() {
                         to={`/recruiter/jobs/${jobId}/cvs/${selectedCv.id}`}
                         className={button}
                       >
-                        Mở trang chi tiết CV
+                        {t("recruiter.ops.applicants.detail.openCvDetailLink")}
                         <ArrowUpRight className="size-4" aria-hidden="true" />
                       </Link>
                     </div>
                   </div>
 
                   {/* Sub-tabs inside CV section */}
-                  <div className="mt-4 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label="Nội dung CV">
+                  <div className="mt-4 flex flex-wrap gap-6 border-b border-slate-200" role="tablist" aria-label={t("recruiter.ops.applicants.detail.cvSubTabsAria")}>
                     <button
                       type="button"
                       role="tab"
@@ -708,7 +813,7 @@ export function ApplicantDetailPage() {
                       )}
                     >
                       <Sparkles className="size-4" aria-hidden="true" />
-                      Phân tích AI & GitHub
+                      {t("recruiter.ops.applicants.detail.cvSubTabAi")}
                     </button>
                     <button
                       type="button"
@@ -723,7 +828,7 @@ export function ApplicantDetailPage() {
                       )}
                     >
                       <FileText className="size-4" aria-hidden="true" />
-                      File CV gốc
+                      {t("recruiter.ops.applicants.detail.cvSubTabFile")}
                     </button>
                   </div>
 
@@ -746,13 +851,15 @@ export function ApplicantDetailPage() {
                           />
                         ) : (
                           <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] p-8 text-center text-sm text-slate-500">
-                            CV này chưa có kết quả chấm điểm AI. Bấm “Phân tích CV” ở góc trên để chấm điểm.
+                            {t("recruiter.ops.applicants.detail.cvNoAiScore")}
                           </div>
                         )}
                         <GithubEvidencePanel analysis={cvDetail?.githubAnalysis} />
                         {cvDetail && cvDetail.skills.length > 0 && (
                           <div className="space-y-2.5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/50 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Kỹ năng trích từ CV</p>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              {t("recruiter.ops.applicants.detail.extractedSkillsTitle")}
+                            </p>
                             <div className="flex flex-wrap gap-2">
                               {cvDetail.skills.map((skill) => (
                                 <span
@@ -777,7 +884,7 @@ export function ApplicantDetailPage() {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-8 text-center text-sm text-slate-500">
-                  Ứng viên chưa nộp CV cho vị trí này.
+                  {t("recruiter.ops.applicants.detail.noCvSubmitted")}
                 </div>
               )}
             </div>
@@ -791,40 +898,50 @@ export function ApplicantDetailPage() {
                     <StickyNote className="size-4" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-900">Ghi chú & Phân công</h2>
-                    <p className="text-xs text-slate-500">Thông tin này chỉ hiển thị cho đội ngũ tuyển dụng nội bộ.</p>
+                    <h2 className="text-sm font-semibold text-slate-900">{t("recruiter.ops.applicants.detail.manageCardTitle")}</h2>
+                    <p className="text-xs text-slate-500">{t("recruiter.ops.applicants.detail.manageCardDesc")}</p>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">Tag</span>
+                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                      {t("recruiter.ops.applicants.detail.tagLabel")}
+                    </span>
                     <input
                       className={input}
                       value={tags}
                       onChange={(e) => setTags(e.target.value)}
-                      placeholder="java, referral"
+                      placeholder={t("recruiter.ops.applicants.detail.tagPlaceholder")}
                     />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">Giao cho (email recruiter)</span>
+                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                      {t("recruiter.ops.applicants.detail.assigneeEmailLabel")}
+                    </span>
                     <input
                       className={input}
                       value={assigneeEmail}
                       onChange={(e) => setAssigneeEmail(e.target.value)}
-                      placeholder={detail.assigneeName ? `Hiện tại: ${detail.assigneeName}` : "recruiter@company.com"}
+                      placeholder={
+                        detail.assigneeName
+                          ? t("recruiter.ops.applicants.detail.assigneeCurrentPlaceholder", { name: detail.assigneeName })
+                          : t("recruiter.ops.applicants.detail.assigneeEmailPlaceholder")
+                      }
                     />
                   </label>
                 </div>
 
                 <label className="block space-y-1">
-                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">Ghi chú</span>
+                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                    {t("recruiter.ops.common.notes")}
+                  </span>
                   <textarea
                     className={input}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={4}
-                    placeholder="Nhận xét về ứng viên, lưu ý cho vòng sau…"
+                    placeholder={t("recruiter.ops.applicants.detail.notesPlaceholder")}
                   />
                 </label>
 
@@ -832,7 +949,9 @@ export function ApplicantDetailPage() {
                 <div className="flex justify-end">
                   <button className={primary} type="button" disabled={saveManage.isPending} onClick={() => saveManage.mutate()}>
                     <Save className="size-4" aria-hidden="true" />
-                    {saveManage.isPending ? "Đang lưu…" : "Lưu thay đổi"}
+                    {saveManage.isPending
+                      ? t("recruiter.ops.common.saving")
+                      : t("recruiter.ops.applicants.detail.saveChangesBtn")}
                   </button>
                 </div>
               </div>
@@ -843,25 +962,29 @@ export function ApplicantDetailPage() {
                     <XCircle className="size-4" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-900">Xử lý hồ sơ</h2>
-                    <p className="text-xs text-slate-500">Từ chối ứng viên hoặc lưu trữ hồ sơ khỏi danh sách đang xử lý.</p>
+                    <h2 className="text-sm font-semibold text-slate-900">{t("recruiter.ops.applicants.detail.processTitle")}</h2>
+                    <p className="text-xs text-slate-500">{t("recruiter.ops.applicants.detail.processDesc")}</p>
                   </div>
                 </div>
 
                 {canReject ? (
                   <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">Lý do từ chối</span>
+                    <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                      {t("recruiter.ops.applicants.detail.rejectReasonLabel")}
+                    </span>
                     <input
                       className={input}
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
-                      placeholder="Ví dụ: chưa đủ kinh nghiệm Spring Boot"
+                      placeholder={t("recruiter.ops.applicants.detail.rejectReasonPlaceholder")}
                     />
                   </label>
                 ) : (
                   <p className="inline-flex items-center gap-1.5 text-xs text-slate-500">
                     <CheckCircle2 className="size-4 text-slate-400" aria-hidden="true" />
-                    Hồ sơ hiện ở trạng thái “{applicationStatusLabel(detail.status)}”.
+                    {t("recruiter.ops.applicants.detail.currentStatusReadOnly", {
+                      status: getApplicantStatusLabel(detail.status, t),
+                    })}
                   </p>
                 )}
 
@@ -874,18 +997,18 @@ export function ApplicantDetailPage() {
                       onClick={confirmReject}
                     >
                       <XCircle className="size-4" aria-hidden="true" />
-                      Từ chối
+                      {t("recruiter.ops.applicants.detail.rejectBtn")}
                     </button>
                   )}
                   {detail.archived ? (
                     <button className={button} type="button" disabled={act.isPending} onClick={() => act.mutate("restore")}>
                       <ArchiveRestore className="size-4" aria-hidden="true" />
-                      Khôi phục
+                      {t("recruiter.ops.applicants.detail.restoreBtn")}
                     </button>
                   ) : (
                     <button className={button} type="button" disabled={act.isPending} onClick={() => act.mutate("archive")}>
                       <Archive className="size-4" aria-hidden="true" />
-                      Lưu trữ
+                      {t("recruiter.ops.applicants.detail.archiveBtn")}
                     </button>
                   )}
                 </div>
@@ -900,13 +1023,17 @@ export function ApplicantDetailPage() {
                   <History className="size-4" aria-hidden="true" />
                 </span>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Lịch sử thay đổi trạng thái</h2>
-                  <p className="text-xs text-slate-500">Toàn bộ các mốc chuyển vòng và quyết định trên hồ sơ #{detail.id}.</p>
+                  <h2 className="text-sm font-semibold text-slate-900">{t("recruiter.ops.applicants.detail.historyTitle")}</h2>
+                  <p className="text-xs text-slate-500">
+                    {t("recruiter.ops.applicants.detail.historySubtitle", { id: detail.id })}
+                  </p>
                 </div>
               </div>
 
               {detail.history.length === 0 ? (
-                <p className="py-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có thay đổi trạng thái.</p>
+                <p className="py-6 text-center text-sm text-[var(--color-on-surface-variant)]">
+                  {t("recruiter.ops.applicants.detail.historyEmpty")}
+                </p>
               ) : (
                 <ol className="ml-2 space-y-4 border-l border-[var(--color-border-default)] pl-5">
                   {detail.history.map((row, index) => (
@@ -916,11 +1043,11 @@ export function ApplicantDetailPage() {
                         aria-hidden="true"
                       />
                       <p className="text-sm font-semibold text-slate-900">
-                        {row.fromStatus ? `${applicationStatusLabel(row.fromStatus)} → ` : ""}
-                        {applicationStatusLabel(row.toStatus)}
+                        {row.fromStatus ? `${getApplicantStatusLabel(row.fromStatus, t)} → ` : ""}
+                        {getApplicantStatusLabel(row.toStatus, t)}
                       </p>
                       {row.note && <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">{row.note}</p>}
-                      <p className="mt-0.5 text-[11px] text-slate-400">{formatApplicantDateTime(row.createdAt)}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">{formatApplicantDateTime(row.createdAt, locale)}</p>
                     </li>
                   ))}
                 </ol>

@@ -6,12 +6,15 @@
  * 2. Mode From Scratch: Tự do may đo từ đầu = Phí nền tảng cố định + Định lượng tài nguyên + Tùy chọn Enterprise (SSO, Sandbox, Support 24/7) - Chiết khấu.
  */
 
+import { t as globalT } from "@/i18n";
+
 export type CpqPricingMode = "TEMPLATE_ADDON" | "FROM_SCRATCH";
 
 // Hạn mức và giá niêm yết của các gói mẫu tiêu chuẩn
 export interface TemplatePlanSpec {
   code: string;
-  name: string;
+  nameKey: string;
+  readonly name: string;
   priceYearly: number;
   baseJobs: number;
   baseCvParsesMonthly: number;
@@ -22,7 +25,10 @@ export interface TemplatePlanSpec {
 export const STANDARD_TEMPLATE_PLANS: Record<string, TemplatePlanSpec> = {
   STARTER: {
     code: "STARTER",
-    name: "Gói Khởi Đầu (Starter)",
+    nameKey: "master.commerce.cpq.templates.starter",
+    get name() {
+      return globalT(this.nameKey);
+    },
     priceYearly: 12_000_000,
     baseJobs: 5,
     baseCvParsesMonthly: 200,
@@ -31,7 +37,10 @@ export const STANDARD_TEMPLATE_PLANS: Record<string, TemplatePlanSpec> = {
   },
   PROFESSIONAL: {
     code: "PROFESSIONAL",
-    name: "Gói Chuyên Nghiệp (Professional)",
+    nameKey: "master.commerce.cpq.templates.professional",
+    get name() {
+      return globalT(this.nameKey);
+    },
     priceYearly: 36_000_000,
     baseJobs: 25,
     baseCvParsesMonthly: 2_500,
@@ -40,7 +49,10 @@ export const STANDARD_TEMPLATE_PLANS: Record<string, TemplatePlanSpec> = {
   },
   ENTERPRISE: {
     code: "ENTERPRISE",
-    name: "Gói Doanh Nghiệp (Enterprise Scale)",
+    nameKey: "master.commerce.cpq.templates.enterprise",
+    get name() {
+      return globalT(this.nameKey);
+    },
     priceYearly: 99_000_000,
     baseJobs: 100,
     baseCvParsesMonthly: 15_000,

@@ -36,6 +36,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
+import { formatDateTime, formatNumber, t as globalT, useLocale, useT, type Locale } from "@/i18n";
 import { localizeAiComment } from "@/features/tenant/candidate/assessments/utils/aiLocalization";
 
 // --- Safe Data Helpers ---
@@ -56,7 +57,7 @@ function safeObject<T = Record<string, unknown>>(value: unknown): T {
   return {} as T;
 }
 
-function safeText(value: unknown, fallback = "AI chưa cung cấp phân tích này."): string {
+function safeText(value: unknown, fallback = globalT("recruiter.assessments.grading.aiMissingFallback")): string {
   if (value == null) return fallback;
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -116,10 +117,10 @@ function safeNumber(value: unknown): number | null {
   return null;
 }
 
-function display(value: unknown): string {
+function display(value: unknown, locale?: Locale, dash = "—"): string {
   const num = safeNumber(value);
-  if (num == null) return "—";
-  return Number(num.toFixed(2)).toLocaleString("vi-VN");
+  if (num == null) return dash;
+  return formatNumber(Number(num.toFixed(2)), undefined, locale);
 }
 
 
@@ -133,6 +134,8 @@ export function SubmissionGradingDetail({
   id: number;
   onClose: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const client = useQueryClient();
   const askConfirm = useUiStore((state) => state.askConfirm);
   const key = [...queryKeys.assessments.all(), "grading-detail", id];
@@ -179,11 +182,11 @@ export function SubmissionGradingDetail({
       assessmentApi.approveGrade(id, decision.questionId, decision.score),
     onSuccess: async (_, decision) => {
       setValue(`scores.${decision.questionId}`, "");
-      toast.success(`Đã xác nhận duyệt điểm câu #${decision.questionId}`);
+      toast.success(t("recruiter.assessments.grading.approvedSuccess", { questionId: decision.questionId }));
       await refresh();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi duyệt điểm câu hỏi.");
+      toast.error(err?.response?.data?.message || t("recruiter.assessments.grading.approveError"));
     },
   });
 
@@ -194,14 +197,14 @@ export function SubmissionGradingDetail({
       client.setQueryData(key, data);
       decisions.forEach((decision) => setValue(`scores.${decision.questionId}`, ""));
       if (data.score == null) {
-        toast.info("Đã cập nhật điểm các câu đã chọn. Còn câu hỏi đang chờ duyệt.");
+        toast.info(t("recruiter.assessments.grading.partialUpdatedInfo"));
       } else {
-        toast.success("Đã hoàn tất duyệt bài và chốt điểm chính thức thành công.");
+        toast.success(t("recruiter.assessments.grading.finalizedSuccess"));
       }
       await refresh();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi cập nhật kết quả bài thi.");
+      toast.error(err?.response?.data?.message || t("recruiter.assessments.grading.updateError"));
     },
   });
 
@@ -209,26 +212,26 @@ export function SubmissionGradingDetail({
     mutationFn: () => assessmentApi.sendResultEmail(id),
     onSuccess: (result) => {
       if (result.status === "SENT") {
-        toast.info("Kết quả bài thi này đã được gửi trước đó.");
+        toast.info(t("recruiter.assessments.grading.emailAlreadySentInfo"));
       } else if (result.status === "PENDING") {
-        toast.success("Đã xếp hàng gửi email kết quả chính thức cho ứng viên.");
+        toast.success(t("recruiter.assessments.grading.emailQueuedSuccess"));
       } else {
-        toast.warning("Email kết quả đang FAILED — hệ thống đã xếp hàng để gửi lại.");
+        toast.warning(t("recruiter.assessments.grading.emailRetryWarning"));
       }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi gửi email kết quả.");
+      toast.error(err?.response?.data?.message || t("recruiter.assessments.grading.emailError"));
     },
   });
 
   const retry = useMutation({
     mutationFn: () => assessmentApi.retryGrading(id),
     onSuccess: async () => {
-      toast.success("Đã yêu cầu AI chấm lại các câu chưa có kết quả.");
+      toast.success(t("recruiter.assessments.grading.retrySuccess"));
       await refresh();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi yêu cầu chấm lại.");
+      toast.error(err?.response?.data?.message || t("recruiter.assessments.grading.retryError"));
     },
   });
 
@@ -251,7 +254,7 @@ export function SubmissionGradingDetail({
     const raw = typeof rawVal === "string" ? rawVal.trim() : rawVal != null ? String(rawVal).trim() : "";
     if (!raw && review.suggestedScore == null) {
       setError(`scores.${review.questionId}`, {
-        message: "Chưa có điểm AI. Nhập điểm để duyệt thủ công.",
+        message: t("recruiter.assessments.grading.missingAiScoreError"),
       });
       return null;
     }
@@ -262,7 +265,7 @@ export function SubmissionGradingDetail({
         z.number().finite().min(0).max(review.points).safeParse(score).success);
     if (!valid) {
       setError(`scores.${review.questionId}`, {
-        message: `Điểm từ 0 đến ${review.points}, tối đa 2 chữ số thập phân.`,
+        message: t("recruiter.assessments.grading.scoreFormatError", { max: review.points }),
       });
       return null;
     }
@@ -273,7 +276,7 @@ export function SubmissionGradingDetail({
   const validateReviews = (selected: GradingReview[]) => {
     const decisions = selected.map(decisionFor);
     if (decisions.some((d) => d == null)) {
-      toast.error("Vui lòng kiểm tra lại điểm nhập chưa đúng định dạng.");
+      toast.error(t("recruiter.assessments.grading.invalidScoresToast"));
       return null;
     }
     return decisions as GradeDecision[];
@@ -282,7 +285,7 @@ export function SubmissionGradingDetail({
   // Quick accept AI score for one question
   const handleQuickApproveAi = (review: GradingReview) => {
     if (review.suggestedScore == null) {
-      toast.warning("Chưa có điểm AI gợi ý để áp dụng tự động.");
+      toast.warning(t("recruiter.assessments.grading.noAiSuggestionWarning"));
       return;
     }
     approve.mutate({ questionId: review.questionId, score: null });
@@ -293,9 +296,9 @@ export function SubmissionGradingDetail({
   const handleBack = () => {
     if (isDirty) {
       askConfirm({
-        title: "Rời khỏi màn hình duyệt?",
-        description: "Có điểm ghi đè chưa lưu sẽ bị hủy bỏ.",
-        confirmLabel: "Rời khỏi",
+        title: t("recruiter.assessments.grading.leaveConfirmTitle"),
+        description: t("recruiter.assessments.grading.leaveConfirmDesc"),
+        confirmLabel: t("recruiter.assessments.grading.leaveConfirmBtn"),
         onConfirm: onClose,
       });
     } else {
@@ -323,7 +326,7 @@ export function SubmissionGradingDetail({
     if (essayReviews.length > 0) {
       list.push({
         key: "ESSAY",
-        label: "Tự luận",
+        label: t("recruiter.assessments.grading.tabs.essay"),
         count: essayReviews.length,
         allGraded: unreviewedEssay.length === 0,
         icon: unreviewedEssay.length === 0 ? CheckCircle2 : FileText,
@@ -333,7 +336,7 @@ export function SubmissionGradingDetail({
     if (codingReviews.length > 0) {
       list.push({
         key: "CODING",
-        label: "Lập trình",
+        label: t("recruiter.assessments.grading.tabs.coding"),
         count: codingReviews.length,
         allGraded: unreviewedCoding.length === 0,
         icon: unreviewedCoding.length === 0 ? CheckCircle2 : Code2,
@@ -343,7 +346,7 @@ export function SubmissionGradingDetail({
     if (hasObjective) {
       list.push({
         key: "OBJECTIVE",
-        label: "Trắc nghiệm",
+        label: t("recruiter.assessments.grading.tabs.objective"),
         count: detail?.objective?.questionCount ?? 0,
         allGraded: true,
         icon: CheckCircle2,
@@ -352,7 +355,7 @@ export function SubmissionGradingDetail({
 
     list.push({
       key: "INTEGRITY",
-      label: "Nhật ký giám sát",
+      label: t("recruiter.assessments.grading.tabs.integrity"),
       count: proctorCount,
       allGraded: true,
       icon: proctorCount === 0 ? ShieldCheck : ShieldAlert,
@@ -367,6 +370,7 @@ export function SubmissionGradingDetail({
     proctorCount,
     hasObjective,
     detail?.objective?.questionCount,
+    t,
   ]);
 
   const activeTab: CategoryTab =
@@ -385,8 +389,8 @@ export function SubmissionGradingDetail({
                 type="button"
                 onClick={onClose}
                 className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                title="Quay lại Danh sách bài nộp"
-                aria-label="Quay lại Danh sách bài nộp"
+                title={t("recruiter.assessments.grading.backToSubmissionsTooltip")}
+                aria-label={t("recruiter.assessments.grading.backToSubmissionsTooltip")}
               >
                 <ArrowLeft className="size-4" />
               </button>
@@ -397,7 +401,7 @@ export function SubmissionGradingDetail({
             </div>
             <div className="flex items-center gap-2">
               <Loader2 className="size-4 animate-spin text-[var(--color-primary)]" />
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đang tải bài làm...</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{t("recruiter.assessments.grading.loadingSubmission")}</span>
             </div>
           </div>
         </header>
@@ -444,12 +448,12 @@ export function SubmissionGradingDetail({
         <AssessmentError error={query.error} retry={() => void query.refetch()} />
         {!query.error && (
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Không tìm thấy thông tin bài thi hoặc bài thi chưa được nộp.
+            {t("recruiter.assessments.grading.notFoundOrNotSubmitted")}
           </p>
         )}
         <div>
           <Button className="mt-2" onClick={onClose}>
-            <ArrowLeft className="size-4" /> Quay lại danh sách
+            <ArrowLeft className="size-4" /> {t("recruiter.assessments.common.actions.backToList")}
           </Button>
         </div>
       </div>
@@ -476,8 +480,8 @@ export function SubmissionGradingDetail({
               disabled={busy}
               onClick={handleBack}
               className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-              title="Quay lại Danh sách bài nộp"
-              aria-label="Quay lại Danh sách bài nộp"
+              title={t("recruiter.assessments.grading.backToSubmissionsTooltip")}
+              aria-label={t("recruiter.assessments.grading.backToSubmissionsTooltip")}
             >
               <ArrowLeft className="size-4" />
             </button>
@@ -488,10 +492,10 @@ export function SubmissionGradingDetail({
                 tabIndex={-1}
                 className="text-sm font-extrabold text-[#101828] dark:text-white sm:text-base truncate"
               >
-                {detail.candidateName || "Ứng viên"}
+                {detail.candidateName || t("recruiter.assessments.grading.candidateFallback")}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Bài làm ID #{detail.id} · Trạng thái:{" "}
+                {t("recruiter.assessments.grading.submissionIdStatus", { id: detail.id })}
                 <span
                   className={cn(
                     "font-bold",
@@ -503,10 +507,10 @@ export function SubmissionGradingDetail({
                   )}
                 >
                   {detail.status === "GRADED"
-                    ? "Đã chốt điểm"
+                    ? t("recruiter.assessments.grading.statusGraded")
                     : detail.status === "EXPIRED"
-                      ? "Quá giờ"
-                      : "Chờ duyệt"}
+                      ? t("recruiter.assessments.grading.statusExpired")
+                      : t("recruiter.assessments.grading.statusPendingReview")}
                 </span>
               </p>
             </div>
@@ -515,12 +519,12 @@ export function SubmissionGradingDetail({
 
             <div className="hidden sm:block">
               <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">
-                Tổng điểm
+                {t("recruiter.assessments.grading.totalScoreLabel")}
               </div>
               <div className="text-xs font-bold text-[#101828] dark:text-white">
                 {reviews.length > 0
-                  ? `${reviews.length - unreviewedReviews.length}/${reviews.length} câu`
-                  : `${display(detail.score)}/${detail.totalPoints} đ`}
+                  ? t("recruiter.assessments.grading.reviewedQuestionsRatio", { reviewed: reviews.length - unreviewedReviews.length, total: reviews.length })
+                  : t("recruiter.assessments.common.scoreOutOfShort", { score: display(detail.score, locale, t("recruiter.assessments.common.dash")), total: detail.totalPoints })}
               </div>
             </div>
           </div>
@@ -532,11 +536,11 @@ export function SubmissionGradingDetail({
               type="button"
               disabled={busy}
               onClick={() => retry.mutate()}
-              title="Yêu cầu AI chấm lại các câu chưa có kết quả"
+              title={t("recruiter.assessments.grading.retryAiTooltip")}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[var(--color-primary)] disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               <RefreshCw className={cn("size-3.5", retry.isPending && "animate-spin")} />
-              Chấm AI lại
+              {t("recruiter.assessments.grading.retryAiBtn")}
             </button>
 
             {/* Send Result Email button */}
@@ -551,25 +555,29 @@ export function SubmissionGradingDetail({
               }
               onClick={() =>
                 askConfirm({
-                  title: "Gửi email kết quả bài thi?",
-                  description: `Gửi kết quả chính thức đã duyệt (${display(detail.score)}/${detail.totalPoints} điểm) tới email ${detail.candidateEmail}.`,
-                  confirmLabel: "Gửi email ngay",
+                  title: t("recruiter.assessments.grading.sendEmailConfirmTitle"),
+                  description: t("recruiter.assessments.grading.sendEmailConfirmDesc", {
+                    score: display(detail.score, locale, t("recruiter.assessments.common.dash")),
+                    total: detail.totalPoints,
+                    email: detail.candidateEmail ?? "",
+                  }),
+                  confirmLabel: t("recruiter.assessments.grading.sendEmailConfirmBtn"),
                   onConfirm: () => email.mutate(),
                 })
               }
               title={
                 !detail.emailAvailable
-                  ? "Ứng viên không có email hoặc đã tắt thông báo assessment"
+                  ? t("recruiter.assessments.grading.emailUnavailableTooltip")
                   : isDirty
-                    ? "Hãy lưu điểm ghi đè trước khi gửi kết quả"
+                    ? t("recruiter.assessments.grading.saveOverridesBeforeEmailTooltip")
                     : detail.score == null
-                      ? "Chỉ gửi được email khi mọi câu hỏi đã được chốt điểm"
-                      : "Gửi thông báo điểm chính thức tới ứng viên"
+                      ? t("recruiter.assessments.grading.finalizeAllBeforeEmailTooltip")
+                      : t("recruiter.assessments.grading.sendEmailTooltip")
               }
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[var(--color-primary)] disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               <Mail className="size-3.5 text-slate-500" />
-              Gửi email kết quả
+              {t("recruiter.assessments.grading.sendEmailBtn")}
             </button>
 
             {/* Close Button */}
@@ -579,7 +587,7 @@ export function SubmissionGradingDetail({
               onClick={handleBack}
               className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
-              Đóng
+              {t("recruiter.assessments.common.actions.close")}
             </button>
           </div>
         </div>
@@ -640,12 +648,12 @@ export function SubmissionGradingDetail({
           <div className="flex items-center justify-between">
             <h2 className="text-base font-extrabold text-[#101828] dark:text-white">
               {activeTab === "ESSAY"
-                ? "Tự luận"
+                ? t("recruiter.assessments.grading.tabs.essay")
                 : activeTab === "CODING"
-                  ? "Lập trình"
+                  ? t("recruiter.assessments.grading.tabs.coding")
                   : activeTab === "INTEGRITY"
-                    ? "Nhật ký giám sát"
-                    : "Trắc nghiệm"}
+                    ? t("recruiter.assessments.grading.tabs.integrity")
+                    : t("recruiter.assessments.grading.tabs.objective")}
             </h2>
 
             {/* Bulk AI approve for current section if unreviewed */}
@@ -655,9 +663,9 @@ export function SubmissionGradingDetail({
                 disabled={busy}
                 onClick={() => {
                   askConfirm({
-                    title: "Chấp nhận điểm AI cho các câu tự luận?",
-                    description: `Áp dụng điểm gợi ý của AI cho ${unreviewedEssay.length} câu tự luận chưa duyệt.`,
-                    confirmLabel: "Chấp nhận & Lưu",
+                    title: t("recruiter.assessments.grading.approveAiEssayTitle"),
+                    description: t("recruiter.assessments.grading.approveAiEssayDesc", { count: unreviewedEssay.length }),
+                    confirmLabel: t("recruiter.assessments.grading.approveAndSaveBtn"),
                     onConfirm: () => {
                       const decisions: GradeDecision[] = unreviewedEssay.map((r) => ({
                         questionId: r.questionId,
@@ -670,7 +678,7 @@ export function SubmissionGradingDetail({
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] border border-[var(--color-primary)]/25 transition-all cursor-pointer"
               >
                 <Sparkles className="size-3.5 text-[var(--color-primary)]" />
-                Áp dụng điểm AI (${unreviewedEssay.length} câu)
+                {t("recruiter.assessments.grading.applyAiScoreCount", { count: unreviewedEssay.length })}
               </button>
             )}
 
@@ -680,9 +688,9 @@ export function SubmissionGradingDetail({
                 disabled={busy}
                 onClick={() => {
                   askConfirm({
-                    title: "Chấp nhận điểm AI cho các câu lập trình?",
-                    description: `Áp dụng điểm gợi ý của AI cho ${unreviewedCoding.length} câu lập trình chưa duyệt.`,
-                    confirmLabel: "Chấp nhận & Lưu",
+                    title: t("recruiter.assessments.grading.approveAiCodingTitle"),
+                    description: t("recruiter.assessments.grading.approveAiCodingDesc", { count: unreviewedCoding.length }),
+                    confirmLabel: t("recruiter.assessments.grading.approveAndSaveBtn"),
                     onConfirm: () => {
                       const decisions: GradeDecision[] = unreviewedCoding.map((r) => ({
                         questionId: r.questionId,
@@ -695,7 +703,7 @@ export function SubmissionGradingDetail({
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] border border-[var(--color-primary)]/25 transition-all cursor-pointer"
               >
                 <Sparkles className="size-3.5 text-[var(--color-primary)]" />
-                Áp dụng điểm AI (${unreviewedCoding.length} câu)
+                {t("recruiter.assessments.grading.applyAiScoreCount", { count: unreviewedCoding.length })}
               </button>
             )}
           </div>
@@ -707,7 +715,7 @@ export function SubmissionGradingDetail({
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
                   <CheckCircle2 className="mx-auto size-8 text-emerald-500" />
                   <h3 className="mt-2 text-sm font-bold text-[#101828] dark:text-white">
-                    Không có câu hỏi tự luận nào
+                    {t("recruiter.assessments.grading.noEssayQuestions")}
                   </h3>
                 </div>
               ) : (
@@ -737,7 +745,7 @@ export function SubmissionGradingDetail({
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
                   <CheckCircle2 className="mx-auto size-8 text-emerald-500" />
                   <h3 className="mt-2 text-sm font-bold text-[#101828] dark:text-white">
-                    Không có câu hỏi lập trình nào
+                    {t("recruiter.assessments.grading.noCodingQuestions")}
                   </h3>
                 </div>
               ) : (
@@ -768,7 +776,7 @@ export function SubmissionGradingDetail({
               <section className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
                 <ShieldCheck className="mx-auto size-7 text-emerald-500/80 mb-2" />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Không ghi nhận dữ liệu giám sát cho bài thi này.
+                  {t("recruiter.assessments.grading.noIntegrityData")}
                 </p>
               </section>
             )
@@ -785,17 +793,17 @@ export function SubmissionGradingDetail({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-[#101828] dark:text-white">
-                        Trắc nghiệm khách quan (MCQ)
+                        {t("recruiter.assessments.grading.objectiveHeading")}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Hệ thống đã tự động đối chiếu đáp án và chốt điểm ngay khi ứng viên nộp bài.
+                        {t("recruiter.assessments.grading.objectiveAutoDesc")}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-6 self-start sm:self-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 dark:border-slate-800">
                     <div className="text-right">
-                      <div className="text-xs text-slate-400 font-medium">Tỷ lệ chính xác</div>
+                      <div className="text-xs text-slate-400 font-medium">{t("recruiter.assessments.grading.accuracyLabel")}</div>
                       <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
                         {objective.questionCount
                           ? Math.round(((objective.correctCount ?? 0) / objective.questionCount) * 100)
@@ -804,9 +812,9 @@ export function SubmissionGradingDetail({
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-slate-400 font-medium">Điểm đạt được</div>
+                      <div className="text-xs text-slate-400 font-medium">{t("recruiter.assessments.grading.earnedScoreLabel")}</div>
                       <div className="text-base font-extrabold text-[#101828] dark:text-white">
-                        {display(objective.score)} / {objective.totalPoints ?? 0} đ
+                        {display(objective.score, locale, t("recruiter.assessments.common.dash"))} / {objective.totalPoints ?? 0} {t("recruiter.assessments.common.pointsShort")}
                       </div>
                     </div>
                   </div>
@@ -815,7 +823,7 @@ export function SubmissionGradingDetail({
             ) : (
               <section className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
                 <p className="text-xs text-slate-400 italic">
-                  Không có câu hỏi trắc nghiệm nào trong đề thi này.
+                  {t("recruiter.assessments.grading.noObjectiveQuestions")}
                 </p>
               </section>
             )
@@ -828,7 +836,7 @@ export function SubmissionGradingDetail({
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/95 px-5 py-3 text-white shadow-2xl backdrop-blur-md dark:border-slate-700">
           <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
             <Zap className="size-4 animate-bounce" />
-            Có {dirtyEntries.length} câu ghi đè điểm chưa lưu
+            {t("recruiter.assessments.grading.unsavedOverridesCount", { count: dirtyEntries.length })}
           </div>
 
           <div className="h-4 w-px bg-slate-800" />
@@ -848,7 +856,7 @@ export function SubmissionGradingDetail({
             className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)] transition-all cursor-pointer"
           >
             <Check className="size-3.5" />
-            Lưu tất cả ({dirtyEntries.length})
+            {t("recruiter.assessments.grading.saveAllCount", { count: dirtyEntries.length })}
           </button>
 
           <button
@@ -857,7 +865,7 @@ export function SubmissionGradingDetail({
             onClick={() => reset()}
             className="inline-flex items-center rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer"
           >
-            Hủy bỏ
+            {t("recruiter.assessments.common.actions.cancelAction")}
           </button>
         </div>
       )}
@@ -891,12 +899,15 @@ function QuestionReviewCard({
   onApprove: (d: GradeDecision) => void;
   decisionFor: (r: GradingReview) => GradeDecision | null;
 }) {
+  const t = useT();
+  const locale = useLocale();
   if (!review) return null;
   const isEssay = review.type === "ESSAY";
   const isReviewed = review.reviewedAt != null;
   const fieldName = `scores.${review.questionId}`;
   const hasError = !!errors?.scores?.[String(review.questionId)];
   const points = review.points ?? 0;
+  const dash = t("recruiter.assessments.common.dash");
   const answerText =
     typeof review.answerText === "string"
       ? review.answerText.trim()
@@ -910,16 +921,16 @@ function QuestionReviewCard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-            Câu {index} (ID #{review.questionId})
+            {t("recruiter.assessments.grading.questionBadge", { index, id: review.questionId })}
           </span>
 
           {isEssay ? (
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60">
-              <FileText className="size-3.5" /> TỰ LUẬN
+              <FileText className="size-3.5" /> {t("recruiter.assessments.grading.essayTag")}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
-              <Code2 className="size-3.5" /> LẬP TRÌNH (CODING)
+              <Code2 className="size-3.5" /> {t("recruiter.assessments.grading.codingTag")}
             </span>
           )}
 
@@ -930,7 +941,7 @@ function QuestionReviewCard({
           )}
 
           <span className="text-xs font-semibold text-slate-400">
-            · Thang điểm: {points} đ
+            {t("recruiter.assessments.grading.scalePoints", { points })}
           </span>
         </div>
 
@@ -938,11 +949,11 @@ function QuestionReviewCard({
         <div>
           {isReviewed ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60">
-              <Check className="size-3.5" /> Đã duyệt: {display(review.score)}/{points} đ
+              <Check className="size-3.5" /> {t("recruiter.assessments.grading.approvedScoreBadge", { score: display(review.score, locale, dash), points })}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60">
-              <Clock className="size-3.5" /> Chờ duyệt · AI gợi ý: {display(review.suggestedScore)} đ
+              <Clock className="size-3.5" /> {t("recruiter.assessments.grading.pendingAiBadge", { score: display(review.suggestedScore, locale, dash) })}
             </span>
           )}
         </div>
@@ -951,14 +962,14 @@ function QuestionReviewCard({
       {/* 2. Question Prompt */}
       <div className="space-y-1.5">
         <h3 className="text-sm font-bold text-[#101828] dark:text-white leading-relaxed whitespace-pre-wrap break-words">
-          {typeof review.prompt === "string" ? review.prompt : safeText(review.prompt, "Câu hỏi")}
+          {typeof review.prompt === "string" ? review.prompt : safeText(review.prompt, t("recruiter.assessments.grading.questionPromptFallback"))}
         </h3>
       </div>
 
       {/* 3. Candidate's Answer Presentation */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <span>{isEssay ? "Bài làm của ứng viên" : "Mã nguồn ứng viên nộp"}</span>
+          <span>{isEssay ? t("recruiter.assessments.grading.candidateEssayLabel") : t("recruiter.assessments.grading.candidateCodeLabel")}</span>
           <CopyButton text={answerText} />
         </div>
 
@@ -967,13 +978,13 @@ function QuestionReviewCard({
             {answerText ? (
               answerText
             ) : (
-              <span className="italic text-slate-400">Ứng viên không trả lời câu hỏi này.</span>
+              <span className="italic text-slate-400">{t("recruiter.assessments.grading.noEssayAnswer")}</span>
             )}
           </div>
         ) : (
           <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs font-mono text-slate-100 dark:border-slate-800 dark:bg-slate-950 max-h-96 overflow-auto">
             <pre className="whitespace-pre-wrap break-words leading-relaxed">
-              <code>{answerText || "// Ứng viên không nộp mã nguồn cho câu này"}</code>
+              <code>{answerText || t("recruiter.assessments.grading.noCodeSubmitted")}</code>
             </pre>
           </div>
         )}
@@ -988,13 +999,13 @@ function QuestionReviewCard({
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: Summary score text */}
         <div className="text-xs text-slate-500 dark:text-slate-400">
-          AI đề xuất:{" "}
+          {t("recruiter.assessments.grading.aiSuggestedPrefix")}
           <strong className="text-[#101828] dark:text-white font-bold">
-            {display(review.suggestedScore)}/{review.points} đ
+            {t("recruiter.assessments.common.scoreOutOfShort", { score: display(review.suggestedScore, locale, dash), total: review.points })}
           </strong>
           {isReviewed && (
             <span className="ml-2 font-medium text-emerald-600 dark:text-emerald-400">
-              · Đã chốt: {display(review.score)} đ
+              {t("recruiter.assessments.grading.approvedPrefix", { score: display(review.score, locale, dash) })}
             </span>
           )}
         </div>
@@ -1007,11 +1018,11 @@ function QuestionReviewCard({
               type="button"
               disabled={busy}
               onClick={() => onQuickApprove(review)}
-              title="Chấp nhận điểm AI và xác nhận ngay"
+              title={t("recruiter.assessments.grading.acceptAiTooltip")}
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer"
             >
               <Sparkles className="size-3.5 text-[var(--color-primary)]" />
-              Nhận điểm AI ({display(review.suggestedScore)} đ)
+              {t("recruiter.assessments.grading.acceptAiBtn", { score: display(review.suggestedScore, locale, dash) })}
             </button>
           )}
 
@@ -1023,7 +1034,7 @@ function QuestionReviewCard({
               max={review.points}
               step="0.01"
               disabled={busy}
-              placeholder={review.suggestedScore == null ? "Nhập điểm" : "Điểm ghi đè"}
+              placeholder={review.suggestedScore == null ? t("recruiter.assessments.grading.enterScorePlaceholder") : t("recruiter.assessments.grading.overrideScorePlaceholder")}
               {...register(fieldName, {
                 onChange: () => clearErrors(fieldName),
               })}
@@ -1050,7 +1061,7 @@ function QuestionReviewCard({
             className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[var(--color-primary)] dark:bg-white dark:text-slate-900 dark:hover:bg-[var(--color-primary)] dark:hover:text-white transition-all cursor-pointer"
           >
             <Check className="size-3.5" />
-            Lưu điểm
+            {t("recruiter.assessments.grading.saveScoreBtn")}
           </button>
         </div>
       </div>
@@ -1106,19 +1117,21 @@ type CodingEvaluation = {
 };
 
 function EssayEvidenceDetail({ review }: { review: GradingReview }) {
+  const t = useT();
   const evaluation = safeObject<EssayEvaluation>(review.evaluation);
   const [showRef, setShowRef] = useState(false);
 
   const rubric = safeObject(review.rubric);
   const referenceAnswer = typeof rubric.referenceAnswer === "string" ? rubric.referenceAnswer : null;
   const criteria = Array.isArray(rubric.criteria) ? rubric.criteria : [];
+  const aiMissingFallback = t("recruiter.assessments.grading.aiMissingFallback");
 
   return (
     <div className="space-y-3.5 text-xs">
       {evaluation.status === "ERROR" && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60">
           <AlertCircle className="size-4 shrink-0 text-amber-600" />
-          <span>AI chưa hoàn tất chấm điểm tự luận. Bạn có thể yêu cầu chấm lại hoặc nhập điểm tay.</span>
+          <span>{t("recruiter.assessments.grading.essayErrorBanner")}</span>
         </div>
       )}
 
@@ -1132,7 +1145,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
           >
             <span className="flex items-center gap-2">
               <Eye className="size-3.5 text-slate-400" />
-              Đáp án mẫu tham khảo (Reference Answer)
+              {t("recruiter.assessments.grading.referenceAnswerToggle")}
             </span>
             {showRef ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
@@ -1149,8 +1162,8 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                <th className="px-4 py-2.5 font-bold">Tiêu chí</th>
-                <th className="px-4 py-2.5 font-bold text-center w-36">Trọng số</th>
+                <th className="px-4 py-2.5 font-bold">{t("recruiter.assessments.grading.colCriterion")}</th>
+                <th className="px-4 py-2.5 font-bold text-center w-36">{t("recruiter.assessments.grading.colWeight")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1164,10 +1177,10 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
                 return (
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                     <td className="px-4 py-3 align-middle font-medium text-[#101828] dark:text-white">
-                      {safeText(criterion.name || criterion.description, `Tiêu chí ${idx + 1}`)}
+                      {safeText(criterion.name || criterion.description, t("recruiter.assessments.grading.criterionFallback", { index: idx + 1 }))}
                       {Boolean(criterion.guide) && (
                         <p className="mt-0.5 text-[11px] font-normal text-slate-400">
-                          {safeText(criterion.guide)}
+                          {safeText(criterion.guide, aiMissingFallback)}
                         </p>
                       )}
                     </td>
@@ -1182,7 +1195,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
         </div>
       ) : (
         <p className="text-xs text-slate-400 italic">
-          Câu hỏi này chưa gắn rubric chi tiết. Nhà tuyển dụng có thể chấm thủ công.
+          {t("recruiter.assessments.grading.noDetailedRubric")}
         </p>
       )}
 
@@ -1191,8 +1204,8 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
         <div className="flex items-start gap-2.5 rounded-xl bg-[var(--color-primary-soft)]/70 p-3.5 text-xs text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
           <Sparkles className="size-4 shrink-0 text-[var(--color-primary)] mt-0.5" />
           <div className="space-y-1 min-w-0">
-            <span className="font-bold block">Tổng kết đánh giá từ AI:</span>
-            <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
+            <span className="font-bold block">{t("recruiter.assessments.grading.aiSummaryHeading")}</span>
+            <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment, aiMissingFallback), t)}</p>
           </div>
         </div>
       )}
@@ -1204,6 +1217,10 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
 // SUBCOMPONENT: CODING EVIDENCE DETAIL
 // ==========================================
 function CodingEvidenceDetail({ review }: { review: GradingReview }) {
+  const t = useT();
+  const locale = useLocale();
+  const dash = t("recruiter.assessments.common.dash");
+  const aiMissingFallback = t("recruiter.assessments.grading.aiMissingFallback");
   const evaluation = safeObject<CodingEvaluation>(review.evaluation);
   const tests = Array.isArray(evaluation.tests) ? evaluation.tests : [];
   const codeReview = safeObject<CodeReviewData>(evaluation.code_review);
@@ -1221,7 +1238,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       {evaluation.status === "ERROR" && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60">
           <AlertCircle className="size-4 shrink-0 text-amber-600" />
-          <span>Sandbox hoặc AI Review chưa trả kết quả. Không coi lỗi dịch vụ là 0 điểm.</span>
+          <span>{t("recruiter.assessments.grading.codingErrorBanner")}</span>
         </div>
       )}
 
@@ -1230,10 +1247,10 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
         <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/10 p-3.5 text-amber-900 dark:text-amber-200 border border-amber-500/30">
           <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
           <div className="space-y-0.5">
-            <span className="font-bold">Cảnh báo nghi ngờ Hardcode kết quả:</span>
+            <span className="font-bold">{t("recruiter.assessments.grading.hardcodeAlertTitle")}</span>
             <p className="leading-relaxed">
-              AI phát hiện mã nguồn có dấu hiệu hardcode điều kiện để qua test case.{" "}
-              {evaluation.hardcode_capped === true && "Điểm đề xuất đã bị áp trần tối đa 50%."}
+              {t("recruiter.assessments.grading.hardcodeAlertDesc")}
+              {evaluation.hardcode_capped === true && t("recruiter.assessments.grading.hardcodeCappedNote")}
             </p>
           </div>
         </div>
@@ -1243,12 +1260,12 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
           <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
             <Terminal className="size-4 text-[var(--color-primary)]" />
-            <span>Kết quả thực thi Sandbox Test Cases</span>
+            <span>{t("recruiter.assessments.grading.sandboxExecutionHeading")}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="font-semibold text-slate-600 dark:text-slate-300">
-              Hidden tests: <strong>{display(hiddenPassed)} / {display(hiddenTotal)}</strong> passed
+              {t("recruiter.assessments.grading.hiddenTestsLabel")} <strong>{display(hiddenPassed, locale, dash)} / {display(hiddenTotal, locale, dash)}</strong> {t("recruiter.assessments.grading.passedWord")}
             </span>
             {testsPercent != null && (
               <span
@@ -1259,7 +1276,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
                     : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
                 )}
               >
-                {display(testsPercent)}% pass
+                {t("recruiter.assessments.grading.passPercentBadge", { percent: display(testsPercent, locale, dash) })}
               </span>
             )}
           </div>
@@ -1271,47 +1288,47 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
-                  <th className="py-2 pr-3">Test Case</th>
-                  <th className="py-2 pr-3">Phân loại</th>
-                  <th className="py-2 pr-3">Trạng thái</th>
-                  <th className="py-2">Mô tả Sandbox</th>
+                  <th className="py-2 pr-3">{t("recruiter.assessments.grading.colTestCase")}</th>
+                  <th className="py-2 pr-3">{t("recruiter.assessments.grading.colCategory")}</th>
+                  <th className="py-2 pr-3">{t("recruiter.assessments.bank.general.statusFilterLabel")}</th>
+                  <th className="py-2">{t("recruiter.assessments.grading.colSandboxDesc")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {tests.map((raw, idx) => {
-                  const t = safeObject(raw);
-                  const isPassed = t.passed === true;
+                  const testCase = safeObject(raw);
+                  const isPassed = testCase.passed === true;
                   return (
                     <tr key={idx}>
                       <td className="py-2 pr-3 font-semibold text-slate-700 dark:text-slate-300">
-                        Test #{idx + 1}
+                        {t("recruiter.assessments.grading.testNumber", { index: idx + 1 })}
                       </td>
                       <td className="py-2 pr-3 text-slate-500">
-                        {t.sample === true ? (
+                        {testCase.sample === true ? (
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                            Công khai
+                            {t("recruiter.assessments.grading.publicTag")}
                           </span>
                         ) : (
                           <span className="rounded bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
-                            Ẩn (Tính điểm)
+                            {t("recruiter.assessments.grading.hiddenScoredTag")}
                           </span>
                         )}
                       </td>
                       <td className="py-2 pr-3">
                         {isPassed ? (
                           <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
-                            <Check className="size-3" /> Passed
+                            <Check className="size-3" /> {t("recruiter.assessments.grading.passedLabel")}
                           </span>
-                        ) : t.passed === false ? (
+                        ) : testCase.passed === false ? (
                           <span className="inline-flex items-center gap-1 font-bold text-rose-600 dark:text-rose-400">
-                            ✕ Failed
+                            {t("recruiter.assessments.grading.failedLabel")}
                           </span>
                         ) : (
-                          <span className="text-slate-400">Chưa có kết quả</span>
+                          <span className="text-slate-400">{t("recruiter.assessments.grading.noResultYet")}</span>
                         )}
                       </td>
                       <td className="py-2 text-slate-500 font-mono text-[11px]">
-                        {safeText(t.status_description, "—")}
+                        {safeText(testCase.status_description, dash)}
                       </td>
                     </tr>
                   );
@@ -1320,7 +1337,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
             </table>
           </div>
         ) : (
-          <p className="text-slate-400 italic">Chưa ghi nhận chi tiết từng test case.</p>
+          <p className="text-slate-400 italic">{t("recruiter.assessments.grading.noTestDetails")}</p>
         )}
       </div>
 
@@ -1329,15 +1346,15 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
         <div className="space-y-3">
           <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
             <Sparkles className="size-4 text-[var(--color-primary)]" />
-            <span>Phân tích chất lượng mã nguồn từ AI</span>
+            <span>{t("recruiter.assessments.grading.aiCodeReviewHeading")}</span>
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {[
-              { label: "Độ phức tạp thời gian (Time Complexity)", val: codeReview.time_complexity },
-              { label: "Độ phức tạp bộ nhớ (Space Complexity)", val: codeReview.space_complexity },
-              { label: "Clean Code & Naming", val: codeReview.clean_code || codeReview.naming_conventions },
-              { label: "Xử lý ngoại lệ an toàn", val: codeReview.exception_safety },
+              { label: t("recruiter.assessments.grading.timeComplexityLabel"), val: codeReview.time_complexity },
+              { label: t("recruiter.assessments.grading.spaceComplexityLabel"), val: codeReview.space_complexity },
+              { label: t("recruiter.assessments.grading.cleanCodeLabel"), val: codeReview.clean_code || codeReview.naming_conventions },
+              { label: t("recruiter.assessments.grading.exceptionSafetyLabel"), val: codeReview.exception_safety },
             ].map((item, i) => (
               <div
                 key={i}
@@ -1347,7 +1364,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
                   {item.label}
                 </div>
                 <p className="mt-1 leading-relaxed text-slate-600 dark:text-slate-300">
-                  {safeText(item.val, "Tốt, đáp ứng chuẩn mực.")}
+                  {safeText(item.val, t("recruiter.assessments.grading.aiDimensionFallback"))}
                 </p>
               </div>
             ))}
@@ -1355,8 +1372,8 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
 
           {Boolean(codeReview.general_comment) && (
             <div className="rounded-xl bg-[var(--color-primary-soft)]/70 p-3 text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
-              <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-              <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(codeReview.general_comment))}</p>
+              <span className="font-bold block mb-1">{t("recruiter.assessments.grading.aiOverallCommentHeading")}</span>
+              <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(codeReview.general_comment, aiMissingFallback), t)}</p>
             </div>
           )}
         </div>
@@ -1365,8 +1382,8 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       {/* Fallback AI comment when codeReview object is empty */}
       {Boolean(evaluation.general_comment) && Object.keys(codeReview).length === 0 && (
         <div className="rounded-xl bg-[var(--color-primary-soft)]/70 p-3 text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
-          <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-          <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
+          <span className="font-bold block mb-1">{t("recruiter.assessments.grading.aiOverallCommentHeading")}</span>
+          <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment, aiMissingFallback), t)}</p>
         </div>
       )}
 
@@ -1374,12 +1391,12 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       {testsPercent != null && (
         <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 flex flex-wrap items-center justify-between gap-2">
           <span>
-            Công thức tính điểm:{" "}
-            <strong>{display(testsPercent)}%</strong> × {display(testWeight * 100)}% (Test){" "}
-            + <strong>{display(aiPercent)}%</strong> × {display(aiWeight * 100)}% (AI Review)
+            {t("recruiter.assessments.grading.formulaPrefix")}{" "}
+            <strong>{display(testsPercent, locale, dash)}%</strong> × {display(testWeight * 100, locale, dash)}% {t("recruiter.assessments.grading.formulaTestTag")}{" "}
+            + <strong>{display(aiPercent, locale, dash)}%</strong> × {display(aiWeight * 100, locale, dash)}% {t("recruiter.assessments.grading.formulaAiTag")}
           </span>
           <span className="font-bold text-[var(--color-primary)]">
-            = {display(formulaPercent)}% → Điểm gợi ý: {display(review.suggestedScore)}/{review.points} đ
+            {t("recruiter.assessments.grading.formulaSuggestedResult", { formula: display(formulaPercent, locale, dash), score: display(review.suggestedScore, locale, dash), points: review.points })}
           </span>
         </div>
       )}
@@ -1395,15 +1412,25 @@ function IntegrityTimelineSection({
 }: {
   integrity: NonNullable<GradingDetail["integrity"]>;
 }) {
+  const t = useT();
+  const locale = useLocale();
+  const dash = t("recruiter.assessments.common.dash");
   const events = Array.isArray(integrity.proctorEvents) ? integrity.proctorEvents : [];
   const runs = Array.isArray(integrity.customRuns) ? integrity.customRuns : [];
+
+  const riskLevelLabel =
+    integrity.riskLevel === "HIGH"
+      ? t("recruiter.assessments.grading.riskHigh")
+      : integrity.riskLevel === "MEDIUM"
+        ? t("recruiter.assessments.grading.riskMedium")
+        : t("recruiter.assessments.grading.riskLow");
 
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex items-center gap-2.5 font-bold text-sm text-[#101828] dark:text-white">
           <ShieldCheck className="size-4 text-[var(--color-primary)]" />
-          <span>Nhật ký giám sát &amp; Tín hiệu toàn vẹn (Proctoring Log)</span>
+          <span>{t("recruiter.assessments.grading.proctoringHeading")}</span>
         </div>
         <div className="flex items-center gap-2">
           {integrity.riskLevel && (
@@ -1416,12 +1443,11 @@ function IntegrityTimelineSection({
                     : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
               }`}
             >
-              Rủi ro {integrity.riskLevel === "HIGH" ? "cao" : integrity.riskLevel === "MEDIUM" ? "trung bình" : "thấp"} ·{" "}
-              {Math.round(Number(integrity.riskScore ?? 0))}/100
+              {t("recruiter.assessments.grading.riskLevelPrefix", { level: riskLevelLabel, score: Math.round(Number(integrity.riskScore ?? 0)) })}
             </span>
           )}
           <span className="text-xs font-semibold text-slate-500">
-            Tổng cộng {integrity.proctorEventCount || 0} sự kiện giám sát
+            {t("recruiter.assessments.grading.totalProctorEvents", { count: integrity.proctorEventCount || 0 })}
           </span>
         </div>
       </div>
@@ -1430,7 +1456,7 @@ function IntegrityTimelineSection({
       {runs.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-            Số lần chạy thử nghiệm mã nguồn (Custom Runs):
+            {t("recruiter.assessments.grading.customRunsHeading")}
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {runs.map((rawRun, i) => {
@@ -1443,10 +1469,10 @@ function IntegrityTimelineSection({
                   className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/60 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-800/40"
                 >
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    Câu #{String(qId)}
+                    {t("recruiter.assessments.common.questionHashNumber", { index: String(qId) })}
                   </span>
                   <span className="rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 font-bold text-[var(--color-primary-hover)]">
-                    {runCount} lượt run
+                    {t("recruiter.assessments.grading.runsCount", { count: runCount })}
                   </span>
                 </div>
               );
@@ -1461,26 +1487,19 @@ function IntegrityTimelineSection({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-50/70 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                <th className="p-3 font-bold">Loại sự kiện</th>
-                <th className="p-3 font-bold w-44">Thời điểm</th>
-                <th className="p-3 font-bold">Chi tiết sự kiện</th>
+                <th className="p-3 font-bold">{t("recruiter.assessments.grading.colEventType")}</th>
+                <th className="p-3 font-bold w-44">{t("recruiter.assessments.grading.colEventTime")}</th>
+                <th className="p-3 font-bold">{t("recruiter.assessments.grading.colEventDetail")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {events.map((rawEvent, idx) => {
                 const e = safeObject<{ eventType?: unknown; createdAt?: unknown; detail?: unknown }>(rawEvent);
-                let formattedTime = "—";
-                if (e.createdAt) {
-                  try {
-                    const d = new Date(e.createdAt as string | number);
-                    if (!Number.isNaN(d.getTime())) {
-                      formattedTime = d.toLocaleString("vi-VN");
-                    }
-                  } catch {
-                    formattedTime = "—";
-                  }
-                }
-                const detailStr = safeText(e.detail, "—");
+                const formattedTime =
+                  e.createdAt && (typeof e.createdAt === "string" || typeof e.createdAt === "number")
+                    ? formatDateTime(e.createdAt, undefined, locale)
+                    : dash;
+                const detailStr = safeText(e.detail, dash);
 
                 return (
                   <tr key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
@@ -1507,7 +1526,7 @@ function IntegrityTimelineSection({
       ) : (
         <div className="py-6 text-center text-xs text-slate-400">
           <ShieldCheck className="mx-auto size-7 text-emerald-500/80 mb-1.5" />
-          Bài làm diễn ra hoàn toàn bình thường, không ghi nhận hành vi chuyển tab hay sao chép nghi vấn.
+          {t("recruiter.assessments.grading.proctoringCleanDesc")}
         </div>
       )}
     </section>
@@ -1518,6 +1537,7 @@ function IntegrityTimelineSection({
 // SUBCOMPONENT: COPY BUTTON
 // ==========================================
 function CopyButton({ text }: { text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -1525,10 +1545,10 @@ function CopyButton({ text }: { text: string }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast.success("Đã sao chép vào bộ nhớ tạm");
+      toast.success(t("recruiter.assessments.common.actions.copiedToClipboard"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Không thể sao chép");
+      toast.error(t("recruiter.assessments.common.actions.copyFailed"));
     }
   };
 
@@ -1542,12 +1562,12 @@ function CopyButton({ text }: { text: string }) {
       {copied ? (
         <>
           <Check className="size-3 text-emerald-600" />
-          <span className="text-emerald-600 font-bold">Đã chép</span>
+          <span className="text-emerald-600 font-bold">{t("recruiter.assessments.common.actions.copied")}</span>
         </>
       ) : (
         <>
           <Copy className="size-3" />
-          <span>Sao chép</span>
+          <span>{t("recruiter.assessments.common.actions.copy")}</span>
         </>
       )}
     </button>

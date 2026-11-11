@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { landingApi } from "@/api/tenant/landingApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT } from "@/i18n";
 import { getLandingThemeStyle, getTenantTheme } from "@/lib/tenantTheme";
 import { getCentralOAuthRedirectUri, getTenantIdFromWindow } from "@/lib/tenant";
 import "./candidate-login.css";
@@ -28,13 +29,14 @@ function resumePathFrom(state: unknown) {
 }
 
 export function CandidateLoginPage() {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectUrl = resumePathFrom(location.state);
   const loginRequired = redirectUrl !== "/";
   const theme = getTenantTheme(getTenantIdFromWindow() || "acme");
   const [redirecting, setRedirecting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const publicLanding = useQuery({
     queryKey: ["public-landing", theme.code],
@@ -45,8 +47,8 @@ export function CandidateLoginPage() {
   const customLanding = publicLanding.data?.data;
   const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
   const primaryHover = customLanding?.theme?.primaryHover || customLanding?.theme?.primaryColor || theme.primaryHover;
-  const slogan = customLanding?.header?.slogan?.trim() || "Cổng tuyển dụng nhân tài";
-  const copyrightText = customLanding?.footer?.copyrightText?.trim() || `© 2026 ${theme.name}. Cổng thông tin ứng viên.`;
+  const slogan = customLanding?.header?.slogan?.trim() || t("auth.candidateLogin.talentPortal");
+  const copyrightText = customLanding?.footer?.copyrightText?.trim() || t("auth.candidateLogin.footerNote", { name: theme.name });
   const shellRadius = ({
     "rounded-none": "0px",
     "rounded-lg": "12px",
@@ -62,12 +64,12 @@ export function CandidateLoginPage() {
 
   const handleGoogleLogin = () => {
     if (!googleClientId) {
-      setErrorMessage("Chưa cấu hình VITE_GOOGLE_CLIENT_ID trong biến môi trường.");
+      setErrorKey("auth.candidateLogin.missingGoogleClientId");
       return;
     }
 
     setRedirecting(true);
-    setErrorMessage(null);
+    setErrorKey(null);
     const currentTenant = getTenantIdFromWindow() || "acme";
     const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     googleAuthUrl.searchParams.set("client_id", googleClientId);
@@ -85,24 +87,24 @@ export function CandidateLoginPage() {
     <div className="candidate-login-page tenant-workspace-theme bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]" style={dynamicThemeStyle}>
       <header className="candidate-login-header z-10 border-b border-[var(--color-border-default)] bg-white">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <button type="button" onClick={() => navigate("/")} className="flex min-w-0 items-center gap-3 text-left" aria-label={`Về trang tuyển dụng ${theme.name}`}>
+          <button type="button" onClick={() => navigate("/")} className="flex min-w-0 items-center gap-3 text-left" aria-label={t("auth.candidateLogin.careerHomeAria", { name: theme.name })}>
             <span className={`grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl font-semibold ${showLogo ? "border border-[var(--color-border-default)] bg-white p-1" : "bg-[var(--color-primary)] text-white"}`}>
               {showLogo ? <img src={logoUrl} alt="" className="size-full object-contain" onError={() => setFailedLogoUrl(logoUrl)} /> : theme.code.charAt(0).toUpperCase()}
             </span>
             <span className="min-w-0"><span className="block truncate text-base font-semibold text-slate-900">{theme.name}</span><span className="hidden text-xs text-slate-500 sm:block">{slogan}</span></span>
           </button>
-          <div className="flex items-center gap-1"><LanguageSwitcher variant="icon" /><button type="button" onClick={() => navigate("/")} className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ArrowLeft className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Quay lại</span></button></div>
+          <div className="flex items-center gap-1"><LanguageSwitcher variant="icon" /><button type="button" onClick={() => navigate("/")} className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ArrowLeft className="size-4" aria-hidden="true" /><span className="hidden sm:inline">{t("common.back")}</span></button></div>
         </div>
       </header>
 
       <main className="candidate-login-main">
         <div className="candidate-login-shell border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-ambient)]" style={{ borderRadius: shellRadius }}>
           <section className="candidate-login-intro text-white" style={{ background: `linear-gradient(145deg, ${primaryColor}, ${primaryHover})` }}>
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold"><Sparkles className="size-4" aria-hidden="true" />Không gian ứng viên</span>
-            <h1 className="mt-5 max-w-xl text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">Theo dõi hành trình ứng tuyển của bạn tại {theme.name}.</h1>
-            <p className="mt-4 max-w-lg text-sm leading-6 text-white/75">Quản lý hồ sơ, lịch phỏng vấn và bài đánh giá trong một không gian bảo mật, thuận tiện.</p>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold"><Sparkles className="size-4" aria-hidden="true" />{t("auth.candidateLogin.candidateSpace")}</span>
+            <h1 className="mt-5 max-w-xl text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">{t("auth.candidateLogin.introHeading", { name: theme.name })}</h1>
+            <p className="mt-4 max-w-lg text-sm leading-6 text-white/75">{t("auth.candidateLogin.introSubtitle")}</p>
             <ul className="mt-6 space-y-3 text-sm">
-              {["Theo dõi trạng thái hồ sơ", "Nhận lịch phỏng vấn và bài đánh giá", "Bảo vệ thông tin ứng viên"].map((item) => <li key={item} className="flex items-center gap-3"><span className="grid size-7 place-items-center rounded-full bg-white/15"><CheckCircle2 className="size-4" aria-hidden="true" /></span>{item}</li>)}
+              {[t("auth.candidateLogin.bullet1"), t("auth.candidateLogin.bullet2"), t("auth.candidateLogin.bullet3")].map((item) => <li key={item} className="flex items-center gap-3"><span className="grid size-7 place-items-center rounded-full bg-white/15"><CheckCircle2 className="size-4" aria-hidden="true" /></span>{item}</li>)}
             </ul>
           </section>
 
@@ -113,15 +115,15 @@ export function CandidateLoginPage() {
                   {showLogo ? <img src={logoUrl} alt="" onError={() => setFailedLogoUrl(logoUrl)} /> : <span>{theme.code.charAt(0).toUpperCase()}</span>}
                 </div>
                 <div className="candidate-login-reveal text-center">
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Đăng nhập vào {theme.name}</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">Dùng tài khoản Google để tiếp tục.</p>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{t("auth.candidateLogin.loginInto", { name: theme.name })}</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{t("auth.candidateLogin.googleHint")}</p>
                 </div>
-                {loginRequired && <p className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-primary-subtle)] p-3 text-sm leading-6 text-slate-700" role="status"><Lock className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />Vui lòng đăng nhập để tiếp tục. Sau khi đăng nhập, bạn sẽ được đưa về đúng trang đang mở.</p>}
+                {loginRequired && <p className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-primary-subtle)] p-3 text-sm leading-6 text-slate-700" role="status"><Lock className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />{t("auth.candidateLogin.loginRequiredNotice")}</p>}
                 <button type="button" onClick={handleGoogleLogin} disabled={redirecting} className="candidate-login-reveal candidate-login-reveal-delay mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-[border-color,background-color,box-shadow] duration-200 hover:border-[var(--color-primary)]/50 hover:bg-slate-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-60">
-                  {redirecting ? <><Loader2 className="size-5 animate-spin text-[var(--color-primary)]" aria-hidden="true" />Đang kết nối...</> : <><GoogleIcon />Tiếp tục với Google<ArrowRight className="size-4 text-slate-400" aria-hidden="true" /></>}
+                  {redirecting ? <><Loader2 className="size-5 animate-spin text-[var(--color-primary)]" aria-hidden="true" />{t("auth.candidateLogin.connecting")}</> : <><GoogleIcon />{t("auth.candidateLogin.continueWithGoogle")}<ArrowRight className="size-4 text-slate-400" aria-hidden="true" /></>}
                 </button>
-                {errorMessage && <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--color-error-container)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert"><AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span>{errorMessage}</span></div>}
-                <p className="mt-5 flex items-start gap-2 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />Hệ thống không lưu hoặc chia sẻ mật khẩu Google của bạn.</p>
+                {errorKey && <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--color-error-container)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert"><AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span>{t(errorKey)}</span></div>}
+                <p className="mt-5 flex items-start gap-2 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />{t("auth.candidateLogin.googleSecurityNote")}</p>
               </div>
               <p className="mt-4 text-center text-xs text-slate-400">{copyrightText}</p>
             </div>

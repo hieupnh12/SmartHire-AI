@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Bot, Settings2, Users } from "lucide-react";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export type AiInterviewTab = "sessions" | "tracking" | "config";
@@ -17,24 +18,25 @@ export function AiInterviewSubNav({
   className,
   onTabChange,
 }: Props) {
+  const t = useT();
   const basePath = `/recruiter/jobs/${jobId}/ai-interviews`;
 
   const navItems = [
     {
       id: "sessions" as const,
-      label: "Phiên phỏng vấn",
+      label: t("recruiter.interviews.ai.subNav.sessions"),
       to: basePath,
       icon: Bot,
     },
     {
       id: "tracking" as const,
-      label: "Theo dõi kết quả",
+      label: t("recruiter.interviews.ai.subNav.tracking"),
       to: `${basePath}?tab=tracking`,
       icon: Users,
     },
     {
       id: "config" as const,
-      label: "Cấu hình",
+      label: t("recruiter.interviews.ai.subNav.config"),
       to: `${basePath}?tab=config`,
       icon: Settings2,
     },
@@ -47,7 +49,7 @@ export function AiInterviewSubNav({
         className,
       )}
       role="tablist"
-      aria-label="Phân hệ phỏng vấn AI"
+      aria-label={t("recruiter.interviews.ai.subNav.ariaLabel")}
     >
       <div className="flex min-w-full items-center gap-1 sm:min-w-0">
         {navItems.map((item) => {

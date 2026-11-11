@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 type SkeletonProps = HTMLAttributes<HTMLDivElement>;
@@ -50,8 +51,10 @@ export function TableSkeleton({ columns = 5, rows = 5, className }: { columns?: 
   );
 }
 
-export function LoadingState({ children, label = "Đang tải dữ liệu", className }: { children: ReactNode; label?: string; className?: string }) {
-  return <div className={className} role="status" aria-busy="true" aria-label={label}>{children}<span className="sr-only">{label}</span></div>;
+export function LoadingState({ children, label, className }: { children: ReactNode; label?: string; className?: string }) {
+  const t = useT();
+  const resolvedLabel = label ?? t("common.loadingData");
+  return <div className={className} role="status" aria-busy="true" aria-label={resolvedLabel}>{children}<span className="sr-only">{resolvedLabel}</span></div>;
 }
 
 export function PageSkeleton({ variant = "page", className }: { variant?: "page" | "list" | "detail" | "form"; className?: string }) {

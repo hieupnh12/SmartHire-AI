@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { contractApi, ContractItem } from "@/api/master/contractApi";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { formatDate, formatDateTime, formatNumber, useLocale, useT } from "@/i18n";
 import {
   FileSignature,
   ShieldCheck,
@@ -16,6 +18,8 @@ import {
 } from "lucide-react";
 
 export function PublicContractSigningPage() {
+  const t = useT();
+  const locale = useLocale();
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
@@ -27,7 +31,7 @@ export function PublicContractSigningPage() {
 
   useEffect(() => {
     if (!token) {
-      setError("Liên kết ký hợp đồng không hợp lệ.");
+      setError(t("master.commerce.publicSigning.invalidLinkError"));
       setLoading(false);
       return;
     }
@@ -40,7 +44,7 @@ export function PublicContractSigningPage() {
       } catch (err: any) {
         const msg =
           err.response?.data?.message ||
-          "Không thể tải thông tin hợp đồng. Liên kết có thể đã hết hạn hoặc không tồn tại.";
+          t("master.commerce.publicSigning.fetchError");
         setError(msg);
       } finally {
         setLoading(false);
@@ -48,7 +52,7 @@ export function PublicContractSigningPage() {
     };
 
     fetchContract();
-  }, [token]);
+  }, [token, t]);
 
   const handleSyncDropboxSign = async () => {
     if (!token) return;
@@ -58,20 +62,20 @@ export function PublicContractSigningPage() {
       const updated = await contractApi.syncEsignByToken(token);
       setContract(updated);
       if (updated.status === "SIGNED") {
-        setSyncNotice("Hợp đồng đã được ký số thành công trên Dropbox Sign! Chứng thư Audit Trail và mã băm SHA-256 đã được cập nhật.");
+        setSyncNotice(t("master.commerce.publicSigning.syncSigned"));
       } else if (updated.status === "REJECTED") {
-        setSyncNotice("Hợp đồng đã bị đại diện Bên B từ chối ký trên Dropbox Sign. Giao dịch tạm giữ đã được hủy.");
+        setSyncNotice(t("master.commerce.publicSigning.syncRejected"));
       } else if (updated.status === "TERMINATED") {
-        setSyncNotice("Yêu cầu ký hợp đồng trên Dropbox Sign đã bị hủy (TERMINATED).");
+        setSyncNotice(t("master.commerce.publicSigning.syncTerminated"));
       } else if (updated.status === "EXPIRED") {
-        setSyncNotice("Hợp đồng điện tử này đã hết hạn hiệu lực ký.");
+        setSyncNotice(t("master.commerce.publicSigning.syncExpired"));
       } else {
-        setSyncNotice("Đã kiểm tra từ Dropbox Sign: Hợp đồng đang chờ đại diện Bên B hoàn tất ký kết qua email.");
+        setSyncNotice(t("master.commerce.publicSigning.syncPending"));
       }
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||
-        "Không thể đồng bộ trạng thái từ Dropbox Sign. Vui lòng thử lại sau.";
+        t("master.commerce.publicSigning.syncError");
       setSyncNotice(msg);
     } finally {
       setSyncing(false);
@@ -83,8 +87,8 @@ export function PublicContractSigningPage() {
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
         <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 text-center max-w-sm w-full">
           <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-          <h2 className="text-base font-bold text-slate-800">Đang Xác Thực Hợp Đồng Điện Tử...</h2>
-          <p className="text-xs text-slate-500 mt-1">Đang tải toàn văn văn bản pháp lý và chứng thư số Dropbox Sign.</p>
+          <h2 className="text-base font-bold text-slate-800">{t("master.commerce.publicSigning.loadingTitle")}</h2>
+          <p className="text-xs text-slate-500 mt-1">{t("master.commerce.publicSigning.loadingDesc")}</p>
         </div>
       </div>
     );
@@ -95,13 +99,13 @@ export function PublicContractSigningPage() {
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
         <div className="bg-white p-8 rounded-2xl shadow-xl border border-rose-200 text-center max-w-md w-full">
           <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-slate-900">Liên Kết Không Hợp Lệ</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("master.commerce.publicSigning.invalidTitle")}</h2>
           <p className="text-xs text-slate-600 mt-2 leading-relaxed">{error}</p>
           <button
             onClick={() => navigate("/")}
             className="mt-6 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all"
           >
-            Quay Lại Trang Chủ
+            {t("master.commerce.publicSigning.backHomeBtn")}
           </button>
         </div>
       </div>
@@ -127,7 +131,7 @@ export function PublicContractSigningPage() {
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-bold text-slate-900">Cổng Ký Hợp Đồng Điện Tử B2B (Dropbox Sign)</span>
+              <span className="text-sm font-bold text-slate-900">{t("master.commerce.publicSigning.portalTitle")}</span>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                   isSigned
@@ -138,22 +142,24 @@ export function PublicContractSigningPage() {
                 }`}
               >
                 {isSigned
-                  ? "ĐÃ KÝ SỐ HỢP LỆ (AUDIT TRAIL)"
+                  ? t("master.commerce.publicSigning.statusSigned")
                   : isRejected
-                  ? "ĐỐI TÁC ĐÃ TỪ CHỐI KÝ"
+                  ? t("master.commerce.publicSigning.statusRejected")
                   : isTerminated
-                  ? "ĐÃ HỦY YÊU CẦU KÝ"
+                  ? t("master.commerce.publicSigning.statusTerminated")
                   : isExpired
-                  ? "ĐÃ HẾT HẠN KÝ"
-                  : "CHỜ ĐỐI TÁC KÝ QUA DROPBOX SIGN"}
+                  ? t("master.commerce.publicSigning.statusExpired")
+                  : t("master.commerce.publicSigning.statusPending")}
               </span>
               {contract.esignTestMode && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 border border-sky-300">
-                  SANDBOX TEST MODE
+                  {t("master.commerce.publicSigning.sandboxBadge")}
                 </span>
               )}
             </div>
-            <span className="text-xs text-slate-500 font-mono">Mã HĐ: {contract.contractNumber}</span>
+            <span className="text-xs text-slate-500 font-mono">
+              {t("master.commerce.publicSigning.contractCodeLine", { code: contract.contractNumber })}
+            </span>
           </div>
         </div>
 
@@ -165,7 +171,7 @@ export function PublicContractSigningPage() {
             className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs flex items-center gap-1.5 transition-colors"
           >
             <Download className="w-4 h-4" />
-            <span>{isSigned ? "Tải PDF Đã Ký & Audit Trail" : "Tải Bản Thảo PDF"}</span>
+            <span>{isSigned ? t("master.commerce.publicSigning.downloadSignedPdf") : t("master.commerce.publicSigning.downloadDraftPdf")}</span>
           </a>
 
           <button
@@ -173,7 +179,7 @@ export function PublicContractSigningPage() {
             className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
           >
             <Printer className="w-4 h-4 text-slate-500" />
-            <span>In Văn Bản</span>
+            <span>{t("master.commerce.publicSigning.printBtn")}</span>
           </button>
 
           {!isSigned && !isClosedWithoutSignature && (
@@ -183,9 +189,11 @@ export function PublicContractSigningPage() {
               className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
             >
               {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              <span>Đồng Bộ Trạng Thái Ký</span>
+              <span>{t("master.commerce.publicSigning.syncBtn")}</span>
             </button>
           )}
+
+          <LanguageSwitcher variant="icon" />
         </div>
       </div>
 
@@ -197,50 +205,57 @@ export function PublicContractSigningPage() {
               <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>
                 {isSigned
-                  ? "Văn bản đã được ký số hợp pháp trên nền tảng Dropbox Sign (HelloSign)"
+                  ? t("master.commerce.publicSigning.bannerTitleSigned")
                   : isRejected
-                  ? "Hợp đồng đã bị từ chối ký trên Dropbox Sign"
+                  ? t("master.commerce.publicSigning.bannerTitleRejected")
                   : isTerminated
-                  ? "Yêu cầu ký hợp đồng trên Dropbox Sign đã bị hủy"
+                  ? t("master.commerce.publicSigning.bannerTitleTerminated")
                   : isExpired
-                  ? "Hợp đồng điện tử đã hết hạn hiệu lực ký"
-                  : "Hướng dẫn ký số hợp pháp qua Dropbox Sign (Remote Email Signing)"}
+                  ? t("master.commerce.publicSigning.bannerTitleExpired")
+                  : t("master.commerce.publicSigning.bannerTitlePending")}
               </span>
             </div>
             {isSigned ? (
               <p className="text-emerald-800 leading-relaxed">
-                Hợp đồng này đã được ký điện tử thành công và niêm phong mật mã học kèm trang <strong>Dropbox Sign Audit Trail</strong>. Mọi hành vi chỉnh sửa nội dung sau khi ký đều làm thay đổi mã băm SHA-256.
+                {t("master.commerce.publicSigning.bannerSignedBefore")}
+                <strong>{t("master.commerce.publicSigning.bannerSignedStrong")}</strong>
+                {t("master.commerce.publicSigning.bannerSignedAfter")}
               </p>
             ) : isClosedWithoutSignature ? (
               <p className="text-rose-700 leading-relaxed">
                 {isRejected
-                  ? "Đại diện Bên B đã chọn từ chối ký hợp đồng này trên Dropbox Sign. Hồ sơ giao dịch và tên miền phụ tạm giữ đã được hủy theo quy trình."
+                  ? t("master.commerce.publicSigning.bannerRejectedDesc")
                   : isTerminated
-                  ? "Yêu cầu ký số trên Dropbox Sign cho hợp đồng này đã bị hủy. Vui lòng liên hệ SmartHire-AI nếu cần lập hợp đồng mới."
-                  : "Liên kết ký số của hợp đồng này đã hết hạn hiệu lực. Vui lòng liên hệ SmartHire-AI để được cấp hợp đồng mới."}
+                  ? t("master.commerce.publicSigning.bannerTerminatedDesc")
+                  : t("master.commerce.publicSigning.bannerExpiredDesc")}
               </p>
             ) : (
               <p className="text-slate-600 leading-relaxed">
-                Để đảm bảo giá trị pháp lý và toàn vẹn dữ liệu theo Luật Giao dịch điện tử 20/2023/QH15, yêu cầu ký số kèm văn bản PDF đã được{" "}
-                <strong>Dropbox Sign</strong> gửi trực tiếp tới hộp thư đại diện Bên B:{" "}
+                {t("master.commerce.publicSigning.bannerPendingPart1")}
+                <strong>{t("master.commerce.publicSigning.bannerPendingProvider")}</strong>
+                {t("master.commerce.publicSigning.bannerPendingPart2")}
                 <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                  {contract.partyBEmail || "email đại diện Bên B"}
+                  {contract.partyBEmail || t("master.commerce.publicSigning.bannerPendingEmailFallback")}
                 </span>
-                . Vui lòng mở email từ <strong>Dropbox Sign (noreply@mail.hellosign.com)</strong> và nhấn <strong>"Review &amp; Sign"</strong> để ký kết.
+                {t("master.commerce.publicSigning.bannerPendingPart3")}
+                <strong>{t("master.commerce.publicSigning.bannerPendingSender")}</strong>
+                {t("master.commerce.publicSigning.bannerPendingPart4")}
+                <strong>{t("master.commerce.publicSigning.bannerPendingAction")}</strong>
+                {t("master.commerce.publicSigning.bannerPendingPart5")}
               </p>
             )}
 
             <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600 font-mono">
               {contract.externalSignatureRequestId && (
                 <div>
-                  <span className="font-sans font-semibold text-slate-500">Request ID: </span>
+                  <span className="font-sans font-semibold text-slate-500">{t("master.commerce.publicSigning.requestIdLabel")} </span>
                   <span className="text-slate-900 font-bold">{contract.externalSignatureRequestId}</span>
                 </div>
               )}
               {contract.documentChecksum && (
                 <div className="flex items-center gap-1 break-all">
                   <Hash className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span className="font-sans font-semibold text-slate-500">SHA-256: </span>
+                  <span className="font-sans font-semibold text-slate-500">{t("master.commerce.publicSigning.shaLabel")} </span>
                   <span className="text-slate-800">{contract.documentChecksum}</span>
                 </div>
               )}
@@ -258,113 +273,136 @@ export function PublicContractSigningPage() {
 
       {/* Contract Paper Document */}
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-300 p-8 sm:p-14 print:p-0 print:border-none print:shadow-none">
-        {/* National Header (Quốc Hiệu & Tiêu Ngữ) */}
+        {/* National Header */}
         <div className="text-center pb-6 border-b border-slate-200">
           <h4 className="text-xs font-bold uppercase tracking-widest text-slate-900">
-            CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+            {t("master.commerce.contractDetailModal.nationalHeader")}
           </h4>
-          <h5 className="text-xs font-semibold text-slate-800 mt-1">Độc lập - Tự do - Hạnh phúc</h5>
+          <h5 className="text-xs font-semibold text-slate-800 mt-1">{t("master.commerce.contractDetailModal.nationalMotto")}</h5>
           <div className="w-36 h-0.5 bg-slate-900 mx-auto my-3" />
           <p className="text-[11px] text-slate-500 italic">
-            Hà Nội, ngày {new Date(contract.createdAt).getDate()} tháng {new Date(contract.createdAt).getMonth() + 1} năm{" "}
-            {new Date(contract.createdAt).getFullYear()}
+            {t("master.commerce.contractDetailModal.placeDate", {
+              date: formatDate(contract.createdAt, undefined, locale),
+            })}
           </p>
         </div>
 
         {/* Contract Title */}
         <div className="text-center my-6">
           <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-900 leading-tight">
-            HỢP ĐỒNG CUNG CẤP DỊCH VỤ PHẦN MỀM TUYỂN DỤNG AI
+            {t("master.commerce.publicSigning.docTitleLine1")}
             <br />
-            <span className="text-indigo-600 text-lg sm:text-xl">&amp; HẠ TẦNG CƠ SỞ DỮ LIỆU ĐỘC LẬP</span>
+            <span className="text-indigo-600 text-lg sm:text-xl">{t("master.commerce.publicSigning.docTitleLine2")}</span>
           </h1>
           <p className="text-xs font-mono font-bold text-slate-600 mt-2">
-            Số: <span className="text-indigo-700">{contract.contractNumber}</span>/HĐDV-SMARTHIRE
+            {t("master.commerce.contractDetailModal.contractNumberLine", { contractNumber: contract.contractNumber })}
           </p>
         </div>
 
         {/* Legal Basis */}
         <div className="text-[11px] text-slate-600 italic space-y-1 mb-8 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <p>• Căn cứ Bộ luật Dân sự số 91/2015/QH13;</p>
-          <p>• Căn cứ Luật Thương mại số 36/2005/QH11;</p>
-          <p>• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15;</p>
-          <p>• Căn cứ Nghị định số 13/2023/NĐ-CP của Chính phủ về Bảo vệ dữ liệu cá nhân;</p>
-          <p>• Căn cứ vào nhu cầu và năng lực thực tế của hai bên.</p>
+          <p>{t("master.commerce.publicSigning.legalBasis1")}</p>
+          <p>{t("master.commerce.publicSigning.legalBasis2")}</p>
+          <p>{t("master.commerce.publicSigning.legalBasis3")}</p>
+          <p>{t("master.commerce.publicSigning.legalBasis4")}</p>
+          <p>{t("master.commerce.publicSigning.legalBasis5")}</p>
         </div>
 
         {/* Parties Information */}
         <div className="space-y-6 text-xs text-slate-800 leading-relaxed mb-8">
-          <p className="font-semibold">Hôm nay, ngày {new Date(contract.createdAt).toLocaleDateString("vi-VN")}, chúng tôi gồm có:</p>
+          <p className="font-semibold">
+            {t("master.commerce.publicSigning.todayPartiesIntro", {
+              date: formatDate(contract.createdAt, undefined, locale),
+            })}
+          </p>
 
-          {/* BÊN A */}
+          {/* PARTY A */}
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
             <h3 className="font-bold text-sm text-indigo-900 uppercase mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>BÊN A: {contract.partyAName || "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"}</span>
+              <span>
+                {t("master.commerce.publicSigning.partyAHeading", {
+                  name: contract.partyAName || t("master.commerce.contractDetailModal.partyAFallbackName"),
+                })}
+              </span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
               <div>
-                <span className="font-semibold">Mã số thuế: </span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
                 <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || "0110889988"}</span>
               </div>
               <div>
-                <span className="font-semibold">Người đại diện: </span>
-                <span>{contract.partyARepresentative || "Phan Nhật Hưng"} — Chức vụ: {contract.partyAPosition || "Tổng Giám Đốc"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyARepLabel")} </span>
+                <span>
+                  {contract.partyARepresentative || "Phan Nhật Hưng"}
+                  {t("master.commerce.publicSigning.partyAPositionSegment", {
+                    position: contract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition"),
+                  })}
+                </span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Trụ sở: </span>
-                <span>{contract.partyAAddress || "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyAAddressLabel")} </span>
+                <span>{contract.partyAAddress || t("master.commerce.publicSigning.partyADefaultAddress")}</span>
               </div>
               <div>
-                <span className="font-semibold">Email pháp chế: </span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyAEmailLabel")} </span>
                 <span>{contract.partyAEmail || "legal@smarthire.top"}</span>
               </div>
               <div>
-                <span className="font-semibold">Hotline: </span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyAHotlineLabel")} </span>
                 <span>{contract.partyAPhone || "1900 6868"}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Tài khoản: </span>
-                <span className="font-mono font-bold">{contract.partyABankAccount || "190388889999"}</span> tại{" "}
-                <span>{contract.partyABankName || "Ngân hàng Techcombank"} – {contract.partyABankBranch || "CN Hà Nội"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyAAccountLabel")} </span>
+                <span className="font-mono font-bold">{contract.partyABankAccount || "190388889999"}</span>{" "}
+                {t("master.commerce.publicSigning.partyABankAt")}{" "}
+                <span>
+                  {contract.partyABankName || t("master.commerce.publicSigning.partyADefaultBankName")} –{" "}
+                  {contract.partyABankBranch || t("master.commerce.publicSigning.partyADefaultBankBranch")}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* BÊN B */}
+          {/* PARTY B */}
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
             <h3 className="font-bold text-sm text-slate-900 uppercase mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-600" />
-              <span>BÊN B: BÊN SỬ DỤNG DỊCH VỤ</span>
+              <span>{t("master.commerce.publicSigning.partyBHeading")}</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
               <div>
-                <span className="font-semibold">Tên doanh nghiệp: </span>
-                <span className="font-bold text-slate-900">{contract.partyBName || contract.tenantName || "Doanh nghiệp khách hàng"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyBCompanyLabel")} </span>
+                <span className="font-bold text-slate-900">{contract.partyBName || contract.tenantName || t("master.commerce.publicSigning.partyBDefaultName")}</span>
               </div>
               <div>
-                <span className="font-semibold">Mã số thuế: </span>
-                <span className="font-mono font-bold text-slate-900">{contract.partyBTaxCode || "Đang cập nhật"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
+                <span className="font-mono font-bold text-slate-900">{contract.partyBTaxCode || t("master.commerce.contractDetailModal.taxCodeUpdating")}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Địa chỉ: </span>
-                <span>{contract.partyBAddress || "Đăng ký theo Giấy phép ĐKKD"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyBAddressLabel")} </span>
+                <span>{contract.partyBAddress || t("master.commerce.publicSigning.partyBDefaultAddress")}</span>
               </div>
               <div>
-                <span className="font-semibold">Đại diện: </span>
-                <span>{contract.partyBRepresentative || "Đại diện theo pháp luật"} — Chức vụ: {contract.partyBPosition || "Giám Đốc"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyBRepLabel")} </span>
+                <span>
+                  {contract.partyBRepresentative || t("master.commerce.contractDetailModal.repFallback")}
+                  {t("master.commerce.publicSigning.partyAPositionSegment", {
+                    position: contract.partyBPosition || t("master.commerce.contractDetailModal.partyBFallbackPosition"),
+                  })}
+                </span>
               </div>
               <div>
-                <span className="font-semibold">Số điện thoại: </span>
-                <span>{contract.partyBPhone || "Theo hồ sơ đăng ký"}</span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyBPhoneLabel")} </span>
+                <span>{contract.partyBPhone || t("master.commerce.publicSigning.partyBDefaultPhone")}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Email ký số &amp; nhận hóa đơn: </span>
+                <span className="font-semibold">{t("master.commerce.publicSigning.partyBEmailLabel")} </span>
                 <span className="font-mono text-indigo-700">{contract.partyBEmail || "email@company.com"}</span>
               </div>
               {contract.partyBBankAccount && (
                 <div className="sm:col-span-2">
-                  <span className="font-semibold">Tài khoản ngân hàng: </span>
+                  <span className="font-semibold">{t("master.commerce.publicSigning.partyBBankLabel")} </span>
                   <span className="font-mono">{contract.partyBBankAccount}</span>
                 </div>
               )}
@@ -377,40 +415,51 @@ export function PublicContractSigningPage() {
           {/* Article 1 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 1: ĐỐI TƯỢNG, PHẠM VI DỊCH VỤ VÀ HẠN NGẠCH TÀI NGUYÊN
+              {t("master.commerce.publicSigning.article1Title")}
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
               <p>
-                1.1. Bên A cung cấp và Bên B đồng ý thuê quyền sử dụng nền tảng tuyển dụng thông minh <strong>SmartHire-AI</strong> theo mô hình SaaS như sau:
+                {t("master.commerce.publicSigning.article1_1Before")}
+                <strong>SmartHire-AI</strong>
+                {t("master.commerce.publicSigning.article1_1After")}
               </p>
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
                 <div>
-                  • <strong>Gói dịch vụ:</strong>{" "}
-                  <span className="font-bold text-indigo-700">{contract.planName || "Enterprise (Tùy chỉnh)"}</span>
+                  • <strong>{t("master.commerce.publicSigning.article1PlanLabel")}</strong>{" "}
+                  <span className="font-bold text-indigo-700">{contract.planName || t("master.commerce.publicSigning.article1DefaultPlan")}</span>
                 </div>
                 <div>
-                  • <strong>Không gian làm việc (Subdomain):</strong>{" "}
+                  • <strong>{t("master.commerce.publicSigning.article1SubdomainLabel")}</strong>{" "}
                   <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-indigo-700">
-                    https://{contract.tenantCode || "doanhnghiep"}.smarthire.top
+                    https://{contract.tenantCode || "company"}.smarthire.top
                   </code>
                 </div>
                 <div>
-                  • <strong>Hạn mức tài nguyên định kỳ:</strong> Tối đa{" "}
-                  <strong>{contract.maxJobs && contract.maxJobs >= 9999 ? "Không giới hạn" : (contract.maxJobs ?? "Không giới hạn")}</strong> vị trí tuyển dụng (Jobs);{" "}
-                  <strong>{(contract.maxCvParses ?? 5000).toLocaleString("vi-VN")}</strong> lượt phân tích CV AI/tháng;{" "}
-                  <strong>{(contract.maxAiInterviewHours ?? 200).toLocaleString("vi-VN")}</strong> giờ phỏng vấn AI/tháng;{" "}
-                  <strong>{contract.maxStorageGb ?? 100} GB</strong> lưu trữ.
+                  • <strong>{t("master.commerce.publicSigning.article1QuotaLabel")}</strong>{" "}
+                  {t("master.commerce.publicSigning.article1QuotaPrefix")}
+                  <strong>{contract.maxJobs && contract.maxJobs >= 9999 ? t("master.commerce.common.unlimited") : (contract.maxJobs ?? t("master.commerce.common.unlimited"))}</strong>
+                  {t("master.commerce.publicSigning.article1QuotaJobsSuffix")}
+                  <strong>{formatNumber(contract.maxCvParses ?? 5000, undefined, locale)}</strong>
+                  {t("master.commerce.publicSigning.article1QuotaCvSuffix")}
+                  <strong>{formatNumber(contract.maxAiInterviewHours ?? 200, undefined, locale)}</strong>
+                  {t("master.commerce.publicSigning.article1QuotaAiSuffix")}
+                  <strong>{contract.maxStorageGb ?? 100} GB</strong>
+                  {t("master.commerce.publicSigning.article1QuotaStorageSuffix")}
                 </div>
               </div>
               <p>
-                1.2. <strong>Cam kết Hạ tầng Cơ sở dữ liệu Độc lập (Separate Database per Tenant):</strong> Bên A khởi tạo và vận hành một cơ sở dữ liệu vật lý riêng biệt (
+                <strong>{t("master.commerce.publicSigning.article1_2Title")}</strong>{" "}
+                {t("master.commerce.publicSigning.article1_2Before")}
                 <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700">
-                  smarthire_tenant_{contract.tenantCode || "doanhnghiep"}
+                  smarthire_tenant_{contract.tenantCode || "company"}
                 </code>
-                ) kèm bộ kết nối độc lập dành riêng cho Bên B, đảm bảo cô lập hoàn toàn và không lưu chung dữ liệu với bất kỳ bên thứ ba nào khác.
+                {t("master.commerce.publicSigning.article1_2After")}
               </p>
               <p>
-                1.3. <strong>Thời hạn hợp đồng:</strong> Từ ngày <span className="font-semibold font-mono">{contract.startDate}</span> đến hết ngày{" "}
+                <strong>{t("master.commerce.publicSigning.article1_3Title")}</strong>{" "}
+                {t("master.commerce.publicSigning.article1_3From")}{" "}
+                <span className="font-semibold font-mono">{contract.startDate}</span>{" "}
+                {t("master.commerce.publicSigning.article1_3To")}{" "}
                 <span className="font-semibold font-mono">{contract.endDate}</span>.
               </p>
             </div>
@@ -419,32 +468,33 @@ export function PublicContractSigningPage() {
           {/* Article 2 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ ĐIỀU KIỆN THANH TOÁN
+              {t("master.commerce.publicSigning.article2Title")}
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>2.1. Tổng giá trị hợp đồng:</p>
+              <p>{t("master.commerce.publicSigning.article2_1Intro")}</p>
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
                 <div className="flex justify-between">
-                  <span>• Phí bản quyền phần mềm và hạ tầng:</span>
-                  <span className="font-mono font-bold">{contract.contractValue.toLocaleString("vi-VN")} VND</span>
+                  <span>{t("master.commerce.publicSigning.article2LicenseFee")}</span>
+                  <span className="font-mono font-bold">{formatNumber(contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
-                  <span>• Tổng giá trị thanh toán:</span>
-                  <span className="font-mono text-emerald-600">{(contract.totalAmount || contract.contractValue).toLocaleString("vi-VN")} VND</span>
+                  <span>{t("master.commerce.publicSigning.article2TotalFee")}</span>
+                  <span className="font-mono text-emerald-600">{formatNumber(contract.totalAmount || contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</span>
                 </div>
                 {contract.amountInWords && (
                   <div className="text-[11px] text-slate-500 italic pt-1">
-                    (Bằng chữ: {contract.amountInWords})
+                    {t("master.commerce.contractDetailModal.amountInWords", { words: contract.amountInWords })}
                   </div>
                 )}
               </div>
-              <p>2.2. <strong>Phương thức và Thời hạn thanh toán:</strong></p>
+              <p><strong>{t("master.commerce.publicSigning.article2_2Title")}</strong></p>
               <p>
-                • Bên B thanh toán 100% giá trị hợp đồng bằng hình thức chuyển khoản vào tài khoản ngân hàng của Bên A trong vòng{" "}
-                <strong>05 (năm) ngày làm việc</strong> kể từ ngày hai bên hoàn tất ký số hợp đồng này.
+                {t("master.commerce.publicSigning.article2_2Bullet1Before")}
+                <strong>{t("master.commerce.publicSigning.article2_2Bullet1Strong")}</strong>
+                {t("master.commerce.publicSigning.article2_2Bullet1After")}
               </p>
               <p>
-                • Bên A tiến hành bàn giao tài khoản Quản trị viên (Master Admin), kích hoạt cơ sở dữ liệu riêng và xuất Hóa đơn điện tử hợp pháp gửi qua email cho Bên B ngay sau khi nhận được báo có từ ngân hàng.
+                {t("master.commerce.publicSigning.article2_2Bullet2")}
               </p>
             </div>
           </div>
@@ -452,17 +502,26 @@ export function PublicContractSigningPage() {
           {/* Article 3 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 3: CAM KẾT CHẤT LƯỢNG (SLA), BẢO VỆ DỮ LIỆU &amp; MIỄN TRỪ TRÁCH NHIỆM AI
+              {t("master.commerce.publicSigning.article3Title")}
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
               <p>
-                3.1. <strong>Cam kết Mức dịch vụ (SLA):</strong> Bên A cam kết độ sẵn sàng của hệ thống đạt tối thiểu <strong>99.5%/tháng</strong>, hỗ trợ kỹ thuật trong suốt thời hạn hợp đồng và thực hiện sao lưu dữ liệu tự động hàng ngày (Daily Backup).
+                <strong>{t("master.commerce.publicSigning.article3_1Title")}</strong>{" "}
+                {t("master.commerce.publicSigning.article3_1Before")}
+                <strong>{t("master.commerce.publicSigning.article3_1Strong")}</strong>
+                {t("master.commerce.publicSigning.article3_1After")}
               </p>
               <p>
-                3.2. <strong>Bảo vệ Dữ liệu Cá nhân (Nghị định 13/2023/NĐ-CP):</strong> Bên B đóng vai trò là <strong>Bên Kiểm soát Dữ liệu</strong> và chịu trách nhiệm thu thập sự đồng ý hợp pháp của ứng viên. Bên A đóng vai trò là <strong>Bên Xử lý Dữ liệu</strong>, cam kết chỉ xử lý dữ liệu theo yêu cầu của Bên B, không chia sẻ cho bên thứ ba và không sử dụng dữ liệu của Bên B vào mục đích thương mại khác.
+                <strong>{t("master.commerce.publicSigning.article3_2Title")}</strong>{" "}
+                {t("master.commerce.publicSigning.article3_2Part1")}
+                <strong>{t("master.commerce.publicSigning.article3_2Controller")}</strong>
+                {t("master.commerce.publicSigning.article3_2Part2")}
+                <strong>{t("master.commerce.publicSigning.article3_2Processor")}</strong>
+                {t("master.commerce.publicSigning.article3_2Part3")}
               </p>
               <p>
-                3.3. <strong>Giới hạn Trách nhiệm đối với Trí tuệ Nhân tạo (AI Disclaimer):</strong> Các kết quả phân tích CV, chấm điểm phỏng vấn và cảnh báo gian lận do AI tạo ra đóng vai trò là công cụ tham khảo hỗ trợ ra quyết định. Bên B có toàn quyền và chịu hoàn toàn trách nhiệm pháp lý đối với quyết định tuyển dụng cuối cùng đối với ứng viên.
+                <strong>{t("master.commerce.publicSigning.article3_3Title")}</strong>{" "}
+                {t("master.commerce.publicSigning.article3_3Body")}
               </p>
             </div>
           </div>
@@ -470,17 +529,25 @@ export function PublicContractSigningPage() {
           {/* Article 4 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 4: HIỆU LỰC HỢP ĐỒNG ĐIỆN TỬ VÀ GIẢI QUYẾT TRANH CHẤP
+              {t("master.commerce.publicSigning.article4Title")}
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
               <p>
-                4.1. Hợp đồng này được giao kết dưới dạng <strong>Thông điệp dữ liệu điện tử</strong> theo quy định của Luật Giao dịch điện tử số 20/2023/QH15.
+                {t("master.commerce.publicSigning.article4_1Before")}
+                <strong>{t("master.commerce.publicSigning.article4_1Strong")}</strong>
+                {t("master.commerce.publicSigning.article4_1After")}
               </p>
               <p>
-                4.2. Chữ ký điện tử xác thực qua nền tảng <strong>Dropbox Sign</strong> của đại diện hai bên kèm theo Biên bản kiểm toán (Audit Trail) và mã băm mật mã <strong>SHA-256</strong> có giá trị pháp lý nguyên vẹn và tương đương với hợp đồng văn bản giấy được ký tay, đóng dấu pháp nhân.
+                {t("master.commerce.publicSigning.article4_2Part1")}
+                <strong>{t("master.commerce.publicSigning.article4_2Provider")}</strong>
+                {t("master.commerce.publicSigning.article4_2Part2")}
+                <strong>{t("master.commerce.publicSigning.article4_2Hash")}</strong>
+                {t("master.commerce.publicSigning.article4_2Part3")}
               </p>
               <p>
-                4.3. Mọi tranh chấp phát sinh từ Hợp đồng này trước hết được giải quyết thông qua thương lượng thiện chí. Trường hợp không đạt được thỏa thuận trong vòng 30 ngày, vụ việc sẽ được đưa ra giải quyết tại <strong>Tòa án nhân dân có thẩm quyền tại Thành phố Hà Nội</strong>. Phán quyết của Tòa án là quyết định cuối cùng buộc hai bên phải thi hành.
+                {t("master.commerce.publicSigning.article4_3Before")}
+                <strong>{t("master.commerce.publicSigning.article4_3Strong")}</strong>
+                {t("master.commerce.publicSigning.article4_3After")}
               </p>
             </div>
           </div>
@@ -488,45 +555,53 @@ export function PublicContractSigningPage() {
 
         {/* Signature Blocks */}
         <div className="mt-12 pt-8 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-8 text-center text-xs">
-          {/* Bên A Signature */}
+          {/* Party A Signature */}
           <div className="space-y-2 flex flex-col items-center">
-            <span className="font-bold uppercase text-slate-900">ĐẠI DIỆN BÊN A</span>
-            <span className="text-[11px] text-slate-500 italic">(Đã ký số điện tử)</span>
+            <span className="font-bold uppercase text-slate-900">{t("master.commerce.publicSigning.sigPartyAHeader")}</span>
+            <span className="text-[11px] text-slate-500 italic">{t("master.commerce.publicSigning.sigPartyASignedCaption")}</span>
             <div className="h-32 flex flex-col items-center justify-center">
               <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-center w-full max-w-[250px]">
                 <ShieldCheck className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                <div className="text-[10px] font-bold text-indigo-900">SMARTHIRE VIỆT NAM CA</div>
-                <div className="text-[9px] text-indigo-700 font-mono">Timestamp: {new Date(contract.createdAt).toLocaleDateString("vi-VN")}</div>
-                <div className="text-[9px] text-emerald-700 font-semibold">Chữ ký số hợp lệ</div>
+                <div className="text-[10px] font-bold text-indigo-900">{t("master.commerce.publicSigning.sigPartyACa")}</div>
+                <div className="text-[9px] text-indigo-700 font-mono">
+                  {t("master.commerce.publicSigning.sigPartyATimestamp", {
+                    date: formatDate(contract.createdAt, undefined, locale),
+                  })}
+                </div>
+                <div className="text-[9px] text-emerald-700 font-semibold">{t("master.commerce.publicSigning.sigPartyAValid")}</div>
               </div>
             </div>
             <span className="font-bold text-slate-900 mt-2">{contract.partyARepresentative || "Phan Nhật Hưng"}</span>
-            <span className="text-[11px] text-slate-500">{contract.partyAPosition || "Tổng Giám Đốc"}</span>
+            <span className="text-[11px] text-slate-500">{contract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition")}</span>
           </div>
 
-          {/* Bên B Signature */}
+          {/* Party B Signature */}
           <div className="space-y-2 flex flex-col items-center">
-            <span className="font-bold uppercase text-slate-900">ĐẠI DIỆN BÊN B</span>
+            <span className="font-bold uppercase text-slate-900">{t("master.commerce.publicSigning.sigPartyBHeader")}</span>
             <span className="text-[11px] text-slate-500 italic">
               {isSigned
-                ? "(Đã hoàn tất ký số qua Dropbox Sign)"
+                ? t("master.commerce.publicSigning.sigPartyBSignedCaption")
                 : isRejected
-                ? "(Đã từ chối ký qua Dropbox Sign)"
+                ? t("master.commerce.publicSigning.sigPartyBRejectedCaption")
                 : isTerminated
-                ? "(Đã hủy yêu cầu ký)"
+                ? t("master.commerce.publicSigning.sigPartyBTerminatedCaption")
                 : isExpired
-                ? "(Đã hết hạn ký)"
-                : "(Chờ ký qua email Dropbox Sign)"}
+                ? t("master.commerce.publicSigning.sigPartyBExpiredCaption")
+                : t("master.commerce.publicSigning.sigPartyBPendingCaption")}
             </span>
             <div className="h-32 flex flex-col items-center justify-center">
               {isSigned ? (
                 <div className="p-3 bg-emerald-50/90 rounded-xl border border-emerald-300 text-center w-full max-w-[260px] shadow-2xs">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                   <div className="text-[10px] font-bold text-emerald-900">
-                    DROPBOX SIGN VERIFIED E-SIGNATURE
+                    {t("master.commerce.publicSigning.sigVerifiedBadge")}
                   </div>
                   <div className="text-[9px] text-emerald-800 font-mono">
-                    Ký lúc: {contract.signedAt ? new Date(contract.signedAt).toLocaleString("vi-VN") : "Đã ký"}
+                    {t("master.commerce.publicSigning.sigSignedAt", {
+                      datetime: contract.signedAt
+                        ? formatDateTime(contract.signedAt, undefined, locale)
+                        : t("master.commerce.contractDetailModal.signedFallback"),
+                    })}
                   </div>
                   {contract.externalSignatureRequestId && (
                     <div className="text-[8px] text-slate-500 font-mono truncate">
@@ -539,10 +614,10 @@ export function PublicContractSigningPage() {
                   <AlertCircle className="w-5 h-5 text-rose-600 mx-auto mb-1" />
                   <div className="text-[10px] font-bold text-rose-900">
                     {isRejected
-                      ? "ĐÃ TỪ CHỐI KÝ (REJECTED)"
+                      ? t("master.commerce.publicSigning.sigRejectedBox")
                       : isTerminated
-                      ? "ĐÃ HỦY YÊU CẦU KÝ (TERMINATED)"
-                      : "ĐÃ HẾT HẠN KÝ (EXPIRED)"}
+                      ? t("master.commerce.publicSigning.sigTerminatedBox")
+                      : t("master.commerce.publicSigning.sigExpiredBox")}
                   </div>
                   {contract.externalSignatureRequestId && (
                     <div className="text-[8px] text-rose-700 font-mono truncate">
@@ -553,7 +628,9 @@ export function PublicContractSigningPage() {
               ) : (
                 <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-300 text-center w-full max-w-[260px] space-y-2 print:hidden">
                   <div className="text-[11px] font-semibold text-amber-900">
-                    Kiểm tra hộp thư <span className="font-mono underline">{contract.partyBEmail}</span> để ký trên Dropbox Sign
+                    {t("master.commerce.publicSigning.sigCheckInboxBefore")}
+                    <span className="font-mono underline">{contract.partyBEmail}</span>
+                    {t("master.commerce.publicSigning.sigCheckInboxAfter")}
                   </div>
                   <button
                     onClick={handleSyncDropboxSign}
@@ -561,16 +638,16 @@ export function PublicContractSigningPage() {
                     className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shadow-xs transition-all inline-flex items-center gap-1.5"
                   >
                     {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    <span>Kiểm Tra Trạng Thái Ký</span>
+                    <span>{t("master.commerce.publicSigning.sigCheckStatusBtn")}</span>
                   </button>
                 </div>
               )}
             </div>
             <span className="font-bold text-slate-900 mt-2">
-              {contract.partyBRepresentative || "Đại diện có thẩm quyền"}
+              {contract.partyBRepresentative || t("master.commerce.publicSigning.sigRepFallback")}
             </span>
             <span className="text-[11px] text-slate-500">
-              {contract.partyBPosition || "Giám Đốc / Đại diện Bên B"}
+              {contract.partyBPosition || t("master.commerce.publicSigning.sigPositionFallback")}
             </span>
           </div>
         </div>
@@ -578,4 +655,3 @@ export function PublicContractSigningPage() {
     </div>
   );
 }
-

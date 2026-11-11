@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { MonacoCodeEditor } from "@/components/shared/MonacoCodeEditor";
+import { formatTime as formatClockTime, useLocale, useT } from "@/i18n";
 
 type Stage = "invitation" | "mcq" | "essay" | "coding" | "result";
 
@@ -38,79 +39,23 @@ interface QuestionOption {
 interface McqItem {
   id: number;
   skill: string;
-  difficulty: "Dễ" | "Trung bình" | "Nâng cao";
+  difficulty: string;
   points: number;
   question: string;
   options: QuestionOption[];
 }
 
-const SAMPLE_MCQ_QUESTIONS: McqItem[] = [
-  {
-    id: 1,
-    skill: "Spring Boot 3",
-    difficulty: "Trung bình",
-    points: 10,
-    question: "Trong Spring Boot 3 & Spring Web, sự khác biệt căn bản nhất giữa `@RestController` và `@Controller` là gì?",
-    options: [
-      { id: "A", label: "A", text: "`@RestController` tự động bao hàm `@Controller` và `@ResponseBody`, mặc định serialize đối tượng trả về thành JSON/XML." },
-      { id: "B", label: "B", text: "`@RestController` chỉ hỗ trợ giao thức HTTP GET, các phương thức POST/PUT bắt buộc dùng `@Controller`." },
-      { id: "C", label: "C", text: "`@RestController` chạy trên Thread Pool riêng biệt của Netty, còn `@Controller` chạy trên Tomcat." },
-      { id: "D", label: "D", text: "`@RestController` bắt buộc tất cả endpoint phải có header `X-Tenant-ID`." },
-    ],
-  },
-  {
-    id: 2,
-    skill: "React 19 & Next.js",
-    difficulty: "Trung bình",
-    points: 10,
-    question: "Hook mới nào trong React 19 cho phép quản lý trạng thái form action bất đồng bộ, trả về `[state, formAction, isPending]`?",
-    options: [
-      { id: "A", label: "A", text: "`useFormStatus`" },
-      { id: "B", label: "B", text: "`useActionState`" },
-      { id: "C", label: "C", text: "`useAsyncTransition`" },
-      { id: "D", label: "D", text: "`useServerAction`" },
-    ],
-  },
-  {
-    id: 3,
-    skill: "Database & Performance",
-    difficulty: "Nâng cao",
-    points: 10,
-    question: "Trong MySQL InnoDB, loại Index nào được tổ chức theo cấu trúc B+Tree mà thứ tự vật lý của các dòng dữ liệu trên đĩa trùng với thứ tự khóa Index?",
-    options: [
-      { id: "A", label: "A", text: "Secondary Index (Non-clustered Index)" },
-      { id: "B", label: "B", text: "Clustered Index (Primary Key Index)" },
-      { id: "C", label: "C", text: "Fulltext Search Index" },
-      { id: "D", label: "D", text: "Adaptive Hash Index" },
-    ],
-  },
-  {
-    id: 4,
-    skill: "Multi-Tenancy & Security",
-    difficulty: "Nâng cao",
-    points: 10,
-    question: "Trong kiến trúc SaaS 'Database-per-Tenant' (mỗi Tenant một DB riêng), phương pháp nào an toàn nhất để ngăn rò rỉ dữ liệu giữa các doanh nghiệp khi xử lý tác vụ bất đồng bộ (RabbitMQ Worker)?",
-    options: [
-      { id: "A", label: "A", text: "Đính kèm `X-Tenant-ID` vào Message Header, Worker đọc header và set vào `TenantContext` (ThreadLocal) trước khi gọi DB." },
-      { id: "B", label: "B", text: "Tạo một RabbitMQ Virtual Host riêng biệt cho từng Tenant và khởi động từng container riêng." },
-      { id: "C", label: "C", text: "Hardcode kết nối Master Database và join các bảng qua khóa ngoại." },
-      { id: "D", label: "D", text: "Gộp toàn bộ dữ liệu vào một database chung và dùng câu lệnh `SELECT * FROM table WHERE tenant_id = ?`." },
-    ],
-  },
-  {
-    id: 5,
-    skill: "Concurrency & Distributed Systems",
-    difficulty: "Nâng cao",
-    points: 10,
-    question: "Để giải quyết vấn đề Cache Stampede (hàng ngàn request cùng miss cache và đập vào DB cùng một lúc khi key hết hạn), giải pháp nào hiệu quả và tối ưu nhất?",
-    options: [
-      { id: "A", label: "A", text: "Tăng timeout kết nối Database lên gấp 10 lần." },
-      { id: "B", label: "B", text: "Sử dụng Distributed Mutex Lock (như Redis Redlock) hoặc cơ chế Cache-Aside kết hợp Probabilistic Early Expiration (XFetch)." },
-      { id: "C", label: "C", text: "Xóa toàn bộ Redis Cache mỗi giờ một lần." },
-      { id: "D", label: "D", text: "Chuyển tất cả truy vấn về synchronous blocking." },
-    ],
-  },
-];
+function renderWithHighlight(template: string, token: string, highlight: ReactNode) {
+  const parts = template.split(token);
+  if (parts.length !== 2) return template;
+  return (
+    <>
+      {parts[0]}
+      {highlight}
+      {parts[1]}
+    </>
+  );
+}
 
 const SAMPLE_STARTER_CODE: Record<string, string> = {
   javascript: `/**
@@ -199,6 +144,8 @@ public class Solution {
 };
 
 export function CandidateAssessmentSamplePage() {
+  const t = useT();
+  const locale = useLocale();
   const [currentStage, setCurrentStage] = useState<Stage>("invitation");
 
   // Timer simulation
@@ -210,6 +157,77 @@ export function CandidateAssessmentSamplePage() {
   const micVolume = 68;
 
   // MCQ state
+  const sampleMcqQuestions: McqItem[] = useMemo(
+    () => [
+      {
+        id: 1,
+        skill: "Spring Boot 3",
+        difficulty: t("candidate.assess.sample.difficulty.medium"),
+        points: 10,
+        question: t("candidate.assess.sample.mcq.q1Question"),
+        options: [
+          { id: "A", label: "A", text: t("candidate.assess.sample.mcq.q1OptA") },
+          { id: "B", label: "B", text: t("candidate.assess.sample.mcq.q1OptB") },
+          { id: "C", label: "C", text: t("candidate.assess.sample.mcq.q1OptC") },
+          { id: "D", label: "D", text: t("candidate.assess.sample.mcq.q1OptD") },
+        ],
+      },
+      {
+        id: 2,
+        skill: "React 19 & Next.js",
+        difficulty: t("candidate.assess.sample.difficulty.medium"),
+        points: 10,
+        question: t("candidate.assess.sample.mcq.q2Question"),
+        options: [
+          { id: "A", label: "A", text: "`useFormStatus`" },
+          { id: "B", label: "B", text: "`useActionState`" },
+          { id: "C", label: "C", text: "`useAsyncTransition`" },
+          { id: "D", label: "D", text: "`useServerAction`" },
+        ],
+      },
+      {
+        id: 3,
+        skill: "Database & Performance",
+        difficulty: t("candidate.assess.sample.difficulty.hard"),
+        points: 10,
+        question: t("candidate.assess.sample.mcq.q3Question"),
+        options: [
+          { id: "A", label: "A", text: t("candidate.assess.sample.mcq.q3OptA") },
+          { id: "B", label: "B", text: t("candidate.assess.sample.mcq.q3OptB") },
+          { id: "C", label: "C", text: t("candidate.assess.sample.mcq.q3OptC") },
+          { id: "D", label: "D", text: t("candidate.assess.sample.mcq.q3OptD") },
+        ],
+      },
+      {
+        id: 4,
+        skill: "Multi-Tenancy & Security",
+        difficulty: t("candidate.assess.sample.difficulty.hard"),
+        points: 10,
+        question: t("candidate.assess.sample.mcq.q4Question"),
+        options: [
+          { id: "A", label: "A", text: t("candidate.assess.sample.mcq.q4OptA") },
+          { id: "B", label: "B", text: t("candidate.assess.sample.mcq.q4OptB") },
+          { id: "C", label: "C", text: t("candidate.assess.sample.mcq.q4OptC") },
+          { id: "D", label: "D", text: t("candidate.assess.sample.mcq.q4OptD") },
+        ],
+      },
+      {
+        id: 5,
+        skill: "Concurrency & Distributed Systems",
+        difficulty: t("candidate.assess.sample.difficulty.hard"),
+        points: 10,
+        question: t("candidate.assess.sample.mcq.q5Question"),
+        options: [
+          { id: "A", label: "A", text: t("candidate.assess.sample.mcq.q5OptA") },
+          { id: "B", label: "B", text: t("candidate.assess.sample.mcq.q5OptB") },
+          { id: "C", label: "C", text: t("candidate.assess.sample.mcq.q5OptC") },
+          { id: "D", label: "D", text: t("candidate.assess.sample.mcq.q5OptD") },
+        ],
+      },
+    ],
+    [t],
+  );
+
   const [mcqAnswers, setMcqAnswers] = useState<Record<number, string>>({
     1: "A",
     2: "B",
@@ -217,27 +235,9 @@ export function CandidateAssessmentSamplePage() {
   });
   const [currentMcqIndex, setCurrentMcqIndex] = useState(0);
 
-  // Essay state
-  const [essayAnswer, setEssayAnswer] = useState(
-    `Để thiết kế hệ thống xử lý hàng đợi thông báo tuyển dụng realtime chịu tải cao (100.000 req/s), tôi đề xuất giải pháp kiến trúc phân tán như sau:
-
-1. Kiến trúc Tổng thể:
-- API Gateway tiếp nhận request và định tuyến theo header X-Tenant-ID.
-- RabbitMQ đóng vai trò làm Message Broker chính với mô hình Topic Exchange và Dead Letter Exchange (DLX).
-- Redis được sử dụng làm In-Memory Cache và lưu trữ trạng thái xử lý Idempotency Key (TTL 24 giờ).
-- Worker Pool (Spring Boot / Node.js) tự động scale theo số lượng message trong hàng đợi (RabbitMQ Consumer Prefetch = 20).
-
-2. Xử lý Idempotency & Chống Duplicate:
-- Mỗi sự kiện tạo thông báo (VD: CandidatePassScreeningEvent) mang một idempotencyId duy nhất: SHA256(tenantId + eventType + entityId + timestampWindow).
-- Trước khi gửi email/SMS, Worker thực hiện lệnh Redis: \`SET idempotency:{key} "PROCESSING" EX 300 NX\`.
-- Nếu key đã tồn tại -> Bỏ qua message trùng lặp (ACK RabbitMQ ngay lập tức).
-- Sau khi gửi thành công -> Cập nhật key thành "COMPLETED" với TTL 24h.
-
-3. Xử lý lỗi & Dead-Letter Queue (DLQ):
-- Thiết lập Retry Policy: thử lại tối đa 3 lần với Exponential Backoff (1s -> 4s -> 16s).
-- Nếu sau 3 lần vẫn lỗi (như dịch vụ bên thứ 3 SendGrid/Twilio down) -> Đẩy message vào Dead Letter Queue (dlq_candidate_notifications).
-- Đội ngũ vận hành có Dashboard giám sát và cơ chế Re-play thủ công khi dịch vụ khôi phục.`
-  );
+  // Essay state (derive default from active locale when unedited)
+  const [customEssayAnswer, setCustomEssayAnswer] = useState<string | null>(null);
+  const essayAnswer = customEssayAnswer ?? t("candidate.assess.sample.essay.defaultAnswer");
 
   // Coding state
   const [selectedLanguage, setSelectedLanguage] = useState("javascript");
@@ -248,18 +248,15 @@ export function CandidateAssessmentSamplePage() {
     total: number;
     executionTimeMs: number;
     memoryMb: number;
-    logs: string;
   }>({
     status: "idle",
     passed: 0,
     total: 3,
     executionTimeMs: 0,
     memoryMb: 0,
-    logs: "",
   });
 
-  // Format timer
-  const formatTime = (secs: number) => {
+  const formatTimer = (secs: number) => {
     const mins = Math.floor(secs / 60);
     const rem = secs % 60;
     return `${mins.toString().padStart(2, "0")}:${rem.toString().padStart(2, "0")}`;
@@ -278,12 +275,12 @@ export function CandidateAssessmentSamplePage() {
   const handleLanguageChange = (lang: string) => {
     setSelectedLanguage(lang);
     setCodeSource(SAMPLE_STARTER_CODE[lang] ?? "");
-    setCodeRunOutput({ status: "idle", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0, logs: "" });
+    setCodeRunOutput({ status: "idle", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0 });
   };
 
   // Run test cases simulation
   const handleRunCode = () => {
-    setCodeRunOutput({ status: "running", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0, logs: "Đang biên dịch và thực thi trên Sandbox..." });
+    setCodeRunOutput({ status: "running", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0 });
     setTimeout(() => {
       setCodeRunOutput({
         status: "success",
@@ -291,22 +288,24 @@ export function CandidateAssessmentSamplePage() {
         total: 3,
         executionTimeMs: 42,
         memoryMb: 18.2,
-        logs: `✔ Test Case 1: Input [[9, 10], [9.5, 11]] -> Expected [[9, 11]] -> Actual [[9, 11]] (Passed)
-✔ Test Case 2: Input [[13, 15], [14.5, 16]] -> Expected [[13, 16]] -> Actual [[13, 16]] (Passed)
-✔ Test Case 3: Input [[8, 9], [10, 12]] -> Expected [[8, 9], [10, 12]] -> Actual [[8, 9], [10, 12]] (Passed)
-
-Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
       });
     }, 900);
   };
 
-  const stagesMeta: { id: Stage; label: string; desc: string; icon: any }[] = [
-    { id: "invitation", label: "1. Thư mời & Kiểm tra thiết bị", desc: "Thiết bị & Thu âm tự động", icon: ShieldCheck },
-    { id: "mcq", label: "2. Trắc nghiệm MCQ", desc: "5 câu lý thuyết", icon: FileQuestion },
-    { id: "essay", label: "3. Tự luận Kỹ thuật", desc: "Thiết kế kiến trúc", icon: FileText },
-    { id: "coding", label: "4. Lập trình Coding Studio", desc: "HackerRank style", icon: Code2 },
-    { id: "result", label: "5. Kết quả & Đánh giá AI", desc: "Điểm số & Báo cáo năng lực", icon: Trophy },
+  const stagesMeta: { id: Stage; label: string; desc: string; icon: typeof ShieldCheck }[] = [
+    { id: "invitation", label: t("candidate.assess.sample.stages.invitationLabel"), desc: t("candidate.assess.sample.stages.invitationDesc"), icon: ShieldCheck },
+    { id: "mcq", label: t("candidate.assess.sample.stages.mcqLabel"), desc: t("candidate.assess.sample.stages.mcqDesc"), icon: FileQuestion },
+    { id: "essay", label: t("candidate.assess.sample.stages.essayLabel"), desc: t("candidate.assess.sample.stages.essayDesc"), icon: FileText },
+    { id: "coding", label: t("candidate.assess.sample.stages.codingLabel"), desc: t("candidate.assess.sample.stages.codingDesc"), icon: Code2 },
+    { id: "result", label: t("candidate.assess.sample.stages.resultLabel"), desc: t("candidate.assess.sample.stages.resultDesc"), icon: Trophy },
   ];
+
+  const codeLogs =
+    codeRunOutput.status === "running"
+      ? t("candidate.assess.sample.coding.runningLogs")
+      : codeRunOutput.status === "success"
+        ? t("candidate.assess.sample.coding.successLogs")
+        : "";
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)]">
@@ -317,21 +316,21 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
             <Link
               to="/assessments"
               className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]"
-              title="Quay lại Danh sách Đánh giá"
+              title={t("candidate.assess.sample.header.backTitle")}
             >
               <ArrowLeft className="size-4" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-primary)]">
-                  <Sparkles className="size-3" /> GIAO DIỆN MẪU ỨNG VIÊN
+                  <Sparkles className="size-3" /> {t("candidate.assess.sample.header.badge")}
                 </span>
                 <span className="hidden text-xs text-[var(--color-on-surface-variant)] sm:inline">
-                  (Mô phỏng trải nghiệm thi thực tế)
+                  {t("candidate.assess.sample.header.simulationNote")}
                 </span>
               </div>
               <h1 className="text-sm font-semibold tracking-tight text-[var(--color-on-surface)] sm:text-base">
-                Senior Full-Stack Engineer Technical Assessment
+                {t("candidate.assess.sample.header.title")}
               </h1>
             </div>
           </div>
@@ -341,13 +340,13 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
             {currentStage !== "invitation" && currentStage !== "result" && (
               <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 shadow-sm">
                 <Clock3 className="size-4 animate-pulse text-amber-600" />
-                <span className="font-mono text-base">{formatTime(secondsLeft)}</span>
+                <span className="font-mono text-base">{formatTimer(secondsLeft)}</span>
                 <button
                   type="button"
                   onClick={() => setTimerRunning(!timerRunning)}
                   className="ml-1 text-xs text-amber-700 underline hover:text-amber-900"
                 >
-                  {timerRunning ? "Tạm dừng" : "Tiếp tục"}
+                  {timerRunning ? t("candidate.assess.sample.header.pauseTimer") : t("candidate.assess.sample.header.resumeTimer")}
                 </button>
               </div>
             )}
@@ -361,11 +360,12 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 setSecondsLeft(45 * 60);
                 setRulesAccepted(false);
                 setCurrentMcqIndex(0);
-                setCodeRunOutput({ status: "idle", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0, logs: "" });
+                setCustomEssayAnswer(null);
+                setCodeRunOutput({ status: "idle", passed: 0, total: 3, executionTimeMs: 0, memoryMb: 0 });
               }}
               className="gap-1.5 text-xs font-medium"
             >
-              <RotateCcw className="size-3.5" /> Đặt lại mẫu
+              <RotateCcw className="size-3.5" /> {t("candidate.assess.sample.header.resetSample")}
             </Button>
           </div>
         </div>
@@ -373,7 +373,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
         {/* STAGE SELECTOR TABS */}
         <div className="border-t border-[var(--color-border-default)]/60 bg-[var(--color-surface-container-low)] px-4 sm:px-6">
           <nav
-            aria-label="Các bước làm bài thi"
+            aria-label={t("candidate.assess.sample.header.stagesAria")}
             className="mx-auto flex max-w-7xl space-x-1 overflow-x-auto py-2 scrollbar-none"
           >
             {stagesMeta.map((s) => {
@@ -417,30 +417,33 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 <div className="max-w-3xl space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-                      SẴN SÀNG LÀM BÀI
+                      {t("candidate.assess.sample.invitation.readyBadge")}
                     </span>
                     <span className="text-xs font-semibold text-[var(--color-primary)]">
-                      Doanh nghiệp: SmartHire Enterprise Tech
+                      {t("candidate.assess.sample.invitation.companyLabel")}
                     </span>
                   </div>
                   <h2 id="invitation-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">
-                    Đề kiểm tra Năng lực Kỹ thuật Chuyên sâu (Full-Stack)
+                    {t("candidate.assess.sample.invitation.heading")}
                   </h2>
                   <p className="text-sm leading-6 text-[var(--color-on-surface-variant)]">
-                    Chào mừng bạn đến với vòng đánh giá năng lực lập trình và kiến trúc hệ thống cho vị trí <strong>Senior Full-Stack Engineer</strong>. 
-                    Bài đánh giá nhằm đo lường khả năng tư duy logic, hiểu biết kiến trúc phân tán và kỹ năng viết code sạch.
+                    {renderWithHighlight(
+                      t("candidate.assess.sample.invitation.introTemplate"),
+                      "{role}",
+                      <strong>{t("candidate.assess.sample.invitation.introRole")}</strong>,
+                    )}
                   </p>
                 </div>
 
                 {/* Facts badge */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-3.5 text-center shadow-xs">
-                    <span className="text-xs font-medium text-[var(--color-on-surface-variant)]">Thời lượng</span>
-                    <p className="mt-1 text-lg font-bold text-[var(--color-primary)]">45 phút</p>
+                    <span className="text-xs font-medium text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.invitation.durationLabel")}</span>
+                    <p className="mt-1 text-lg font-bold text-[var(--color-primary)]">{t("candidate.assess.sample.invitation.durationValue")}</p>
                   </div>
                   <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-3.5 text-center shadow-xs">
-                    <span className="text-xs font-medium text-[var(--color-on-surface-variant)]">Ngưỡng đạt</span>
-                    <p className="mt-1 text-lg font-bold text-emerald-700">70 / 100 điểm</p>
+                    <span className="text-xs font-medium text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.invitation.passingLabel")}</span>
+                    <p className="mt-1 text-lg font-bold text-emerald-700">{t("candidate.assess.sample.invitation.passingValue")}</p>
                   </div>
                 </div>
               </div>
@@ -451,20 +454,20 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Exam parts breakdown */}
               <div className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-sm">
                 <h3 className="flex items-center gap-2 text-base font-bold text-[var(--color-on-surface)]">
-                  <Layers className="size-5 text-[var(--color-primary)]" /> Cấu trúc chi tiết bài thi
+                  <Layers className="size-5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.invitation.structureTitle")}
                 </h3>
                 <ul className="space-y-3.5 text-sm">
                   <li className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <strong className="block font-semibold">Phần 1: Trắc nghiệm khách quan</strong>
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">5 câu hỏi lý thuyết chuyên sâu (Spring Boot, React 19, DB)</span>
+                    <strong className="block font-semibold">{t("candidate.assess.sample.invitation.part1Title")}</strong>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.invitation.part1Desc")}</span>
                   </li>
                   <li className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <strong className="block font-semibold">Phần 2: Tự luận Kỹ thuật & Kiến trúc</strong>
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">1 câu thiết kế hệ thống Microservices & Idempotency</span>
+                    <strong className="block font-semibold">{t("candidate.assess.sample.invitation.part2Title")}</strong>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.invitation.part2Desc")}</span>
                   </li>
                   <li className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <strong className="block font-semibold">Phần 3: Thử thách Lập trình (Live Coding)</strong>
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">1 bài toán thuật toán với Code Editor & Run Test Cases</span>
+                    <strong className="block font-semibold">{t("candidate.assess.sample.invitation.part3Title")}</strong>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.invitation.part3Desc")}</span>
                   </li>
                 </ul>
               </div>
@@ -472,7 +475,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Hardware & Auto Audio Proctoring Check */}
               <div className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-sm">
                 <h3 className="flex items-center gap-2 text-base font-bold text-[var(--color-on-surface)]">
-                  <Mic className="size-5 text-[var(--color-primary)]" /> Thiết bị & Hệ thống Thu âm Tự động
+                  <Mic className="size-5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.invitation.deviceTitle")}
                 </h3>
 
                 {/* Auto audio notice */}
@@ -481,10 +484,12 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                     <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
                       <Mic className="size-4" />
                     </span>
-                    <span>Thu âm môi trường tự động</span>
+                    <span>{t("candidate.assess.sample.invitation.autoAudioTitle")}</span>
                   </div>
                   <p>
-                    Bài đánh giá <strong>không yêu cầu bật camera</strong>. Hệ thống sẽ tự động kích hoạt microphone để ghi âm môi trường nền trong suốt thời gian làm bài, đảm bảo tính minh bạch và công bằng.
+                    {t("candidate.assess.sample.invitation.autoAudioDescPrefix")}
+                    <strong>{t("candidate.assess.sample.invitation.autoAudioDescStrong")}</strong>
+                    {t("candidate.assess.sample.invitation.autoAudioDescSuffix")}
                   </p>
                 </div>
 
@@ -492,11 +497,11 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 <div className="space-y-2 rounded-2xl bg-[var(--color-surface-container-low)] p-4 text-xs">
                   <div className="flex items-center justify-between font-medium">
                     <span className="flex items-center gap-1.5 font-bold text-[var(--color-on-surface)]">
-                      <Volume2 className="size-4 text-emerald-600" /> Microphone thiết bị
+                      <Volume2 className="size-4 text-emerald-600" /> {t("candidate.assess.sample.invitation.micDeviceLabel")}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
                       <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Sẵn sàng ({micVolume} dB)
+                      {t("candidate.assess.sample.invitation.micReady", { volume: micVolume })}
                     </span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
@@ -506,7 +511,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                     />
                   </div>
                   <p className="text-[11px] text-[var(--color-on-surface-variant)]">
-                    Microphone đang hoạt động ổn định. Hệ thống sẽ tự động ghi âm khi bạn bấm Bắt đầu.
+                    {t("candidate.assess.sample.invitation.micHelp")}
                   </p>
                 </div>
 
@@ -514,18 +519,18 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 <div className="space-y-2 pt-1 text-xs">
                   <div className="flex items-center justify-between text-[var(--color-on-surface-variant)]">
                     <span className="flex items-center gap-1.5">
-                      <Laptop className="size-3.5 text-[var(--color-primary)]" /> Trình duyệt hệ thống:
+                      <Laptop className="size-3.5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.invitation.browserCheckLabel")}
                     </span>
                     <span className="flex items-center gap-1 font-semibold text-emerald-700">
-                      <CheckCircle2 className="size-3.5" /> Chrome / Edge (Tương thích 100%)
+                      <CheckCircle2 className="size-3.5" /> {t("candidate.assess.sample.invitation.browserCheckValue")}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[var(--color-on-surface-variant)]">
                     <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-3.5 text-[var(--color-primary)]" /> Giám sát chuyển tab:
+                      <ShieldCheck className="size-3.5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.invitation.tabCheckLabel")}
                     </span>
                     <span className="flex items-center gap-1 font-semibold text-emerald-700">
-                      <CheckCircle2 className="size-3.5" /> Tự động cảnh báo khi rời màn hình
+                      <CheckCircle2 className="size-3.5" /> {t("candidate.assess.sample.invitation.tabCheckValue")}
                     </span>
                   </div>
                 </div>
@@ -542,7 +547,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                   className="mt-1 size-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
                 />
                 <span className="text-[var(--color-on-surface)]">
-                  Tôi cam kết làm bài độc lập và đồng ý để hệ thống tự động ghi âm môi trường làm bài, giám sát chuyển đổi tab trong suốt 45 phút thi.
+                  {t("candidate.assess.sample.invitation.rulesAgreement")}
                 </span>
               </label>
 
@@ -552,7 +557,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 onClick={() => setCurrentStage("mcq")}
                 className="w-full shrink-0 gap-2 font-bold sm:w-auto"
               >
-                Vào phòng thi ngay <ArrowRight className="size-4" />
+                {t("candidate.assess.sample.invitation.enterRoomButton")} <ArrowRight className="size-4" />
               </Button>
             </div>
           </section>
@@ -567,10 +572,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm sm:px-6">
               <div>
                 <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-                  PHẦN 1 TRONG 3 · TRẮC NGHIỆM KHÁCH QUAN
+                  {t("candidate.assess.sample.mcqStage.eyebrow")}
                 </span>
                 <h2 id="mcq-heading" className="text-lg font-bold sm:text-xl">
-                  Câu hỏi {currentMcqIndex + 1} / {SAMPLE_MCQ_QUESTIONS.length}
+                  {t("candidate.assess.sample.mcqStage.heading", { current: currentMcqIndex + 1, total: sampleMcqQuestions.length })}
                 </h2>
               </div>
 
@@ -578,7 +583,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               <div className="flex items-center gap-3">
                 <div className="hidden items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 sm:flex">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>AI Proctoring: Đang giám sát · Bình thường</span>
+                  <span>{t("candidate.assess.sample.mcqStage.proctorStatus")}</span>
                 </div>
                 <Button
                   variant="secondary"
@@ -586,15 +591,15 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                   onClick={() => setCurrentStage("essay")}
                   className="gap-1.5"
                 >
-                  Chuyển sang Tự luận <ArrowRight className="size-3.5" />
+                  {t("candidate.assess.sample.mcqStage.goToEssay")} <ArrowRight className="size-3.5" />
                 </Button>
               </div>
             </div>
 
             {/* Question Navigator */}
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--color-border-default)] bg-white p-3 shadow-xs">
-              <span className="mr-2 text-xs font-semibold text-[var(--color-on-surface-variant)]">Danh sách câu:</span>
-              {SAMPLE_MCQ_QUESTIONS.map((q, idx) => {
+              <span className="mr-2 text-xs font-semibold text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.mcqStage.navigatorLabel")}</span>
+              {sampleMcqQuestions.map((q, idx) => {
                 const isAnswered = !!mcqAnswers[q.id];
                 const isCurrent = idx === currentMcqIndex;
                 return (
@@ -618,7 +623,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
 
             {/* Current Question Body */}
             {(() => {
-              const currentQ = SAMPLE_MCQ_QUESTIONS[currentMcqIndex];
+              const currentQ = sampleMcqQuestions[currentMcqIndex];
               const selectedOption = mcqAnswers[currentQ.id];
 
               return (
@@ -635,7 +640,8 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                         </span>
                       </div>
                       <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
-                        Giá trị: <strong>{currentQ.points} điểm</strong>
+                        {t("candidate.assess.sample.mcqStage.valueLabel")}{" "}
+                        <strong>{t("candidate.assess.sample.mcqStage.pointsValue", { points: currentQ.points })}</strong>
                       </span>
                     </div>
 
@@ -644,7 +650,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                     </h3>
 
                     {/* Radio Options */}
-                    <div className="space-y-3" role="radiogroup" aria-label="Các phương án trả lời">
+                    <div className="space-y-3" role="radiogroup" aria-label={t("candidate.assess.sample.mcqStage.optionsAria")}>
                       {currentQ.options.map((opt) => {
                         const isSelected = selectedOption === opt.id;
                         return (
@@ -687,22 +693,22 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                         onClick={() => setCurrentMcqIndex((prev) => Math.max(0, prev - 1))}
                         className="gap-2"
                       >
-                        <ArrowLeft className="size-4" /> Câu trước
+                        <ArrowLeft className="size-4" /> {t("candidate.assess.sample.mcqStage.prevQuestion")}
                       </Button>
 
-                      {currentMcqIndex < SAMPLE_MCQ_QUESTIONS.length - 1 ? (
+                      {currentMcqIndex < sampleMcqQuestions.length - 1 ? (
                         <Button
-                          onClick={() => setCurrentMcqIndex((prev) => Math.min(SAMPLE_MCQ_QUESTIONS.length - 1, prev + 1))}
+                          onClick={() => setCurrentMcqIndex((prev) => Math.min(sampleMcqQuestions.length - 1, prev + 1))}
                           className="gap-2"
                         >
-                          Câu tiếp theo <ArrowRight className="size-4" />
+                          {t("candidate.assess.sample.mcqStage.nextQuestion")} <ArrowRight className="size-4" />
                         </Button>
                       ) : (
                         <Button
                           onClick={() => setCurrentStage("essay")}
                           className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                         >
-                          Hoàn tất Trắc nghiệm & Sang Tự luận <ArrowRight className="size-4" />
+                          {t("candidate.assess.sample.mcqStage.finishMcqToEssay")} <ArrowRight className="size-4" />
                         </Button>
                       )}
                     </div>
@@ -714,10 +720,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                       <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                         <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                           <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
-                          Thu âm tự động
+                          {t("candidate.assess.sample.mcqStage.autoAudioTitle")}
                         </span>
                         <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                          Mic: Đang chạy
+                          {t("candidate.assess.sample.mcqStage.micRunning")}
                         </span>
                       </div>
                       <div className="py-3 text-center">
@@ -734,31 +740,34 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                           ))}
                         </div>
                         <p className="mt-2 text-[11px] text-slate-400">
-                          Ghi âm môi trường nền liên tục
+                          {t("candidate.assess.sample.mcqStage.ambientRecordingNote")}
                         </p>
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-4 text-xs shadow-xs space-y-2.5">
                       <strong className="block font-semibold text-[var(--color-on-surface)]">
-                        Tiến độ Trắc nghiệm
+                        {t("candidate.assess.sample.mcqStage.progressTitle")}
                       </strong>
                       <div className="flex justify-between text-[var(--color-on-surface-variant)]">
-                        <span>Đã trả lời:</span>
+                        <span>{t("candidate.assess.sample.mcqStage.answeredLabel")}</span>
                         <strong className="text-emerald-700">
-                          {Object.keys(mcqAnswers).length} / {SAMPLE_MCQ_QUESTIONS.length} câu
+                          {t("candidate.assess.sample.mcqStage.answeredCount", {
+                            answered: Object.keys(mcqAnswers).length,
+                            total: sampleMcqQuestions.length,
+                          })}
                         </strong>
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full bg-emerald-500 transition-all"
                           style={{
-                            width: `${(Object.keys(mcqAnswers).length / SAMPLE_MCQ_QUESTIONS.length) * 100}%`,
+                            width: `${(Object.keys(mcqAnswers).length / sampleMcqQuestions.length) * 100}%`,
                           }}
                         />
                       </div>
                       <p className="text-[11px] text-[var(--color-on-surface-variant)] leading-4">
-                        Câu trả lời được tự động lưu ngay khi bạn chọn phương án.
+                        {t("candidate.assess.sample.mcqStage.autoSaveNote")}
                       </p>
                     </div>
                   </div>
@@ -777,10 +786,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm sm:px-6">
               <div>
                 <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-                  PHẦN 2 TRONG 3 · TỰ LUẬN KỸ THUẬT & KIẾN TRÚC
+                  {t("candidate.assess.sample.essay.eyebrow")}
                 </span>
                 <h2 id="essay-heading" className="text-lg font-bold sm:text-xl">
-                  Thiết kế Kiến trúc Hệ thống Tuyển dụng Chịu tải cao
+                  {t("candidate.assess.sample.essay.heading")}
                 </h2>
               </div>
               <div className="flex items-center gap-2">
@@ -789,14 +798,14 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                   size="sm"
                   onClick={() => setCurrentStage("mcq")}
                 >
-                  Xem lại Trắc nghiệm
+                  {t("candidate.assess.sample.essay.reviewMcq")}
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setCurrentStage("coding")}
                   className="gap-1.5"
                 >
-                  Chuyển sang Coding Studio <ArrowRight className="size-3.5" />
+                  {t("candidate.assess.sample.essay.goToCoding")} <ArrowRight className="size-3.5" />
                 </Button>
               </div>
             </div>
@@ -807,11 +816,11 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 {/* Question Prompt */}
                 <div className="space-y-3 rounded-2xl bg-[var(--color-surface-container-low)] p-5 text-sm leading-6">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-[var(--color-primary)]">ĐỀ BÀI TỰ LUẬN KỸ THUẬT</span>
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">Thời gian khuyến nghị: 15 phút</span>
+                    <span className="font-bold text-[var(--color-primary)]">{t("candidate.assess.sample.essay.promptBadge")}</span>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.essay.recommendedTime")}</span>
                   </div>
                   <p className="font-medium text-[var(--color-on-surface)]">
-                    Hãy thiết kế giải pháp kiến trúc để xử lý hàng đợi thông báo tuyển dụng realtime chịu tải 100,000 req/s. Giải thích lựa chọn giữa Redis Streams và RabbitMQ, phương án xử lý Idempotency (chống trùng lặp gửi thông báo) và chiến lược Dead-Letter Queue khi dịch vụ email bên thứ ba gặp sự cố.
+                    {t("candidate.assess.sample.essay.promptText")}
                   </p>
                 </div>
 
@@ -819,36 +828,38 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-[var(--color-on-surface-variant)]">
                     <span className="font-semibold text-[var(--color-on-surface)]">
-                      Bài làm của bạn (Markdown hỗ trợ):
+                      {t("candidate.assess.sample.essay.answerHeading")}
                     </span>
                     <span className="flex items-center gap-1.5 text-emerald-700">
-                      <Check className="size-3.5" /> Đã tự động lưu 30 giây trước
+                      <Check className="size-3.5" /> {t("candidate.assess.sample.essay.autoSavedAgo")}
                     </span>
                   </div>
 
                   <textarea
                     rows={15}
                     value={essayAnswer}
-                    onChange={(e) => setEssayAnswer(e.target.value)}
+                    onChange={(e) => setCustomEssayAnswer(e.target.value)}
                     className="w-full rounded-2xl border border-[var(--color-border-default)] p-4 font-mono text-sm leading-6 text-[var(--color-on-surface)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
-                    placeholder="Nhập phần giải trình giải pháp kiến trúc của bạn tại đây..."
+                    placeholder={t("candidate.assess.sample.essay.placeholder")}
                   />
 
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
                     <span>
-                      Số từ: <strong>{essayAnswer.trim().split(/\s+/).filter(Boolean).length} từ</strong> (Yêu cầu tối thiểu: 150 từ)
+                      {t("candidate.assess.sample.essay.wordCountPrefix")}{" "}
+                      <strong>
+                        {t("candidate.assess.sample.essay.wordCountValue", {
+                          count: essayAnswer.trim().split(/\s+/).filter(Boolean).length,
+                        })}
+                      </strong>{" "}
+                      {t("candidate.assess.sample.essay.minWordsHint")}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        setEssayAnswer(
-                          `1. Kiến trúc Tổng thể:\n- Sử dụng RabbitMQ với Topic Exchange để phân luồng thông báo (SMS, Email, Push Notification).\n- Redis Cluster lưu trạng thái Idempotency Key.\n\n2. Xử lý Idempotency:\n- Key: "idempotency:" + tenant_id + ":" + event_id (TTL 24 giờ).\n- Atomic command: SET NX.\n\n3. Dead-Letter Queue:\n- Exponential Backoff retry tối đa 3 lần.\n- Message lỗi đẩy về dlq_notifications để phân tích và gửi lại sau.`
-                        )
-                      }
+                      onClick={() => setCustomEssayAnswer(t("candidate.assess.sample.essay.shortSolution"))}
                       className="text-xs text-[var(--color-primary)]"
                     >
-                      Điền mẫu giải pháp ngắn
+                      {t("candidate.assess.sample.essay.fillShortSample")}
                     </Button>
                   </div>
                 </div>
@@ -856,10 +867,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 {/* Navigation CTA */}
                 <div className="flex justify-between border-t border-[var(--color-border-default)]/60 pt-4">
                   <Button variant="secondary" onClick={() => setCurrentStage("mcq")}>
-                    <ArrowLeft className="size-4" /> Quay lại Trắc nghiệm
+                    <ArrowLeft className="size-4" /> {t("candidate.assess.sample.essay.backToMcq")}
                   </Button>
                   <Button onClick={() => setCurrentStage("coding")} className="gap-2">
-                    Xác nhận & Chuyển sang phần Lập trình <ArrowRight className="size-4" />
+                    {t("candidate.assess.sample.essay.confirmToCoding")} <ArrowRight className="size-4" />
                   </Button>
                 </div>
               </div>
@@ -876,10 +887,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm sm:px-6">
               <div>
                 <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-                  PHẦN 3 TRONG 3 · THỬ THÁCH LẬP TRÌNH (CODING STUDIO)
+                  {t("candidate.assess.sample.coding.eyebrow")}
                 </span>
                 <h2 id="coding-heading" className="text-lg font-bold sm:text-xl">
-                  Bài toán: Tối ưu Phân bổ Lịch phỏng vấn (Merge Overlapping Intervals)
+                  {t("candidate.assess.sample.coding.heading")}
                 </h2>
               </div>
               <div className="flex items-center gap-3">
@@ -888,14 +899,14 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                   size="sm"
                   onClick={() => setCurrentStage("essay")}
                 >
-                  Xem lại Tự luận
+                  {t("candidate.assess.sample.coding.reviewEssay")}
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setCurrentStage("result")}
                   className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 font-bold"
                 >
-                  <Send className="size-3.5" /> Nộp bài thi
+                  <Send className="size-3.5" /> {t("candidate.assess.sample.coding.submitExam")}
                 </Button>
               </div>
             </div>
@@ -905,49 +916,52 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Left Panel: Problem Statement */}
               <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-sm">
                 <div className="border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-5 py-3.5 font-bold text-sm text-[var(--color-on-surface)]">
-                  Mô tả Đề bài & Ràng buộc (Problem Statement)
+                  {t("candidate.assess.sample.coding.problemStatementBar")}
                 </div>
 
                 <div className="flex-1 space-y-4 overflow-y-auto p-5 text-sm leading-6 text-[var(--color-on-surface)]">
                   <div>
-                    <h3 className="font-bold text-base text-[var(--color-on-surface)]">Mô tả bài toán</h3>
+                    <h3 className="font-bold text-base text-[var(--color-on-surface)]">{t("candidate.assess.sample.coding.problemTitle")}</h3>
                     <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                      Hệ thống tuyển dụng SmartHire AI cần tự động gộp các khoảng thời gian bận phỏng vấn của Hội đồng giám khảo để tìm ra lịch trống cho ứng viên tiếp theo.
-                      Cho một mảng các khoảng thời gian <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-rose-600 font-mono">intervals</code>, trong đó mỗi phần tử là <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-rose-600 font-mono">[start, end]</code>. Hãy viết hàm gộp tất cả các khoảng thời gian bị giao thoa (overlapping) và trả về mảng các khoảng thời gian không chồng lấn.
+                      {t("candidate.assess.sample.coding.problemBodyBeforeCode1")}
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-rose-600 font-mono">intervals</code>
+                      {t("candidate.assess.sample.coding.problemBodyBetweenCodes")}
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-rose-600 font-mono">[start, end]</code>
+                      {t("candidate.assess.sample.coding.problemBodyAfterCode2")}
                     </p>
                   </div>
 
                   {/* Resource constraints */}
                   <div className="flex flex-wrap gap-3 rounded-xl bg-[var(--color-surface-container-low)] p-3 text-xs">
                     <span className="flex items-center gap-1.5 font-semibold text-[var(--color-on-surface)]">
-                      <Clock className="size-3.5 text-[var(--color-primary)]" /> Giới hạn thời gian: 1000 ms
+                      <Clock className="size-3.5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.coding.timeLimit")}
                     </span>
                     <span className="flex items-center gap-1.5 font-semibold text-[var(--color-on-surface)]">
-                      <Cpu className="size-3.5 text-[var(--color-primary)]" /> Giới hạn bộ nhớ: 256 MB
+                      <Cpu className="size-3.5 text-[var(--color-primary)]" /> {t("candidate.assess.sample.coding.memoryLimit")}
                     </span>
-                    <span className="font-semibold text-emerald-700">Điểm tối đa: 50 điểm</span>
+                    <span className="font-semibold text-emerald-700">{t("candidate.assess.sample.coding.maxPoints")}</span>
                   </div>
 
                   {/* Examples */}
                   <div className="space-y-3">
                     <div className="rounded-xl border border-[var(--color-border-default)] bg-slate-50 p-3.5 font-mono text-xs">
-                      <strong className="block text-slate-800 font-sans mb-1">Ví dụ 1:</strong>
-                      <p><strong>Input:</strong> intervals = [[9, 10], [9.5, 11], [13, 15], [14.5, 16]]</p>
-                      <p><strong>Output:</strong> [[9, 11], [13, 16]]</p>
-                      <p className="text-slate-500 font-sans mt-1">Giải thích: Ca [9, 10] và [9.5, 11] chồng lấn nhau nên được gộp thành [9, 11].</p>
+                      <strong className="block text-slate-800 font-sans mb-1">{t("candidate.assess.sample.coding.example1Title")}</strong>
+                      <p>{t("candidate.assess.sample.coding.example1Input")}</p>
+                      <p>{t("candidate.assess.sample.coding.example1Output")}</p>
+                      <p className="text-slate-500 font-sans mt-1">{t("candidate.assess.sample.coding.example1Explanation")}</p>
                     </div>
 
                     <div className="rounded-xl border border-[var(--color-border-default)] bg-slate-50 p-3.5 font-mono text-xs">
-                      <strong className="block text-slate-800 font-sans mb-1">Ví dụ 2:</strong>
-                      <p><strong>Input:</strong> intervals = [[8, 9], [10, 12]]</p>
-                      <p><strong>Output:</strong> [[8, 9], [10, 12]]</p>
-                      <p className="text-slate-500 font-sans mt-1">Giải thích: Hai ca hoàn toàn tách biệt nên giữ nguyên.</p>
+                      <strong className="block text-slate-800 font-sans mb-1">{t("candidate.assess.sample.coding.example2Title")}</strong>
+                      <p>{t("candidate.assess.sample.coding.example2Input")}</p>
+                      <p>{t("candidate.assess.sample.coding.example2Output")}</p>
+                      <p className="text-slate-500 font-sans mt-1">{t("candidate.assess.sample.coding.example2Explanation")}</p>
                     </div>
                   </div>
 
                   {/* Constraints */}
                   <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-on-surface-variant)]">Ràng buộc (Constraints)</h4>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-on-surface-variant)]">{t("candidate.assess.sample.coding.constraintsHeading")}</h4>
                     <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-on-surface-variant)] space-y-1 font-mono">
                       <li>1 ≤ intervals.length ≤ 10,000</li>
                       <li>intervals[i].length == 2</li>
@@ -979,9 +993,9 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                       type="button"
                       onClick={() => setCodeSource(SAMPLE_STARTER_CODE[selectedLanguage] ?? "")}
                       className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
-                      title="Đặt lại mã nguồn mẫu"
+                      title={t("candidate.assess.sample.coding.resetTitle")}
                     >
-                      Đặt lại
+                      {t("candidate.assess.sample.coding.resetButton")}
                     </button>
                     <Button
                       size="sm"
@@ -990,7 +1004,9 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                       className="gap-1.5 bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
                     >
                       <Play className="size-3" />
-                      {codeRunOutput.status === "running" ? "Đang chạy..." : "Chạy thử (Run Code)"}
+                      {codeRunOutput.status === "running"
+                        ? t("candidate.assess.sample.coding.runningButton")
+                        : t("candidate.assess.sample.coding.runCodeButton")}
                     </Button>
                   </div>
                 </div>
@@ -1002,7 +1018,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                     language={selectedLanguage}
                     value={codeSource}
                     onChange={(val) => setCodeSource(val)}
-                    placeholder="// Viết mã nguồn giải bài toán tại đây..."
+                    placeholder={t("candidate.assess.sample.coding.editorPlaceholder")}
                     className="rounded-none border-0"
                   />
                 </div>
@@ -1010,10 +1026,10 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 {/* Test Cases & Console Output Panel */}
                 <div className="border-t border-slate-800 bg-slate-900 p-4">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300">Console · Kết quả Sandbox</span>
+                    <span className="font-bold text-slate-300">{t("candidate.assess.sample.coding.consoleTitle")}</span>
                     {codeRunOutput.status === "success" && (
                       <span className="flex items-center gap-1 font-semibold text-emerald-400">
-                        <CheckCircle2 className="size-3.5" /> 3/3 Test cases Passed ({codeRunOutput.executionTimeMs}ms)
+                        <CheckCircle2 className="size-3.5" /> {t("candidate.assess.sample.coding.passedBadge", { ms: codeRunOutput.executionTimeMs })}
                       </span>
                     )}
                   </div>
@@ -1021,17 +1037,21 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                   <div className="mt-2.5 rounded-xl bg-slate-950 p-3 font-mono text-xs leading-5">
                     {codeRunOutput.status === "idle" && (
                       <p className="text-slate-500">
-                        Nhấn nút <strong>"Chạy thử (Run Code)"</strong> để biên dịch và kiểm tra bài làm của bạn với 3 test cases mẫu.
+                        {renderWithHighlight(
+                          t("candidate.assess.sample.coding.consoleIdleHintTemplate"),
+                          "{button}",
+                          <strong>{t("candidate.assess.sample.coding.consoleIdleHintButton")}</strong>,
+                        )}
                       </p>
                     )}
                     {codeRunOutput.status === "running" && (
                       <p className="text-amber-400 animate-pulse">
-                        Đang khởi tạo container sandbox & thực thi bài kiểm tra...
+                        {t("candidate.assess.sample.coding.consoleRunning")}
                       </p>
                     )}
                     {codeRunOutput.status === "success" && (
                       <pre className="whitespace-pre-wrap text-emerald-400">
-                        {codeRunOutput.logs}
+                        {codeLogs}
                       </pre>
                     )}
                   </div>
@@ -1052,17 +1072,19 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-xs">
-                      <CheckCircle2 className="size-3.5" /> HOÀN TẤT & ĐẠT YÊU CẦU
+                      <CheckCircle2 className="size-3.5" /> {t("candidate.assess.sample.result.passedBadge")}
                     </span>
                     <span className="text-xs text-[var(--color-on-surface-variant)]">
-                      Nộp bài lúc {new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                      {t("candidate.assess.sample.result.submittedAt", {
+                        time: formatClockTime(new Date(), { hour: "2-digit", minute: "2-digit" }, locale),
+                      })}
                     </span>
                   </div>
                   <h2 id="result-heading" className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    Kết quả Đánh giá Kỹ thuật: 88 / 100 điểm
+                    {t("candidate.assess.sample.result.heading")}
                   </h2>
                   <p className="max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-                    Chúc mừng bạn đã hoàn thành xuất sắc bài đánh giá năng lực! Điểm số của bạn đã vượt qua ngưỡng yêu cầu tuyển dụng (70/100). Báo cáo năng lực chi tiết đã được gửi tới Đội ngũ Tuyển dụng.
+                    {t("candidate.assess.sample.result.summary")}
                   </p>
                 </div>
 
@@ -1072,9 +1094,9 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                     88%
                   </div>
                   <div>
-                    <span className="text-xs font-semibold uppercase text-emerald-800">Xếp hạng năng lực</span>
-                    <p className="text-lg font-bold text-slate-900">Top 5% Ứng viên</p>
-                    <span className="text-xs text-slate-500">Ngưỡng đạt: 70 điểm</span>
+                    <span className="text-xs font-semibold uppercase text-emerald-800">{t("candidate.assess.sample.result.rankEyebrow")}</span>
+                    <p className="text-lg font-bold text-slate-900">{t("candidate.assess.sample.result.rankValue")}</p>
+                    <span className="text-xs text-slate-500">{t("candidate.assess.sample.result.thresholdNote")}</span>
                   </div>
                 </div>
               </div>
@@ -1085,14 +1107,14 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Part 1 */}
               <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[var(--color-primary)]">PHẦN 1: TRẮC NGHIỆM</span>
+                  <span className="text-xs font-bold text-[var(--color-primary)]">{t("candidate.assess.sample.result.part1Tag")}</span>
                   <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
-                    20 / 20 điểm
+                    {t("candidate.assess.sample.result.part1Score")}
                   </span>
                 </div>
-                <h3 className="font-bold text-base text-[var(--color-on-surface)]">Kiến thức Nền tảng</h3>
+                <h3 className="font-bold text-base text-[var(--color-on-surface)]">{t("candidate.assess.sample.result.part1Title")}</h3>
                 <p className="text-xs text-[var(--color-on-surface-variant)] leading-5">
-                  Đúng 5/5 câu hỏi lý thuyết chuyên sâu về Spring Boot 3, React 19 hooks, Clustered Index và RabbitMQ Multi-tenancy.
+                  {t("candidate.assess.sample.result.part1Desc")}
                 </p>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-emerald-500" style={{ width: "100%" }} />
@@ -1102,14 +1124,14 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Part 2 */}
               <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[var(--color-primary)]">PHẦN 2: TỰ LUẬN</span>
+                  <span className="text-xs font-bold text-[var(--color-primary)]">{t("candidate.assess.sample.result.part2Tag")}</span>
                   <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
-                    26 / 30 điểm
+                    {t("candidate.assess.sample.result.part2Score")}
                   </span>
                 </div>
-                <h3 className="font-bold text-base text-[var(--color-on-surface)]">Thiết kế Kiến trúc</h3>
+                <h3 className="font-bold text-base text-[var(--color-on-surface)]">{t("candidate.assess.sample.result.part2Title")}</h3>
                 <p className="text-xs text-[var(--color-on-surface-variant)] leading-5">
-                  AI & Hội đồng chuyên môn đánh giá cao giải pháp Idempotency với Redis SET NX và chiến lược Dead-letter Queue chịu tải.
+                  {t("candidate.assess.sample.result.part2Desc")}
                 </p>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-emerald-500" style={{ width: "86.6%" }} />
@@ -1119,14 +1141,14 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
               {/* Part 3 */}
               <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[var(--color-primary)]">PHẦN 3: LẬP TRÌNH</span>
+                  <span className="text-xs font-bold text-[var(--color-primary)]">{t("candidate.assess.sample.result.part3Tag")}</span>
                   <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
-                    42 / 50 điểm
+                    {t("candidate.assess.sample.result.part3Score")}
                   </span>
                 </div>
-                <h3 className="font-bold text-base text-[var(--color-on-surface)]">Thuật toán & Clean Code</h3>
+                <h3 className="font-bold text-base text-[var(--color-on-surface)]">{t("candidate.assess.sample.result.part3Title")}</h3>
                 <p className="text-xs text-[var(--color-on-surface-variant)] leading-5">
-                  Vượt qua 10/10 test cases (gồm 3 sample tests và 7 hidden tests). Độ phức tạp thời gian tối ưu O(N log N).
+                  {t("candidate.assess.sample.result.part3Desc")}
                 </p>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-emerald-500" style={{ width: "84%" }} />
@@ -1145,12 +1167,12 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
                 }}
                 className="gap-2"
               >
-                <RotateCcw className="size-4" /> Làm lại bài thi mẫu
+                <RotateCcw className="size-4" /> {t("candidate.assess.sample.result.retakeButton")}
               </Button>
 
               <Link to="/assessments">
                 <Button className="gap-2 font-bold">
-                  Quay lại Danh sách Bài đánh giá <ArrowRight className="size-4" />
+                  {t("candidate.assess.sample.result.backToListButton")} <ArrowRight className="size-4" />
                 </Button>
               </Link>
             </div>

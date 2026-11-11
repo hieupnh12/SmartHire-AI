@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -24,24 +24,23 @@ import {
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import type { ScreeningRoundsView } from "@/api/types/applicant";
 import {
-  COMPETENCY_LABELS,
   type AiAnswer,
   type AiFeedback,
   type AiInterview,
   type AiInterviewLog,
   type AiQuestion,
   type AiQuestionRequest,
-  type CompetencyKey,
 } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
+import { formatNumber, t as globalT, useLocale, useT, type TranslateFn } from "@/i18n";
 import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AVAILABLE_INTERVIEW_PROCESS } from "../utils/interviewProcessSettings";
-import { AI_QUESTION_TYPES, formatDateTime, formatInterviewScore } from "./aiInterviewUi";
+import { AI_QUESTION_TYPES, formatDateTime, formatInterviewScore, getAiStatusLabel } from "./aiInterviewUi";
 import { InterviewRecordingReview } from "./InterviewRecordingReview";
 
 export type StageGroup = {
@@ -51,7 +50,7 @@ export type StageGroup = {
   questions: AiQuestion[];
 };
 
-export function groupQuestionsByStage(interview: AiInterview): StageGroup[] {
+export function groupQuestionsByStage(interview: AiInterview, t: TranslateFn = globalT): StageGroup[] {
   const normalize = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
   const assigned = new Set<number>();
   const groups: StageGroup[] = (interview.roadmap ?? []).map((step) => {
@@ -74,7 +73,12 @@ export function groupQuestionsByStage(interview: AiInterview): StageGroup[] {
 
   const unassigned = interview.questions.filter((question) => !assigned.has(question.id));
   if (unassigned.length > 0) {
-    groups.push({ title: "Câu hỏi bổ sung", kind: stageKind(unassigned), configuredCount: unassigned.length, questions: unassigned });
+    groups.push({
+      title: t("recruiter.interviews.ai.detail.unassignedStageTitle"),
+      kind: stageKind(unassigned),
+      configuredCount: unassigned.length,
+      questions: unassigned,
+    });
   }
   return groups;
 }
@@ -105,6 +109,7 @@ export function PipelineStrip({
   failed?: boolean;
   rounds?: ScreeningRoundsView | null;
 }) {
+  const t = useT();
   const cvState = rounds ? roundState(rounds.cv.passed, rounds.cv.status) : "done";
   const aiState: "done" | "failed" | "active" = passed ? "done" : failed ? "failed" : "active";
   const assessState = rounds
@@ -116,33 +121,50 @@ export function PipelineStrip({
 
   const steps = [
     {
-      label: "CV Screening",
-      meta: cvState === "done" ? "Vòng 1 · Đã vượt qua" : cvState === "failed" ? "Vòng 1 · Chưa đạt" : "Vòng 1 · Đang xét",
+      id: "cv",
+      label: t("recruiter.interviews.ai.detail.pipeline.cvLabel"),
+      meta:
+        cvState === "done"
+          ? t("recruiter.interviews.ai.detail.pipeline.cvDone")
+          : cvState === "failed"
+            ? t("recruiter.interviews.ai.detail.pipeline.cvFailed")
+            : t("recruiter.interviews.ai.detail.pipeline.cvActive"),
       icon: cvState === "failed" ? XCircle : CheckCircle2,
       state: cvState,
     },
     {
-      label: "AI Interview",
-      meta: aiState === "done" ? "Vòng 2 · Đã đạt" : aiState === "failed" ? "Vòng 2 · Chưa đạt" : "Vòng 2 · Đang theo dõi",
+      id: "ai",
+      label: t("recruiter.interviews.ai.detail.pipeline.aiLabel"),
+      meta:
+        aiState === "done"
+          ? t("recruiter.interviews.ai.detail.pipeline.aiDone")
+          : aiState === "failed"
+            ? t("recruiter.interviews.ai.detail.pipeline.aiFailed")
+            : t("recruiter.interviews.ai.detail.pipeline.aiActive"),
       icon: Bot,
       state: aiState,
     },
     {
-      label: "Assessment Lab",
+      id: "assess",
+      label: t("recruiter.interviews.ai.detail.pipeline.assessLabel"),
       meta:
         assessState === "done"
-          ? "Vòng 3 · Đã đạt"
+          ? t("recruiter.interviews.ai.detail.pipeline.assessDone")
           : assessState === "failed"
-            ? "Vòng 3 · Chưa đạt"
+            ? t("recruiter.interviews.ai.detail.pipeline.assessFailed")
             : assessState === "active"
-              ? "Vòng 3 · Đang thực hiện"
-              : "Mở khóa khi đạt AI Interview",
+              ? t("recruiter.interviews.ai.detail.pipeline.assessActive")
+              : t("recruiter.interviews.ai.detail.pipeline.assessLocked"),
       icon: assessState === "done" ? CheckCircle2 : assessState === "failed" ? XCircle : LockKeyhole,
       state: assessState,
     },
     {
-      label: "Tuyển dụng & Offer",
-      meta: offerState === "done" ? "Sẵn sàng vòng phỏng vấn trực tiếp" : "Giai đoạn cuối",
+      id: "offer",
+      label: t("recruiter.interviews.ai.detail.pipeline.offerLabel"),
+      meta:
+        offerState === "done"
+          ? t("recruiter.interviews.ai.detail.pipeline.offerDone")
+          : t("recruiter.interviews.ai.detail.pipeline.offerLocked"),
       icon: offerState === "done" ? CheckCircle2 : LockKeyhole,
       state: offerState,
     },
@@ -150,23 +172,23 @@ export function PipelineStrip({
 
   return (
     <section
-      aria-label="Tiến trình tuyển dụng"
+      aria-label={t("recruiter.interviews.ai.detail.pipeline.ariaLabel")}
       className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs"
     >
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
           <Network className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-          Tiến trình Pipeline tuyển dụng
+          {t("recruiter.interviews.ai.detail.pipeline.title")}
         </h3>
-        <p className="text-xs text-slate-400">Vòng sau chỉ mở khi ứng viên đạt vòng trước.</p>
+        <p className="text-xs text-slate-400">{t("recruiter.interviews.ai.detail.pipeline.subtitle")}</p>
       </div>
       <ol className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         {steps.map((step, index) => {
           const Icon = step.icon;
-          const isCurrent = step.label === "AI Interview";
+          const isCurrent = step.id === "ai";
           return (
             <li
-              key={step.label}
+              key={step.id}
               className={cn(
                 "flex min-h-16 items-center gap-3 rounded-xl border p-3 transition-all",
                 isCurrent
@@ -224,6 +246,8 @@ export function SessionMetricsSection({
   progressLabel: string;
   progressHint: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
   return (
     <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs sm:p-6">
       <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
@@ -232,55 +256,67 @@ export function SessionMetricsSection({
             <Gauge className="size-4.5" aria-hidden="true" />
           </span>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Thông số phiên AI Interview</h3>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              {t("recruiter.interviews.ai.detail.metrics.title")}
+            </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Cấu hình snapshot và trạng thái vận hành của phiên ứng viên.
+              {t("recruiter.interviews.ai.detail.metrics.subtitle")}
             </p>
           </div>
         </div>
         <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           <ShieldCheck className="size-3.5" aria-hidden="true" />
-          Snapshot Policy Active
+          {t("recruiter.interviews.ai.detail.metrics.snapshotBadge")}
         </span>
       </div>
 
       <dl className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">
         <Metric
           icon={Network}
-          label={interview.conversational ? "Tiến độ hội thoại" : "Quy trình & câu hỏi"}
+          label={
+            interview.conversational
+              ? t("recruiter.interviews.ai.detail.metrics.conversationProgress")
+              : t("recruiter.interviews.ai.detail.metrics.processAndQuestions")
+          }
           value={progressLabel}
           hint={progressHint}
         />
         <Metric
           icon={Timer}
-          label="Thời lượng phiên"
-          value={`${interview.durationMinutes ?? "—"} phút`}
-          hint="Đếm ngược theo snapshot"
+          label={t("recruiter.interviews.ai.detail.metrics.durationLabel")}
+          value={t("recruiter.interviews.ai.detail.metrics.durationValue", { minutes: interview.durationMinutes ?? "—" })}
+          hint={t("recruiter.interviews.ai.detail.metrics.durationHint")}
         />
         <Metric
           icon={Gauge}
-          label="Điểm đạt"
+          label={t("recruiter.interviews.ai.detail.metrics.passingScoreLabel")}
           value={`${interview.passingScore ?? "—"}/100`}
-          hint="Ngưỡng đạt vòng tiếp"
+          hint={t("recruiter.interviews.ai.detail.metrics.passingScoreHint")}
           emphasized
         />
         <Metric
           icon={RefreshCw}
-          label="Lượt thi tối đa"
-          value={`${interview.maxAttempts ?? interview.attemptNumber ?? 1} lần`}
-          hint={`Lần thứ ${interview.attemptNumber ?? 1}`}
+          label={t("recruiter.interviews.ai.detail.metrics.maxAttemptsLabel")}
+          value={t("recruiter.interviews.ai.detail.metrics.maxAttemptsValue", {
+            count: interview.maxAttempts ?? interview.attemptNumber ?? 1,
+          })}
+          hint={t("recruiter.interviews.ai.detail.metrics.maxAttemptsHint", {
+            attempt: interview.attemptNumber ?? 1,
+          })}
         />
         <Metric
           icon={CalendarClock}
-          label="Khung mở phòng"
-          value={`${formatDateTime(interview.availableFrom)} → ${formatDateTime(interview.availableUntil)}`}
-          hint="Thời gian được phép làm"
+          label={t("recruiter.interviews.ai.detail.metrics.availabilityLabel")}
+          value={`${formatDateTime(interview.availableFrom, locale)} → ${formatDateTime(interview.availableUntil, locale)}`}
+          hint={t("recruiter.interviews.ai.detail.metrics.availabilityHint")}
         />
         <Metric
           icon={Bot}
-          label="Trạng thái phiên"
-          value={interview.status}
-          hint={`Tạo lúc ${formatDateTime(interview.createdAt)}`}
+          label={t("recruiter.interviews.ai.detail.metrics.statusLabel")}
+          value={getAiStatusLabel(interview.status, t)}
+          hint={t("recruiter.interviews.ai.detail.metrics.createdAtHint", {
+            time: formatDateTime(interview.createdAt, locale),
+          })}
         />
       </dl>
     </section>
@@ -322,13 +358,20 @@ function Metric({
 }
 
 export function SessionGovernanceSection({ interview }: { interview: AiInterview }) {
+  const t = useT();
+  const locale = useLocale();
   const rows = [
-    ["Đơn ứng tuyển", `#${interview.applicationId}`],
-    ["Ứng viên", interview.candidateId ? `#${interview.candidateId}` : "—"],
-    ["Điểm AI", interview.overallScore == null ? "Chưa có điểm" : `${formatInterviewScore(interview.overallScore)}/100`],
-    ["Bắt đầu thực tế", formatDateTime(interview.startedAt)],
-    ["Hoàn tất", formatDateTime(interview.completedAt)],
-    ["Hạn nộp bài", formatDateTime(interview.expiresAt)],
+    [t("recruiter.interviews.ai.detail.governance.applicationLabel"), `#${interview.applicationId}`],
+    [t("recruiter.interviews.ai.detail.governance.candidateLabel"), interview.candidateId ? `#${interview.candidateId}` : "—"],
+    [
+      t("recruiter.interviews.ai.detail.governance.aiScoreLabel"),
+      interview.overallScore == null
+        ? t("recruiter.interviews.ai.detail.governance.noScore")
+        : `${formatInterviewScore(interview.overallScore, locale)}/100`,
+    ],
+    [t("recruiter.interviews.ai.detail.governance.startedAtLabel"), formatDateTime(interview.startedAt, locale)],
+    [t("recruiter.interviews.ai.detail.governance.completedAtLabel"), formatDateTime(interview.completedAt, locale)],
+    [t("recruiter.interviews.ai.detail.governance.expiresAtLabel"), formatDateTime(interview.expiresAt, locale)],
   ];
 
   return (
@@ -339,9 +382,9 @@ export function SessionGovernanceSection({ interview }: { interview: AiInterview
         </span>
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-            Quản trị phiên
+            {t("recruiter.interviews.ai.detail.governance.title")}
           </h3>
-          <p className="text-[11px] text-slate-400">Dữ liệu thực tế và điều kiện khóa phiên.</p>
+          <p className="text-[11px] text-slate-400">{t("recruiter.interviews.ai.detail.governance.subtitle")}</p>
         </div>
       </div>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -367,12 +410,14 @@ export function SessionLogsSection({
   error: unknown;
   onRetry: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   return (
     <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs">
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
         <ChevronRight className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-          Lịch sử xử lý AI Interview
+          {t("recruiter.interviews.ai.detail.logs.title")}
         </h3>
       </div>
 
@@ -382,12 +427,12 @@ export function SessionLogsSection({
         <div className="mt-3 space-y-2" role="status" aria-busy="true">
           <Skeleton className="h-10 w-full rounded-lg" />
           <Skeleton className="h-10 w-full rounded-lg" />
-          <span className="sr-only">Đang tải lịch sử…</span>
+          <span className="sr-only">{t("recruiter.interviews.ai.detail.logs.loadingSr")}</span>
         </div>
       )}
 
       {!isPending && !error && (!logs || logs.length === 0) && (
-        <p className="mt-3 text-xs text-slate-400">Chưa ghi nhận sự kiện xử lý nào cho phiên này.</p>
+        <p className="mt-3 text-xs text-slate-400">{t("recruiter.interviews.ai.detail.logs.empty")}</p>
       )}
 
       {logs && logs.length > 0 && (
@@ -395,7 +440,7 @@ export function SessionLogsSection({
           {logs.map((log) => (
             <li key={log.id} className="py-2.5 text-xs first:pt-0 last:pb-0">
               <p className="font-semibold text-slate-800 dark:text-slate-200">
-                {log.event} · <span className="font-normal text-slate-400">{formatDateTime(log.createdAt)}</span>
+                {log.event} · <span className="font-normal text-slate-400">{formatDateTime(log.createdAt, locale)}</span>
               </p>
               {log.detail && <p className="mt-0.5 break-words leading-relaxed text-slate-500 dark:text-slate-400">{log.detail}</p>}
             </li>
@@ -425,6 +470,7 @@ export function StageQuestionsSection({
   onGenerate: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const askConfirm = useUiStore((s) => s.askConfirm);
 
   return (
@@ -432,10 +478,10 @@ export function StageQuestionsSection({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div>
           <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Câu hỏi ({interview.questions.length})
+            {t("recruiter.interviews.ai.detail.questionsSection.title", { count: interview.questions.length })}
           </h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Nội dung, câu trả lời và đánh giá theo từng câu hỏi.
+            {t("recruiter.interviews.ai.detail.questionsSection.subtitle")}
           </p>
         </div>
         {editable && !interview.conversational && (interview.questions.length === 0 || interview.processBased) && (
@@ -448,10 +494,9 @@ export function StageQuestionsSection({
                 return;
               }
               askConfirm({
-                title: "Sinh lại bộ câu hỏi nháp?",
-                description:
-                  "AI sẽ dùng cấu hình đã lưu của phiên. Chỉ thay câu hỏi nháp chưa trả lời khi bộ mới hợp lệ; giữ nguyên lượt phỏng vấn.",
-                confirmLabel: "Sinh lại",
+                title: t("recruiter.interviews.ai.detail.questionsSection.regenerateTitle"),
+                description: t("recruiter.interviews.ai.detail.questionsSection.regenerateDesc"),
+                confirmLabel: t("recruiter.interviews.ai.detail.questionsSection.regenerateConfirm"),
                 onConfirm: async () => {
                   onGenerate();
                 },
@@ -462,20 +507,20 @@ export function StageQuestionsSection({
             <Sparkles className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
             <span>
               {generatePending
-                ? "Đang gửi yêu cầu…"
+                ? t("recruiter.interviews.ai.detail.questionsSection.generatingBtn")
                 : interview.questions.length
-                  ? "Sinh lại theo cấu hình"
-                  : "Sinh câu hỏi bằng AI"}
+                  ? t("recruiter.interviews.ai.detail.questionsSection.regenerateBtn")
+                  : t("recruiter.interviews.ai.detail.questionsSection.generateBtn")}
             </span>
           </button>
         )}
       </div>
 
       {!interview.questions.length && !stageGroups.length && interview.status !== "GENERATING" && (
-        <p className="p-4 text-xs text-slate-400">Chưa có lộ trình hoặc câu hỏi Communication.</p>
+        <p className="p-4 text-xs text-slate-400">{t("recruiter.interviews.ai.detail.questionsSection.empty")}</p>
       )}
 
-      <ol className="space-y-4" aria-label="Lộ trình và câu hỏi phỏng vấn">
+      <ol className="space-y-4" aria-label={t("recruiter.interviews.ai.detail.questionsSection.listAria")}>
         {stageGroups.map((stage, stageIndex) => (
           <StageQuestionGroup
             key={`${stage.title}-${stageIndex}`}
@@ -518,20 +563,27 @@ function StageQuestionGroup({
   editable: boolean;
   onChanged: () => void;
 }) {
-  const kindLabel = stage.kind === "MCQ" ? "Trắc nghiệm" : stage.kind === "OPEN" ? "Tự luận" : "Kết hợp";
+  const t = useT();
+  const kindLabel =
+    stage.kind === "MCQ"
+      ? t("recruiter.interviews.ai.detail.questionsSection.kindMcq")
+      : stage.kind === "OPEN"
+        ? t("recruiter.interviews.ai.detail.questionsSection.kindOpen")
+        : t("recruiter.interviews.ai.detail.questionsSection.kindMixed");
   const complete = stage.questions.length >= stage.configuredCount && stage.configuredCount > 0;
+  const stageNum = String(stageIndex + 1).padStart(2, "0");
 
   return (
     <li className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs transition-all dark:border-slate-800 dark:bg-slate-900">
       <header className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/40 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)]">
-            {String(stageIndex + 1).padStart(2, "0")}
+            {stageNum}
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary-hover)]">
-                Lộ trình {String(stageIndex + 1).padStart(2, "0")}
+                {t("recruiter.interviews.ai.detail.questionsSection.stageLabel", { num: stageNum })}
               </span>
               <span className="rounded-md bg-slate-200/60 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                 {kindLabel}
@@ -539,7 +591,7 @@ function StageQuestionGroup({
             </div>
             <h4 className="mt-1 text-sm font-bold leading-tight text-slate-900 dark:text-slate-100">{stage.title}</h4>
             <p className="mt-0.5 text-xs text-slate-400">
-              Chặng đánh giá độc lập · câu hỏi và rubric được AI tạo theo cấu hình snapshot.
+              {t("recruiter.interviews.ai.detail.questionsSection.stageHint")}
             </p>
           </div>
         </div>
@@ -550,7 +602,10 @@ function StageQuestionGroup({
           )}
         >
           <span className="size-1.5 rounded-full bg-current" />
-          {stage.questions.length}/{stage.configuredCount} câu đã tạo
+          {t("recruiter.interviews.ai.detail.questionsSection.generatedProgress", {
+            created: stage.questions.length,
+            total: stage.configuredCount,
+          })}
         </span>
       </header>
       <div className="space-y-3 p-4">
@@ -572,10 +627,13 @@ function StageQuestionGroup({
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-4 py-8 text-center dark:border-slate-800 dark:bg-slate-900/40">
             <Sparkles className="mx-auto size-5 text-[var(--color-primary)]" aria-hidden="true" />
             <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-              AI chưa tạo câu hỏi cho lộ trình này
+              {t("recruiter.interviews.ai.detail.questionsSection.noQuestionsYet")}
             </p>
             <p className="mt-0.5 text-xs text-slate-400">
-              Dự kiến {stage.configuredCount} câu · {kindLabel}
+              {t("recruiter.interviews.ai.detail.questionsSection.expectedQuestions", {
+                count: stage.configuredCount,
+                kind: kindLabel,
+              })}
             </p>
           </div>
         )}
@@ -584,12 +642,18 @@ function StageQuestionGroup({
   );
 }
 
-const questionSchema = z.object({
-  questionText: z.string().trim().min(1, "Nhập nội dung câu hỏi").max(20000, "Tối đa 20.000 ký tự"),
-  questionType: z.string().trim().min(1).max(32),
-  questionOrder: z.coerce.number().int().min(0, "Thứ tự ≥ 0"),
-});
-type QuestionValues = z.infer<typeof questionSchema>;
+function createQuestionSchema(t: TranslateFn) {
+  return z.object({
+    questionText: z
+      .string()
+      .trim()
+      .min(1, t("recruiter.interviews.ai.detail.questionsSection.textRequired"))
+      .max(20000, t("recruiter.interviews.ai.detail.questionsSection.max20000")),
+    questionType: z.string().trim().min(1).max(32),
+    questionOrder: z.coerce.number().int().min(0, t("recruiter.interviews.ai.detail.questionsSection.orderMinZero")),
+  });
+}
+type QuestionValues = z.infer<ReturnType<typeof createQuestionSchema>>;
 
 function QuestionFields({
   defaults,
@@ -606,6 +670,8 @@ function QuestionFields({
   onCancel?: () => void;
   lockStructure?: boolean;
 }) {
+  const t = useT();
+  const questionSchema = useMemo(() => createQuestionSchema(t), [t]);
   const {
     register,
     handleSubmit,
@@ -629,24 +695,24 @@ function QuestionFields({
       })}
     >
       <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
-        <span>Nội dung câu hỏi</span>
+        <span>{t("recruiter.interviews.ai.detail.questionsSection.questionTextLabel")}</span>
         <textarea className={cn(assessmentInput, "min-h-24")} {...register("questionText")} disabled={pending} />
         <FieldError message={errors.questionText?.message} />
       </label>
       {!lockStructure && (
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span>Loại câu hỏi</span>
+            <span>{t("recruiter.interviews.ai.detail.questionsSection.questionTypeLabel")}</span>
             <select className={assessmentInput} {...register("questionType")} disabled={pending}>
-              {AI_QUESTION_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {AI_QUESTION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {t(`recruiter.interviews.questionTypes.${type}`)}
                 </option>
               ))}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span>Thứ tự</span>
+            <span>{t("recruiter.interviews.ai.detail.questionsSection.orderLabel")}</span>
             <input type="number" min={0} className={assessmentInput} {...register("questionOrder")} disabled={pending} />
             <FieldError message={errors.questionOrder?.message} />
           </label>
@@ -660,7 +726,7 @@ function QuestionFields({
             disabled={pending}
             className="inline-flex h-8 items-center rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
           >
-            Huỷ
+            {t("recruiter.interviews.ai.detail.questionsSection.cancel")}
           </button>
         )}
         <button
@@ -668,7 +734,7 @@ function QuestionFields({
           disabled={pending}
           className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 text-xs font-semibold text-white shadow-xs transition-all hover:bg-[var(--color-primary-hover)] cursor-pointer"
         >
-          {pending ? "Đang lưu…" : submitLabel}
+          {pending ? t("recruiter.interviews.ai.detail.questionsSection.saving") : submitLabel}
         </button>
       </div>
     </form>
@@ -684,11 +750,12 @@ function AddQuestionForm({
   nextOrder: number;
   onAdded: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const add = useMutation({
     mutationFn: (body: AiQuestionRequest) => aiInterviewApi.addQuestion(interviewId, body),
     onSuccess: () => {
-      toast.success("Đã thêm câu hỏi");
+      toast.success(t("recruiter.interviews.ai.detail.questionsSection.addSuccess"));
       onAdded();
     },
   });
@@ -701,7 +768,7 @@ function AddQuestionForm({
         className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
       >
         <Plus className="size-3.5" aria-hidden="true" />
-        Thêm câu hỏi
+        {t("recruiter.interviews.ai.detail.questionsSection.addBtn")}
       </button>
     );
   }
@@ -713,11 +780,11 @@ function AddQuestionForm({
         key={nextOrder}
         defaults={{ questionText: "", questionType: "TECHNICAL", questionOrder: nextOrder }}
         pending={add.isPending}
-        submitLabel="Thêm"
+        submitLabel={t("recruiter.interviews.ai.detail.questionsSection.submitAdd")}
         onSubmit={(body) => add.mutateAsync(body)}
       />
       <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-        Đóng
+        {t("recruiter.interviews.ai.detail.questionsSection.close")}
       </Button>
     </div>
   );
@@ -738,6 +805,8 @@ function QuestionItem({
   editable: boolean;
   onChanged: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [editing, setEditing] = useState(false);
   const update = useMutation({
@@ -753,9 +822,12 @@ function QuestionItem({
   const tags = [
     ...(question.competencies ?? [])
       .filter((key) => key === AVAILABLE_INTERVIEW_PROCESS)
-      .map((key) => COMPETENCY_LABELS[key as CompetencyKey] ?? key),
+      .map((key) => t(`recruiter.interviews.competencies.${key}`)),
     ...(question.skills ?? []),
   ];
+  const questionTypeLabel = (AI_QUESTION_TYPES as readonly string[]).includes(question.questionType)
+    ? t(`recruiter.interviews.questionTypes.${question.questionType}`)
+    : question.questionType;
 
   return (
     <li className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-2xs dark:border-slate-800 dark:bg-slate-900 sm:p-5">
@@ -765,7 +837,7 @@ function QuestionItem({
           <QuestionFields
             defaults={{ questionText: question.questionText, questionType: question.questionType, questionOrder: question.questionOrder }}
             pending={update.isPending}
-            submitLabel="Lưu"
+            submitLabel={t("recruiter.interviews.ai.detail.questionsSection.saveBtn")}
             onSubmit={(body) => update.mutateAsync(body)}
             onCancel={() => setEditing(false)}
             lockStructure={planned}
@@ -778,14 +850,21 @@ function QuestionItem({
               <span className="grid size-6 place-items-center rounded-lg border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)]">
                 {index + 1}
               </span>
-              <span>{planned ? question.stageTitle : `${question.questionType} · thứ tự ${question.questionOrder}`}</span>
-              {mcq && <span>· Trắc nghiệm</span>}
+              <span>
+                {planned
+                  ? question.stageTitle
+                  : t("recruiter.interviews.ai.detail.questionsSection.orderMeta", {
+                      type: questionTypeLabel,
+                      order: question.questionOrder,
+                    })}
+              </span>
+              {mcq && <span>{t("recruiter.interviews.ai.detail.questionsSection.mcqTag")}</span>}
             </p>
             <p className="mt-2.5 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-900 dark:text-slate-100">
               {question.questionText}
             </p>
             {tags.length > 0 && (
-              <ul className="mt-2 flex flex-wrap gap-1" aria-label="Tiêu chí đánh giá">
+              <ul className="mt-2 flex flex-wrap gap-1" aria-label={t("recruiter.interviews.ai.detail.questionsSection.tagsAria")}>
                 {tags.map((tag) => (
                   <li key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {tag}
@@ -806,20 +885,24 @@ function QuestionItem({
                     )}
                   >
                     {String.fromCharCode(65 + i)}. {option}
-                    {(question.correctOption === i || question.correctOptions?.includes(i)) && " (đáp án đúng)"}
-                    {parseChoiceAnswer(answer?.answerText).selectedOptions.includes(i) && " · ứng viên chọn"}
+                    {(question.correctOption === i || question.correctOptions?.includes(i)) &&
+                      t("recruiter.interviews.ai.detail.questionsSection.correctOptionTag")}
+                    {parseChoiceAnswer(answer?.answerText).selectedOptions.includes(i) &&
+                      t("recruiter.interviews.ai.detail.questionsSection.candidateSelectedTag")}
                   </li>
                 ))}
               </ol>
             )}
             {mcq && parseChoiceAnswer(answer?.answerText).explanation && (
               <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                <strong>Ứng viên giải thích:</strong> {parseChoiceAnswer(answer?.answerText).explanation}
+                <strong>{t("recruiter.interviews.ai.detail.questionsSection.candidateExplanation")}</strong>{" "}
+                {parseChoiceAnswer(answer?.answerText).explanation}
               </p>
             )}
             {mcq && question.explanation && (
               <p className="mt-1 text-[11px] text-slate-400">
-                <strong>Giải thích:</strong> {question.explanation}
+                <strong>{t("recruiter.interviews.ai.detail.questionsSection.explanationLabel")}</strong>{" "}
+                {question.explanation}
               </p>
             )}
           </div>
@@ -828,7 +911,7 @@ function QuestionItem({
               <button
                 type="button"
                 className="grid size-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Sửa câu hỏi"
+                aria-label={t("recruiter.interviews.ai.detail.questionsSection.editAria")}
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="size-3.5" aria-hidden="true" />
@@ -837,12 +920,12 @@ function QuestionItem({
                 <button
                   type="button"
                   className="grid size-8 place-items-center rounded-lg text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/50"
-                  aria-label="Xoá câu hỏi"
+                  aria-label={t("recruiter.interviews.ai.detail.questionsSection.deleteAria")}
                   onClick={() =>
                     askConfirm({
-                      title: "Xoá câu hỏi này?",
-                      description: "Câu trả lời và feedback của câu hỏi cũng bị xoá.",
-                      confirmLabel: "Xoá",
+                      title: t("recruiter.interviews.ai.detail.questionsSection.deleteTitle"),
+                      description: t("recruiter.interviews.ai.detail.questionsSection.deleteDesc"),
+                      confirmLabel: t("recruiter.interviews.ai.detail.questionsSection.deleteConfirm"),
                       danger: true,
                       onConfirm: async () => {
                         await aiInterviewApi.deleteQuestion(interviewId, question.id);
@@ -863,24 +946,34 @@ function QuestionItem({
         <div className="space-y-3 rounded-xl border border-slate-200/70 bg-slate-50/60 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
           <div>
             <p className="text-[11px] font-semibold text-slate-400">
-              Câu trả lời · {formatDateTime(answer.answeredAt)}
-              {answer.answerDuration != null ? ` · ${answer.answerDuration}s` : ""}
+              {t("recruiter.interviews.ai.detail.questionsSection.answerMeta", { time: formatDateTime(answer.answeredAt, locale) })}
+              {answer.answerDuration != null
+                ? t("recruiter.interviews.ai.detail.questionsSection.answerDurationSuffix", { seconds: answer.answerDuration })
+                : ""}
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-xs font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-              {!answer.answerText ? "Bỏ trống (0 điểm)" : mcq ? `Chọn ${String.fromCharCode(65 + Number(answer.answerText))}` : answer.answerText}
+              {!answer.answerText
+                ? t("recruiter.interviews.ai.detail.questionsSection.blankAnswer")
+                : mcq
+                  ? t("recruiter.interviews.ai.detail.questionsSection.selectedChoice", {
+                      option: String.fromCharCode(65 + Number(answer.answerText)),
+                    })
+                  : answer.answerText}
             </p>
           </div>
           <FeedbackView feedback={answer.feedback} answer={answer} />
           {completed && <InterviewRecordingReview interviewId={interviewId} answerId={answer.id} />}
         </div>
       ) : (
-        <p className="text-xs italic text-slate-400">Ứng viên chưa trả lời.</p>
+        <p className="text-xs italic text-slate-400">{t("recruiter.interviews.ai.detail.questionsSection.unanswered")}</p>
       )}
     </li>
   );
 }
 
 function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answer: AiAnswer }) {
+  const t = useT();
+  const locale = useLocale();
   let metrics: { durationMs?: number; voicedMs?: number; silenceMs?: number; pauseCount?: number; responseLatencyMs?: number | null } | undefined;
   let wordsPerMinute: number | undefined;
   try {
@@ -903,7 +996,7 @@ function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answe
       {feedback ? (
         <div className="space-y-1.5 rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/70 p-3">
           <p className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100">
-            <span>Đánh giá AI</span>
+            <span>{t("recruiter.interviews.ai.detail.questionsSection.aiFeedbackTitle")}</span>
             <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
               {feedback.score ?? "—"}/100
             </span>
@@ -911,34 +1004,54 @@ function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answe
           <p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{feedback.feedbackText}</p>
           {feedback.strengths && (
             <p className="text-emerald-700 dark:text-emerald-400">
-              <strong>Điểm mạnh:</strong> {feedback.strengths}
+              <strong>{t("recruiter.interviews.ai.detail.questionsSection.strengthsLabel")}</strong> {feedback.strengths}
             </p>
           )}
           {feedback.weaknesses && (
             <p className="text-amber-700 dark:text-amber-400">
-              <strong>Cần cải thiện:</strong> {feedback.weaknesses}
+              <strong>{t("recruiter.interviews.ai.detail.questionsSection.weaknessesLabel")}</strong> {feedback.weaknesses}
             </p>
           )}
         </div>
       ) : (
-        <p className="italic text-slate-400">Chưa có đánh giá AI.</p>
+        <p className="italic text-slate-400">{t("recruiter.interviews.ai.detail.questionsSection.noFeedback")}</p>
       )}
       {metrics && (
         <div className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-          <p className="font-bold text-slate-800 dark:text-slate-200">Tín hiệu lời nói (tham khảo)</p>
-          <p>
-            Thời lượng: {((metrics.durationMs ?? 0) / 1000).toFixed(1)}s · Thời gian nói: {((metrics.voicedMs ?? 0) / 1000).toFixed(1)}s · Khoảng dừng ≥ 0,6s:{" "}
-            {metrics.pauseCount ?? 0}
+          <p className="font-bold text-slate-800 dark:text-slate-200">
+            {t("recruiter.interviews.ai.detail.questionsSection.speechTitle")}
           </p>
           <p>
-            Im lặng: {((metrics.silenceMs ?? 0) / 1000).toFixed(1)}s · Tỷ lệ có tiếng nói:{" "}
-            {metrics.durationMs ? `${Math.round(((metrics.voicedMs ?? 0) * 100) / metrics.durationMs)}%` : "Chưa đủ dữ liệu"}
+            {t("recruiter.interviews.ai.detail.questionsSection.speechDuration", {
+              duration: ((metrics.durationMs ?? 0) / 1000).toFixed(1),
+              voiced: ((metrics.voicedMs ?? 0) / 1000).toFixed(1),
+              threshold: formatNumber(0.6, { maximumFractionDigits: 1 }, locale),
+              pauses: metrics.pauseCount ?? 0,
+            })}
           </p>
           <p>
-            Phản hồi: {metrics.responseLatencyMs == null ? "Chưa đủ dữ liệu" : `${(metrics.responseLatencyMs / 1000).toFixed(1)}s`}
-            {wordsPerMinute != null && ` · Tốc độ: ${Math.round(wordsPerMinute)} từ/phút nói`}
+            {t("recruiter.interviews.ai.detail.questionsSection.speechSilence", {
+              silence: ((metrics.silenceMs ?? 0) / 1000).toFixed(1),
+              ratio: metrics.durationMs
+                ? `${Math.round(((metrics.voicedMs ?? 0) * 100) / metrics.durationMs)}%`
+                : t("recruiter.interviews.ai.detail.questionsSection.insufficientData"),
+            })}
           </p>
-          <p className="pt-1 text-[10px] text-slate-400">Ước lượng từ micro của trình duyệt; không cộng tự động vào điểm nội dung.</p>
+          <p>
+            {t("recruiter.interviews.ai.detail.questionsSection.speechLatency", {
+              latency:
+                metrics.responseLatencyMs == null
+                  ? t("recruiter.interviews.ai.detail.questionsSection.insufficientData")
+                  : `${(metrics.responseLatencyMs / 1000).toFixed(1)}s`,
+            })}
+            {wordsPerMinute != null &&
+              t("recruiter.interviews.ai.detail.questionsSection.speechSpeedSuffix", {
+                wpm: Math.round(wordsPerMinute),
+              })}
+          </p>
+          <p className="pt-1 text-[10px] text-slate-400">
+            {t("recruiter.interviews.ai.detail.questionsSection.speechDisclaimer")}
+          </p>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { masterAdminApi, SubscriptionPlan } from "./masterAdminApi";
 import { consultationApi } from "./consultationApi";
 import { billingApi } from "./billingApi";
 import { contractApi } from "./contractApi";
+import { t } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 
 export const masterQueryKeys = {
@@ -52,7 +53,7 @@ export const useCreateSubscription = () => {
       queryClient.setQueryData<SubscriptionPlan[]>(masterQueryKeys.subscriptions(), (old) => {
         return old ? [...old, newPlan] : [newPlan];
       });
-      toast.success("Tạo gói dịch vụ thành công!");
+      toast.success(t("errors.subscriptionCreated"));
     },
   });
 };
@@ -65,7 +66,7 @@ export const useUpdateSubscription = () => {
       queryClient.setQueryData<SubscriptionPlan[]>(masterQueryKeys.subscriptions(), (old) => {
         return old ? old.map((p) => (p.id === updated.id ? updated : p)) : [];
       });
-      toast.success("Cập nhật gói dịch vụ thành công!");
+      toast.success(t("errors.subscriptionUpdated"));
     },
   });
 };
@@ -78,7 +79,7 @@ export const useUpdateSubscriptionStatus = () => {
       queryClient.setQueryData<SubscriptionPlan[]>(masterQueryKeys.subscriptions(), (old) => {
         return old ? old.map((p) => (p.id === updated.id ? updated : p)) : [];
       });
-      toast.success("Cập nhật trạng thái gói dịch vụ thành công!");
+      toast.success(t("errors.subscriptionStatusUpdated"));
     },
   });
 };

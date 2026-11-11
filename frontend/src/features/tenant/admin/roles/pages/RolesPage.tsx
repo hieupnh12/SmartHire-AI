@@ -37,8 +37,8 @@ type FeatureAction = "VIEW" | "CREATE" | "EDIT" | "DELETE";
 interface FeatureMatrixItem {
   code: string;
   labelKey: string;
-  customLabel?: string;
-  description: string;
+  customLabelKey?: string;
+  descriptionKey: string;
   icon: LucideIcon;
   actions: FeatureAction[];
 }
@@ -47,78 +47,78 @@ const FEATURE_MATRIX: FeatureMatrixItem[] = [
   {
     code: "DASHBOARD",
     labelKey: "nav.dashboard",
-    description: "Xem thống kê tổng quan và tình hình tuyển dụng",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.DASHBOARD",
     icon: House,
     actions: ["VIEW"],
   },
   {
     code: "JOBS",
     labelKey: "nav.publishedJobs",
-    customLabel: "Tin tuyển dụng",
-    description: "Tạo job mới, chỉnh sửa và quản lý tin tuyển dụng",
+    customLabelKey: "tenantAdmin.roles.matrix.jobsLabel",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.JOBS",
     icon: BriefcaseBusiness,
     actions: ["VIEW", "CREATE", "EDIT", "DELETE"],
   },
   {
     code: "APPLICANTS",
     labelKey: "nav.applicants",
-    description: "Xem danh sách, quản lý trạng thái hồ sơ ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.APPLICANTS",
     icon: Users,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "CV_SCREENING",
     labelKey: "nav.cvScreening",
-    description: "Tải lên, phân tích và sàng lọc hồ sơ CV bằng AI",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.CV_SCREENING",
     icon: FileSearch,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "RANKING",
     labelKey: "nav.ranking",
-    description: "Khớp lệnh thông minh và bảng xếp hạng độ phù hợp ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.RANKING",
     icon: Sparkles,
     actions: ["VIEW", "EDIT"],
   },
   {
     code: "ANALYTICS",
     labelKey: "nav.recruitmentAnalytics",
-    description: "Báo cáo chuyên sâu và phân tích hiệu suất tuyển dụng",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.ANALYTICS",
     icon: ChartNoAxesCombined,
     actions: ["VIEW"],
   },
   {
     code: "ASSESSMENTS",
     labelKey: "nav.assessments",
-    description: "Tạo và chấm điểm bài kiểm tra năng lực chuyên môn",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.ASSESSMENTS",
     icon: GraduationCap,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "AI_INTERVIEWS",
     labelKey: "nav.aiInterview",
-    description: "Cấu hình kịch bản và xem kết quả phỏng vấn AI",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.AI_INTERVIEWS",
     icon: Bot,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "INTERVIEWS",
     labelKey: "nav.interviews",
-    description: "Điều phối và ghi chú đánh giá buổi phỏng vấn trực tiếp",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.INTERVIEWS",
     icon: CalendarClock,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "SCHEDULES",
     labelKey: "nav.schedules",
-    description: "Xem và đặt lịch hẹn phỏng vấn với ứng viên",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.SCHEDULES",
     icon: CalendarDays,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
   {
     code: "NOTIFICATIONS",
     labelKey: "nav.notifications",
-    description: "Thông báo nội bộ và thông báo tiến độ ứng tuyển",
+    descriptionKey: "tenantAdmin.roles.matrix.descriptions.NOTIFICATIONS",
     icon: Bell,
     actions: ["VIEW", "EDIT", "DELETE"],
   },
@@ -225,11 +225,11 @@ export function RolesPage() {
     mutationFn: () => tenantRolesApi.create({ name, features }),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã tạo vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.createSuccess"));
       invalidate();
       setSelectedId(res.data.id);
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không tạo được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.createError"))),
   });
 
   const updateMutation = useMutation({
@@ -237,21 +237,21 @@ export function RolesPage() {
       tenantRolesApi.update(role.id, role.system ? { features } : { name, features }),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã lưu vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.updateSuccess"));
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không lưu được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.updateError"))),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => tenantRolesApi.remove(id),
     onSuccess: (res) => {
       if (!res.success) throw new Error(res.message);
-      toast.success("Đã xóa vai trò");
+      toast.success(t("tenantAdmin.roles.toasts.deleteSuccess"));
       setSelectedId(null);
       invalidate();
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không xóa được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.roles.toasts.deleteError"))),
   });
 
   const isActionChecked = (moduleCode: string, action: FeatureAction) => {
@@ -338,13 +338,13 @@ export function RolesPage() {
 
   const askDelete = (role: TenantRole) => {
     if (!canDeleteRole(role)) {
-      toast.danger("Vai trò mặc định và admin không thể xóa");
+      toast.danger(t("tenantAdmin.roles.toasts.cannotDeleteProtected"));
       return;
     }
     askConfirm({
-      title: `Xóa vai trò ${role.name}?`,
-      description: "Chỉ xóa được khi chưa gán cho nhân viên hoặc lời mời đang chờ.",
-      confirmLabel: "Xóa",
+      title: t("tenantAdmin.roles.deleteConfirm.title", { name: role.name }),
+      description: t("tenantAdmin.roles.deleteConfirm.description"),
+      confirmLabel: t("tenantAdmin.roles.deleteConfirm.confirmLabel"),
       danger: true,
       onConfirm: () => deleteMutation.mutate(role.id),
     });
@@ -365,7 +365,7 @@ export function RolesPage() {
     <section className="flex flex-col gap-3 lg:h-[calc(100dvh-6.25rem)] lg:overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-3">
         <h1 className="font-display text-xl font-bold text-[var(--color-text-primary)] sm:text-2xl">
-          Phân quyền
+          {t("tenantAdmin.roles.title")}
         </h1>
       </div>
 
@@ -374,10 +374,10 @@ export function RolesPage() {
         <div className="flex min-h-0 flex-col gap-3">
           <Card className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
             <div className="flex shrink-0 items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Vai trò</h2>
+              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.roles.rolesCardTitle")}</h2>
               <Button type="button" size="sm" onClick={() => setSelectedId("new")}>
                 <Plus className="mr-1 size-3.5" />
-                Tạo mới
+                {t("tenantAdmin.roles.createShort")}
               </Button>
             </div>
 
@@ -386,13 +386,13 @@ export function RolesPage() {
                 {Array.from({ length: 4 }, (_, i) => (
                   <Skeleton key={i} className="h-9 w-full rounded-lg" />
                 ))}
-                <span className="sr-only">Đang tải danh sách vai trò…</span>
+                <span className="sr-only">{t("tenantAdmin.roles.loadingRolesSr")}</span>
               </div>
             )}
 
             {query.isError && (
               <p className="text-xs text-status-danger" role="alert">
-                {getApiErrorMessage(query.error, "Không tải được danh sách vai trò")}
+                {getApiErrorMessage(query.error, t("tenantAdmin.roles.loadRolesError"))}
               </p>
             )}
 
@@ -410,12 +410,12 @@ export function RolesPage() {
                   >
                     <span className="truncate">{role.name}</span>
                     <span className="ml-2 shrink-0 text-[11px] text-[var(--color-text-secondary)]">
-                      {role.system ? "Mặc định" : role.code}
+                      {role.system ? t("tenantAdmin.roles.defaultRoleBadge") : role.code}
                     </span>
                   </button>
                   {canDeleteRole(role) && (
                     <DeleteIconButton
-                      label={`Xóa vai trò ${role.name}`}
+                      label={t("tenantAdmin.roles.deleteRoleAria", { name: role.name })}
                       disabled={deleteMutation.isPending}
                       onClick={() => askDelete(role)}
                     />
@@ -437,10 +437,10 @@ export function RolesPage() {
                 <span className="min-w-0">
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-primary)]">
                     <ShieldCheck className="size-3.5 shrink-0 text-brand-primary" />
-                    Xem toàn bộ tin tuyển dụng
+                    {t("tenantAdmin.roles.jobsAllShortTitle")}
                   </span>
                   <span className="mt-0.5 block text-[11px] text-[var(--color-text-secondary)]">
-                    Bật `JOBS_ALL` để xem tất cả job công ty
+                    {t("tenantAdmin.roles.jobsAllShortDesc")}
                   </span>
                 </span>
               </label>
@@ -453,7 +453,7 @@ export function RolesPage() {
           {selectedId == null && !query.isLoading && (
             <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-sm text-[var(--color-text-secondary)]">
               <Shield className="mb-2 size-9 stroke-1 text-slate-300" />
-              Chưa có vai trò nào. Nhấn &ldquo;Tạo mới&rdquo; để thiết lập phân quyền.
+              {t("tenantAdmin.roles.emptySelectionShort")}
             </div>
           )}
 
@@ -463,19 +463,19 @@ export function RolesPage() {
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b border-[var(--color-border-default)] pb-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
                   <label className="sr-only" htmlFor="role-name">
-                    Tên vai trò
+                    {t("tenantAdmin.roles.roleNameLabel")}
                   </label>
                   <input
                     id="role-name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     disabled={selected?.system}
-                    placeholder="Nhập tên vai trò (VD: Chuyên viên Tuyển dụng)..."
+                    placeholder={t("tenantAdmin.roles.roleNamePlaceholder")}
                     className="min-h-9 w-full max-w-xs rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm font-semibold outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 disabled:bg-slate-50 disabled:opacity-75"
                   />
                   {selected?.system && (
                     <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                      Mặc định
+                      {t("tenantAdmin.roles.defaultRoleBadge")}
                     </span>
                   )}
                 </div>
@@ -483,7 +483,7 @@ export function RolesPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-brand-primary">
                     <Check className="size-3.5" />
-                    {totalAssignedCount} quyền
+                    {t("tenantAdmin.roles.assignedCountShort", { count: totalAssignedCount })}
                   </span>
                   <button
                     type="button"
@@ -491,14 +491,14 @@ export function RolesPage() {
                     className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-surface-alt)] hover:text-brand-primary"
                   >
                     <CheckCheck className="size-3.5" />
-                    Chọn hết
+                    {t("tenantAdmin.roles.selectAllShort")}
                   </button>
                   <button
                     type="button"
                     onClick={clearAllFeatures}
                     className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-surface-alt)] hover:text-status-danger"
                   >
-                    Bỏ chọn
+                    {t("tenantAdmin.roles.clearAllShort")}
                   </button>
                 </div>
               </div>
@@ -508,12 +508,12 @@ export function RolesPage() {
                 <table className="w-full border-collapse text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-[var(--color-surface-alt)]">
                     <tr className="border-b border-[var(--color-border-default)] text-xs font-semibold text-[var(--color-text-secondary)]">
-                      <th className="px-3.5 py-2.5 font-semibold">PHÂN HỆ</th>
-                      <th className="w-16 px-2 py-2.5 text-center font-semibold">TẤT CẢ</th>
-                      <th className="w-14 px-2 py-2.5 text-center font-semibold">XEM</th>
-                      <th className="w-14 px-2 py-2.5 text-center font-semibold">TẠO</th>
-                      <th className="w-14 px-2 py-2.5 text-center font-semibold">SỬA</th>
-                      <th className="w-14 px-2 py-2.5 text-center font-semibold">XÓA</th>
+                      <th className="px-3.5 py-2.5 font-semibold">{t("tenantAdmin.roles.columns.moduleShort")}</th>
+                      <th className="w-16 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.all")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.view")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.create")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.edit")}</th>
+                      <th className="w-14 px-2 py-2.5 text-center font-semibold">{t("tenantAdmin.roles.columns.delete")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-border-default)]">
@@ -528,11 +528,12 @@ export function RolesPage() {
                       const createChecked = isActionChecked(item.code, "CREATE");
                       const editChecked = isActionChecked(item.code, "EDIT");
                       const deleteChecked = isActionChecked(item.code, "DELETE");
+                      const featureLabel = item.customLabelKey ? t(item.customLabelKey) : t(item.labelKey);
 
                       return (
                         <tr
                           key={item.code}
-                          title={item.description}
+                          title={t(item.descriptionKey)}
                           className="transition-colors hover:bg-[var(--color-surface-alt)]/50"
                         >
                           <td className="px-3.5 py-2">
@@ -541,7 +542,7 @@ export function RolesPage() {
                                 <Icon className="size-3.5" />
                               </span>
                               <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">
-                                {item.customLabel ?? t(item.labelKey)}
+                                {featureLabel}
                               </span>
                             </div>
                           </td>
@@ -552,7 +553,7 @@ export function RolesPage() {
                                 type="checkbox"
                                 checked={allChecked}
                                 onChange={() => toggleAllModule(item)}
-                                aria-label={`Tất cả quyền ${item.customLabel ?? t(item.labelKey)}`}
+                                aria-label={t("tenantAdmin.roles.ariaAll", { name: featureLabel })}
                                 className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                               />
                             </label>
@@ -564,7 +565,7 @@ export function RolesPage() {
                                 type="checkbox"
                                 checked={viewChecked}
                                 onChange={() => toggleAction(item, "VIEW")}
-                                aria-label={`Xem ${item.customLabel ?? t(item.labelKey)}`}
+                                aria-label={t("tenantAdmin.roles.ariaView", { name: featureLabel })}
                                 className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                               />
                             </label>
@@ -577,7 +578,7 @@ export function RolesPage() {
                                   type="checkbox"
                                   checked={createChecked}
                                   onChange={() => toggleAction(item, "CREATE")}
-                                  aria-label={`Tạo ${item.customLabel ?? t(item.labelKey)}`}
+                                  aria-label={t("tenantAdmin.roles.ariaCreate", { name: featureLabel })}
                                   className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                                 />
                               </label>
@@ -593,7 +594,7 @@ export function RolesPage() {
                                   type="checkbox"
                                   checked={editChecked}
                                   onChange={() => toggleAction(item, "EDIT")}
-                                  aria-label={`Sửa ${item.customLabel ?? t(item.labelKey)}`}
+                                  aria-label={t("tenantAdmin.roles.ariaEdit", { name: featureLabel })}
                                   className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                                 />
                               </label>
@@ -609,7 +610,7 @@ export function RolesPage() {
                                   type="checkbox"
                                   checked={deleteChecked}
                                   onChange={() => toggleAction(item, "DELETE")}
-                                  aria-label={`Xóa ${item.customLabel ?? t(item.labelKey)}`}
+                                  aria-label={t("tenantAdmin.roles.ariaDelete", { name: featureLabel })}
                                   className="size-4 cursor-pointer rounded border-[var(--color-border-default)] accent-[var(--color-primary)]"
                                 />
                               </label>
@@ -637,7 +638,7 @@ export function RolesPage() {
                       onClick={() => askDelete(selected)}
                     >
                       <Trash2 className="mr-1.5 size-3.5" />
-                      Xóa vai trò
+                      {t("tenantAdmin.roles.deleteRoleButton")}
                     </Button>
                   )}
                 </div>
@@ -655,7 +656,7 @@ export function RolesPage() {
                       }
                     }}
                   >
-                    Hoàn tác
+                    {t("tenantAdmin.roles.revert")}
                   </Button>
                   <Button
                     type="button"
@@ -666,7 +667,11 @@ export function RolesPage() {
                       else if (selected) updateMutation.mutate(selected);
                     }}
                   >
-                    {saving ? "Đang lưu…" : selectedId === "new" ? "Tạo vai trò" : "Lưu thay đổi"}
+                    {saving
+                      ? t("tenantAdmin.roles.saving")
+                      : selectedId === "new"
+                        ? t("tenantAdmin.roles.createRoleButton")
+                        : t("tenantAdmin.roles.saveChanges")}
                   </Button>
                 </div>
               </div>

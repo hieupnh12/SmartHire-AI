@@ -25,7 +25,7 @@ import { Card } from "@/components/ux/Card";
 import { PageSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
-import { useT } from "@/i18n";
+import { useT, type TranslateFn } from "@/i18n";
 import { CompanyDirectoryCard } from "../components/CompanyDirectoryCard";
 
 const HTTP_URL = /^https?:\/\/\S+$/;
@@ -58,20 +58,20 @@ const textareaClass =
   "w-full rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition-all duration-150 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 placeholder:text-[var(--color-text-secondary)]/50 resize-y";
 
 /* ───────── Profile completeness calculator ────────── */
-function computeCompleteness(values: CompanyProfileForm): {
+function computeCompleteness(values: CompanyProfileForm, t: TranslateFn): {
   pct: number;
   filled: number;
   total: number;
   missing: string[];
 } {
   const fields: Array<{ key: keyof CompanyProfileForm; label: string }> = [
-    { key: "companyName", label: "Tên công ty" },
-    { key: "industry", label: "Lĩnh vực" },
-    { key: "companySize", label: "Quy mô" },
-    { key: "website", label: "Website" },
-    { key: "logoUrl", label: "Logo" },
-    { key: "address", label: "Địa chỉ" },
-    { key: "description", label: "Mô tả" },
+    { key: "companyName", label: t("tenantAdmin.companyProfile.completenessFields.companyName") },
+    { key: "industry", label: t("tenantAdmin.companyProfile.completenessFields.industry") },
+    { key: "companySize", label: t("tenantAdmin.companyProfile.completenessFields.companySize") },
+    { key: "website", label: t("tenantAdmin.companyProfile.completenessFields.website") },
+    { key: "logoUrl", label: t("tenantAdmin.companyProfile.completenessFields.logoUrl") },
+    { key: "address", label: t("tenantAdmin.companyProfile.completenessFields.address") },
+    { key: "description", label: t("tenantAdmin.companyProfile.completenessFields.description") },
   ];
   const missing: string[] = [];
   let filled = 0;
@@ -195,7 +195,7 @@ export function CompanyProfilePage() {
 
   const watchAll = watch();
   const logoPreview = watchAll.logoUrl;
-  const completeness = computeCompleteness(watchAll);
+  const completeness = computeCompleteness(watchAll, t);
 
   const handleCancel = useCallback(() => {
     reset();
@@ -305,49 +305,54 @@ export function CompanyProfilePage() {
 
       {/* ──── Content Area ──── */}
       {!editing ? (
-        /* ──── READ MODE (RÕ RÀNG, VỪA KHUNG HÌNH) ──── */
+        /* ──── READ MODE ──── */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Main Info Column: Profile Info + Company Directory (7 cols) */}
           <div className="lg:col-span-7 space-y-3">
             <Card className="p-4 sm:p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-primary">
-                <Building2 className="size-4" />
-                {t("companyProfile.companySection")}
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-primary">
+                  <Building2 className="size-4" />
+                  {t("companyProfile.companySection")}
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)]">
+                  <span className="inline-block size-2.5 rounded-full bg-emerald-500" />
+                  {t("tenantAdmin.companyProfile.completenessCount", {
+                    filled: completeness.filled,
+                    total: completeness.total,
+                  })}
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)]">
-                <span className="inline-block size-2.5 rounded-full bg-emerald-500" />
-                Hoàn tất {completeness.filled}/{completeness.total}
+
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                <ReadItem label={t("companyProfile.companyName")} value={profile?.companyName} />
+                <ReadItem label={t("companyProfile.industry")} value={profile?.industry} />
+                <ReadItem label={t("companyProfile.companySize")} value={profile?.companySize} icon={Users} />
+                <ReadItem label={t("companyProfile.website")} value={profile?.website} isLink icon={Globe} />
+                <ReadItem label={t("companyProfile.address")} value={profile?.address} className="sm:col-span-2" icon={MapPin} />
+              </dl>
+
+              <div className="border-t border-[var(--color-border-default)] pt-3">
+                <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  <Sparkles className="size-4 text-brand-primary" />
+                  {t("companyProfile.description")}
+                </dt>
+                <dd className="mt-1.5 text-sm leading-relaxed text-[var(--color-text-primary)]">
+                  {profile?.description?.trim() ? (
+                    <p className="whitespace-pre-line">{profile.description}</p>
+                  ) : (
+                    <span className="italic text-[var(--color-text-secondary)]">
+                      {t("tenantAdmin.companyProfile.noDescription")}
+                    </span>
+                  )}
+                </dd>
               </div>
-            </div>
+            </Card>
 
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <ReadItem label={t("companyProfile.companyName")} value={profile?.companyName} />
-              <ReadItem label={t("companyProfile.industry")} value={profile?.industry} />
-              <ReadItem label={t("companyProfile.companySize")} value={profile?.companySize} icon={Users} />
-              <ReadItem label={t("companyProfile.website")} value={profile?.website} isLink icon={Globe} />
-              <ReadItem label={t("companyProfile.address")} value={profile?.address} className="sm:col-span-2" icon={MapPin} />
-            </dl>
+            <CompanyDirectoryCard />
+          </div>
 
-            <div className="border-t border-[var(--color-border-default)] pt-3">
-              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                <Sparkles className="size-4 text-brand-primary" />
-                {t("companyProfile.description")}
-              </dt>
-              <dd className="mt-1.5 text-sm leading-relaxed text-[var(--color-text-primary)]">
-                {profile?.description?.trim() ? (
-                  <p className="whitespace-pre-line">{profile.description}</p>
-                ) : (
-                  <span className="italic text-[var(--color-text-secondary)]">Chưa có thông tin mô tả công ty</span>
-                )}
-              </dd>
-            </div>
-          </Card>
-
-          <CompanyDirectoryCard />
-        </div>
-
-        {/* Side Column: Logo & System Info */}
+          {/* Side Column: Logo & System Info */}
           <div className="lg:col-span-5 space-y-3">
             {/* Logo Card */}
             <Card className="p-4 space-y-3">
@@ -376,7 +381,7 @@ export function CompanyProfilePage() {
             <Card className="p-4 space-y-2.5 text-sm">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)] border-b border-[var(--color-border-default)] pb-3">
                 <ShieldCheck className="size-4 text-brand-primary" />
-                Thông tin hệ thống
+                {t("tenantAdmin.companyProfile.systemInfo")}
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--color-border-default)]/60">
                 <span className="text-[var(--color-text-secondary)]">{t("companyProfile.workspace")}</span>
@@ -387,16 +392,18 @@ export function CompanyProfilePage() {
                 <span className="font-mono font-medium text-[var(--color-text-primary)]">{profile?.tenantId || "—"}</span>
               </div>
               <div className="flex justify-between py-1.5">
-                <span className="text-[var(--color-text-secondary)]">Trạng thái</span>
+                <span className="text-[var(--color-text-secondary)]">{t("tenantAdmin.companyProfile.status")}</span>
                 <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {profile?.verified ? "Đã duyệt" : "Chờ xác minh"}
+                  {profile?.verified
+                    ? t("tenantAdmin.companyProfile.verifiedStatus")
+                    : t("tenantAdmin.companyProfile.pendingStatus")}
                 </span>
               </div>
             </Card>
           </div>
         </div>
       ) : (
-        /* ──── EDIT MODE (THOẢI MÁI, RÕ RÀNG) ──── */
+        /* ──── EDIT MODE ──── */
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
           noValidate
@@ -406,116 +413,116 @@ export function CompanyProfilePage() {
           <div className="lg:col-span-7 space-y-5">
             <Card className="p-6 sm:p-7 space-y-5">
               <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
-              <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
-                <Building2 className="size-4 sm:size-5" />
-                {t("companyProfile.companySection")}
+                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
+                  <Building2 className="size-4 sm:size-5" />
+                  {t("companyProfile.companySection")}
+                </div>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {t("tenantAdmin.companyProfile.requiredFieldsHint")}
+                </span>
               </div>
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                * Các mục bắt buộc
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <FieldItem
-                label={t("companyProfile.companyName")}
-                htmlFor="companyName"
-                required
-                error={errors.companyName?.message}
-                className="sm:col-span-2"
-              >
-                <input
-                  id="companyName"
-                  aria-invalid={!!errors.companyName}
-                  {...register("companyName")}
-                  className={inputClass}
-                  placeholder="Nhập tên doanh nghiệp..."
-                />
-              </FieldItem>
-
-              <FieldItem
-                label={t("companyProfile.industry")}
-                htmlFor="industry"
-                error={errors.industry?.message}
-              >
-                <input
-                  id="industry"
-                  placeholder={t("companyProfile.industryPlaceholder")}
-                  aria-invalid={!!errors.industry}
-                  {...register("industry")}
-                  className={inputClass}
-                />
-              </FieldItem>
-
-              <FieldItem
-                label={t("companyProfile.companySize")}
-                htmlFor="companySize"
-                error={errors.companySize?.message}
-              >
-                <input
-                  id="companySize"
-                  placeholder={t("companyProfile.companySizePlaceholder")}
-                  aria-invalid={!!errors.companySize}
-                  {...register("companySize")}
-                  className={inputClass}
-                />
-              </FieldItem>
-
-              <FieldItem
-                label={t("companyProfile.website")}
-                htmlFor="website"
-                error={errors.website?.message}
-              >
-                <div className="relative">
-                  <Globe className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                <FieldItem
+                  label={t("companyProfile.companyName")}
+                  htmlFor="companyName"
+                  required
+                  error={errors.companyName?.message}
+                  className="sm:col-span-2"
+                >
                   <input
-                    id="website"
-                    placeholder={t("companyProfile.websitePlaceholder")}
-                    aria-invalid={!!errors.website}
-                    {...register("website")}
-                    className={`${inputClass} pl-9`}
+                    id="companyName"
+                    aria-invalid={!!errors.companyName}
+                    {...register("companyName")}
+                    className={inputClass}
+                    placeholder={t("tenantAdmin.companyProfile.companyNamePlaceholder")}
                   />
-                </div>
-              </FieldItem>
+                </FieldItem>
 
-              <FieldItem
-                label={t("companyProfile.address")}
-                htmlFor="address"
-                error={errors.address?.message}
-              >
-                <div className="relative">
-                  <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                <FieldItem
+                  label={t("companyProfile.industry")}
+                  htmlFor="industry"
+                  error={errors.industry?.message}
+                >
                   <input
-                    id="address"
-                    placeholder={t("companyProfile.addressPlaceholder")}
-                    aria-invalid={!!errors.address}
-                    {...register("address")}
-                    className={`${inputClass} pl-9`}
+                    id="industry"
+                    placeholder={t("companyProfile.industryPlaceholder")}
+                    aria-invalid={!!errors.industry}
+                    {...register("industry")}
+                    className={inputClass}
                   />
-                </div>
-              </FieldItem>
+                </FieldItem>
 
-              <FieldItem
-                label={t("companyProfile.description")}
-                htmlFor="description"
-                error={errors.description?.message}
-                className="sm:col-span-2"
-              >
-                <textarea
-                  id="description"
-                  rows={4}
-                  placeholder={t("companyProfile.descriptionPlaceholder")}
-                  aria-invalid={!!errors.description}
-                  {...register("description")}
-                  className={`${textareaClass} min-h-[105px] leading-relaxed`}
-                />
-              </FieldItem>
-            </div>
-          </Card>
+                <FieldItem
+                  label={t("companyProfile.companySize")}
+                  htmlFor="companySize"
+                  error={errors.companySize?.message}
+                >
+                  <input
+                    id="companySize"
+                    placeholder={t("companyProfile.companySizePlaceholder")}
+                    aria-invalid={!!errors.companySize}
+                    {...register("companySize")}
+                    className={inputClass}
+                  />
+                </FieldItem>
 
-          <CompanyDirectoryCard />
-        </div>
+                <FieldItem
+                  label={t("companyProfile.website")}
+                  htmlFor="website"
+                  error={errors.website?.message}
+                >
+                  <div className="relative">
+                    <Globe className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                    <input
+                      id="website"
+                      placeholder={t("companyProfile.websitePlaceholder")}
+                      aria-invalid={!!errors.website}
+                      {...register("website")}
+                      className={`${inputClass} pl-9`}
+                    />
+                  </div>
+                </FieldItem>
 
-        {/* Right Column: Logo & Branding Preview (5 cols) */}
+                <FieldItem
+                  label={t("companyProfile.address")}
+                  htmlFor="address"
+                  error={errors.address?.message}
+                >
+                  <div className="relative">
+                    <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                    <input
+                      id="address"
+                      placeholder={t("companyProfile.addressPlaceholder")}
+                      aria-invalid={!!errors.address}
+                      {...register("address")}
+                      className={`${inputClass} pl-9`}
+                    />
+                  </div>
+                </FieldItem>
+
+                <FieldItem
+                  label={t("companyProfile.description")}
+                  htmlFor="description"
+                  error={errors.description?.message}
+                  className="sm:col-span-2"
+                >
+                  <textarea
+                    id="description"
+                    rows={4}
+                    placeholder={t("companyProfile.descriptionPlaceholder")}
+                    aria-invalid={!!errors.description}
+                    {...register("description")}
+                    className={`${textareaClass} min-h-[105px] leading-relaxed`}
+                  />
+                </FieldItem>
+              </div>
+            </Card>
+
+            <CompanyDirectoryCard />
+          </div>
+
+          {/* Right Column: Logo & Branding Preview (5 cols) */}
           <div className="lg:col-span-5 space-y-5">
             <Card className="p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
@@ -523,7 +530,7 @@ export function CompanyProfilePage() {
                   <ImageIcon className="size-4 sm:size-5" />
                   {t("companyProfile.logoSection")}
                 </div>
-                <span className="text-xs text-[var(--color-text-secondary)]">Xem trước</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">{t("tenantAdmin.companyProfile.preview")}</span>
               </div>
 
               {/* Logo Preview box */}
@@ -564,7 +571,7 @@ export function CompanyProfilePage() {
             <Card className="p-6 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-                  Độ hoàn thiện hồ sơ
+                  {t("tenantAdmin.companyProfile.completenessTitle")}
                 </span>
                 <span className="text-sm font-bold text-brand-primary">{completeness.pct}%</span>
               </div>
@@ -576,11 +583,12 @@ export function CompanyProfilePage() {
               </div>
               {completeness.missing.length > 0 ? (
                 <p className="text-xs text-[var(--color-text-secondary)]">
-                  Còn thiếu: <span className="text-amber-500 font-medium">{completeness.missing.join(", ")}</span>
+                  {t("tenantAdmin.companyProfile.missingLabel")}{" "}
+                  <span className="text-amber-500 font-medium">{completeness.missing.join(", ")}</span>
                 </p>
               ) : (
                 <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                  <Check className="size-4" /> Tất cả thông tin đã được điền đầy đủ
+                  <Check className="size-4" /> {t("tenantAdmin.companyProfile.allCompleted")}
                 </p>
               )}
             </Card>

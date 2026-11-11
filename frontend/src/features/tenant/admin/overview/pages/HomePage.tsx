@@ -1,3 +1,4 @@
+import { useMemo, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -13,7 +14,6 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
 import { companyApi } from "@/api/tenant/companyApi";
 import { dashboardApi } from "@/api/tenant/dashboardApi";
@@ -22,25 +22,17 @@ import type { CompanyProfile } from "@/features/tenant/admin/company/types";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { formatDate, formatNumber, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import {
   formatPlanDisplayName,
   formatSubscriptionStatusLabel,
 } from "@/features/tenant/admin/billing/utils/billingLabels";
 
-const shortcuts: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { to: "/recruiter", label: "Workspace tuyển dụng", icon: BriefcaseBusiness },
-  { to: "/internal/admin/users", label: "Người dùng", icon: Users },
-  { to: "/internal/admin/roles", label: "Phân quyền", icon: ShieldCheck },
-  { to: "/internal/admin/recruiter-assignments", label: "Quản lý công việc", icon: UserRoundCog },
-  { to: "/internal/admin/billing", label: "Gói & Hóa đơn", icon: CreditCard },
-  { to: "/internal/admin/system", label: "Hệ thống", icon: Settings },
-];
-
-function countText(loading: boolean, failed: boolean, value: number | undefined) {
+function countText(loading: boolean, failed: boolean, value: number | undefined, locale: Locale) {
   if (loading) return null;
   if (failed || value == null) return "—";
-  return value.toLocaleString("vi-VN");
+  return formatNumber(value, undefined, locale);
 }
 
 function formatStorageCompact(bytes: number): string {
@@ -117,24 +109,39 @@ function QuotaMiniBar({
   );
 }
 
-function profileGaps(profile: CompanyProfile): Array<{ title: string; to: string }> {
+function profileGaps(profile: CompanyProfile, t: TranslateFn): Array<{ title: string; to: string }> {
   const gaps: Array<{ title: string; to: string }> = [];
   if (!profile.verified) {
-    gaps.push({ title: "Doanh nghiệp chưa xác thực", to: "/internal/admin/company" });
+    gaps.push({ title: t("tenantAdmin.overview.gapsCard.unverifiedTitle"), to: "/internal/admin/company" });
   }
   if (!profile.description?.trim()) {
-    gaps.push({ title: "Thiếu mô tả công ty", to: "/internal/admin/company" });
+    gaps.push({ title: t("tenantAdmin.overview.gapsCard.noDescriptionTitle"), to: "/internal/admin/company" });
   }
   if (!profile.logoUrl?.trim()) {
-    gaps.push({ title: "Thiếu logo doanh nghiệp", to: "/internal/admin/company" });
+    gaps.push({ title: t("tenantAdmin.overview.gapsCard.noLogoTitle"), to: "/internal/admin/company" });
   }
   if (!profile.website?.trim()) {
-    gaps.push({ title: "Thiếu website doanh nghiệp", to: "/internal/admin/company" });
+    gaps.push({ title: t("tenantAdmin.overview.gapsCard.noWebsiteTitle"), to: "/internal/admin/company" });
   }
   return gaps;
 }
 
 export function HomePage() {
+  const t = useT();
+  const locale = useLocale();
+
+  const shortcuts = useMemo(
+    () => [
+      { to: "/recruiter", label: t("tenantAdmin.overview.shortcuts.recruitmentWorkspace"), icon: BriefcaseBusiness },
+      { to: "/internal/admin/users", label: t("tenantAdmin.overview.shortcuts.users"), icon: Users },
+      { to: "/internal/admin/roles", label: t("tenantAdmin.overview.shortcuts.roles"), icon: ShieldCheck },
+      { to: "/internal/admin/recruiter-assignments", label: t("tenantAdmin.overview.shortcuts.assignments"), icon: UserRoundCog },
+      { to: "/internal/admin/billing", label: t("tenantAdmin.overview.shortcuts.billing"), icon: CreditCard },
+      { to: "/internal/admin/system", label: t("tenantAdmin.overview.shortcuts.system"), icon: Settings },
+    ],
+    [t],
+  );
+
   const summary = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => dashboardApi.summary(),
@@ -159,10 +166,10 @@ export function HomePage() {
   const profile = company.data?.data;
   const sub = subscription.data?.data;
   const pendingInvoiceCount = (sub?.invoices ?? []).filter((inv) => inv.status === "PENDING").length;
-  const gaps = profile ? profileGaps(profile) : [];
+  const gaps = profile ? profileGaps(profile, t) : [];
   if (pendingInvoiceCount > 0) {
     gaps.unshift({
-      title: `${pendingInvoiceCount} hóa đơn chờ thanh toán`,
+      title: t("tenantAdmin.overview.gapsCard.pendingInvoicesTitle", { count: pendingInvoiceCount }),
       to: "/internal/admin/billing",
     });
   }
@@ -173,40 +180,40 @@ export function HomePage() {
     <section className="flex flex-col gap-3.5">
       <header className="flex items-center justify-between gap-3">
         <h1 className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-2xl">
-          Tổng quan
+          {t("tenantAdmin.overview.title")}
         </h1>
         <Link
           to="/internal/admin/analytics"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-3.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover sm:text-sm"
         >
-          Phân tích
+          {t("tenantAdmin.overview.viewAnalytics")}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Thành viên"
+          label={t("tenantAdmin.overview.metrics.membersLabel")}
           loading={members.isLoading}
-          value={countText(members.isLoading, members.isError, members.isSuccess ? memberCount : undefined)}
+          value={countText(members.isLoading, members.isError, members.isSuccess ? memberCount : undefined, locale)}
           icon={Users}
         />
         <MetricCard
-          label="Vị trí đang tuyển"
+          label={t("tenantAdmin.overview.metrics.openJobsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.openJobs)}
+          value={countText(summary.isLoading, summary.isError, summaryData?.openJobs, locale)}
           icon={BriefcaseBusiness}
         />
         <MetricCard
-          label="Ứng viên mới"
+          label={t("tenantAdmin.overview.metrics.newApplicantsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.newApplicants)}
+          value={countText(summary.isLoading, summary.isError, summaryData?.newApplicants, locale)}
           icon={UserPlus}
         />
         <MetricCard
-          label="Phỏng vấn sắp tới"
+          label={t("tenantAdmin.overview.metrics.interviewsLabel")}
           loading={summary.isLoading}
-          value={countText(summary.isLoading, summary.isError, summaryData?.interviewsScheduled)}
+          value={countText(summary.isLoading, summary.isError, summaryData?.interviewsScheduled, locale)}
           icon={CalendarClock}
         />
       </div>
@@ -221,13 +228,13 @@ export function HomePage() {
           <Card className="p-4">
             <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-2.5">
               <h2 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
-                Hồ sơ công ty
+                {t("tenantAdmin.overview.companyCard.title")}
               </h2>
               <Link
                 to="/internal/admin/company"
                 className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:underline"
               >
-                Cập nhật
+                {t("tenantAdmin.overview.companyCard.updateShort")}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
             </div>
@@ -249,24 +256,24 @@ export function HomePage() {
                     </div>
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-semibold text-brand-primary">
                       <BadgeCheck className="size-3.5" aria-hidden="true" />
-                      {profile.verified ? "Đã xác thực" : "Chưa xác thực"}
+                      {profile.verified ? t("tenantAdmin.overview.companyCard.verified") : t("tenantAdmin.overview.companyCard.unverified")}
                     </span>
                   </div>
                   <dl className="grid grid-cols-3 gap-3 text-xs">
                     <div className="min-w-0">
-                      <dt className="text-[var(--color-text-secondary)]">Lĩnh vực</dt>
+                      <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.industry")}</dt>
                       <dd className="mt-0.5 truncate font-medium text-[var(--color-text-primary)]">
                         {profile.industry?.trim() || "—"}
                       </dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[var(--color-text-secondary)]">Quy mô</dt>
+                      <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.companySize")}</dt>
                       <dd className="mt-0.5 truncate font-medium text-[var(--color-text-primary)]">
                         {profile.companySize?.trim() || "—"}
                       </dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[var(--color-text-secondary)]">Website</dt>
+                      <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.companyCard.website")}</dt>
                       <dd className="mt-0.5 truncate font-medium text-[var(--color-text-primary)]">
                         {profile.website?.trim() || "—"}
                       </dd>
@@ -292,28 +299,33 @@ export function HomePage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-display text-sm font-semibold text-[var(--color-text-primary)] sm:text-base">
-                        {formatPlanDisplayName(sub.planName)}
+                        {formatPlanDisplayName(sub.planName, t)}
                       </h2>
                       <StatusPill
                         status={sub.subscriptionStatus}
-                        label={formatSubscriptionStatusLabel(sub.subscriptionStatus)}
+                        label={formatSubscriptionStatusLabel(sub.subscriptionStatus, t)}
                       />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-[var(--color-text-secondary)]">
                       {sub.hasExplicitSubscription && sub.endsAt
-                        ? `Còn ${sub.daysRemaining} ngày · Hết hạn ${new Date(sub.endsAt).toLocaleDateString("vi-VN")}`
-                        : `Gói mặc định · ${Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫/năm`}
+                        ? t("tenantAdmin.overview.subscriptionCard.explicitShortSummary", {
+                            days: sub.daysRemaining,
+                            date: formatDate(sub.endsAt, undefined, locale),
+                          })
+                        : t("tenantAdmin.overview.subscriptionCard.defaultShortSummary", {
+                            price: formatNumber(Number(sub.priceYearly || 0), undefined, locale),
+                          })}
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs text-[var(--color-text-secondary)]">Gói &amp; Hóa đơn</p>
+                  <p className="text-xs text-[var(--color-text-secondary)]">{t("tenantAdmin.overview.subscriptionCard.fallbackTitle")}</p>
                 )}
               </div>
               <Link
                 to="/internal/admin/billing"
                 className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--color-border-default)] bg-surface-card px-3 text-xs font-semibold text-brand-primary transition-colors hover:bg-[var(--color-primary-subtle)]"
               >
-                Quản lý gói
+                {t("tenantAdmin.overview.subscriptionCard.manageShort")}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
             </div>
@@ -321,21 +333,21 @@ export function HomePage() {
             {sub && (
               <div className="grid gap-3 border-t border-[var(--color-border-default)] pt-3 sm:grid-cols-3">
                 <QuotaMiniBar
-                  label="Tin đang mở"
-                  usedText={sub.usedJobs.toLocaleString("vi-VN")}
-                  maxText={sub.maxJobs < 0 ? "∞" : sub.maxJobs.toLocaleString("vi-VN")}
+                  label={t("tenantAdmin.overview.subscriptionCard.quotaJobsLabel")}
+                  usedText={formatNumber(sub.usedJobs, undefined, locale)}
+                  maxText={sub.maxJobs < 0 ? "∞" : formatNumber(sub.maxJobs, undefined, locale)}
                   pct={sub.jobsUsagePercent}
                   unlimited={sub.maxJobs < 0}
                 />
                 <QuotaMiniBar
-                  label="AI CV Parse"
-                  usedText={sub.usedCvParses.toLocaleString("vi-VN")}
-                  maxText={sub.maxCvParses < 0 ? "∞" : sub.maxCvParses.toLocaleString("vi-VN")}
+                  label={t("tenantAdmin.overview.subscriptionCard.quotaCvParseLabel")}
+                  usedText={formatNumber(sub.usedCvParses, undefined, locale)}
+                  maxText={sub.maxCvParses < 0 ? "∞" : formatNumber(sub.maxCvParses, undefined, locale)}
                   pct={sub.cvParsesUsagePercent}
                   unlimited={sub.maxCvParses < 0}
                 />
                 <QuotaMiniBar
-                  label="Lưu trữ"
+                  label={t("tenantAdmin.overview.subscriptionCard.quotaStorageLabel")}
                   usedText={formatStorageCompact(sub.usedStorageBytes)}
                   maxText={sub.maxStorageGb < 0 ? "∞" : `${sub.maxStorageGb} GB`}
                   pct={sub.storageUsagePercent}
@@ -351,7 +363,7 @@ export function HomePage() {
           <Card className="p-4">
             <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border-default)] pb-2.5">
               <h2 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
-                Cần xử lý
+                {t("tenantAdmin.overview.gapsCard.title")}
               </h2>
               {profile && (
                 <span
@@ -361,7 +373,7 @@ export function HomePage() {
                       : "bg-emerald-100 text-emerald-700"
                   }`}
                 >
-                  {gaps.length > 0 ? `${gaps.length} mục` : "Hoàn tất"}
+                  {gaps.length > 0 ? t("tenantAdmin.overview.gapsCard.countBadge", { count: gaps.length }) : t("tenantAdmin.overview.gapsCard.doneBadge")}
                 </span>
               )}
             </div>
@@ -371,7 +383,7 @@ export function HomePage() {
               {profile && gaps.length === 0 && (
                 <div className="flex items-center gap-2 py-2 text-sm text-[var(--color-text-secondary)]">
                   <CheckCircle2 className="size-4.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                  <span>Hồ sơ đã đầy đủ</span>
+                  <span>{t("tenantAdmin.overview.gapsCard.emptyProfileDone")}</span>
                 </div>
               )}
               {profile && gaps.length > 0 && (
@@ -397,7 +409,7 @@ export function HomePage() {
 
           <Card className="flex flex-1 flex-col justify-between gap-2.5 p-4">
             <h2 className="font-display text-sm font-semibold text-[var(--color-text-primary)]">
-              Truy cập nhanh
+              {t("tenantAdmin.overview.shortcuts.sectionTitle")}
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {shortcuts.map((item) => {

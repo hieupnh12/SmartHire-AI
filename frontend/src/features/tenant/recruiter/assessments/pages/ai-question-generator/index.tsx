@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import type { QuestionRequest } from "@/api/types/assessment";
 import { queryKeys } from "@/lib/query-keys";
+import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { useOptionalRecruitmentJob } from "@/features/tenant/recruiter/jobs/components/JobRecruitmentWorkspace";
 import { AssessmentSubNav } from "@/features/tenant/recruiter/assessments/components/AssessmentSubNav";
@@ -46,6 +47,7 @@ function loadSavedDrafts(key: string): SavedDraftsStorage | null {
 }
 
 export function AiQuestionGeneratorPage() {
+  const t = useT();
   const navigate = useNavigate();
   const { id: routeJobId } = useParams();
   const client = useQueryClient();
@@ -220,11 +222,11 @@ export function AiQuestionGeneratorPage() {
       next.delete(id);
       return next;
     });
-    toast.info("Đã xóa câu hỏi khỏi danh sách nháp");
+    toast.info(t("recruiter.assessments.aiStudio.removedDraftToast"));
   };
 
   const clearAllDrafts = () => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa tất cả câu hỏi nháp hiện tại?")) {
+    if (window.confirm(t("recruiter.assessments.aiStudio.clearAllConfirm"))) {
       setDrafts([]);
       setSelected(new Set());
       setBatchCount(0);
@@ -234,7 +236,7 @@ export function AiQuestionGeneratorPage() {
       } catch {
         // ignore
       }
-      toast.info("Đã xóa sạch các câu hỏi nháp.");
+      toast.info(t("recruiter.assessments.aiStudio.clearAllSuccess"));
     }
   };
 
@@ -244,11 +246,11 @@ export function AiQuestionGeneratorPage() {
       job.title,
       job.description,
       job.responsibilities,
-      jobSkills.length ? `Kỹ năng: ${jobSkills.join(", ")}` : "",
+      jobSkills.length ? t("recruiter.assessments.aiStudio.jdSkillsPrefix", { skills: jobSkills.join(", ") }) : "",
     ]
       .filter(Boolean)
       .join("\n\n");
-  }, [job, jobSkills]);
+  }, [job, jobSkills, t]);
 
   useEffect(() => {
     return () => {
@@ -268,7 +270,7 @@ export function AiQuestionGeneratorPage() {
     }
     setStage("analyzing");
     setProgressPercent(0);
-    toast.info("Đã hủy thao tác sinh câu hỏi bằng AI.");
+    toast.info(t("recruiter.assessments.aiStudio.cancelledToast"));
   };
 
   const startProgressSimulation = () => {
@@ -277,11 +279,18 @@ export function AiQuestionGeneratorPage() {
     setProgressPercent(15);
     setStatusMessage(
       includeJd && job
-        ? "Đang phân tích Yêu cầu công việc (JD) & Kỹ năng trọng tâm..."
-        : `Đang phân tích cấu trúc chuyên môn kỹ năng ${skill}...`,
+        ? t("recruiter.assessments.aiStudio.stageAnalyzingJd")
+        : t("recruiter.assessments.aiStudio.stageAnalyzingSkill", { skill }),
     );
 
     const startTime = Date.now();
+    const typeLabel =
+      questionType === "CODING"
+        ? t("recruiter.assessments.common.questionTypes.badgeCode")
+        : questionType === "ESSAY"
+          ? t("recruiter.assessments.aiStudio.questionTypes.essayLabel")
+          : t("recruiter.assessments.aiStudio.questionTypes.mcqLabel");
+
     progressTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - startTime;
       if (elapsed < 1600) {
@@ -290,12 +299,12 @@ export function AiQuestionGeneratorPage() {
       } else if (elapsed < 3800) {
         setStage("generating");
         setStatusMessage(
-          `Đang biên soạn ${count} câu hỏi ${questionType === "CODING" ? "Bài code" : questionType === "ESSAY" ? "Tự luận" : "Trắc nghiệm"} ${skill}...`,
+          t("recruiter.assessments.aiStudio.stageGeneratingTitle", { count, type: typeLabel, skill }),
         );
         setProgressPercent(Math.min(75, 35 + Math.floor(((elapsed - 1600) / 2200) * 40)));
       } else {
         setStage("verifying");
-        setStatusMessage("Đang thẩm định logic đáp án & đối soát ngân hàng câu hỏi...");
+        setStatusMessage(t("recruiter.assessments.aiStudio.stageVerifyingTitle"));
         setProgressPercent((prev) => Math.min(94, prev + 1));
       }
     }, 200);
@@ -324,6 +333,7 @@ export function AiQuestionGeneratorPage() {
             instructions,
           },
           controller.signal,
+          t,
         );
       }
 
@@ -384,13 +394,13 @@ export function AiQuestionGeneratorPage() {
             setStage("completed");
             setProgressPercent(100);
             if (event.count < count) {
-              setStatusMessage(`Hoàn tất: Đã khởi tạo ${event.count}/${count} câu hỏi đạt chuẩn.`);
+              setStatusMessage(t("recruiter.assessments.aiStudio.streamPartialMessage", { done: event.count, requested: count }));
               toast.info(
-                `Đã tạo ${event.count}/${count} câu hỏi`,
-                "Một số câu hỏi chưa đạt tiêu chuẩn đáp án nên đã được lọc bớt. Bạn có thể bấm Sinh thêm nếu muốn bổ sung.",
+                t("recruiter.assessments.aiStudio.streamPartialToastTitle", { done: event.count, requested: count }),
+                t("recruiter.assessments.aiStudio.streamPartialToastDesc"),
               );
             } else {
-              setStatusMessage(`Đã khởi tạo thành công ${event.count} câu hỏi đạt chuẩn.`);
+              setStatusMessage(t("recruiter.assessments.aiStudio.streamCompleteMessage", { count: event.count }));
             }
           },
           onError: (err) => {
@@ -409,9 +419,9 @@ export function AiQuestionGeneratorPage() {
       setStage("completed");
       setProgressPercent(100);
       if (items.length < count) {
-        setStatusMessage(`Hoàn tất: Đã khởi tạo ${items.length}/${count} câu hỏi đạt chuẩn.`);
+        setStatusMessage(t("recruiter.assessments.aiStudio.streamPartialMessage", { done: items.length, requested: count }));
       } else {
-        setStatusMessage(`Đã khởi tạo thành công ${items.length} câu hỏi đạt chuẩn.`);
+        setStatusMessage(t("recruiter.assessments.aiStudio.streamCompleteMessage", { count: items.length }));
       }
 
       const nextBatch = batchCount + 1;
@@ -441,15 +451,15 @@ export function AiQuestionGeneratorPage() {
       }
 
       toast.success(
-        `AI đã hoàn tất soạn thảo ${items.length} câu hỏi!`,
-        "Mỗi câu hỏi đã được kiểm duyệt và sẵn sàng cho bạn rà soát.",
+        t("recruiter.assessments.aiStudio.studioCreatedTitle", { count: items.length }),
+        t("recruiter.assessments.aiStudio.studioCreatedDesc"),
       );
 
       const dupes = items.filter((item) => similarIds(item.authoringMetadata).length > 0).length;
       if (dupes > 0) {
         toast.warning(
-          "Cảnh báo trùng lặp",
-          `Có ${dupes} câu tương đồng với câu hỏi đã có sẵn trong ngân hàng. Hãy kiểm tra kỹ!`,
+          t("recruiter.assessments.aiStudio.duplicateWarningTitle"),
+          t("recruiter.assessments.aiStudio.duplicateWarningDesc", { count: dupes }),
         );
       }
     },
@@ -465,8 +475,8 @@ export function AiQuestionGeneratorPage() {
       if (isAbort) {
         return;
       }
-      const msg = err instanceof Error ? err.message : "Có lỗi xảy ra khi gọi AI sinh câu hỏi.";
-      toast.error("Sinh câu hỏi thất bại", msg);
+      const msg = err instanceof Error ? err.message : t("recruiter.assessments.aiStudio.generateErrorFallback");
+      toast.error(t("recruiter.assessments.aiStudio.generateErrorTitle"), msg);
     },
   });
 
@@ -478,7 +488,7 @@ export function AiQuestionGeneratorPage() {
           question: item.question,
           authoringMetadata: item.authoringMetadata,
         }));
-      if (!picked.length) throw new Error("Chọn ít nhất một câu để lưu.");
+      if (!picked.length) throw new Error(t("recruiter.assessments.aiStudio.pickAtLeastOneError"));
       return questionBankApi.create(picked);
     },
     onSuccess: async (saved) => {
@@ -497,15 +507,15 @@ export function AiQuestionGeneratorPage() {
         }
       }
       toast.success(
-        `Đã lưu thành công ${saved.length} câu hỏi`,
-        "Các câu hỏi AI đã được nhập vào Ngân hàng câu hỏi.",
+        t("recruiter.assessments.aiStudio.saveSuccessTitle", { count: saved.length }),
+        t("recruiter.assessments.aiStudio.saveSuccessDesc"),
       );
       await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
       navigate(backPath);
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể lưu câu hỏi vào ngân hàng.";
-      toast.error("Lưu thất bại", msg);
+      const msg = err instanceof Error ? err.message : t("recruiter.assessments.aiStudio.saveErrorFallback");
+      toast.error(t("recruiter.assessments.aiStudio.saveErrorTitle"), msg);
     },
   });
 

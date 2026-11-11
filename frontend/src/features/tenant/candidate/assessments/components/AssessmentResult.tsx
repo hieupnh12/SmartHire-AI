@@ -16,7 +16,8 @@ import {
 import { Link } from "react-router-dom";
 import type { Submission } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
-import { assessmentStatus } from "@/components/ux/assessmentUi";
+import { getAssessmentStatusLabel } from "@/components/ux/assessmentUi";
+import { formatDateTime, useLocale, useT } from "@/i18n";
 import { isDemoAssessmentTitle, shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { localizeAiComment } from "../utils/aiLocalization";
 
@@ -27,18 +28,23 @@ type Props = {
   retaking?: boolean;
 };
 
-function formatWhen(value: string | null | undefined) {
-  if (!value) return null;
-  return new Date(value).toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function AssessmentResult({ submission, back, onRetake, retaking }: Props) {
+  const t = useT();
+  const locale = useLocale();
+  const formatWhen = (value: string | null | undefined) => {
+    if (!value) return null;
+    return formatDateTime(
+      value,
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+      locale,
+    );
+  };
   const isFailed = submission.status === "FAILED";
   const isGrading = submission.status === "GRADING";
   const isSubmittedOrPending = submission.status === "SUBMITTED" || submission.status === "PENDING";
@@ -72,44 +78,44 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
     );
 
   const headline = isFailed
-    ? "Chấm bài không thành công"
+    ? t("candidate.assess.result.headline.failed")
     : expired
-      ? "Đã hết thời gian làm bài"
+      ? t("candidate.assess.result.headline.expired")
       : isGrading
-        ? "Hệ thống đang chấm bài của bạn"
+        ? t("candidate.assess.result.headline.grading")
         : isSubmittedOrPending
-          ? "Đã nộp bài — Đang chờ chấm"
+          ? t("candidate.assess.result.headline.submittedOrPending")
           : isCompleted
-            ? "Bài làm đã được chấm điểm"
-            : "Bài làm đã được ghi nhận";
+            ? t("candidate.assess.result.headline.completed")
+            : t("candidate.assess.result.headline.recorded");
 
   const detail = isFailed
-    ? "Hệ thống gặp sự cố khi tự động chấm điểm. Nhà tuyển dụng đã nhận được bài và sẽ kiểm tra, cập nhật điểm cho bạn."
+    ? t("candidate.assess.result.detail.failed")
     : isGrading
-      ? "Hệ thống đang chạy test case và đánh giá mã nguồn bằng AI. Kết quả sẽ tự động hiển thị trong giây lát..."
+      ? t("candidate.assess.result.detail.grading")
       : isSubmittedOrPending
-        ? "Bài nộp đã được tiếp nhận an toàn và đưa vào hàng đợi chấm bài bất đồng bộ."
+        ? t("candidate.assess.result.detail.submittedOrPending")
         : pending
-          ? "Câu trả lời đã được lưu. Điểm chính thức sẽ cập nhật sau khi nhà tuyển dụng hoàn tất chấm."
+          ? t("candidate.assess.result.detail.pending")
           : passed
-            ? "Bạn đã hoàn tất bài kiểm tra và đạt ngưỡng yêu cầu của đề."
+            ? t("candidate.assess.result.detail.passed")
             : failed
-              ? "Bạn đã hoàn tất bài kiểm tra. Điểm hiện chưa đạt ngưỡng yêu cầu của đề."
-              : "Bạn đã hoàn tất bài kiểm tra. Dưới đây là tóm tắt kết quả.";
+              ? t("candidate.assess.result.detail.failedThreshold")
+              : t("candidate.assess.result.detail.completedDefault");
 
   const verdictLabel = isFailed
-    ? "Chấm thất bại"
+    ? t("candidate.assess.result.verdict.failed")
     : isGrading
-      ? "Đang chấm điểm"
+      ? t("candidate.assess.result.verdict.grading")
       : isSubmittedOrPending
-        ? "Đang chờ chấm"
+        ? t("candidate.assess.result.verdict.submittedOrPending")
         : pending
-          ? "Chờ chấm điểm"
+          ? t("candidate.assess.result.verdict.pending")
           : submission.passed === null
-            ? "Đã chấm điểm"
+            ? t("candidate.assess.result.verdict.graded")
             : passed
-              ? "Đạt yêu cầu"
-              : "Chưa đạt yêu cầu";
+              ? t("candidate.assess.result.verdict.passed")
+              : t("candidate.assess.result.verdict.failedThreshold");
 
   /** Score panel color follows % (red → amber → yellow → green). Verdict chip still uses pass/fail. */
   const scoreTone = (() => {
@@ -169,12 +175,12 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
       : "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]";
 
   const nextStep = pending
-    ? "Theo dõi điểm trong danh sách bài đánh giá khi nhà tuyển dụng hoàn tất chấm."
+    ? t("candidate.assess.result.nextStep.pending")
     : passed
-      ? "Kết quả đạt yêu cầu đã được ghi nhận trên hồ sơ ứng tuyển."
+      ? t("candidate.assess.result.nextStep.passed")
       : failed
-        ? "Theo dõi bước tiếp theo trên trang đơn ứng tuyển."
-        : "Kết quả đã được lưu cho nhà tuyển dụng xem lại.";
+        ? t("candidate.assess.result.nextStep.failed")
+        : t("candidate.assess.result.nextStep.default");
 
   return (
     <article
@@ -189,7 +195,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                Kết quả bài kiểm tra
+                {t("candidate.assess.result.eyebrow")}
               </p>
               <h1 id="assessment-result-title" className="truncate text-lg font-semibold tracking-tight sm:text-xl">
                 {headline}
@@ -200,7 +206,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
           <div className="flex flex-wrap items-center gap-2">
             {demo && (
               <span className="rounded-full bg-[var(--color-surface-container)] px-3 py-1 text-xs font-semibold text-[var(--color-on-surface-variant)]">
-                Demo UI
+                {t("candidate.assess.result.demoBadge")}
               </span>
             )}
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${verdictChip}`}>
@@ -217,13 +223,13 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
           <section className={`flex min-h-0 flex-col rounded-2xl border ${scoreTone.panel}`}>
             <div className="border-b border-[var(--color-border-default)]/60 px-4 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-                Tổng hợp
+                {t("candidate.assess.result.summaryEyebrow")}
               </p>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-                  Điểm số
+                  {t("candidate.assess.result.scoreHeading")}
                 </p>
                 {pending ? (
                   <div className="mt-2 flex items-center gap-3">
@@ -232,10 +238,20 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                       </span>
                       <div>
                         <p className="text-2xl font-semibold tracking-tight">
-                          {isFailed ? "Chấm thất bại" : isGrading ? "Đang chấm điểm…" : isSubmittedOrPending ? "Đang chờ chấm" : "Chờ kết quả"}
+                          {isFailed
+                            ? t("candidate.assess.result.pendingTitle.failed")
+                            : isGrading
+                              ? t("candidate.assess.result.pendingTitle.grading")
+                              : isSubmittedOrPending
+                                ? t("candidate.assess.result.pendingTitle.submittedOrPending")
+                                : t("candidate.assess.result.pendingTitle.waiting")}
                         </p>
                         <p className="text-sm text-[var(--color-on-surface-variant)]">
-                          {isFailed ? "Cần nhà tuyển dụng hỗ trợ" : isGrading ? "Đang chạy test case và AI review..." : "Sẽ có điểm sau ít phút"}
+                          {isFailed
+                            ? t("candidate.assess.result.pendingSubtitle.failed")
+                            : isGrading
+                              ? t("candidate.assess.result.pendingSubtitle.grading")
+                              : t("candidate.assess.result.pendingSubtitle.waiting")}
                         </p>
                       </div>
                   </div>
@@ -247,14 +263,16 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                     </p>
                     {scorePct !== null && (
                       <>
-                        <p className="mt-1.5 text-sm text-[var(--color-on-surface-variant)]">{scorePct}% tổng điểm</p>
+                        <p className="mt-1.5 text-sm text-[var(--color-on-surface-variant)]">
+                          {t("candidate.assess.result.scorePctLabel", { pct: scorePct })}
+                        </p>
                         <div
                           className="mt-2 h-1.5 overflow-hidden rounded-full bg-white ring-1 ring-[var(--color-border-default)]"
                           role="progressbar"
                           aria-valuenow={scorePct}
                           aria-valuemin={0}
                           aria-valuemax={100}
-                          aria-label="Tỷ lệ điểm đạt được"
+                          aria-label={t("candidate.assess.result.scoreProgressAria")}
                         >
                           <div className={`h-full rounded-full ${scoreTone.bar}`} style={{ width: `${scorePct}%` }} />
                         </div>
@@ -266,22 +284,22 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
 
               <div className="rounded-xl border border-[var(--color-border-default)]/70 bg-white/95 px-3.5 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-                  Đánh giá
+                  {t("candidate.assess.result.evaluationHeading")}
                 </p>
                 <p className={`mt-1.5 inline-flex items-center gap-2 text-sm font-semibold ${scoreTone.score}`}>
                   <ResultIcon className="size-4" aria-hidden="true" />
                   {verdictLabel}
                 </p>
                 <p className="mt-1 text-sm leading-5 text-[var(--color-on-surface-variant)]">
-                  {assessmentStatus[submission.status] ?? submission.status}
-                  {submittedLabel ? ` · Nộp ${submittedLabel}` : ""}
+                  {getAssessmentStatusLabel(submission.status, t)}
+                  {submittedLabel ? ` · ${t("candidate.assess.result.submittedAtInline", { when: submittedLabel })}` : ""}
                 </p>
               </div>
 
               <div className="flex gap-2.5 rounded-xl border border-[var(--color-border-default)]/70 bg-white/95 px-3.5 py-3">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">Bước tiếp theo</p>
+                  <p className="text-sm font-semibold">{t("candidate.assess.result.nextStepHeading")}</p>
                   <p className="mt-0.5 text-sm leading-5 text-[var(--color-on-surface-variant)]">{nextStep}</p>
                 </div>
               </div>
@@ -292,28 +310,28 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
             <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-4 py-2.5">
               <ClipboardCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-                Chi tiết phiên
+                {t("candidate.assess.result.sessionDetailsHeading")}
               </p>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               <dl className="rounded-xl border border-[var(--color-border-default)] divide-y divide-[var(--color-border-default)]">
-                {startedLabel && <DetailRow label="Bắt đầu" value={startedLabel} />}
-                {submittedLabel && <DetailRow label="Nộp bài" value={submittedLabel} />}
-                <DetailRow label="Mã bài nộp" value={`#${submission.id}`} />
+                {startedLabel && <DetailRow label={t("candidate.assess.result.startedLabel")} value={startedLabel} />}
+                {submittedLabel && <DetailRow label={t("candidate.assess.result.submittedLabel")} value={submittedLabel} />}
+                <DetailRow label={t("candidate.assess.result.submissionIdLabel")} value={`#${submission.id}`} />
               </dl>
 
               <div>
-                <p className="mb-2 text-sm font-semibold">Cấu trúc đề</p>
+                <p className="mb-2 text-sm font-semibold">{t("candidate.assess.result.structureHeading")}</p>
                 <ul className="grid grid-cols-3 gap-2">
-                  <DetailStat icon={FileQuestion} label="Tổng câu" value={questionCount || "—"} />
-                  <DetailStat icon={ClipboardCheck} label="Trắc nghiệm" value={questionCount ? quizCount : "—"} />
-                  <DetailStat icon={Code2} label="Lập trình" value={questionCount ? codingCount : "—"} />
+                  <DetailStat icon={FileQuestion} label={t("candidate.assess.result.totalQuestions")} value={questionCount || "—"} />
+                  <DetailStat icon={ClipboardCheck} label={t("candidate.assess.result.quizQuestions")} value={questionCount ? quizCount : "—"} />
+                  <DetailStat icon={Code2} label={t("candidate.assess.result.codingQuestions")} value={questionCount ? codingCount : "—"} />
                 </ul>
               </div>
 
               {demo && (
                 <p className="rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3.5 py-2.5 text-sm leading-5 text-[var(--color-on-surface-variant)]">
-                  Bài demo giao diện — điểm không ảnh hưởng vòng tuyển dụng.
+                  {t("candidate.assess.result.demoDisclaimer")}
                 </p>
               )}
 
@@ -323,10 +341,10 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                   <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border-default)] pt-4">
                     <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
                       <Sparkles className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-                      Đánh giá từ Trợ lý AI
+                      {t("candidate.assess.result.aiEvaluationHeading")}
                     </span>
                     <span className="rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
-                      Hybrid AI Engine
+                      {t("candidate.assess.result.aiEngineBadge")}
                     </span>
                   </div>
 
@@ -342,6 +360,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                     const cleanCode = codeReview.clean_code;
                     const hardcodeFlag = evalData.hardcode_suspected || codeReview.hardcode_suspected;
                     const criteria = Array.isArray(evalData.criteria_results) ? evalData.criteria_results : [];
+                    const order = question?.questionOrder ?? 1;
 
                     return (
                       <div
@@ -351,12 +370,19 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <span className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-surface-variant)]">
-                              Câu {question?.questionOrder ?? 1} · {isCoding ? "Bài thi lập trình" : isEssay ? "Câu hỏi tự luận" : "Đánh giá trắc nghiệm"}
+                              {isCoding
+                                ? t("candidate.assess.result.questionMetaCoding", { order })
+                                : isEssay
+                                  ? t("candidate.assess.result.questionMetaEssay", { order })
+                                  : t("candidate.assess.result.questionMetaQuiz", { order })}
                             </span>
                           </div>
                           {(answer.score !== undefined || answer.suggestedScore !== undefined) && (
                             <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
-                              {answer.score ?? answer.suggestedScore} / {question?.points ?? 0} đ
+                              {t("candidate.assess.common.pointsShort", {
+                                score: answer.score ?? answer.suggestedScore ?? 0,
+                                total: question?.points ?? 0,
+                              })}
                             </span>
                           )}
                         </div>
@@ -367,18 +393,18 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                             {testsPassed && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                                 <CheckCircle2 className="size-3" aria-hidden="true" />
-                                Kiểm thử: {testsPassed}
+                                {t("candidate.assess.result.testsPassedChip", { passed: testsPassed })}
                               </span>
                             )}
                             {timeComp && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
                                 <Cpu className="size-3" aria-hidden="true" />
-                                Thời gian: {timeComp}
+                                {t("candidate.assess.result.timeComplexityChip", { value: timeComp })}
                               </span>
                             )}
                             {spaceComp && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
-                                Bộ nhớ: {spaceComp}
+                                {t("candidate.assess.result.spaceComplexityChip", { value: spaceComp })}
                               </span>
                             )}
                           </div>
@@ -388,16 +414,16 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                         {hardcodeFlag && (
                           <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                             <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-                            <span>Phát hiện nghi vấn hardcode test case (áp trần 50% số điểm).</span>
+                            <span>{t("candidate.assess.result.hardcodeWarning")}</span>
                           </div>
                         )}
 
                         {/* General Comment */}
                         {generalComment && (
                           <div className="mt-2.5 rounded-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-container-low)] p-2.5 text-xs text-[var(--color-on-surface-variant)]">
-                            <p className="font-semibold text-[var(--color-on-surface)]">Nhận xét của AI:</p>
-                            <p className="mt-0.5 leading-relaxed">{localizeAiComment(generalComment)}</p>
-                            {cleanCode && <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">• {localizeAiComment(cleanCode)}</p>}
+                            <p className="font-semibold text-[var(--color-on-surface)]">{t("candidate.assess.result.aiCommentHeading")}</p>
+                            <p className="mt-0.5 leading-relaxed">{localizeAiComment(generalComment, t)}</p>
+                            {cleanCode && <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">• {localizeAiComment(cleanCode, t)}</p>}
                           </div>
                         )}
 
@@ -405,15 +431,15 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                         {isEssay && criteria.length > 0 && (
                           <div className="mt-2.5 space-y-1.5 border-t border-[var(--color-border-default)]/70 pt-2">
                             <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
-                              Tiêu chí Rubric:
+                              {t("candidate.assess.result.rubricHeading")}
                             </p>
                             {criteria.map((c: any, idx: number) => (
                               <div key={idx} className="rounded bg-[var(--color-surface-container-low)] p-2 text-xs">
                                 <div className="flex items-center justify-between font-medium">
-                                  <span>{c.name || `Tiêu chí ${idx + 1}`}</span>
+                                  <span>{c.name || t("candidate.assess.result.rubricCriterionFallback", { index: idx + 1 })}</span>
                                   <span className="font-semibold text-[var(--color-primary)]">{c.score_percent ?? 0}%</span>
                                 </div>
-                                {c.feedback && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">{localizeAiComment(c.feedback)}</p>}
+                                {c.feedback && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">{localizeAiComment(c.feedback, t)}</p>}
                               </div>
                             ))}
                           </div>
@@ -434,7 +460,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
           className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-white px-3.5 text-sm font-semibold text-[var(--color-on-surface)] transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Quay về danh sách
+          {t("candidate.assess.result.backToList")}
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <span className="hidden items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)] sm:inline-flex">
@@ -443,7 +469,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
           {demo && onRetake && (
             <Button disabled={retaking} onClick={onRetake}>
               <RotateCcw className="size-4" aria-hidden="true" />
-              {retaking ? "Đang mở…" : "Làm lại từ đầu"}
+              {retaking ? t("candidate.assess.result.opening") : t("candidate.assess.result.retakeFromStart")}
             </Button>
           )}
         </div>

@@ -20,6 +20,7 @@ import { companyApi } from "@/api/tenant/companyApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { PageSkeleton } from "@/components/ux/Skeleton";
+import { useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -29,51 +30,50 @@ const inputClass =
   "h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3 text-sm text-[var(--color-text-primary)] outline-none transition-all duration-150 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 placeholder:text-[var(--color-text-secondary)]/50";
 
 /* Default sample templates for fast onboarding */
-const SAMPLE_PRESETS: { locations: string[]; departments: string[]; locationDepartments: Record<string, string[]> } = {
-  locations: [
-    "Trụ sở Hà Nội — Tầng 12, Enterprise Tower, Cầu Giấy",
-    "Chi nhánh TP. Hồ Chí Minh — Tầng 8, Bitexco Financial Tower, Quận 1",
-    "Chi nhánh Đà Nẵng — Tòa nhà FPT Complex, Ngũ Hành Sơn",
-    "Làm việc từ xa (Remote / Hybrid)",
-  ],
-  departments: [
-    "Kỹ thuật & Công nghệ (Engineering)",
-    "Quản lý Sản phẩm (Product Management)",
-    "Nhân sự & Tuyển dụng (HR & Talent)",
-    "Kinh doanh & Phát triển thị trường (Sales)",
-    "Tiếp thị & Truyền thông (Marketing)",
-    "Tài chính & Kế toán (Finance)",
-    "Chăm sóc khách hàng (Customer Success)",
-  ],
-  locationDepartments: {
-    "Trụ sở Hà Nội — Tầng 12, Enterprise Tower, Cầu Giấy": [
-      "Kỹ thuật & Công nghệ (Engineering)",
-      "Quản lý Sản phẩm (Product Management)",
-      "Nhân sự & Tuyển dụng (HR & Talent)",
-      "Tiếp thị & Truyền thông (Marketing)",
-      "Tài chính & Kế toán (Finance)",
+function getSamplePresets(t: TranslateFn): {
+  locations: string[];
+  departments: string[];
+  locationDepartments: Record<string, string[]>;
+} {
+  const locHanoi = t("tenantAdmin.companyDirectory.presets.locHanoi");
+  const locHcm = t("tenantAdmin.companyDirectory.presets.locHcm");
+  const locDanang = t("tenantAdmin.companyDirectory.presets.locDanang");
+  const locRemote = t("tenantAdmin.companyDirectory.presets.locRemote");
+
+  const deptEngineering = t("tenantAdmin.companyDirectory.presets.deptEngineering");
+  const deptProduct = t("tenantAdmin.companyDirectory.presets.deptProduct");
+  const deptHr = t("tenantAdmin.companyDirectory.presets.deptHr");
+  const deptSales = t("tenantAdmin.companyDirectory.presets.deptSales");
+  const deptMarketing = t("tenantAdmin.companyDirectory.presets.deptMarketing");
+  const deptFinance = t("tenantAdmin.companyDirectory.presets.deptFinance");
+  const deptSuccess = t("tenantAdmin.companyDirectory.presets.deptSuccess");
+
+  return {
+    locations: [locHanoi, locHcm, locDanang, locRemote],
+    departments: [
+      deptEngineering,
+      deptProduct,
+      deptHr,
+      deptSales,
+      deptMarketing,
+      deptFinance,
+      deptSuccess,
     ],
-    "Chi nhánh TP. Hồ Chí Minh — Tầng 8, Bitexco Financial Tower, Quận 1": [
-      "Kinh doanh & Phát triển thị trường (Sales)",
-      "Tiếp thị & Truyền thông (Marketing)",
-      "Chăm sóc khách hàng (Customer Success)",
-      "Nhân sự & Tuyển dụng (HR & Talent)",
-    ],
-    "Chi nhánh Đà Nẵng — Tòa nhà FPT Complex, Ngũ Hành Sơn": [
-      "Kỹ thuật & Công nghệ (Engineering)",
-      "Quản lý Sản phẩm (Product Management)",
-    ],
-    "Làm việc từ xa (Remote / Hybrid)": [
-      "Kỹ thuật & Công nghệ (Engineering)",
-      "Tiếp thị & Truyền thông (Marketing)",
-      "Quản lý Sản phẩm (Product Management)",
-    ],
-  },
-};
+    locationDepartments: {
+      [locHanoi]: [deptEngineering, deptProduct, deptHr, deptMarketing, deptFinance],
+      [locHcm]: [deptSales, deptMarketing, deptSuccess, deptHr],
+      [locDanang]: [deptEngineering, deptProduct],
+      [locRemote]: [deptEngineering, deptMarketing, deptProduct],
+    },
+  };
+}
 
 export function CompanyDirectoryCard() {
+  const t = useT();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
+
+  const samplePresets = useMemo(() => getSamplePresets(t), [t]);
 
   /* Modal open state */
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -177,9 +177,10 @@ export function CompanyDirectoryCard() {
     mutationFn: (payload: CompanyDirectory) => companyApi.updateDirectory(payload),
     onSuccess: (response) => {
       queryClient.setQueryData(["tenant", "company", "directory"], response);
-      toast.success("Đã lưu danh mục địa điểm và phòng ban thành công!");
+      toast.success(t("tenantAdmin.companyDirectory.toasts.saveSuccess"));
     },
-    onError: (error) => toast.danger(getApiErrorMessage(error, "Không thể cập nhật danh mục công ty")),
+    onError: (error) =>
+      toast.danger(getApiErrorMessage(error, t("tenantAdmin.companyDirectory.toasts.saveError"))),
   });
 
   const handleSave = () => {
@@ -196,26 +197,26 @@ export function CompanyDirectoryCard() {
     setDepartments(data.departments ?? []);
     setLocations(data.locations ?? []);
     setLocationDepartments(data.locationDepartments ?? {});
-    toast.info("Đã hoàn tác các thay đổi chưa lưu.");
+    toast.info(t("tenantAdmin.companyDirectory.toasts.resetInfo"));
   };
 
   const handleApplyPreset = () => {
     askConfirm({
-      title: "Áp dụng cơ cấu mẫu?",
-      description: "Hành động này sẽ thêm bộ địa điểm và phòng ban mẫu chuẩn Enterprise vào danh mục của bạn. Bạn vẫn có thể tuỳ chỉnh lại trước khi lưu.",
-      confirmLabel: "Áp dụng mẫu",
+      title: t("tenantAdmin.companyDirectory.confirms.applyPresetTitle"),
+      description: t("tenantAdmin.companyDirectory.confirms.applyPresetDesc"),
+      confirmLabel: t("tenantAdmin.companyDirectory.confirms.applyPresetLabel"),
       onConfirm: () => {
-        const mergedLocations = Array.from(new Set([...locations, ...SAMPLE_PRESETS.locations]));
-        const mergedDepartments = Array.from(new Set([...departments, ...SAMPLE_PRESETS.departments]));
+        const mergedLocations = Array.from(new Set([...locations, ...samplePresets.locations]));
+        const mergedDepartments = Array.from(new Set([...departments, ...samplePresets.departments]));
         const mergedMap = { ...locationDepartments };
-        for (const [loc, depts] of Object.entries(SAMPLE_PRESETS.locationDepartments)) {
+        for (const [loc, depts] of Object.entries(samplePresets.locationDepartments)) {
           mergedMap[loc] = Array.from(new Set([...(mergedMap[loc] ?? []), ...depts]));
         }
         setLocations(mergedLocations);
         setDepartments(mergedDepartments);
         setLocationDepartments(mergedMap);
         setSelectedLocation(mergedLocations[0]);
-        toast.success("Đã nạp cơ cấu mẫu thành công. Bấm 'Lưu danh mục' để lưu lại.");
+        toast.success(t("tenantAdmin.companyDirectory.toasts.presetApplied"));
       },
     });
   };
@@ -225,7 +226,7 @@ export function CompanyDirectoryCard() {
     const val = newLocationDraft.trim();
     if (!val) return;
     if (locations.some((l) => l.toLowerCase() === val.toLowerCase())) {
-      toast.warning("Địa điểm này đã tồn tại trong danh sách");
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.locationExists"));
       return;
     }
     const updated = [...locations, val];
@@ -241,11 +242,14 @@ export function CompanyDirectoryCard() {
     const oldName = editingLocation.original;
     const newName = editingLocation.value.trim();
     if (!newName) {
-      toast.warning("Tên địa điểm không được để trống");
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.locationNameEmpty"));
       return;
     }
-    if (oldName.toLowerCase() !== newName.toLowerCase() && locations.some((l) => l.toLowerCase() === newName.toLowerCase())) {
-      toast.warning("Tên địa điểm mới đã tồn tại");
+    if (
+      oldName.toLowerCase() !== newName.toLowerCase() &&
+      locations.some((l) => l.toLowerCase() === newName.toLowerCase())
+    ) {
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.locationNameDuplicate"));
       return;
     }
     setLocations(locations.map((l) => (l === oldName ? newName : l)));
@@ -260,7 +264,7 @@ export function CompanyDirectoryCard() {
       setSelectedLocation(newName);
     }
     setEditingLocation(null);
-    toast.success("Đã đổi tên địa điểm");
+    toast.success(t("tenantAdmin.companyDirectory.toasts.locationRenamed"));
   };
 
   /* Delete location */
@@ -268,15 +272,17 @@ export function CompanyDirectoryCard() {
     const jobCount = locationJobCounts[loc] ?? 0;
     const assignedDepts = locationDepartments[loc] ?? [];
     askConfirm({
-      title: `Xoá địa điểm "${loc}"?`,
+      title: t("tenantAdmin.companyDirectory.confirms.deleteLocationTitle", { location: loc }),
       description:
         jobCount > 0
-          ? `CẢNH BÁO: Địa điểm này đang có ${jobCount} tin tuyển dụng sử dụng. Xoá có thể ảnh hưởng đến các tin tuyển dụng liên quan.`
+          ? t("tenantAdmin.companyDirectory.confirms.deleteLocationJobsWarning", { count: jobCount })
           : assignedDepts.length > 0
-          ? `Địa điểm này đang có ${assignedDepts.length} phòng ban trực thuộc. Bạn có chắc chắn muốn xoá?`
-          : "Bạn có chắc chắn muốn xoá địa điểm này khỏi danh mục?",
+            ? t("tenantAdmin.companyDirectory.confirms.deleteLocationDeptsWarning", {
+                count: assignedDepts.length,
+              })
+            : t("tenantAdmin.companyDirectory.confirms.deleteLocationDefault"),
       danger: true,
-      confirmLabel: "Xoá địa điểm",
+      confirmLabel: t("tenantAdmin.companyDirectory.confirms.deleteLocationLabel"),
       onConfirm: () => {
         const updated = locations.filter((l) => l !== loc);
         setLocations(updated);
@@ -288,7 +294,7 @@ export function CompanyDirectoryCard() {
         if (selectedLocation === loc) {
           setSelectedLocation(updated.length > 0 ? updated[0] : null);
         }
-        toast.success(`Đã xoá địa điểm "${loc}"`);
+        toast.success(t("tenantAdmin.companyDirectory.toasts.locationDeleted", { location: loc }));
       },
     });
   };
@@ -300,7 +306,7 @@ export function CompanyDirectoryCard() {
 
     const currentLocDepts = locationDepartments[selectedLocation] ?? [];
     if (currentLocDepts.some((d) => d.toLowerCase() === name.toLowerCase())) {
-      toast.warning(`Phòng ban "${name}" đã có tại địa điểm này.`);
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.deptAlreadyAtLocation", { dept: name }));
       return;
     }
 
@@ -310,7 +316,8 @@ export function CompanyDirectoryCard() {
       setDepartments(updatedDepartments);
     }
 
-    const canonicalName = updatedDepartments.find((d) => d.toLowerCase() === name.toLowerCase()) || name;
+    const canonicalName =
+      updatedDepartments.find((d) => d.toLowerCase() === name.toLowerCase()) || name;
 
     setLocationDepartments((prev) => ({
       ...prev,
@@ -336,7 +343,12 @@ export function CompanyDirectoryCard() {
       ...prev,
       [selectedLocation]: [...departments],
     }));
-    toast.success(`Đã gán tất cả ${departments.length} phòng ban cho ${selectedLocation}`);
+    toast.success(
+      t("tenantAdmin.companyDirectory.toasts.assignedAllDepts", {
+        count: departments.length,
+        location: selectedLocation,
+      }),
+    );
   };
 
   /* Remove all departments from selected location */
@@ -353,7 +365,7 @@ export function CompanyDirectoryCard() {
     const val = newMasterDeptDraft.trim();
     if (!val) return;
     if (departments.some((d) => d.toLowerCase() === val.toLowerCase())) {
-      toast.warning("Phòng ban này đã tồn tại trong danh mục công ty");
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.deptExists"));
       return;
     }
     setDepartments([...departments, val]);
@@ -366,11 +378,14 @@ export function CompanyDirectoryCard() {
     const oldName = editingDepartment.original;
     const newName = editingDepartment.value.trim();
     if (!newName) {
-      toast.warning("Tên phòng ban không được để trống");
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.deptNameEmpty"));
       return;
     }
-    if (oldName.toLowerCase() !== newName.toLowerCase() && departments.some((d) => d.toLowerCase() === newName.toLowerCase())) {
-      toast.warning("Tên phòng ban mới đã tồn tại");
+    if (
+      oldName.toLowerCase() !== newName.toLowerCase() &&
+      departments.some((d) => d.toLowerCase() === newName.toLowerCase())
+    ) {
+      toast.warning(t("tenantAdmin.companyDirectory.toasts.deptNameDuplicate"));
       return;
     }
     setDepartments(departments.map((d) => (d === oldName ? newName : d)));
@@ -382,7 +397,7 @@ export function CompanyDirectoryCard() {
       return copy;
     });
     setEditingDepartment(null);
-    toast.success("Đã cập nhật tên phòng ban trên toàn hệ thống");
+    toast.success(t("tenantAdmin.companyDirectory.toasts.deptRenamed"));
   };
 
   /* Delete department company-wide */
@@ -394,15 +409,17 @@ export function CompanyDirectoryCard() {
     }
 
     askConfirm({
-      title: `Xoá phòng ban "${dept}"?`,
+      title: t("tenantAdmin.companyDirectory.confirms.deleteDeptTitle", { dept }),
       description:
         jobCount > 0
-          ? `CẢNH BÁO: Phòng ban này đang có ${jobCount} tin tuyển dụng liên kết. Xoá sẽ gỡ phòng ban khỏi tất cả địa điểm và ảnh hưởng tới tin tuyển dụng.`
+          ? t("tenantAdmin.companyDirectory.confirms.deleteDeptJobsWarning", { count: jobCount })
           : locUsageCount > 0
-          ? `Phòng ban này đang hoạt động tại ${locUsageCount} địa điểm. Xoá sẽ gỡ phòng ban này khỏi toàn bộ công ty.`
-          : "Bạn có chắc chắn muốn xoá phòng ban này khỏi danh mục công ty?",
+            ? t("tenantAdmin.companyDirectory.confirms.deleteDeptLocsWarning", {
+                count: locUsageCount,
+              })
+            : t("tenantAdmin.companyDirectory.confirms.deleteDeptDefault"),
       danger: true,
-      confirmLabel: "Xoá phòng ban",
+      confirmLabel: t("tenantAdmin.companyDirectory.confirms.deleteDeptLabel"),
       onConfirm: () => {
         setDepartments(departments.filter((d) => d !== dept));
         setLocationDepartments((prev) => {
@@ -412,7 +429,7 @@ export function CompanyDirectoryCard() {
           }
           return copy;
         });
-        toast.success(`Đã xoá phòng ban "${dept}"`);
+        toast.success(t("tenantAdmin.companyDirectory.toasts.deptDeleted", { dept }));
       },
     });
   };
@@ -454,7 +471,7 @@ export function CompanyDirectoryCard() {
 
   return (
     <>
-      {/* ──── COMPACT TRIGGER CARD ON PAGE (Bố cục gọn gàng, bấm vào mới hiện nổi lên) ──── */}
+      {/* ──── COMPACT TRIGGER CARD ON PAGE ──── */}
       <Card className="p-4 transition-all hover:border-brand-primary/40 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-start sm:items-center gap-3.5 min-w-0">
@@ -464,15 +481,18 @@ export function CompanyDirectoryCard() {
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                  Danh mục địa điểm & phòng ban công ty
+                  {t("tenantAdmin.companyDirectory.cardTitle")}
                 </h3>
                 <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2.5 py-0.5 text-xs font-semibold text-brand-primary">
-                  {totalLocations} địa điểm • {totalDepartments} phòng ban
+                  {t("tenantAdmin.companyDirectory.statsBadge", {
+                    locations: totalLocations,
+                    departments: totalDepartments,
+                  })}
                 </span>
                 {isDirty && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-xs font-medium text-amber-600">
                     <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Chưa lưu
+                    {t("tenantAdmin.companyDirectory.unsavedBadge")}
                   </span>
                 )}
               </div>
@@ -486,13 +506,13 @@ export function CompanyDirectoryCard() {
               className="gap-2 shadow-sm font-semibold"
             >
               <Building2 className="size-4" aria-hidden="true" />
-              Quản lý địa điểm & phòng ban
+              {t("tenantAdmin.companyDirectory.manageButton")}
             </Button>
           </div>
         </div>
       </Card>
 
-      {/* ──── MODAL POPUP (HIỆN NỔI LÊN KHI BẤM VÀO) ──── */}
+      {/* ──── MODAL POPUP ──── */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-5 overflow-y-auto"
@@ -516,10 +536,10 @@ export function CompanyDirectoryCard() {
                 </span>
                 <div>
                   <h3 id="modal-directory-title" className="text-base sm:text-lg font-bold text-[var(--color-text-primary)]">
-                    Danh mục địa điểm & phòng ban công ty
+                    {t("tenantAdmin.companyDirectory.cardTitle")}
                   </h3>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Bấm vào từng địa điểm để xem và phân bổ các phòng ban trực thuộc.
+                    {t("tenantAdmin.companyDirectory.modalSubtitle")}
                   </p>
                 </div>
               </div>
@@ -534,7 +554,7 @@ export function CompanyDirectoryCard() {
                     className="gap-1.5 border-dashed text-xs hidden sm:inline-flex"
                   >
                     <Sparkles className="size-3.5 text-amber-500" aria-hidden="true" />
-                    Gợi ý mẫu cơ cấu
+                    {t("tenantAdmin.companyDirectory.applyPresetButton")}
                   </Button>
                 )}
 
@@ -542,7 +562,7 @@ export function CompanyDirectoryCard() {
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-surface-muted transition-colors"
-                  aria-label="Đóng cửa sổ"
+                  aria-label={t("tenantAdmin.companyDirectory.closeWindowAria")}
                 >
                   <X className="size-5" />
                 </button>
@@ -562,7 +582,7 @@ export function CompanyDirectoryCard() {
                   onClick={() => setActiveTab("matrix")}
                 >
                   <Building2 className="size-4" />
-                  Cơ cấu theo địa điểm
+                  {t("tenantAdmin.companyDirectory.tabs.matrix")}
                   <span className="ml-1 rounded-full bg-brand-primary/10 px-2 py-0.5 text-xs text-brand-primary">
                     {totalLocations}
                   </span>
@@ -578,7 +598,7 @@ export function CompanyDirectoryCard() {
                   onClick={() => setActiveTab("master-departments")}
                 >
                   <Users className="size-4" />
-                  Tất cả phòng ban công ty
+                  {t("tenantAdmin.companyDirectory.tabs.masterDepartments")}
                   <span className="ml-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs text-[var(--color-text-secondary)]">
                     {totalDepartments}
                   </span>
@@ -588,7 +608,7 @@ export function CompanyDirectoryCard() {
               {isDirty && (
                 <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
                   <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
-                  Có thay đổi chưa lưu
+                  {t("tenantAdmin.companyDirectory.unsavedChanges")}
                 </span>
               )}
             </div>
@@ -596,16 +616,18 @@ export function CompanyDirectoryCard() {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-6">
               {activeTab === "matrix" ? (
-                /* ── TAB 1: MASTER-DETAIL MATRIX (BỐ CỤC CHUẨN TRÁNH KHUYẾT) ── */
+                /* ── TAB 1: MASTER-DETAIL MATRIX ── */
                 <div className="grid gap-5 lg:grid-cols-12 items-start">
-                  {/* Left Column (Master): Địa điểm công ty (5 cols) */}
+                  {/* Left Column (Master): Company Locations (5 cols) */}
                   <div className="lg:col-span-5 flex flex-col rounded-xl border border-[var(--color-border-default)] bg-surface-card shadow-xs h-[520px]">
                     {/* Header */}
                     <div className="p-3.5 border-b border-[var(--color-border-default)] space-y-2.5 bg-surface-muted/30 shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <MapPin className="size-4 text-brand-primary" aria-hidden="true" />
-                          <h4 className="text-sm font-bold text-[var(--color-text-primary)]">Địa điểm công ty</h4>
+                          <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
+                            {t("tenantAdmin.companyDirectory.locationsTitle")}
+                          </h4>
                         </div>
                         <span className="text-xs text-[var(--color-text-secondary)] font-medium">
                           {filteredLocations.length}/{totalLocations}
@@ -617,7 +639,7 @@ export function CompanyDirectoryCard() {
                         <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
                         <input
                           type="text"
-                          placeholder="Lọc nhanh địa điểm…"
+                          placeholder={t("tenantAdmin.companyDirectory.filterLocationsPlaceholder")}
                           value={locationQuery}
                           onChange={(e) => setLocationQuery(e.target.value)}
                           className="h-8.5 w-full rounded-md border border-[var(--color-border-default)] bg-surface-card pl-8 pr-7 text-xs text-[var(--color-text-primary)] outline-none focus:border-brand-primary"
@@ -627,7 +649,7 @@ export function CompanyDirectoryCard() {
                             type="button"
                             onClick={() => setLocationQuery("")}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
-                            aria-label="Xoá tìm kiếm"
+                            aria-label={t("tenantAdmin.companyDirectory.clearSearchAria")}
                           >
                             <X className="size-3.5" />
                           </button>
@@ -639,7 +661,7 @@ export function CompanyDirectoryCard() {
                         <input
                           className={inputClass}
                           maxLength={255}
-                          placeholder="VD: Tầng 5, 123 Cầu Giấy, Hà Nội"
+                          placeholder={t("tenantAdmin.companyDirectory.newLocationPlaceholder")}
                           value={newLocationDraft}
                           onChange={(e) => setNewLocationDraft(e.target.value)}
                           onKeyDown={(e) => {
@@ -654,7 +676,7 @@ export function CompanyDirectoryCard() {
                           variant="secondary"
                           disabled={!newLocationDraft.trim()}
                           onClick={addLocation}
-                          aria-label="Thêm địa điểm"
+                          aria-label={t("tenantAdmin.companyDirectory.addLocationAria")}
                           className="shrink-0"
                         >
                           <Plus className="size-4" aria-hidden="true" />
@@ -668,7 +690,9 @@ export function CompanyDirectoryCard() {
                         <div className="flex flex-col items-center justify-center h-full text-center p-6 text-[var(--color-text-secondary)]">
                           <MapPin className="size-8 text-gray-300 dark:text-gray-600 mb-2 stroke-1" />
                           <p className="text-xs font-medium">
-                            {locationQuery ? "Không tìm thấy địa điểm phù hợp." : "Chưa có địa điểm công ty nào."}
+                            {locationQuery
+                              ? t("tenantAdmin.companyDirectory.noLocationsMatch")
+                              : t("tenantAdmin.companyDirectory.noLocationsYet")}
                           </p>
                           {totalLocations === 0 && (
                             <Button
@@ -679,7 +703,7 @@ export function CompanyDirectoryCard() {
                               className="mt-3 text-xs"
                             >
                               <Sparkles className="size-3 text-amber-500 mr-1" />
-                              Dùng mẫu có sẵn
+                              {t("tenantAdmin.companyDirectory.usePresetButton")}
                             </Button>
                           )}
                         </div>
@@ -719,7 +743,7 @@ export function CompanyDirectoryCard() {
                                     type="button"
                                     className="rounded p-1 text-emerald-600 hover:bg-emerald-50"
                                     onClick={saveRenameLocation}
-                                    aria-label="Lưu đổi tên"
+                                    aria-label={t("tenantAdmin.companyDirectory.saveRenameAria")}
                                   >
                                     <Check className="size-4" />
                                   </button>
@@ -727,7 +751,7 @@ export function CompanyDirectoryCard() {
                                     type="button"
                                     className="rounded p-1 text-gray-400 hover:bg-gray-100"
                                     onClick={() => setEditingLocation(null)}
-                                    aria-label="Huỷ đổi tên"
+                                    aria-label={t("tenantAdmin.companyDirectory.cancelRenameAria")}
                                   >
                                     <X className="size-4" />
                                   </button>
@@ -749,7 +773,7 @@ export function CompanyDirectoryCard() {
                                     <button
                                       type="button"
                                       className="rounded p-1 text-[var(--color-text-secondary)] hover:text-brand-primary hover:bg-blue-50 dark:hover:bg-blue-950"
-                                      aria-label={`Đổi tên ${loc}`}
+                                      aria-label={t("tenantAdmin.companyDirectory.renameLocationAria", { location: loc })}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setEditingLocation({ original: loc, value: loc });
@@ -760,7 +784,7 @@ export function CompanyDirectoryCard() {
                                     <button
                                       type="button"
                                       className="rounded p-1 text-status-danger hover:bg-red-50 dark:hover:bg-red-950"
-                                      aria-label={`Xoá ${loc}`}
+                                      aria-label={t("tenantAdmin.companyDirectory.deleteLocationAria", { location: loc })}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         removeLocation(loc);
@@ -782,20 +806,22 @@ export function CompanyDirectoryCard() {
                                     }`}
                                   >
                                     <Users className="size-3" />
-                                    {deptCount > 0 ? `${deptCount} phòng ban` : "Chưa có phòng ban"}
+                                    {deptCount > 0
+                                      ? t("tenantAdmin.companyDirectory.deptCountBadge", { count: deptCount })
+                                      : t("tenantAdmin.companyDirectory.noDeptBadge")}
                                   </span>
 
                                   {jobCount > 0 && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
                                       <Briefcase className="size-3" />
-                                      {jobCount} việc làm
+                                      {t("tenantAdmin.companyDirectory.jobCountBadge", { count: jobCount })}
                                     </span>
                                   )}
                                 </div>
 
                                 {isSelected && (
                                   <span className="flex items-center text-xs font-semibold text-brand-primary">
-                                    Chi tiết <ChevronRight className="size-3.5 ml-0.5" />
+                                    {t("tenantAdmin.companyDirectory.detailsLabel")} <ChevronRight className="size-3.5 ml-0.5" />
                                   </span>
                                 )}
                               </div>
@@ -806,7 +832,7 @@ export function CompanyDirectoryCard() {
                     </div>
                   </div>
 
-                  {/* Right Column (Detail): Phòng ban tại địa điểm đã chọn (7 cols) */}
+                  {/* Right Column (Detail): Departments at Selected Location (7 cols) */}
                   <div className="lg:col-span-7 flex flex-col rounded-xl border border-[var(--color-border-default)] bg-surface-card shadow-xs h-[520px]">
                     {selectedLocation ? (
                       <>
@@ -815,7 +841,7 @@ export function CompanyDirectoryCard() {
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                             <div>
                               <div className="flex items-center gap-1.5 text-xs font-medium text-brand-primary uppercase tracking-wider">
-                                <MapPin className="size-3.5" /> Địa điểm đang chọn
+                                <MapPin className="size-3.5" /> {t("tenantAdmin.companyDirectory.selectedLocationLabel")}
                               </div>
                               <h4 className="text-base font-bold text-[var(--color-text-primary)] break-words mt-0.5">
                                 {selectedLocation}
@@ -824,7 +850,9 @@ export function CompanyDirectoryCard() {
 
                             <div className="flex items-center gap-2">
                               <span className="rounded-full bg-brand-primary/10 px-2.5 py-0.5 text-xs font-semibold text-brand-primary">
-                                {locationDepartments[selectedLocation]?.length ?? 0} phòng ban trực thuộc
+                                {t("tenantAdmin.companyDirectory.attachedDeptCount", {
+                                  count: locationDepartments[selectedLocation]?.length ?? 0,
+                                })}
                               </span>
                               {departments.length > (locationDepartments[selectedLocation]?.length ?? 0) && (
                                 <button
@@ -832,7 +860,7 @@ export function CompanyDirectoryCard() {
                                   onClick={assignAllDepartmentsToLocation}
                                   className="text-xs text-brand-primary hover:underline font-medium"
                                 >
-                                  Gán tất cả
+                                  {t("tenantAdmin.companyDirectory.assignAll")}
                                 </button>
                               )}
                               {(locationDepartments[selectedLocation]?.length ?? 0) > 0 && (
@@ -841,7 +869,7 @@ export function CompanyDirectoryCard() {
                                   onClick={clearAllDepartmentsFromLocation}
                                   className="text-xs text-status-danger hover:underline font-medium ml-2"
                                 >
-                                  Gỡ hết
+                                  {t("tenantAdmin.companyDirectory.clearAll")}
                                 </button>
                               )}
                             </div>
@@ -863,8 +891,8 @@ export function CompanyDirectoryCard() {
                               >
                                 <option value="">
                                   {unassignedCompanyDepts.length === 0
-                                    ? "Đã gán hết phòng ban công ty"
-                                    : "Chọn từ phòng ban có sẵn…"}
+                                    ? t("tenantAdmin.companyDirectory.allDeptsAssignedOption")
+                                    : t("tenantAdmin.companyDirectory.pickExistingDeptOption")}
                                 </option>
                                 {unassignedCompanyDepts.map((d) => (
                                   <option key={d} value={d}>
@@ -879,7 +907,7 @@ export function CompanyDirectoryCard() {
                               <input
                                 className={inputClass}
                                 maxLength={128}
-                                placeholder="Hoặc tạo phòng ban mới…"
+                                placeholder={t("tenantAdmin.companyDirectory.newDeptPlaceholder")}
                                 value={newDeptDraft}
                                 onChange={(e) => setNewDeptDraft(e.target.value)}
                                 onKeyDown={(e) => {
@@ -894,7 +922,7 @@ export function CompanyDirectoryCard() {
                                 variant="secondary"
                                 disabled={!newDeptDraft.trim()}
                                 onClick={() => addDepartmentToSelectedLocation(newDeptDraft)}
-                                aria-label="Thêm phòng ban mới vào địa điểm"
+                                aria-label={t("tenantAdmin.companyDirectory.addDeptToLocationAria")}
                                 className="shrink-0"
                               >
                                 <Plus className="size-4" aria-hidden="true" />
@@ -908,7 +936,7 @@ export function CompanyDirectoryCard() {
                               <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
                               <input
                                 type="text"
-                                placeholder="Lọc phòng ban tại địa điểm này…"
+                                placeholder={t("tenantAdmin.companyDirectory.filterDeptsPlaceholder")}
                                 value={deptQuery}
                                 onChange={(e) => setDeptQuery(e.target.value)}
                                 className="h-8.5 w-full rounded-md border border-[var(--color-border-default)] bg-surface-card pl-8 pr-7 text-xs text-[var(--color-text-primary)] outline-none focus:border-brand-primary"
@@ -929,23 +957,22 @@ export function CompanyDirectoryCard() {
                         {/* Departments List at Selected Location */}
                         <div className="flex-1 overflow-y-auto p-3.5 space-y-2">
                           {selectedLocationDepts.length === 0 ? (
-                            /* Designed Empty State: Avoid awkward cut-off ("tránh khuyết giao diện") */
                             <div className="flex flex-col items-center justify-center h-full text-center p-6 rounded-xl border border-dashed border-[var(--color-border-default)] bg-surface-muted/20">
                               <div className="grid size-12 place-items-center rounded-full bg-brand-primary/10 text-brand-primary mb-3">
                                 <Users className="size-6" />
                               </div>
                               <h5 className="text-sm font-bold text-[var(--color-text-primary)]">
-                                Chưa có phòng ban nào tại địa điểm này
+                                {t("tenantAdmin.companyDirectory.emptyDeptsTitle")}
                               </h5>
                               <p className="mt-1 max-w-sm text-xs text-[var(--color-text-secondary)]">
-                                Địa điểm này hiện chưa được phân bổ phòng ban. Bạn có thể chọn nhanh từ danh mục phòng ban của công ty hoặc thêm phòng ban mới.
+                                {t("tenantAdmin.companyDirectory.emptyDeptsDesc")}
                               </p>
 
                               {/* Quick Suggestion Chips */}
                               {unassignedCompanyDepts.length > 0 ? (
                                 <div className="mt-4">
                                   <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-                                    Bấm nhanh để gán vào cơ sở này:
+                                    {t("tenantAdmin.companyDirectory.quickAssignPrompt")}
                                   </p>
                                   <div className="flex flex-wrap justify-center gap-1.5 max-w-md">
                                     {unassignedCompanyDepts.slice(0, 6).map((d) => (
@@ -964,10 +991,10 @@ export function CompanyDirectoryCard() {
                               ) : (
                                 <div className="mt-4">
                                   <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-                                    Gợi ý phòng ban phổ biến:
+                                    {t("tenantAdmin.companyDirectory.popularDeptSuggestions")}
                                   </p>
                                   <div className="flex flex-wrap justify-center gap-1.5 max-w-md">
-                                    {SAMPLE_PRESETS.departments.slice(0, 4).map((d) => (
+                                    {samplePresets.departments.slice(0, 4).map((d) => (
                                       <button
                                         key={d}
                                         type="button"
@@ -1002,7 +1029,7 @@ export function CompanyDirectoryCard() {
                                         {jobCount > 0 && (
                                           <div className="flex items-center gap-1 text-[11px] text-[var(--color-text-secondary)] mt-0.5">
                                             <Briefcase className="size-3" />
-                                            <span>{jobCount} tin tuyển dụng thuộc phòng ban này</span>
+                                            <span>{t("tenantAdmin.companyDirectory.deptJobCount", { count: jobCount })}</span>
                                           </div>
                                         )}
                                       </div>
@@ -1012,12 +1039,15 @@ export function CompanyDirectoryCard() {
                                       <button
                                         type="button"
                                         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-status-danger hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                                        aria-label={`Gỡ ${dept} khỏi ${selectedLocation}`}
-                                        title="Gỡ khỏi địa điểm này"
+                                        aria-label={t("tenantAdmin.companyDirectory.removeDeptAria", {
+                                          dept,
+                                          location: selectedLocation,
+                                        })}
+                                        title={t("tenantAdmin.companyDirectory.removeDeptTitle")}
                                         onClick={() => removeDepartmentFromLocation(selectedLocation, dept)}
                                       >
                                         <X className="size-3.5" />
-                                        Gỡ
+                                        {t("tenantAdmin.companyDirectory.removeDeptButton")}
                                       </button>
                                     </div>
                                   </li>
@@ -1031,25 +1061,25 @@ export function CompanyDirectoryCard() {
                       <div className="flex flex-col items-center justify-center h-full text-center p-8 text-[var(--color-text-secondary)]">
                         <Building2 className="size-10 text-gray-300 dark:text-gray-600 mb-2 stroke-1" />
                         <h5 className="text-base font-semibold text-[var(--color-text-primary)]">
-                          Chưa chọn địa điểm
+                          {t("tenantAdmin.companyDirectory.noLocationSelectedTitle")}
                         </h5>
                         <p className="mt-1 text-xs max-w-sm">
-                          Hãy thêm hoặc chọn một địa điểm ở cột bên trái để quản lý các phòng ban trực thuộc.
+                          {t("tenantAdmin.companyDirectory.noLocationSelectedDesc")}
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
-                /* ── TAB 2: MASTER DEPARTMENTS DIRECTORY (ALL COMPANY DEPARTMENTS) ── */
+                /* ── TAB 2: MASTER DEPARTMENTS DIRECTORY ── */
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-[var(--color-border-default)] bg-surface-muted/30">
                     <div>
                       <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                        Danh mục phòng ban toàn công ty
+                        {t("tenantAdmin.companyDirectory.masterHeaderTitle")}
                       </h4>
                       <p className="text-xs text-[var(--color-text-secondary)]">
-                        Tất cả phòng ban đang có của doanh nghiệp. Bạn có thể thêm, đổi tên hoặc xoá các phòng ban tại đây.
+                        {t("tenantAdmin.companyDirectory.masterHeaderDesc")}
                       </p>
                     </div>
 
@@ -1057,7 +1087,7 @@ export function CompanyDirectoryCard() {
                       <input
                         className={inputClass}
                         maxLength={128}
-                        placeholder="VD: Engineering, Marketing…"
+                        placeholder={t("tenantAdmin.companyDirectory.newMasterDeptPlaceholder")}
                         value={newMasterDeptDraft}
                         onChange={(e) => setNewMasterDeptDraft(e.target.value)}
                         onKeyDown={(e) => {
@@ -1074,7 +1104,7 @@ export function CompanyDirectoryCard() {
                         onClick={addMasterDepartment}
                         className="shrink-0"
                       >
-                        <Plus className="size-4 mr-1" /> Thêm
+                        <Plus className="size-4 mr-1" /> {t("tenantAdmin.companyDirectory.addButton")}
                       </Button>
                     </div>
                   </div>
@@ -1084,7 +1114,7 @@ export function CompanyDirectoryCard() {
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-secondary)]" />
                     <input
                       type="text"
-                      placeholder="Tìm kiếm phòng ban…"
+                      placeholder={t("tenantAdmin.companyDirectory.searchDeptPlaceholder")}
                       value={masterDeptQuery}
                       onChange={(e) => setMasterDeptQuery(e.target.value)}
                       className="h-9 w-full rounded-lg border border-[var(--color-border-default)] bg-surface-card pl-8.5 pr-8 text-xs text-[var(--color-text-primary)] outline-none focus:border-brand-primary"
@@ -1105,7 +1135,7 @@ export function CompanyDirectoryCard() {
                     {filteredMasterDepts.map((dept) => {
                       const jobCount = departmentJobCounts[dept] ?? 0;
                       const attachedLocations = locations.filter((loc) =>
-                        (locationDepartments[loc] ?? []).includes(dept)
+                        (locationDepartments[loc] ?? []).includes(dept),
                       );
                       const isEditing = editingDepartment?.original === dept;
 
@@ -1157,7 +1187,7 @@ export function CompanyDirectoryCard() {
                                 <button
                                   type="button"
                                   className="rounded p-1 text-[var(--color-text-secondary)] hover:text-brand-primary hover:bg-blue-50"
-                                  aria-label={`Đổi tên ${dept}`}
+                                  aria-label={t("tenantAdmin.companyDirectory.renameDeptAria", { dept })}
                                   onClick={() => setEditingDepartment({ original: dept, value: dept })}
                                 >
                                   <Pencil className="size-3.5" />
@@ -1165,7 +1195,7 @@ export function CompanyDirectoryCard() {
                                 <button
                                   type="button"
                                   className="rounded p-1 text-status-danger hover:bg-red-50"
-                                  aria-label={`Xoá ${dept}`}
+                                  aria-label={t("tenantAdmin.companyDirectory.deleteDeptAria", { dept })}
                                   onClick={() => removeMasterDepartment(dept)}
                                 >
                                   <Trash2 className="size-3.5" />
@@ -1178,16 +1208,20 @@ export function CompanyDirectoryCard() {
                             <span>
                               {attachedLocations.length > 0 ? (
                                 <span className="font-medium text-brand-primary">
-                                  Có mặt tại {attachedLocations.length} địa điểm
+                                  {t("tenantAdmin.companyDirectory.attachedLocationsCount", {
+                                    count: attachedLocations.length,
+                                  })}
                                 </span>
                               ) : (
-                                <span className="text-amber-600">Chưa gán địa điểm nào</span>
+                                <span className="text-amber-600">
+                                  {t("tenantAdmin.companyDirectory.noAttachedLocations")}
+                                </span>
                               )}
                             </span>
 
                             {jobCount > 0 && (
                               <span className="font-medium text-[var(--color-text-primary)]">
-                                {jobCount} việc làm
+                                {t("tenantAdmin.companyDirectory.jobCountBadge", { count: jobCount })}
                               </span>
                             )}
                           </div>
@@ -1203,7 +1237,11 @@ export function CompanyDirectoryCard() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-6 py-4 bg-surface-muted/30 shrink-0">
               <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
                 <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                <span>Mọi thay đổi chỉ được áp dụng chính thức khi bạn bấm <strong>Lưu danh mục</strong>.</span>
+                <span>
+                  {t("tenantAdmin.companyDirectory.footerHintPrefix")}
+                  <strong>{t("tenantAdmin.companyDirectory.footerHintBold")}</strong>
+                  {t("tenantAdmin.companyDirectory.footerHintSuffix")}
+                </span>
               </div>
 
               <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
@@ -1216,7 +1254,7 @@ export function CompanyDirectoryCard() {
                     className="gap-1.5 text-xs text-[var(--color-text-secondary)]"
                   >
                     <RotateCcw className="size-3.5" aria-hidden="true" />
-                    Hoàn tác
+                    {t("tenantAdmin.companyDirectory.undo")}
                   </Button>
                 )}
 
@@ -1225,7 +1263,7 @@ export function CompanyDirectoryCard() {
                   variant="secondary"
                   onClick={() => setIsModalOpen(false)}
                 >
-                  Đóng
+                  {t("tenantAdmin.companyDirectory.close")}
                 </Button>
 
                 <Button
@@ -1235,11 +1273,11 @@ export function CompanyDirectoryCard() {
                   className={`gap-1.5 ${isDirty ? "shadow-md ring-2 ring-brand-primary/30" : ""}`}
                 >
                   {mutation.isPending ? (
-                    "Đang lưu…"
+                    t("tenantAdmin.companyDirectory.saving")
                   ) : (
                     <>
                       <Check className="size-4" aria-hidden="true" />
-                      Lưu danh mục
+                      {t("tenantAdmin.companyDirectory.saveButton")}
                       {isDirty && <span className="size-2 rounded-full bg-amber-400 animate-pulse" />}
                     </>
                   )}

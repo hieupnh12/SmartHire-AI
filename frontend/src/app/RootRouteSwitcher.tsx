@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
+import { useT } from "@/i18n";
 import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SaasLandingPage } from "@/features/master/landing/pages/SaasLandingPage";
 import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
@@ -13,6 +14,7 @@ import { authApi } from "@/api/tenant/authApi";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
 
 export function RootRouteSwitcher() {
+  const t = useT();
   const tenantId = getTenantIdFromSubdomain();
 
   const [checking, setChecking] = useState(!!tenantId);
@@ -77,7 +79,7 @@ export function RootRouteSwitcher() {
     if (checkFailed) {
       return (
         <div role="alert" className="min-h-screen bg-[#f9f9ff] flex items-center justify-center px-6 text-center text-sm text-[#64748b]">
-          Không thể kết nối để xác thực tenant "{tenantId}". Vui lòng thử tải lại trang.
+          {t("ux.tenantCheckError", { tenantId })}
         </div>
       );
     }

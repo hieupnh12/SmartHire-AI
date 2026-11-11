@@ -32,6 +32,7 @@ import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { usersApi } from "@/api/tenant/usersApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { formatInvoiceStatusLabel } from "@/features/tenant/admin/billing/utils/billingLabels";
+import { formatNumber, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 type AdminSearchItem = {
@@ -46,8 +47,8 @@ type AdminSearchItem = {
 
 type AdminPageEntry = {
   id: string;
-  title: string;
-  subtitle: string;
+  titleKey: string;
+  subtitleKey: string;
   path: string;
   keywords: string;
   icon: LucideIcon;
@@ -57,16 +58,16 @@ type AdminPageEntry = {
 const ADMIN_PAGES: AdminPageEntry[] = [
   {
     id: "page-overview",
-    title: "Tổng quan quản trị",
-    subtitle: "Thống kê nhanh nhân sự, gói dịch vụ và tình trạng hồ sơ",
+    titleKey: "tenantAdmin.globalSearch.pages.overview.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.overview.subtitle",
     path: "",
     keywords: "tong quan overview dashboard trang chu admin home",
     icon: House,
   },
   {
     id: "page-company",
-    title: "Hồ sơ doanh nghiệp",
-    subtitle: "Tên công ty, logo, website, mô tả, phòng ban và địa điểm",
+    titleKey: "tenantAdmin.globalSearch.pages.company.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.company.subtitle",
     path: "/company",
     keywords: "doanh nghiep cong ty ho so thuong hieu logo website dia chi phong ban dia diem company profile directory",
     icon: Building2,
@@ -74,16 +75,16 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-landing",
-    title: "Trang Tuyển Dụng (Landing Page)",
-    subtitle: "Thiết kế giao diện trang tuyển dụng công khai của doanh nghiệp",
+    titleKey: "tenantAdmin.globalSearch.pages.landing.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.landing.subtitle",
     path: "/landing-page",
     keywords: "trang tuyen dung landing page career thuong hieu banner hero giao dien cong khai",
     icon: LayoutTemplate,
   },
   {
     id: "page-billing",
-    title: "Gói & Hóa đơn",
-    subtitle: "Nâng cấp gói, hạn mức (quota), gia hạn, lịch sử hóa đơn và thanh toán",
+    titleKey: "tenantAdmin.globalSearch.pages.billing.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.billing.subtitle",
     path: "/billing",
     keywords: "goi hoa don thanh toan gia han nang cap han muc quota subscription plan dung luong storage ai voice cv parse billing invoice vnpay chuyen khoan",
     icon: CreditCard,
@@ -91,8 +92,8 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-users",
-    title: "Người dùng & Lời mời",
-    subtitle: "Quản lý nhân viên, gửi lời mời và khóa/mở khóa tài khoản",
+    titleKey: "tenantAdmin.globalSearch.pages.users.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.users.subtitle",
     path: "/users",
     keywords: "nguoi dung nhan vien thanh vien moi loi moi user member invite khoa tai khoan",
     icon: Users,
@@ -100,8 +101,8 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-roles",
-    title: "Phân quyền & Vai trò",
-    subtitle: "Tùy chỉnh vai trò và ma trận quyền hạn (RBAC)",
+    titleKey: "tenantAdmin.globalSearch.pages.roles.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.roles.subtitle",
     path: "/roles",
     keywords: "phan quyen vai tro quyen han role permission rbac",
     icon: ShieldCheck,
@@ -109,8 +110,8 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-recruitment",
-    title: "Job đã đăng & Ứng viên",
-    subtitle: "Xem danh sách tin tuyển dụng đang mở và ứng viên đã nộp",
+    titleKey: "tenantAdmin.globalSearch.pages.recruitment.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.recruitment.subtitle",
     path: "/recruitment",
     keywords: "tuyen dung job da dang ung vien ho so ung tuyen recruitment published candidate",
     icon: BriefcaseBusiness,
@@ -118,24 +119,24 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-assignments",
-    title: "Quản lý công việc (Phân công)",
-    subtitle: "Phân công nhân sự phụ trách và chuyển quyền sở hữu (OWNER)",
+    titleKey: "tenantAdmin.globalSearch.pages.assignments.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.assignments.subtitle",
     path: "/recruiter-assignments",
     keywords: "quan ly cong viec phan cong phu trach chu so huu owner assignment recruiter",
     icon: UserRoundCog,
   },
   {
     id: "page-analytics",
-    title: "Phân tích & Báo cáo tuyển dụng",
-    subtitle: "Hiệu suất phễu tuyển dụng, nguồn ứng viên và thời gian tuyển",
+    titleKey: "tenantAdmin.globalSearch.pages.analytics.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.analytics.subtitle",
     path: "/analytics",
     keywords: "phan tich thong ke bao cao hieu suat analytics report chart",
     icon: ChartNoAxesCombined,
   },
   {
     id: "page-system",
-    title: "Cấu hình Gmail & Hệ thống",
-    subtitle: "Thiết lập email gửi thư mời và kiểm tra trạng thái hạ tầng",
+    titleKey: "tenantAdmin.globalSearch.pages.system.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.system.subtitle",
     path: "/system",
     keywords: "he thong gmail email mail smtp health ha tang redis rabbitmq database",
     icon: Mail,
@@ -143,42 +144,42 @@ const ADMIN_PAGES: AdminPageEntry[] = [
   },
   {
     id: "page-account",
-    title: "Tài khoản & Bảo mật",
-    subtitle: "Hồ sơ cá nhân quản trị viên, mật khẩu và tùy chọn thông báo",
+    titleKey: "tenantAdmin.globalSearch.pages.account.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.account.subtitle",
     path: "/account",
     keywords: "tai khoan ca nhan bao mat mat khau thong bao account security profile",
     icon: UserRound,
   },
   {
     id: "page-recruiter",
-    title: "Workspace Tuyển dụng",
-    subtitle: "Mở không gian làm việc của nhà tuyển dụng",
+    titleKey: "tenantAdmin.globalSearch.pages.recruiter.title",
+    subtitleKey: "tenantAdmin.globalSearch.pages.recruiter.subtitle",
     path: "__RECRUITER__",
     keywords: "workspace tuyen dung nha tuyen dung recruiter",
     icon: BriefcaseBusiness,
   },
 ];
 
-const GROUP_LABELS: Record<AdminSearchItem["group"], string> = {
-  pages: "Trang & Chức năng",
-  users: "Nhân sự",
-  roles: "Vai trò",
-  jobs: "Tin tuyển dụng",
-  invoices: "Hóa đơn",
+const GROUP_LABEL_KEYS: Record<AdminSearchItem["group"], string> = {
+  pages: "tenantAdmin.globalSearch.groups.pages",
+  users: "tenantAdmin.globalSearch.groups.users",
+  roles: "tenantAdmin.globalSearch.groups.roles",
+  jobs: "tenantAdmin.globalSearch.groups.jobs",
+  invoices: "tenantAdmin.globalSearch.groups.invoices",
 };
 
-const USER_STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Hoạt động",
-  LOCKED: "Đã khóa",
-  DISABLED: "Vô hiệu",
+const USER_STATUS_LABEL_KEYS: Record<string, string> = {
+  ACTIVE: "tenantAdmin.globalSearch.userStatuses.ACTIVE",
+  LOCKED: "tenantAdmin.globalSearch.userStatuses.LOCKED",
+  DISABLED: "tenantAdmin.globalSearch.userStatuses.DISABLED",
 };
 
-const JOB_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Nháp",
-  PUBLISHED: "Đang đăng",
-  PAUSED: "Tạm dừng",
-  CLOSED: "Đã đóng",
-  ARCHIVED: "Lưu trữ",
+const JOB_STATUS_LABEL_KEYS: Record<string, string> = {
+  DRAFT: "tenantAdmin.globalSearch.jobStatuses.DRAFT",
+  PUBLISHED: "tenantAdmin.globalSearch.jobStatuses.PUBLISHED",
+  PAUSED: "tenantAdmin.globalSearch.jobStatuses.PAUSED",
+  CLOSED: "tenantAdmin.globalSearch.jobStatuses.CLOSED",
+  ARCHIVED: "tenantAdmin.globalSearch.jobStatuses.ARCHIVED",
 };
 
 function normalizeSearchText(value: string): string {
@@ -199,6 +200,8 @@ function matchesSearchTokens(tokens: string[], ...fields: Array<string | null | 
 }
 
 export function AdminGlobalSearch({ basePath }: { basePath: string }) {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const location = useLocation();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -275,52 +278,61 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
   const results = useMemo<AdminSearchItem[]>(() => {
     const resolvePageTarget = (path: string) =>
       path === "__RECRUITER__" ? "/recruiter" : `${basePath}${path}`;
+    const resolveStatusLabel = (status: string, keys: Record<string, string>) => {
+      const key = keys[status];
+      return key ? t(key) : status;
+    };
 
     if (tokens.length === 0) {
       return ADMIN_PAGES.filter((page) => page.quickAccess).map((page) => ({
         id: page.id,
         group: "pages",
-        title: page.title,
-        subtitle: page.subtitle,
+        title: t(page.titleKey),
+        subtitle: t(page.subtitleKey),
         to: resolvePageTarget(page.path),
         icon: page.icon,
       }));
     }
 
     const pageItems: AdminSearchItem[] = ADMIN_PAGES.filter((page) =>
-      matchesSearchTokens(tokens, page.title, page.subtitle, page.keywords),
+      matchesSearchTokens(tokens, t(page.titleKey), t(page.subtitleKey), page.keywords),
     )
       .slice(0, 5)
       .map((page) => ({
         id: page.id,
         group: "pages",
-        title: page.title,
-        subtitle: page.subtitle,
+        title: t(page.titleKey),
+        subtitle: t(page.subtitleKey),
         to: resolvePageTarget(page.path),
         icon: page.icon,
       }));
 
     const userItems: AdminSearchItem[] = (usersQuery.data?.data ?? [])
       .filter((member) => member.role !== "CANDIDATE" && member.workspace !== "CANDIDATE")
-      .filter((member) =>
-        matchesSearchTokens(
+      .filter((member) => {
+        const status = member.status ?? "ACTIVE";
+        return matchesSearchTokens(
           tokens,
           member.fullName,
           member.email,
           member.role,
-          USER_STATUS_LABELS[member.status ?? "ACTIVE"],
-        ),
-      )
+          resolveStatusLabel(status, USER_STATUS_LABEL_KEYS),
+          status,
+        );
+      })
       .slice(0, 5)
-      .map((member) => ({
-        id: `user-${member.id}`,
-        group: "users",
-        title: member.fullName,
-        subtitle: member.email,
-        badge: `${member.role} · ${USER_STATUS_LABELS[member.status ?? "ACTIVE"] ?? member.status ?? "ACTIVE"}`,
-        to: `${basePath}/users?q=${encodeURIComponent(member.email)}&userId=${member.id}`,
-        icon: Users,
-      }));
+      .map((member) => {
+        const status = member.status ?? "ACTIVE";
+        return {
+          id: `user-${member.id}`,
+          group: "users",
+          title: member.fullName,
+          subtitle: member.email,
+          badge: `${member.role} · ${resolveStatusLabel(status, USER_STATUS_LABEL_KEYS)}`,
+          to: `${basePath}/users?q=${encodeURIComponent(member.email)}&userId=${member.id}`,
+          icon: Users,
+        };
+      });
 
     const roleItems: AdminSearchItem[] = (rolesQuery.data?.data?.roles ?? [])
       .filter((role) => role.workspace === "RECRUITER")
@@ -330,8 +342,10 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
         id: `role-${role.id}`,
         group: "roles",
         title: role.name,
-        subtitle: `Mã vai trò: ${role.code}`,
-        badge: role.system ? "Mặc định" : "Tùy chỉnh",
+        subtitle: t("tenantAdmin.globalSearch.roleCodeSubtitle", { code: role.code }),
+        badge: role.system
+          ? t("tenantAdmin.globalSearch.roleSystemBadge")
+          : t("tenantAdmin.globalSearch.roleCustomBadge"),
         to: `${basePath}/roles?role=${encodeURIComponent(role.code)}`,
         icon: ShieldCheck,
       }));
@@ -342,8 +356,10 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
         id: `job-${job.id}`,
         group: "jobs",
         title: job.title,
-        subtitle: [job.department, job.location].filter(Boolean).join(" · ") || "Tin tuyển dụng",
-        badge: JOB_STATUS_LABELS[job.status] ?? job.status,
+        subtitle:
+          [job.department, job.location].filter(Boolean).join(" · ") ||
+          t("tenantAdmin.globalSearch.defaultJobSubtitle"),
+        badge: resolveStatusLabel(job.status, JOB_STATUS_LABEL_KEYS),
         to:
           job.status === "PUBLISHED"
             ? `${basePath}/recruitment?jobId=${job.id}`
@@ -361,10 +377,10 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
         group: "invoices",
         title: `#${inv.invoiceNumber}`,
         subtitle: [
-          inv.planName || "Hóa đơn gói dịch vụ",
-          `${Number(inv.amount || 0).toLocaleString("vi-VN")} ₫`,
+          inv.planName || t("tenantAdmin.globalSearch.defaultInvoiceSubtitle"),
+          `${formatNumber(Number(inv.amount || 0), undefined, locale)}${t("tenantAdmin.globalSearch.priceYearlySuffix")}`,
         ].join(" · "),
-        badge: formatInvoiceStatusLabel(inv.status),
+        badge: formatInvoiceStatusLabel(inv.status, t),
         to: `${basePath}/billing?invoice=${encodeURIComponent(inv.invoiceNumber)}`,
         icon: Receipt,
       }));
@@ -373,6 +389,8 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
   }, [
     basePath,
     tokens,
+    t,
+    locale,
     usersQuery.data?.data,
     rolesQuery.data?.data?.roles,
     jobsQuery.data?.data?.items,
@@ -388,13 +406,13 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
     for (const item of results) {
       let existing = groups.find((g) => g.group === item.group);
       if (!existing) {
-        existing = { group: item.group, label: GROUP_LABELS[item.group], items: [] };
+        existing = { group: item.group, label: t(GROUP_LABEL_KEYS[item.group]), items: [] };
         groups.push(existing);
       }
       existing.items.push(item);
     }
     return groups;
-  }, [results]);
+  }, [results, t]);
 
   const selectItem = (item: AdminSearchItem) => {
     setIsOpen(false);
@@ -471,8 +489,8 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
             if (!isOpen) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Tìm chức năng, nhân sự, tin tuyển dụng, hóa đơn..."
-          aria-label="Tìm kiếm chức năng và dữ liệu quản trị"
+          placeholder={t("tenantAdmin.globalSearch.placeholder")}
+          aria-label={t("tenantAdmin.globalSearch.inputAria")}
           aria-expanded={isOpen}
           aria-controls="admin-global-search-results"
           aria-autocomplete="list"
@@ -490,7 +508,7 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
               setIsOpen(true);
               inputRef.current?.focus();
             }}
-            aria-label="Xóa từ khóa tìm kiếm"
+            aria-label={t("tenantAdmin.globalSearch.clearAria")}
             className="absolute right-[4.85rem] top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md text-[var(--color-outline)] transition-colors hover:bg-slate-200/70 hover:text-[var(--color-on-surface)]"
           >
             <X className="size-3.5" aria-hidden="true" />
@@ -500,7 +518,7 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
           type="submit"
           className="absolute right-1.5 top-1/2 min-h-7 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-[var(--color-on-primary)] transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary"
         >
-          Tìm kiếm
+          {t("tenantAdmin.globalSearch.submitBtn")}
         </button>
       </form>
 
@@ -508,14 +526,14 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
         <div
           id="admin-global-search-results"
           role="listbox"
-          aria-label="Kết quả tìm kiếm quản trị"
+          aria-label={t("tenantAdmin.globalSearch.resultsAria")}
           className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[min(70vh,28rem)] overflow-y-auto rounded-2xl border border-[var(--color-border-default)] bg-white p-2 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.28)]"
         >
           {results.length > 0 ? (
             <div className="space-y-2">
               {!trimmedQuery && (
                 <p className="px-3 pt-1 text-[11px] font-medium text-[var(--color-on-surface-variant)]">
-                  Truy cập nhanh hoặc nhập tên nhân viên, vai trò, tin tuyển dụng, mã hóa đơn…
+                  {t("tenantAdmin.globalSearch.emptyHint")}
                 </p>
               )}
               {groupedResults.map((group) => (
@@ -580,21 +598,21 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
               ))}
               {isLoadingEntities && (
                 <p className="px-3 py-1.5 text-xs text-[var(--color-on-surface-variant)]">
-                  Đang tìm thêm dữ liệu…
+                  {t("tenantAdmin.globalSearch.loadingMore")}
                 </p>
               )}
             </div>
           ) : isLoadingEntities ? (
             <div className="px-4 py-6 text-center text-sm text-[var(--color-on-surface-variant)]">
-              Đang tìm kiếm “{trimmedQuery}”…
+              {t("tenantAdmin.globalSearch.searchingFor", { query: trimmedQuery })}
             </div>
           ) : (
             <div className="space-y-3 px-4 py-5 text-center">
               <p className="text-sm font-medium text-[var(--color-on-surface)]">
-                Không tìm thấy kết quả cho “{trimmedQuery}”
+                {t("tenantAdmin.globalSearch.noResultsFor", { query: trimmedQuery })}
               </p>
               <p className="text-xs text-[var(--color-on-surface-variant)]">
-                Thử tìm theo tên chức năng, họ tên/email nhân sự, tên vai trò, tiêu đề job hoặc mã hóa đơn.
+                {t("tenantAdmin.globalSearch.noResultsHint")}
               </p>
               <div className="flex flex-wrap justify-center gap-2 pt-1">
                 <button
@@ -605,7 +623,7 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
                   }}
                   className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs font-semibold text-[var(--color-on-surface)] hover:border-brand-primary/40 hover:text-brand-primary"
                 >
-                  Tìm trong Nhân sự
+                  {t("tenantAdmin.globalSearch.searchInUsers")}
                 </button>
                 <button
                   type="button"
@@ -615,7 +633,7 @@ export function AdminGlobalSearch({ basePath }: { basePath: string }) {
                   }}
                   className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs font-semibold text-[var(--color-on-surface)] hover:border-brand-primary/40 hover:text-brand-primary"
                 >
-                  Tìm trong Tin tuyển dụng
+                  {t("tenantAdmin.globalSearch.searchInJobs")}
                 </button>
               </div>
             </div>

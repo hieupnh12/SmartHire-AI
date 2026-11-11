@@ -1,56 +1,78 @@
 import { AlertTriangle, BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
+import { formatNumber, useI18nStore, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { MatchBreakdown, RequirementMatch, RequirementStatus, SkillView } from "@/api/types/cv";
 
-const MATCH_TYPE_LABEL: Record<string, string> = {
-  BOTH: "Danh mục và ngữ nghĩa",
-  TAXONOMY: "Danh mục kỹ năng",
-  SEMANTIC: "Ngữ nghĩa",
-};
+function translateOrFallback(t: TranslateFn, prefix: string, key: string | undefined | null) {
+  if (!key) return "";
+  const path = `${prefix}.${key}`;
+  const value = t(path);
+  return value === path ? key : value;
+}
 
-const SOURCE_LABEL: Record<string, string> = {
-  hybrid: "Kết hợp",
-  heuristic: "Quy tắc",
-};
-
-const MODEL_LABEL: Record<string, string> = {
-  "heuristic-screen": "Sàng lọc quy tắc",
-  "hybrid-v1": "Sàng lọc kết hợp",
-  "heuristic-v1": "Trích xuất quy tắc",
-};
-
-function screeningCopy(value: string) {
+function screeningCopy(value: string, t: TranslateFn) {
   const missing = /^No (.+) experience found in the CV\.$/.exec(value);
-  if (missing) return `Không thấy ${missing[1]} trong CV.`;
+  if (missing) return t("recruiter.screening.breakdown.copy.noExperience", { skill: missing[1] });
   const exact = /^Normalized CV skill matches (.+)\.$/.exec(value);
-  if (exact) return `Kỹ năng trên CV khớp với ${exact[1]}.`;
-  const normalized = value
-    .replace("Job chưa có skill yêu cầu để sàng lọc.", "Tin tuyển dụng chưa có kỹ năng yêu cầu để sàng lọc.")
-    .replace(" skill yêu cầu", " kỹ năng yêu cầu")
-    .replace("không thiếu skill bắt buộc", "không thiếu kỹ năng bắt buộc")
-    .replace("; thiếu: ", "; thiếu kỹ năng bắt buộc: ")
-    .replace(/ Điểm hybrid \(taxonomy \+ Jaccard \+ semantic\), không phải điểm Matching sau assessment\/interview\./, "");
+  if (exact) return t("recruiter.screening.breakdown.copy.skillMatches", { skill: exact[1] });
+
+  const cleanedValue = value
+    .replace(/ Điểm hybrid \(taxonomy \+ Jaccard \+ semantic\), không phải điểm Matching sau assessment\/interview\.?/, "")
+    .trim();
+  if (cleanedValue === "Job chưa có skill yêu cầu để sàng lọc.") {
+    return t("recruiter.screening.breakdown.copy.noRequiredSkills");
+  }
+  const summaryMatch = /^(\d+)\/(\d+) skill yêu cầu;\s*(không thiếu skill bắt buộc|thiếu(?:\s+kỹ năng bắt buộc)?:\s*(.+?))\.?$/.exec(cleanedValue);
+  if (summaryMatch) {
+    const matched = summaryMatch[1];
+    const total = summaryMatch[2];
+    if (summaryMatch[3] === "không thiếu skill bắt buộc") {
+      return t("recruiter.screening.breakdown.copy.summaryNoMissing", { matched, total });
+    }
+    const rawMissing = (summaryMatch[4] ?? "").replace(/^\[|\]$/g, "");
+    const cleanedMissing = rawMissing
+      .split(",")
+      .map((s) => s.trim().replace(/^"(.*)"$/, "$1"))
+      .filter(Boolean)
+      .join(", ");
+    if (cleanedMissing) {
+      return t("recruiter.screening.breakdown.copy.summaryMissing", {
+        matched,
+        total,
+        missing: cleanedMissing,
+      });
+    }
+  }
+
+  const normalized = cleanedValue
+    .replace("Job chưa có skill yêu cầu để sàng lọc.", t("recruiter.screening.breakdown.copy.noRequiredSkills"))
+    .replace(" skill yêu cầu", t("recruiter.screening.breakdown.copy.requiredSkillsUnit"))
+    .replace("không thiếu skill bắt buộc", t("recruiter.screening.breakdown.copy.noMissingRequired"))
+    .replace("; thiếu: ", t("recruiter.screening.breakdown.copy.missingRequiredPrefix"));
   return normalized.replace(/thiếu kỹ năng bắt buộc:\s*\[([^\]]+)\]/g, (_all, inner: string) => {
     const cleaned = inner
       .split(",")
       .map((s) => s.trim().replace(/^"(.*)"$/, "$1"))
       .filter(Boolean)
       .join(", ");
-    return `thiếu kỹ năng bắt buộc: ${cleaned}`;
+    return `${t("recruiter.screening.breakdown.copy.missingRequiredPrefix").replace(/^;\s*/, "")}${cleaned}`;
   });
 }
 
-const STATUS_META: Record<RequirementStatus, { label: string; tone: string; icon: typeof CheckCircle2 }> = {
-  MATCH: { label: "Khớp", tone: "bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
-  PARTIAL: { label: "Một phần", tone: "bg-amber-50 text-amber-700", icon: MinusCircle },
-  MISSING: { label: "Thiếu", tone: "bg-red-50 text-red-700", icon: XCircle },
-  UNKNOWN: { label: "Không rõ", tone: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]", icon: CircleHelp },
+const STATUS_META: Record<RequirementStatus, { tone: string; icon: typeof CheckCircle2 }> = {
+  MATCH: { tone: "bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
+  PARTIAL: { tone: "bg-amber-50 text-amber-700", icon: MinusCircle },
+  MISSING: { tone: "bg-red-50 text-red-700", icon: XCircle },
+  UNKNOWN: { tone: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]", icon: CircleHelp },
 };
 
-function summarizeList(items: string[], maxVisible: number) {
+function summarizeList(items: string[], maxVisible: number, t: TranslateFn) {
   if (items.length <= maxVisible) return items.join(", ");
-  return `${items.slice(0, maxVisible).join(", ")} và ${items.length - maxVisible} mục khác`;
+  return t("recruiter.screening.breakdown.listMore", {
+    items: items.slice(0, maxVisible).join(", "),
+    count: items.length - maxVisible,
+  });
 }
 
 function asArray(value: unknown): Array<Record<string, unknown>> {
@@ -65,24 +87,30 @@ function firstString(obj: Record<string, unknown>, keys: string[]) {
   return "";
 }
 
-function localVerdict(breakdown: MatchBreakdown) {
+function localVerdict(breakdown: MatchBreakdown, t: TranslateFn) {
   const matched = (breakdown.matched ?? []).length;
   const partial = (breakdown.partialMatches ?? []).length;
   const missing = (breakdown.missing ?? []).length;
   const total = matched + partial + missing;
   const reqMissing = breakdown.requiredMissing ?? [];
-  const summary = total > 0 ? `Đối chiếu ${matched}/${total} kỹ năng theo yêu cầu công việc` : "Đã hoàn tất đối chiếu tiêu chí công việc trên CV";
+  const summary = total > 0
+    ? t("recruiter.screening.breakdown.verdictWithTotal", { matched, total })
+    : t("recruiter.screening.breakdown.verdictCompleted");
   if (reqMissing.length > 0) {
-    return `${summary}; còn thiếu kỹ năng bắt buộc: ${summarizeList(reqMissing, 6)}.`;
+    return t("recruiter.screening.breakdown.verdictMissingRequired", {
+      summary,
+      missing: summarizeList(reqMissing, 6, t),
+    });
   }
   if (breakdown.passed) {
-    return `${summary}; hồ sơ đáp ứng các điều kiện sàng lọc cơ bản.`;
+    return t("recruiter.screening.breakdown.verdictPassed", { summary });
   }
-  return `${summary}; mức độ phù hợp hiện chưa đạt ngưỡng chuẩn của vị trí.`;
+  return t("recruiter.screening.breakdown.verdictBelow", { summary });
 }
 
 function localStrengths(
   breakdown: MatchBreakdown,
+  t: TranslateFn,
   extraction?: Record<string, unknown> | null,
   skills?: SkillView[],
 ) {
@@ -95,27 +123,27 @@ function localStrengths(
   const matched = (breakdown.matched ?? []).map((item) => item.requirement).filter(Boolean);
   const partial = (breakdown.partialMatches ?? []).map((item) => item.requirement).filter(Boolean);
   if (matched.length > 0) {
-    push(`Đáp ứng các kỹ năng chuyên môn theo yêu cầu công việc: ${summarizeList(matched, 5)}.`);
+    push(t("recruiter.screening.breakdown.strengthMatchedSkills", { skills: summarizeList(matched, 5, t) }));
   } else if (partial.length > 0) {
-    push(`Có nền tảng kiến thức liên quan tới một số kỹ năng của vị trí: ${summarizeList(partial, 4)}.`);
+    push(t("recruiter.screening.breakdown.strengthPartialSkills", { skills: summarizeList(partial, 4, t) }));
   }
 
   const roles = asArray(extraction?.experience)
     .map((row) => {
       const title = firstString(row, ["title", "role", "position"]);
       const company = firstString(row, ["company", "organization"]);
-      if (title && company) return `${title} tại ${company}`;
+      if (title && company) return t("recruiter.screening.breakdown.roleAtCompany", { title, company });
       return title || company;
     })
     .filter(Boolean)
     .slice(0, 2);
   const years = breakdown.experienceAnalysis?.candidateYears;
   if (years != null && years > 0 && roles.length > 0) {
-    push(`Tích lũy khoảng ${years} năm kinh nghiệm thực tế (từng đảm nhiệm ${roles.join(", ")}).`);
+    push(t("recruiter.screening.breakdown.strengthExpWithRoles", { years, roles: roles.join(", ") }));
   } else if (years != null && years > 0) {
-    push(`Ghi nhận khoảng ${years} năm kinh nghiệm làm việc trong hồ sơ.`);
+    push(t("recruiter.screening.breakdown.strengthExpYears", { years }));
   } else if (roles.length > 0) {
-    push(`Có kinh nghiệm thực tế ở vị trí ${roles.join(", ")}.`);
+    push(t("recruiter.screening.breakdown.strengthExpRoles", { roles: roles.join(", ") }));
   }
 
   const projects = asArray(extraction?.projects)
@@ -123,18 +151,18 @@ function localStrengths(
     .filter(Boolean)
     .slice(0, 2);
   if (projects.length > 0) {
-    push(`Đã tham gia triển khai dự án thực tế: ${projects.join(", ")}.`);
+    push(t("recruiter.screening.breakdown.strengthProjects", { projects: projects.join(", ") }));
   }
 
   const eduRows = asArray(extraction?.education);
   const degree = (eduRows[0] ? firstString(eduRows[0], ["degree", "level", "major", "name"]) : "") || (breakdown.educationAnalysis?.candidateLevel ?? "");
   const school = eduRows[0] ? firstString(eduRows[0], ["school", "institution", "university"]) : "";
   if (degree && school) {
-    push(`Nền tảng học vấn: ${degree} (${school}).`);
+    push(t("recruiter.screening.breakdown.strengthEduDegreeSchool", { degree, school }));
   } else if (degree) {
-    push(`Trình độ học vấn ghi nhận trên CV: ${degree}.`);
+    push(t("recruiter.screening.breakdown.strengthEduDegree", { degree }));
   } else if (school) {
-    push(`Từng theo học tại ${school}.`);
+    push(t("recruiter.screening.breakdown.strengthEduSchool", { school }));
   }
 
   const certs = asArray(extraction?.certifications)
@@ -142,25 +170,25 @@ function localStrengths(
     .filter(Boolean)
     .slice(0, 2);
   if (certs.length > 0) {
-    push(`Sở hữu chứng chỉ chuyên môn bổ trợ: ${certs.join(", ")}.`);
+    push(t("recruiter.screening.breakdown.strengthCerts", { certs: certs.join(", ") }));
   }
 
   if (bullets.length < 2 && skills && skills.length > 0) {
     const cvSkills = Array.from(new Set(skills.map((s) => s.skillName?.trim()).filter(Boolean)));
     if (cvSkills.length > 0) {
-      push(`Sở hữu nhóm kỹ năng ghi nhận trên hồ sơ gồm: ${summarizeList(cvSkills, 5)}.`);
+      push(t("recruiter.screening.breakdown.strengthSkillsGroup", { skills: summarizeList(cvSkills, 5, t) }));
     }
   }
   if (bullets.length < 2) {
-    push("Hồ sơ đã hoàn tất bóc tách cấu trúc và đối chiếu trực tiếp với bộ tiêu chí của vị trí.");
+    push(t("recruiter.screening.breakdown.strengthFallback1"));
   }
   if (bullets.length < 2) {
-    push("Có thông tin cơ sở để đánh giá thêm sự phù hợp và tiềm năng phát triển từ file CV gốc.");
+    push(t("recruiter.screening.breakdown.strengthFallback2"));
   }
   return bullets;
 }
 
-function localRisks(breakdown: MatchBreakdown) {
+function localRisks(breakdown: MatchBreakdown, t: TranslateFn) {
   const bullets: string[] = [];
   const push = (text: string) => {
     const cleaned = text.trim();
@@ -169,15 +197,15 @@ function localRisks(breakdown: MatchBreakdown) {
 
   const reqMissing = breakdown.requiredMissing ?? [];
   if (reqMissing.length > 0) {
-    push(`Thiếu kỹ năng bắt buộc theo yêu cầu vị trí: ${summarizeList(reqMissing, 6)}.`);
+    push(t("recruiter.screening.breakdown.riskMissingRequired", { skills: summarizeList(reqMissing, 6, t) }));
   }
 
   const exp = breakdown.experienceAnalysis;
   if (exp?.requiredYears != null && exp.requiredYears > 0) {
     if (exp.candidateYears == null) {
-      push(`CV chưa thể hiện rõ số năm kinh nghiệm thực tế để đối chiếu mức tối thiểu (${exp.requiredYears} năm).`);
+      push(t("recruiter.screening.breakdown.riskExpUnclear", { years: exp.requiredYears }));
     } else if (exp.candidateYears < exp.requiredYears) {
-      push(`Kinh nghiệm ghi nhận (${exp.candidateYears} năm) chưa đáp ứng ngưỡng tối thiểu (${exp.requiredYears} năm) của vị trí.`);
+      push(t("recruiter.screening.breakdown.riskExpBelow", { candidateYears: exp.candidateYears, requiredYears: exp.requiredYears }));
     }
   }
 
@@ -186,54 +214,60 @@ function localRisks(breakdown: MatchBreakdown) {
     .filter((item) => !item.mandatory && item.requirement)
     .map((item) => item.requirement);
   if (partial.length > 0) {
-    push(`Cần kiểm chứng chiều sâu thực tế đối với các kỹ năng khớp một phần: ${summarizeList(partial, 5)}.`);
+    push(t("recruiter.screening.breakdown.riskPartialVerify", { skills: summarizeList(partial, 5, t) }));
   } else if (optionalMissing.length > 0) {
-    push(`Chưa có minh chứng rõ ràng với một số kỹ năng cộng thêm trong JD: ${summarizeList(optionalMissing, 5)}.`);
+    push(t("recruiter.screening.breakdown.riskOptionalMissing", { skills: summarizeList(optionalMissing, 5, t) }));
   }
 
   const edu = breakdown.educationAnalysis;
   if (edu?.requiredLevel && edu.match === false) {
-    push(`Thông tin học vấn trên CV chưa thể hiện rõ hoặc chưa đạt chuẩn yêu cầu (${edu.requiredLevel}).`);
+    push(t("recruiter.screening.breakdown.riskEducation", { level: edu.requiredLevel }));
   }
 
   if (bullets.length < 2) {
-    push("Cần xác minh mức độ đóng góp cá nhân và quy mô thực tế của các dự án nêu trên CV.");
+    push(t("recruiter.screening.breakdown.riskFallback1"));
   }
   if (bullets.length < 2) {
-    push("Nên kiểm chứng khả năng áp dụng thực chiến qua câu hỏi tình huống kỹ thuật hoặc bài kiểm tra chuyên môn.");
+    push(t("recruiter.screening.breakdown.riskFallback2"));
   }
   return bullets;
 }
 
-function localAdvice(breakdown: MatchBreakdown) {
+function localAdvice(breakdown: MatchBreakdown, t: TranslateFn) {
   const missing = breakdown.requiredMissing ?? [];
   const partial = (breakdown.partialMatches ?? []).map((item) => item.requirement).filter(Boolean);
   const matched = (breakdown.matched ?? []).map((item) => item.requirement).filter(Boolean);
   const exp = breakdown.experienceAnalysis;
   const parts: string[] = [];
   if (missing.length > 0) {
-    parts.push(`Cần làm rõ hoặc kiểm tra thêm các kỹ năng bắt buộc còn thiếu: ${missing.join(", ")}.`);
+    parts.push(t("recruiter.screening.breakdown.adviceClarifyMissing", { skills: missing.join(", ") }));
   }
   if (partial.length > 0) {
-    parts.push(`Các kỹ năng khớp một phần (${partial.join(", ")}) nên được hỏi sâu tình huống thực tế ở vòng phỏng vấn.`);
+    parts.push(t("recruiter.screening.breakdown.adviceProbePartial", { skills: partial.join(", ") }));
   }
   if (exp?.requiredYears != null && exp.candidateYears != null && exp.candidateYears < exp.requiredYears) {
-    parts.push(`Kinh nghiệm hiện tại (${exp.candidateYears} năm) thấp hơn mức yêu cầu (${exp.requiredYears} năm), cần đánh giá thêm độ phức tạp dự án đã làm.`);
+    parts.push(t("recruiter.screening.breakdown.adviceExpBelow", { candidateYears: exp.candidateYears, requiredYears: exp.requiredYears }));
   }
   if (breakdown.passed) {
-    const focus = matched.length > 0 ? ` tập trung vào ${matched.slice(0, 4).join(", ")}` : "";
-    parts.push(`Hồ sơ đạt sàng lọc. Nên chuyển sang phỏng vấn AI và kiểm tra mức độ làm việc thực tế${focus}.`);
+    if (matched.length > 0) {
+      parts.push(t("recruiter.screening.breakdown.advicePassedWithFocus", { skills: matched.slice(0, 4).join(", ") }));
+    } else {
+      parts.push(t("recruiter.screening.breakdown.advicePassedNoFocus"));
+    }
   } else if (missing.length > 0) {
-    parts.push("Chưa nên cho qua vòng CV cho đến khi xác nhận được các kỹ năng bắt buộc còn thiếu.");
+    parts.push(t("recruiter.screening.breakdown.adviceHoldMissing"));
   } else if (breakdown.passed === false) {
-    parts.push("Hồ sơ chưa đạt ngưỡng. Chỉ nên cân nhắc nếu ứng viên có dự án nổi bật bù đắp cho phần điểm còn thiếu.");
+    parts.push(t("recruiter.screening.breakdown.adviceHoldBelow"));
   }
   return parts.join(" ");
 }
 
-export function formatScreeningScore(value: number | null | undefined) {
+export function formatScreeningScore(
+  value: number | null | undefined,
+  locale: Locale = useI18nStore.getState().locale,
+) {
   if (value == null) return "—";
-  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  return formatNumber(Number(value), { maximumFractionDigits: 2 }, locale);
 }
 
 export function ScreeningScoreCard({
@@ -245,25 +279,29 @@ export function ScreeningScoreCard({
   modelVersion?: string | null;
   breakdown: MatchBreakdown | null | undefined;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const passed = breakdown?.passed === true;
   const threshold = breakdown?.passThreshold;
   const pct = Math.min(Math.max(Number(score ?? 0), 0), 100);
   const missingRequired = breakdown?.requiredMissing ?? [];
   const reason = passed
-    ? "Đạt chuẩn CV → chuyển sang vòng phỏng vấn AI."
+    ? t("recruiter.screening.breakdown.reasonPassed")
     : missingRequired.length > 0
-      ? `Thiếu kỹ năng bắt buộc: ${missingRequired.join(", ")}.`
+      ? t("recruiter.screening.breakdown.reasonMissingRequired", { skills: missingRequired.join(", ") })
       : threshold != null && Number(score) < threshold
-        ? `Điểm thấp hơn ngưỡng ${formatScreeningScore(threshold)}.`
-        : "Chưa đạt điều kiện sàng lọc.";
+        ? t("recruiter.screening.breakdown.reasonBelowThreshold", { threshold: formatScreeningScore(threshold, locale) })
+        : t("recruiter.screening.breakdown.reasonFailedDefault");
 
   return (
     <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Điểm sàng lọc CV</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
+            {t("recruiter.screening.breakdown.scoreCardTitle")}
+          </p>
           <p className="mt-1 text-4xl font-bold tracking-tight tabular-nums">
-            {formatScreeningScore(score)}
+            {formatScreeningScore(score, locale)}
             <span className="text-base font-normal text-[var(--color-on-surface-variant)]"> /100</span>
           </p>
         </div>
@@ -274,7 +312,7 @@ export function ScreeningScoreCard({
           )}
         >
           {passed ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <XCircle className="size-4" aria-hidden="true" />}
-          {passed ? "Đạt" : "Chưa đạt"}
+          {passed ? t("recruiter.screening.breakdown.passed") : t("recruiter.screening.breakdown.failed")}
         </span>
       </div>
 
@@ -284,20 +322,28 @@ export function ScreeningScoreCard({
           <div
             className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--color-on-surface)]"
             style={{ left: `${Math.min(Math.max(threshold, 0), 100)}%` }}
-            title={`Ngưỡng ${formatScreeningScore(threshold)}`}
+            title={t("recruiter.screening.breakdown.thresholdTitle", { threshold: formatScreeningScore(threshold, locale) })}
             aria-hidden="true"
           />
         )}
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
         <span>{reason}</span>
-        {threshold != null && <span className="tabular-nums">Ngưỡng đạt: {formatScreeningScore(threshold)}</span>}
+        {threshold != null && (
+          <span className="tabular-nums">
+            {t("recruiter.screening.breakdown.thresholdLabel", { threshold: formatScreeningScore(threshold, locale) })}
+          </span>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {modelVersion && <MetaChip>{MODEL_LABEL[modelVersion] ?? modelVersion}</MetaChip>}
-        {breakdown?.source && <MetaChip>{SOURCE_LABEL[breakdown.source] ?? breakdown.source}</MetaChip>}
-        {breakdown?.jaccardSimilarity != null && <MetaChip>Trùng khớp kỹ năng {formatScreeningScore(breakdown.jaccardSimilarity)}</MetaChip>}
+        {modelVersion && <MetaChip>{translateOrFallback(t, "recruiter.screening.breakdown.models", modelVersion)}</MetaChip>}
+        {breakdown?.source && <MetaChip>{translateOrFallback(t, "recruiter.screening.breakdown.sources", breakdown.source)}</MetaChip>}
+        {breakdown?.jaccardSimilarity != null && (
+          <MetaChip>
+            {t("recruiter.screening.breakdown.jaccardChip", { score: formatScreeningScore(breakdown.jaccardSimilarity, locale) })}
+          </MetaChip>
+        )}
       </div>
     </div>
   );
@@ -312,12 +358,13 @@ export function ScreeningAiPanel({
   extraction?: Record<string, unknown> | null;
   skills?: SkillView[];
 }) {
+  const t = useT();
   if (!breakdown) return null;
-  const verdictText = breakdown.verdict?.trim() ? screeningCopy(breakdown.verdict.trim()) : localVerdict(breakdown);
+  const verdictText = breakdown.verdict?.trim() ? screeningCopy(breakdown.verdict.trim(), t) : localVerdict(breakdown, t);
   const serverStrengths = (breakdown.strengths ?? []).map((item) => item.trim()).filter(Boolean);
   const serverRisks = (breakdown.risks ?? []).map((item) => item.trim()).filter(Boolean);
-  const strengths = serverStrengths.length > 0 ? serverStrengths : localStrengths(breakdown, extraction, skills);
-  const risks = serverRisks.length > 0 ? serverRisks : localRisks(breakdown);
+  const strengths = serverStrengths.length > 0 ? serverStrengths : localStrengths(breakdown, t, extraction, skills);
+  const risks = serverRisks.length > 0 ? serverRisks : localRisks(breakdown, t);
   const deepAi = breakdown.decisionSource !== "formula" && serverStrengths.length > 0 && serverRisks.length > 0;
 
   return (
@@ -326,10 +373,10 @@ export function ScreeningAiPanel({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            Nhận xét của AI
+            {t("recruiter.screening.breakdown.aiReviewTitle")}
           </div>
           <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
-            {deepAi ? "Đánh giá chuyên sâu" : "Đánh giá tổng hợp"}
+            {deepAi ? t("recruiter.screening.breakdown.deepEvaluation") : t("recruiter.screening.breakdown.summaryEvaluation")}
           </span>
         </div>
         <p className="text-sm leading-relaxed text-[var(--color-on-surface)]">{verdictText}</p>
@@ -338,7 +385,7 @@ export function ScreeningAiPanel({
           <div className="space-y-1.5">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
               <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-              Điểm mạnh nổi bật
+              {t("recruiter.screening.breakdown.strengthsHeading")}
             </p>
             <ul className="space-y-1 text-xs leading-relaxed text-[var(--color-on-surface)]">
               {strengths.map((item, idx) => (
@@ -352,7 +399,7 @@ export function ScreeningAiPanel({
           <div className="space-y-1.5">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
               <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-              Rủi ro / Cần kiểm chứng
+              {t("recruiter.screening.breakdown.risksHeading")}
             </p>
             <ul className="space-y-1 text-xs leading-relaxed text-[var(--color-on-surface)]">
               {risks.map((item, idx) => (
@@ -385,6 +432,7 @@ export function ScreeningBreakdown({
   extraction?: Record<string, unknown> | null;
   skills?: SkillView[];
 }) {
+  const t = useT();
   if (!breakdown && score == null) return null;
   const pair = wide ? "grid items-start gap-5 lg:grid-cols-2" : "space-y-5";
   return (
@@ -400,9 +448,9 @@ export function ScreeningBreakdown({
       <RequirementGroups
         wide={wide}
         groups={[
-          { title: "Khớp yêu cầu", items: breakdown?.matched },
-          { title: "Khớp một phần", items: breakdown?.partialMatches },
-          { title: "Thiếu so với yêu cầu", items: breakdown?.missing },
+          { title: t("recruiter.screening.breakdown.reqMatched"), items: breakdown?.matched },
+          { title: t("recruiter.screening.breakdown.reqPartial"), items: breakdown?.partialMatches },
+          { title: t("recruiter.screening.breakdown.reqMissing"), items: breakdown?.missing },
         ]}
       />
     </div>
@@ -410,22 +458,23 @@ export function ScreeningBreakdown({
 }
 
 function AdviceBlock({ breakdown }: { breakdown: MatchBreakdown }) {
+  const t = useT();
   const stored = breakdown.advice?.trim() ?? "";
-  const text = stored ? screeningCopy(stored) : localAdvice(breakdown);
+  const text = stored ? screeningCopy(stored, t) : localAdvice(breakdown, t);
   const questions = breakdown.interviewQuestions ?? [];
   if (!text && questions.length === 0) return null;
   return (
     <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-        {stored ? "Lời khuyên của AI" : "Gợi ý xử lý"}
+        {stored ? t("recruiter.screening.breakdown.aiAdviceTitle") : t("recruiter.screening.breakdown.suggestedHandlingTitle")}
       </div>
       {text && <p className="text-sm leading-relaxed text-[var(--color-on-surface)]">{text}</p>}
       {questions.length > 0 && (
         <div className="space-y-1.5 border-t border-[var(--color-border-default)]/70 pt-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-on-surface-variant)]">
             <MessageCircleQuestion className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-            Gợi ý câu hỏi phỏng vấn kiểm chứng
+            {t("recruiter.screening.breakdown.interviewQuestionsTitle")}
           </p>
           <ol className="list-decimal space-y-1 pl-4 text-xs leading-relaxed text-[var(--color-on-surface)]">
             {questions.map((q, idx) => (
@@ -447,29 +496,31 @@ function MetaChip({ children }: { children: ReactNode }) {
 }
 
 export function ComponentBars({ breakdown }: { breakdown: MatchBreakdown | null | undefined }) {
+  const t = useT();
+  const locale = useLocale();
   if (!breakdown?.components || !breakdown.weights) return null;
   const rows = [
-    ["Kỹ năng bắt buộc", breakdown.components.required, breakdown.weights.required],
-    ["Kỹ năng tùy chọn", breakdown.components.preferred, breakdown.weights.preferred],
-    ["Độ trùng khớp kỹ năng", breakdown.components.jaccard, breakdown.weights.jaccard],
-    ["Kinh nghiệm", breakdown.components.experience, breakdown.weights.experience],
-    ["Học vấn", breakdown.components.education, breakdown.weights.education],
-    ["Ngữ nghĩa", breakdown.components.semantic, breakdown.weights.semantic],
+    ["required", t("recruiter.screening.breakdown.components.required"), breakdown.components.required, breakdown.weights.required],
+    ["preferred", t("recruiter.screening.breakdown.components.preferred"), breakdown.components.preferred, breakdown.weights.preferred],
+    ["jaccard", t("recruiter.screening.breakdown.components.jaccard"), breakdown.components.jaccard, breakdown.weights.jaccard],
+    ["experience", t("recruiter.screening.breakdown.components.experience"), breakdown.components.experience, breakdown.weights.experience],
+    ["education", t("recruiter.screening.breakdown.components.education"), breakdown.components.education, breakdown.weights.education],
+    ["semantic", t("recruiter.screening.breakdown.components.semantic"), breakdown.components.semantic, breakdown.weights.semantic],
   ] as const;
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Thành phần điểm</h3>
+      <h3 className="text-sm font-semibold">{t("recruiter.screening.breakdown.componentsTitle")}</h3>
       <ul className="space-y-3">
-        {rows.map(([label, value, weight]) => {
+        {rows.map(([key, label, value, weight]) => {
           const active = Boolean(weight);
           const pct = Math.min(Math.max(Number(value ?? 0), 0), 100);
           return (
-            <li key={label} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5", !active && "opacity-60")}>
+            <li key={key} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5", !active && "opacity-60")}>
               <span className="text-sm">{label}</span>
               <span className="flex items-center gap-2 text-xs tabular-nums">
-                <span className="font-semibold">{value == null ? "—" : formatScreeningScore(value)}</span>
+                <span className="font-semibold">{value == null ? "—" : formatScreeningScore(value, locale)}</span>
                 <span className="rounded-full bg-[var(--color-surface-container-low)] px-2 py-0.5 text-[var(--color-on-surface-variant)]">
-                  {active ? `${weight}%` : "Không tính"}
+                  {active ? `${weight}%` : t("recruiter.screening.breakdown.notCounted")}
                 </span>
               </span>
               <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-container)]">
@@ -484,6 +535,7 @@ export function ComponentBars({ breakdown }: { breakdown: MatchBreakdown | null 
 }
 
 export function FitTiles({ breakdown }: { breakdown: MatchBreakdown | null | undefined }) {
+  const t = useT();
   const experience = breakdown?.experienceAnalysis;
   const education = breakdown?.educationAnalysis;
   const showExperience = experience && (experience.requiredYears != null || experience.candidateYears != null);
@@ -494,18 +546,20 @@ export function FitTiles({ breakdown }: { breakdown: MatchBreakdown | null | und
       {showExperience && (
         <FitTile
           icon={BriefcaseBusiness}
-          label="Kinh nghiệm"
-          value={`${experience.candidateYears ?? "—"} năm`}
-          requirement={experience.requiredYears == null ? "Không yêu cầu" : `Yêu cầu ${experience.requiredYears} năm`}
+          label={t("recruiter.screening.breakdown.fitExperience")}
+          value={t("recruiter.screening.breakdown.fitExperienceYears", { years: experience.candidateYears ?? "—" })}
+          requirement={experience.requiredYears == null
+            ? t("recruiter.screening.breakdown.noRequirement")
+            : t("recruiter.screening.breakdown.fitExperienceRequired", { years: experience.requiredYears })}
           match={experience.match}
         />
       )}
       {showEducation && (
         <FitTile
           icon={GraduationCap}
-          label="Học vấn"
+          label={t("recruiter.screening.breakdown.fitEducation")}
           value={education.candidateLevel ?? "—"}
-          requirement={education.requiredLevel ?? "Không yêu cầu"}
+          requirement={education.requiredLevel ?? t("recruiter.screening.breakdown.noRequirement")}
           match={education.match}
         />
       )}
@@ -520,6 +574,7 @@ function FitTile({ icon: Icon, label, value, requirement, match }: {
   requirement: string;
   match?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex items-start gap-3 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--color-surface-card)] text-[var(--color-primary)]">
@@ -532,7 +587,7 @@ function FitTile({ icon: Icon, label, value, requirement, match }: {
       </div>
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", match ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
         {match ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <XCircle className="size-3.5" aria-hidden="true" />}
-        {match ? "Đạt" : "Chưa đạt"}
+        {match ? t("recruiter.screening.breakdown.passed") : t("recruiter.screening.breakdown.failed")}
       </span>
     </div>
   );
@@ -556,6 +611,7 @@ export function RequirementGroups({ wide, groups }: { wide: boolean; groups: Arr
 }
 
 function RequirementList({ title, items }: { title: string; items: RequirementMatch[] }) {
+  const t = useT();
   return (
     <details className="group rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
       <summary className="cursor-pointer list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -564,8 +620,8 @@ function RequirementList({ title, items }: { title: string; items: RequirementMa
             {title} <span className="font-normal text-[var(--color-on-surface-variant)]">· {items.length}</span>
           </span>
           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
-            <span className="group-open:hidden">Xem chi tiết</span>
-            <span className="hidden group-open:inline">Thu gọn</span>
+            <span className="group-open:hidden">{t("recruiter.screening.common.expand")}</span>
+            <span className="hidden group-open:inline">{t("recruiter.screening.common.collapse")}</span>
             <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
           </span>
         </span>
@@ -579,7 +635,8 @@ function RequirementList({ title, items }: { title: string; items: RequirementMa
       </summary>
       <ul className="max-h-72 divide-y divide-[var(--color-surface-container-low)] overflow-y-auto overscroll-contain border-t border-[var(--color-border-default)]">
         {items.map((item) => {
-          const meta = STATUS_META[item.status] ?? STATUS_META.UNKNOWN;
+          const statusKey = item.status in STATUS_META ? item.status : "UNKNOWN";
+          const meta = STATUS_META[statusKey];
           const Icon = meta.icon;
           return (
             <li key={`${item.requirement}-${item.status}`} className="space-y-1 px-4 py-3">
@@ -587,17 +644,21 @@ function RequirementList({ title, items }: { title: string; items: RequirementMa
                 <span className="text-sm font-medium">{item.requirement}</span>
                 <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.tone)}>
                   <Icon className="size-3.5" aria-hidden="true" />
-                  {meta.label}
+                  {translateOrFallback(t, "recruiter.screening.breakdown.reqStatus", statusKey)}
                 </span>
                 {item.mandatory && (
-                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">Bắt buộc</span>
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">
+                    {t("recruiter.screening.breakdown.mandatoryBadge")}
+                  </span>
                 )}
                 {item.matchType && item.matchType !== "NONE" && (
-                  <span className="text-[11px] text-[var(--color-on-surface-variant)]">{MATCH_TYPE_LABEL[item.matchType] ?? item.matchType}</span>
+                  <span className="text-[11px] text-[var(--color-on-surface-variant)]">
+                    {translateOrFallback(t, "recruiter.screening.breakdown.matchTypes", item.matchType)}
+                  </span>
                 )}
               </div>
-              {item.evidence && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">“{screeningCopy(item.evidence)}”</p>}
-              {item.explanation && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">{screeningCopy(item.explanation)}</p>}
+              {item.evidence && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">“{screeningCopy(item.evidence, t)}”</p>}
+              {item.explanation && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">{screeningCopy(item.explanation, t)}</p>}
             </li>
           );
         })}

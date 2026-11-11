@@ -11,12 +11,13 @@ import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { notificationApi } from "@/api/tenant/notificationApi";
 import type { Notification } from "@/api/types/notification";
+import { localizeNotification } from "@/features/tenant/candidate/shared/utils/localizeNotification";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
 import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
 import { AdminGlobalSearch } from "@/features/tenant/admin/components/AdminGlobalSearch";
-import { useT } from "@/i18n";
+import { formatDateTime, useLocale, useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
@@ -130,8 +131,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
   const handleLogout = () => askConfirm({
-    title: "Đăng xuất khỏi SmartHire?",
-    confirmLabel: "Đăng xuất",
+    title: t("shell.logoutConfirmTitle"),
+    confirmLabel: t("common.logout"),
     danger: true,
     onConfirm: () => {
       logout();
@@ -303,7 +304,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                       "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
                       isAdminNotificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
                     )}
-                    aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
+                    aria-label={unreadCount ? t("shell.notificationsUnreadAria", { label: t("nav.notifications"), count: unreadCount }) : t("nav.notifications")}
                     aria-haspopup="dialog"
                     aria-expanded={isAdminNotificationsOpen}
                   >
@@ -385,7 +386,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 data-search-input
                 name="workspace-search"
                 type="search"
-                placeholder={isCandidateWorkspace ? `${t("common.search")} việc làm, kỹ năng...` : `${t("common.search")} ứng viên, kỹ năng...`}
+                placeholder={isCandidateWorkspace ? t("shell.workspaceCandidateSearchPlaceholder", { search: t("common.search") }) : t("shell.workspaceRecruiterSearchPlaceholder", { search: t("common.search") })}
                 aria-label={t("common.search")}
                 className="min-h-11 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
               />
@@ -425,7 +426,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                       "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
                       notificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
                     )}
-                    aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
+                    aria-label={unreadCount ? t("shell.notificationsUnreadAria", { label: t("nav.notifications"), count: unreadCount }) : t("nav.notifications")}
                     aria-haspopup="dialog"
                     aria-expanded={notificationsOpen}
                   >
@@ -525,12 +526,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
           role="status"
         >
-          Bạn đang ở workspace tuyển dụng.{" "}
+          {t("shell.adminBackBanner")}{" "}
           <Link
             to="/internal/admin"
             className="font-semibold text-brand-primary underline underline-offset-2 hover:text-brand-primary-hover"
           >
-            Quay lại bảng điều khiển quản trị
+            {t("shell.adminBackLink")}
           </Link>
         </div>
       )}
@@ -558,21 +559,23 @@ function NotificationPreviewDialog({
   onOpen: (item: Notification) => void;
   onMarkAllRead: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const recent = items.slice(0, 5);
   return (
     <div
       role="dialog"
-      aria-label="Thông báo gần đây"
+      aria-label={t("shell.notificationsRecentAria")}
       className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(400px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]"
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Thông báo</h2>
+          <h2 className="font-semibold text-slate-900">{t("nav.notifications")}</h2>
           <p className="mt-0.5 text-xs">
             {unreadCount > 0 ? (
-              <span className="font-bold text-[var(--color-error)]">{unreadCount} thông báo chưa đọc</span>
+              <span className="font-bold text-[var(--color-error)]">{t("shell.notificationsUnreadCount", { count: unreadCount })}</span>
             ) : (
-              <span className="text-slate-500">Bạn đã xem hết thông báo mới</span>
+              <span className="text-slate-500">{t("shell.notificationsAllRead")}</span>
             )}
           </p>
         </div>
@@ -582,10 +585,10 @@ function NotificationPreviewDialog({
               type="button"
               onClick={onMarkAllRead}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
-              title="Đánh dấu tất cả đã đọc"
+              title={t("shell.notificationsMarkAllReadTitle")}
             >
               <CheckCheck className="size-3.5" aria-hidden="true" />
-              Đọc tất cả
+              {t("shell.notificationsMarkAllRead")}
             </button>
           )}
           <span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
@@ -606,25 +609,19 @@ function NotificationPreviewDialog({
                 </div>
               </div>
             ))}
-            <span className="sr-only">Đang tải thông báo…</span>
+            <span className="sr-only">{t("shell.notificationsLoading")}</span>
           </div>
         )}
         {!loading && recent.length === 0 && (
           <div className="px-5 py-10 text-center">
             <Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" />
-            <p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p>
-            <p className="mt-1 text-xs text-slate-500">Các thông báo mới về ứng viên và tuyển dụng sẽ xuất hiện tại đây.</p>
+            <p className="mt-3 text-sm font-semibold text-slate-700">{t("shell.notificationsEmptyTitle")}</p>
+            <p className="mt-1 text-xs text-slate-500">{t("shell.notificationsEmptyDesc")}</p>
           </div>
         )}
         {recent.map((item) => {
           const unread = !item.readAt;
-          let jobTitle: string | null = null;
-          try {
-            const p = JSON.parse(item.payloadJson ?? "{}");
-            if (typeof p === "object" && p && typeof p.jobTitle === "string") jobTitle = p.jobTitle;
-          } catch {
-            // ignore
-          }
+          const { title, body, jobTitle } = localizeNotification(item, t);
           return (
             <button
               key={item.id}
@@ -644,12 +641,12 @@ function NotificationPreviewDialog({
                     </span>
                   )}
                   <h3 className={cn("line-clamp-1 text-sm leading-5", unread ? "font-bold text-[var(--color-error)]" : "font-semibold text-slate-800")}>
-                    {unread && <span className="sr-only">Chưa đọc: </span>}
-                    {item.title}
+                    {unread && <span className="sr-only">{t("shell.notificationsUnreadSr")} </span>}
+                    {title}
                   </h3>
-                  {item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}
+                  {body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{body}</p>}
                   <time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>
-                    {formatPreviewTime(item.createdAt)}
+                    {formatDateTime(item.createdAt, { dateStyle: "short", timeStyle: "short" }, locale)}
                   </time>
                 </div>
                 <ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -665,15 +662,10 @@ function NotificationPreviewDialog({
           onClick={onClose}
           className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
         >
-          Xem tất cả thông báo
+          {t("shell.notificationsViewAll")}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
     </div>
   );
-}
-
-function formatPreviewTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 }

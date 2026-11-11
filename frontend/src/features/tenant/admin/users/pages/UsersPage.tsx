@@ -20,6 +20,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
@@ -46,13 +47,15 @@ import {
 import { InviteEmailPreviewModal } from "../components/InviteEmailPreviewModal";
 import { TransferJobsModal } from "../components/TransferJobsModal";
 
-const schema = z.object({
-  fullName: z.string().trim().min(1, "Họ tên bắt buộc"),
-  email: z.string().trim().email("Email không hợp lệ"),
-  role: z.string().trim().min(1, "Chọn vai trò"),
-});
+function createInviteSchema(t: TranslateFn) {
+  return z.object({
+    fullName: z.string().trim().min(1, t("tenantAdmin.users.validation.fullNameRequired")),
+    email: z.string().trim().email(t("tenantAdmin.users.validation.emailInvalid")),
+    role: z.string().trim().min(1, t("tenantAdmin.users.validation.roleRequired")),
+  });
+}
 
-type Form = z.infer<typeof schema>;
+type Form = z.infer<ReturnType<typeof createInviteSchema>>;
 type RightTab = "employees" | "invitations";
 type StatusFilter = "ACTIVE_OR_LOCKED" | "ACTIVE" | "LOCKED" | "DISABLED" | "ALL";
 
@@ -61,41 +64,15 @@ const PAGE_SIZE = 20;
 const inputClass =
   "min-h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
 
-const statusLabel: Record<string, string> = {
-  ACTIVE: "Đang hoạt động",
-  LOCKED: "Đã khóa",
-  DISABLED: "Đã vô hiệu",
-};
-
 const statusBadgeStyle: Record<string, string> = {
   ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
   LOCKED: "bg-amber-50 text-amber-800 border-amber-200",
   DISABLED: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-const workspaceLabel: Record<string, string> = {
-  ADMIN: "Quản trị",
-  RECRUITER: "Tuyển dụng",
-  CANDIDATE: "Ứng viên",
-};
-
-const assignmentRoleLabel: Record<string, string> = {
-  OWNER: "Chủ sở hữu",
-  PRIMARY_RECRUITER: "Phụ trách chính",
-  COLLABORATOR: "Cộng tác viên",
-  CO_RECRUITER: "Đồng phụ trách",
-  VIEWER: "Người xem",
-};
-
-const jobStatusLabel: Record<string, string> = {
-  DRAFT: "Nháp",
-  PUBLISHED: "Đang đăng",
-  PAUSED: "Tạm dừng",
-  CLOSED: "Đã đóng",
-  ARCHIVED: "Lưu trữ",
-};
-
 export function UsersPage() {
+  const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const askConfirm = useUiStore((s) => s.askConfirm);
@@ -120,6 +97,17 @@ export function UsersPage() {
     member: TenantMember;
     status: UserStatus;
   } | null>(null);
+
+  const schema = useMemo(() => createInviteSchema(t), [t]);
+
+  const statusLabel = useMemo<Record<string, string>>(
+    () => ({
+      ACTIVE: t("tenantAdmin.users.statuses.ACTIVE"),
+      LOCKED: t("tenantAdmin.users.statuses.LOCKED"),
+      DISABLED: t("tenantAdmin.users.statuses.DISABLED"),
+    }),
+    [t],
+  );
 
   const {
     register,
@@ -166,7 +154,7 @@ export function UsersPage() {
   const handleCopy = (url: string) => {
     void navigator.clipboard.writeText(url);
     setCopied(true);
-    toast.success("Đã sao chép liên kết kích hoạt vào bộ nhớ tạm!");
+    toast.success(t("tenantAdmin.users.toasts.copiedActivationLink"));
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -175,21 +163,25 @@ export function UsersPage() {
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
       setLastInviteResult(res.data);
-      toast.success(res.data.emailSent ? "Đã gửi email lời mời đến Gmail của nhân viên!" : "Đã tạo lời mời thành công!");
+      toast.success(
+        res.data.emailSent
+          ? t("tenantAdmin.users.toasts.inviteEmailSent")
+          : t("tenantAdmin.users.toasts.inviteCreated"),
+      );
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
       void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi được lời mời")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.inviteError"))),
   });
 
   const assignMutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: string }) => usersApi.assignRole(id, role),
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
-      toast.success("Đã gắn vai trò. Nhân viên cần đăng nhập lại để áp dụng quyền mới.");
+      toast.success(t("tenantAdmin.users.toasts.roleAssigned"));
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gắn được vai trò")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.roleAssignError"))),
   });
 
   const statusMutation = useMutation({
@@ -206,10 +198,10 @@ export function UsersPage() {
       if (!res.success || !res.data) throw new Error(res.message);
       const label =
         vars.status === "ACTIVE"
-          ? "Đã kích hoạt lại tài khoản."
+          ? t("tenantAdmin.users.toasts.statusActivated")
           : vars.status === "LOCKED"
-          ? "Đã khóa tài khoản nhân viên."
-          : "Đã vô hiệu hóa tài khoản nhân viên.";
+          ? t("tenantAdmin.users.toasts.statusLocked")
+          : t("tenantAdmin.users.toasts.statusDisabled");
       toast.success(label);
       setTransferPrompt(null);
       void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
@@ -222,7 +214,7 @@ export function UsersPage() {
           return;
         }
       }
-      toast.danger(getApiErrorMessage(err, "Không thể cập nhật trạng thái nhân viên"));
+      toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.statusError")));
     },
   });
 
@@ -231,19 +223,23 @@ export function UsersPage() {
     onSuccess: (res) => {
       if (!res.success || !res.data) throw new Error(res.message);
       setLastInviteResult(res.data);
-      toast.success(res.data.emailSent ? "Đã gửi lại email lời mời!" : "Đã gia hạn liên kết lời mời!");
+      toast.success(
+        res.data.emailSent
+          ? t("tenantAdmin.users.toasts.resendEmailSent")
+          : t("tenantAdmin.users.toasts.resendExtended"),
+      );
       void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi lại được lời mời")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.resendError"))),
   });
 
   const revokeMutation = useMutation({
     mutationFn: (id: number) => usersApi.revokeInvitation(id),
     onSuccess: () => {
-      toast.success("Đã thu hồi lời mời.");
+      toast.success(t("tenantAdmin.users.toasts.revokeSuccess"));
       void queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không thu hồi được lời mời")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("tenantAdmin.users.toasts.revokeError"))),
   });
 
   const allStaff = useMemo(
@@ -330,21 +326,21 @@ export function UsersPage() {
   const confirmStatusChange = (member: TenantMember, targetStatus: UserStatus) => {
     const config: Record<UserStatus, { title: string; description: string; confirmLabel: string; danger: boolean }> = {
       LOCKED: {
-        title: `Khóa tài khoản ${member.fullName}?`,
-        description: "Nhân viên sẽ bị đăng xuất ngay và không thể truy cập hệ thống cho đến khi được mở khóa.",
-        confirmLabel: "Khóa tài khoản",
+        title: t("tenantAdmin.users.confirms.lockTitle", { name: member.fullName }),
+        description: t("tenantAdmin.users.confirms.lockDesc"),
+        confirmLabel: t("tenantAdmin.users.confirms.lockConfirm"),
         danger: true,
       },
       DISABLED: {
-        title: `Vô hiệu hóa ${member.fullName}?`,
-        description: "Tài khoản sẽ ngừng hoạt động và ẩn khỏi danh sách mặc định.",
-        confirmLabel: "Vô hiệu hóa",
+        title: t("tenantAdmin.users.confirms.disableTitle", { name: member.fullName }),
+        description: t("tenantAdmin.users.confirms.disableDesc"),
+        confirmLabel: t("tenantAdmin.users.confirms.disableConfirm"),
         danger: true,
       },
       ACTIVE: {
-        title: `Kích hoạt lại ${member.fullName}?`,
-        description: "Nhân viên sẽ có thể đăng nhập trở lại vào workspace.",
-        confirmLabel: "Mở khóa",
+        title: t("tenantAdmin.users.confirms.activateTitle", { name: member.fullName }),
+        description: t("tenantAdmin.users.confirms.activateDesc"),
+        confirmLabel: t("tenantAdmin.users.confirms.activateConfirm"),
         danger: false,
       },
     };
@@ -357,9 +353,9 @@ export function UsersPage() {
 
   const confirmRevokeInvitation = (inv: PendingInvitation) => {
     askConfirm({
-      title: `Thu hồi lời mời của ${inv.email}?`,
-      description: "Liên kết kích hoạt đã gửi sẽ hết hiệu lực ngay lập tức.",
-      confirmLabel: "Thu hồi lời mời",
+      title: t("tenantAdmin.users.confirms.revokeTitle", { email: inv.email }),
+      description: t("tenantAdmin.users.confirms.revokeDesc"),
+      confirmLabel: t("tenantAdmin.users.confirms.revokeConfirm"),
       danger: true,
       onConfirm: () => revokeMutation.mutate(inv.id),
     });
@@ -374,15 +370,15 @@ export function UsersPage() {
     <section className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">Người dùng &amp; Nhân sự</h1>
+          <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.users.pageTitle")}</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Quản lý danh sách nhân viên, trạng thái tài khoản, vai trò phân quyền và lời mời qua Gmail.
+            {t("tenantAdmin.users.pageSubtitleV2")}
           </p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(20rem,25rem)_1fr] lg:items-start">
-        {/* Card Gửi lời mời nhân viên */}
+        {/* Invite Card */}
         <Card className="space-y-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border-default)]/60 pb-3">
             <div className="flex items-center gap-2.5">
@@ -390,8 +386,8 @@ export function UsersPage() {
                 <MailPlus className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-[var(--color-text-primary)]">Gửi lời mời nhân viên</h2>
-                <p className="text-xs text-[var(--color-text-secondary)]">Thư kích hoạt &amp; tạo mật khẩu</p>
+                <h2 className="text-base font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.users.inviteCardTitle")}</h2>
+                <p className="text-xs text-[var(--color-text-secondary)]">{t("tenantAdmin.users.inviteCardSubtitle")}</p>
               </div>
             </div>
 
@@ -399,37 +395,41 @@ export function UsersPage() {
               type="button"
               onClick={() => setPreviewOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] hover:border-brand-primary hover:text-brand-primary transition-colors"
-              title="Xem trước mẫu thư gửi qua Gmail"
+              title={t("tenantAdmin.users.previewEmailTitle")}
             >
               <Eye className="size-3.5" />
-              <span>Xem mẫu Gmail</span>
+              <span>{t("tenantAdmin.users.previewEmailButton")}</span>
             </button>
           </div>
 
+          {/* Company Gmail Status Badge */}
           {isMailConfigured ? (
             <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <span className="flex items-center gap-1.5 font-medium truncate">
                 <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span className="truncate">Gmail gửi: <strong>{mailSettings.data?.data?.mailUsername}</strong></span>
+                <span className="truncate">
+                  {t("tenantAdmin.users.mailConfiguredSender")}{" "}
+                  <strong>{mailSettings.data?.data?.mailUsername}</strong>
+                </span>
               </span>
               <Link to="/internal/admin/system" className="text-[11px] font-semibold text-brand-primary hover:underline shrink-0 ml-2">
-                Đổi
+                {t("tenantAdmin.users.changeMailLink")}
               </Link>
             </div>
           ) : !mailSettings.isLoading ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1.5">
               <p className="font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <AlertCircle className="size-4 shrink-0" />
-                Chưa kết nối Gmail công ty
+                {t("tenantAdmin.users.mailNotConfiguredTitle")}
               </p>
               <p className="leading-relaxed text-[11px]">
-                Để gửi email lời mời trực tiếp từ địa chỉ Gmail của công ty, vui lòng thiết lập trước.
+                {t("tenantAdmin.users.mailNotConfiguredDesc")}
               </p>
               <Link
                 to="/internal/admin/system"
                 className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline pt-0.5 text-xs"
               >
-                Cài đặt Gmail tại mục Hệ thống &rarr;
+                {t("tenantAdmin.users.configureMailLink")}
               </Link>
             </div>
           ) : null}
@@ -442,9 +442,9 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="fullName">
                 <UserIcon className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Họ và tên nhân sự <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.fullNameLabel")} <strong className="text-red-500">*</strong></span>
               </label>
-              <input id="fullName" placeholder="VD: Nguyễn Thị Thu Hà" className={inputClass} {...register("fullName")} />
+              <input id="fullName" placeholder={t("tenantAdmin.users.fullNamePlaceholder")} className={inputClass} {...register("fullName")} />
               {errors.fullName && (
                 <p className="mt-1 text-xs text-status-danger" role="alert">
                   {errors.fullName.message}
@@ -455,9 +455,9 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="email">
                 <Mail className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Địa chỉ Gmail / Email nhận <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.emailLabel")} <strong className="text-red-500">*</strong></span>
               </label>
-              <input id="email" type="email" placeholder="VD: thuha.hr@gmail.com" className={inputClass} {...register("email")} />
+              <input id="email" type="email" placeholder={t("tenantAdmin.users.emailPlaceholder")} className={inputClass} {...register("email")} />
               {errors.email && (
                 <p className="mt-1 text-xs text-status-danger" role="alert">
                   {errors.email.message}
@@ -468,7 +468,7 @@ export function UsersPage() {
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium" htmlFor="role">
                 <Shield className="size-3.5 text-[var(--color-text-secondary)]" />
-                <span>Vai trò được giao <strong className="text-red-500">*</strong></span>
+                <span>{t("tenantAdmin.users.roleLabel")} <strong className="text-red-500">*</strong></span>
               </label>
               <select id="role" className={inputClass} {...register("role")}>
                 {assignableRoles.map((role) => (
@@ -482,7 +482,7 @@ export function UsersPage() {
             <div className="flex items-center gap-2 pt-1">
               <Button type="submit" disabled={inviteMutation.isPending} className="flex-1">
                 <Send className="size-4 mr-1.5" />
-                {inviteMutation.isPending ? "Đang gửi email…" : "Gửi lời mời nhân viên"}
+                {inviteMutation.isPending ? t("tenantAdmin.users.sendingEmail") : t("tenantAdmin.users.sendInviteButton")}
               </Button>
             </div>
           </form>
@@ -493,26 +493,29 @@ export function UsersPage() {
                 <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
                   <p className="font-bold text-sm">
-                    {lastInviteResult.emailSent ? "Đã gửi email lời mời thành công!" : "Đã tạo liên kết lời mời!"}
+                    {lastInviteResult.emailSent ? t("tenantAdmin.users.inviteSentTitle") : t("tenantAdmin.users.inviteLinkCreatedTitle")}
                   </p>
                   <p className="text-[11px] leading-relaxed">
                     {lastInviteResult.emailSent
-                      ? `Email mời tham gia đội ngũ đã được gửi đến hộp thư Gmail của ${lastInviteResult.fullName} (${lastInviteResult.email}).`
-                      : "Email tự động chưa gửi được. Quý công ty có thể sao chép liên kết trực tiếp bên dưới gửi cho nhân sự:"}
+                      ? t("tenantAdmin.users.inviteSentDesc", {
+                          fullName: lastInviteResult.fullName,
+                          email: lastInviteResult.email,
+                        })
+                      : t("tenantAdmin.users.inviteFallbackDesc")}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Liên kết kích hoạt (hiệu lực 72h):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{t("tenantAdmin.users.activationLinkLabel")}</span>
                   <button
                     type="button"
                     onClick={() => handleCopy(lastInviteResult.acceptUrl)}
                     className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 font-semibold text-brand-primary shadow-xs border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700"
                   >
                     {copied ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
-                    <span>{copied ? "Đã chép" : "Sao chép link"}</span>
+                    <span>{copied ? t("tenantAdmin.users.copiedButton") : t("tenantAdmin.users.copyLinkButton")}</span>
                   </button>
                 </div>
                 <div className="break-all rounded-md bg-white/80 p-2 font-mono text-[11px] text-slate-800 border border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-800">
@@ -527,7 +530,7 @@ export function UsersPage() {
                   className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline text-xs"
                 >
                   <Eye className="size-3" />
-                  <span>Xem lại thư đã gửi</span>
+                  <span>{t("tenantAdmin.users.viewSentEmailButton")}</span>
                 </button>
                 <button
                   type="button"
@@ -538,17 +541,17 @@ export function UsersPage() {
                   }}
                   className="text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 >
-                  Mời người khác &rarr;
+                  {t("tenantAdmin.users.inviteAnotherButton")}
                 </button>
               </div>
             </div>
           )}
         </Card>
 
-        {/* Card Danh sách nhân viên & Lời mời đang chờ */}
+        {/* Staff & Pending Invitations Card */}
         <Card className="space-y-4 overflow-hidden p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-3">
-            <div className="flex items-center gap-1.5" role="tablist" aria-label="Quản lý nhân sự">
+            <div className="flex items-center gap-1.5" role="tablist" aria-label={t("tenantAdmin.users.tabsAriaLabel")}>
               <button
                 type="button"
                 role="tab"
@@ -562,7 +565,7 @@ export function UsersPage() {
                 )}
               >
                 <Users className="size-4" aria-hidden="true" />
-                Nhân viên
+                {t("tenantAdmin.users.employeesTab")}
                 <span className="rounded-full bg-surface-card px-2 py-0.5 text-xs font-bold text-[var(--color-text-primary)]">
                   {allStaff.length}
                 </span>
@@ -580,7 +583,7 @@ export function UsersPage() {
                 )}
               >
                 <Clock className="size-4" aria-hidden="true" />
-                Lời mời đang chờ
+                {t("tenantAdmin.users.invitationsTab")}
                 {pendingInvitations.length > 0 && (
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
                     {pendingInvitations.length}
@@ -602,13 +605,13 @@ export function UsersPage() {
                       setSearchQuery(event.target.value);
                       setPage(0);
                     }}
-                    placeholder="Tìm theo tên hoặc email..."
-                    aria-label="Tìm nhân viên"
+                    placeholder={t("tenantAdmin.users.searchPlaceholder")}
+                    aria-label={t("tenantAdmin.users.searchAria")}
                     className={cn(inputClass, "pl-9")}
                   />
                 </div>
                 <select
-                  aria-label="Lọc theo vai trò"
+                  aria-label={t("tenantAdmin.users.roleFilterAria")}
                   value={roleFilter}
                   onChange={(event) => {
                     setRoleFilter(event.target.value);
@@ -616,7 +619,7 @@ export function UsersPage() {
                   }}
                   className={inputClass}
                 >
-                  <option value="ALL">Tất cả vai trò</option>
+                  <option value="ALL">{t("tenantAdmin.users.allRolesOption")}</option>
                   {assignableRoles.map((role) => (
                     <option key={role.code} value={role.code}>
                       {role.name}
@@ -624,7 +627,7 @@ export function UsersPage() {
                   ))}
                 </select>
                 <select
-                  aria-label="Lọc theo trạng thái"
+                  aria-label={t("tenantAdmin.users.statusFilterAria")}
                   value={statusFilter}
                   onChange={(event) => {
                     setStatusFilter(event.target.value as StatusFilter);
@@ -632,28 +635,28 @@ export function UsersPage() {
                   }}
                   className={inputClass}
                 >
-                  <option value="ACTIVE_OR_LOCKED">Hoạt động &amp; Đã khóa</option>
-                  <option value="ACTIVE">Đang hoạt động</option>
-                  <option value="LOCKED">Đã khóa</option>
-                  <option value="DISABLED">Đã vô hiệu</option>
-                  <option value="ALL">Tất cả trạng thái</option>
+                  <option value="ACTIVE_OR_LOCKED">{t("tenantAdmin.users.statusOptions.ACTIVE_OR_LOCKED")}</option>
+                  <option value="ACTIVE">{t("tenantAdmin.users.statusOptions.ACTIVE")}</option>
+                  <option value="LOCKED">{t("tenantAdmin.users.statusOptions.LOCKED")}</option>
+                  <option value="DISABLED">{t("tenantAdmin.users.statusOptions.DISABLED")}</option>
+                  <option value="ALL">{t("tenantAdmin.users.statusOptions.ALL")}</option>
                 </select>
               </div>
 
               {members.isLoading && (
                 <div className="py-2" role="status" aria-busy="true">
                   <TableSkeleton columns={5} rows={4} />
-                  <span className="sr-only">Đang tải danh sách nhân viên…</span>
+                  <span className="sr-only">{t("tenantAdmin.users.loadingMembersSr")}</span>
                 </div>
               )}
               {members.isError && (
                 <p className="text-sm text-status-danger" role="alert">
-                  {getApiErrorMessage(members.error, "Không tải được danh sách nhân viên")}
+                  {getApiErrorMessage(members.error, t("tenantAdmin.users.loadMembersError"))}
                 </p>
               )}
               {!members.isLoading && !members.isError && filteredStaff.length === 0 && (
                 <p className="py-6 text-center text-sm text-[var(--color-text-secondary)]">
-                  Không có nhân viên phù hợp với bộ lọc hiện tại.
+                  {t("tenantAdmin.users.noFilteredMembers")}
                 </p>
               )}
 
@@ -662,10 +665,10 @@ export function UsersPage() {
                   <table className="w-full min-w-[680px] text-left text-sm">
                     <thead className="bg-[var(--color-surface-container-low)] text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
                       <tr>
-                        <th className="px-3 py-3 font-semibold">Nhân viên</th>
-                        <th className="px-3 py-3 font-semibold">Vai trò</th>
-                        <th className="px-3 py-3 font-semibold">Trạng thái</th>
-                        <th className="px-3 py-3 text-right font-semibold">Thao tác</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.member")}</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.role")}</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.columns.status")}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t("tenantAdmin.users.columns.actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -679,7 +682,7 @@ export function UsersPage() {
                                 <span className="font-semibold text-[var(--color-text-primary)]">{row.fullName}</span>
                                 {isSelf && (
                                   <span className="rounded bg-[var(--color-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-brand-primary">
-                                    Bạn
+                                    {t("tenantAdmin.users.selfBadge")}
                                   </span>
                                 )}
                               </div>
@@ -690,7 +693,7 @@ export function UsersPage() {
                                 className={inputClass}
                                 value={row.role}
                                 disabled={assignMutation.isPending || rowStatus === "DISABLED"}
-                                aria-label={`Vai trò của ${row.fullName}`}
+                                aria-label={t("tenantAdmin.users.memberRoleAria", { name: row.fullName })}
                                 onChange={(event) => {
                                   const next = event.target.value;
                                   if (next === row.role) return;
@@ -724,7 +727,7 @@ export function UsersPage() {
                                   className="rounded-lg border border-[var(--color-border-default)] px-2.5 py-1.5 text-xs font-semibold text-brand-primary hover:bg-[var(--color-primary-subtle)]"
                                   onClick={() => setSelectedId(row.id)}
                                 >
-                                  Xem
+                                  {t("tenantAdmin.users.viewButton")}
                                 </button>
                                 {!isSelf && rowStatus === "ACTIVE" && (
                                   <>
@@ -732,21 +735,21 @@ export function UsersPage() {
                                       type="button"
                                       disabled={statusMutation.isPending}
                                       onClick={() => confirmStatusChange(row, "LOCKED")}
-                                      title="Khóa tạm thời"
+                                      title={t("tenantAdmin.users.lockTitle")}
                                       className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                                     >
                                       <Lock className="size-3.5" aria-hidden="true" />
-                                      Khóa
+                                      {t("tenantAdmin.users.lockBtn")}
                                     </button>
                                     <button
                                       type="button"
                                       disabled={statusMutation.isPending}
                                       onClick={() => confirmStatusChange(row, "DISABLED")}
-                                      title="Vô hiệu hóa (xóa mềm)"
+                                      title={t("tenantAdmin.users.disableTitle")}
                                       className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
                                     >
                                       <Ban className="size-3.5" aria-hidden="true" />
-                                      Vô hiệu
+                                      {t("tenantAdmin.users.disableBtn")}
                                     </button>
                                   </>
                                 )}
@@ -759,7 +762,7 @@ export function UsersPage() {
                                       className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                                     >
                                       <Unlock className="size-3.5" aria-hidden="true" />
-                                      Mở khóa
+                                      {t("tenantAdmin.users.unlockBtn")}
                                     </button>
                                     <button
                                       type="button"
@@ -768,7 +771,7 @@ export function UsersPage() {
                                       className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
                                     >
                                       <Ban className="size-3.5" aria-hidden="true" />
-                                      Vô hiệu
+                                      {t("tenantAdmin.users.disableBtn")}
                                     </button>
                                   </>
                                 )}
@@ -780,7 +783,7 @@ export function UsersPage() {
                                     className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                                   >
                                     <RotateCcw className="size-3.5" aria-hidden="true" />
-                                    Khôi phục
+                                    {t("tenantAdmin.users.restoreBtn")}
                                   </button>
                                 )}
                               </div>
@@ -796,8 +799,11 @@ export function UsersPage() {
               {filteredStaff.length > PAGE_SIZE && (
                 <div className="flex items-center justify-between border-t border-[var(--color-border-default)] pt-3 text-xs text-[var(--color-text-secondary)]">
                   <span>
-                    Hiển thị {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filteredStaff.length)} /{" "}
-                    {filteredStaff.length} nhân viên
+                    {t("tenantAdmin.users.pagination.summary", {
+                      from: safePage * PAGE_SIZE + 1,
+                      to: Math.min((safePage + 1) * PAGE_SIZE, filteredStaff.length),
+                      total: filteredStaff.length,
+                    })}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -806,7 +812,7 @@ export function UsersPage() {
                       disabled={safePage === 0}
                       onClick={() => setPage((p) => Math.max(0, p - 1))}
                     >
-                      Trước
+                      {t("tenantAdmin.users.pagination.prev")}
                     </Button>
                     <Button
                       variant="secondary"
@@ -814,7 +820,7 @@ export function UsersPage() {
                       disabled={safePage + 1 >= totalPages}
                       onClick={() => setPage((p) => p + 1)}
                     >
-                      Sau
+                      {t("tenantAdmin.users.pagination.next")}
                     </Button>
                   </div>
                 </div>
@@ -825,12 +831,12 @@ export function UsersPage() {
               {invitationsQuery.isLoading && <TableSkeleton columns={4} rows={3} />}
               {invitationsQuery.isError && (
                 <p className="text-sm text-status-danger" role="alert">
-                  {getApiErrorMessage(invitationsQuery.error, "Không tải được danh sách lời mời.")}
+                  {getApiErrorMessage(invitationsQuery.error, t("tenantAdmin.users.invitations.loadError"))}
                 </p>
               )}
               {!invitationsQuery.isLoading && !invitationsQuery.isError && pendingInvitations.length === 0 && (
                 <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">
-                  Không có lời mời nào đang chờ kích hoạt.
+                  {t("tenantAdmin.users.invitations.empty")}
                 </p>
               )}
               {pendingInvitations.length > 0 && (
@@ -838,10 +844,10 @@ export function UsersPage() {
                   <table className="w-full min-w-[600px] text-left text-sm">
                     <thead className="bg-[var(--color-surface-container-low)] text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
                       <tr>
-                        <th className="px-3 py-3 font-semibold">Người nhận</th>
-                        <th className="px-3 py-3 font-semibold">Vai trò</th>
-                        <th className="px-3 py-3 font-semibold">Hạn kích hoạt</th>
-                        <th className="px-3 py-3 text-right font-semibold">Thao tác</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.invitations.columns.recipient")}</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.invitations.columns.role")}</th>
+                        <th className="px-3 py-3 font-semibold">{t("tenantAdmin.users.invitations.columns.expiresAt")}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t("tenantAdmin.users.invitations.columns.actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -857,11 +863,11 @@ export function UsersPage() {
                           <td className="px-3 py-3 text-xs">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-[var(--color-text-secondary)]">
-                                {new Date(inv.expiresAt).toLocaleString("vi-VN")}
+                                {formatDateTime(inv.expiresAt, undefined, locale)}
                               </span>
                               {inv.expired && (
                                 <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                                  Hết hạn
+                                  {t("tenantAdmin.users.invitations.expiredBadge")}
                                 </span>
                               )}
                             </div>
@@ -875,7 +881,7 @@ export function UsersPage() {
                                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-2.5 py-1.5 text-xs font-semibold text-brand-primary hover:bg-[var(--color-primary-subtle)] disabled:opacity-50"
                               >
                                 <Send className="size-3.5" aria-hidden="true" />
-                                Gửi lại
+                                {t("tenantAdmin.users.invitations.resendBtn")}
                               </button>
                               <button
                                 type="button"
@@ -884,7 +890,7 @@ export function UsersPage() {
                                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
                               >
                                 <Ban className="size-3.5" aria-hidden="true" />
-                                Thu hồi
+                                {t("tenantAdmin.users.invitations.revokeBtn")}
                               </button>
                             </div>
                           </td>
@@ -927,12 +933,13 @@ export function UsersPage() {
         }}
       />
 
+      {/* Modal previewing staff invitation Gmail */}
       <InviteEmailPreviewModal
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         workspaceName={workspaceName}
         senderEmail={mailSettings.data?.data?.mailUsername || ""}
-        senderName={mailSettings.data?.data?.fromName || `Ban Tuyển Dụng ${workspaceName}`}
+        senderName={mailSettings.data?.data?.fromName || t("tenantAdmin.users.defaultSenderName", { workspace: workspaceName })}
         recipientName={lastInviteResult?.fullName || formValues.fullName}
         recipientEmail={lastInviteResult?.email || formValues.email}
         roleName={roleLabel(lastInviteResult?.role || formValues.role)}
@@ -957,6 +964,37 @@ function EmployeeDetailDialog({
   error: string | null;
   onClose: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
+
+  const statusLabel: Record<string, string> = {
+    ACTIVE: t("tenantAdmin.users.statuses.ACTIVE"),
+    LOCKED: t("tenantAdmin.users.statuses.LOCKED"),
+    DISABLED: t("tenantAdmin.users.statuses.DISABLED"),
+  };
+
+  const workspaceLabel: Record<string, string> = {
+    ADMIN: t("tenantAdmin.users.workspaces.ADMIN"),
+    RECRUITER: t("tenantAdmin.users.workspaces.RECRUITER"),
+    CANDIDATE: t("tenantAdmin.users.workspaces.CANDIDATE"),
+  };
+
+  const assignmentRoleLabel: Record<string, string> = {
+    OWNER: t("tenantAdmin.users.assignmentRoles.OWNER"),
+    PRIMARY_RECRUITER: t("tenantAdmin.users.assignmentRoles.PRIMARY_RECRUITER"),
+    COLLABORATOR: t("tenantAdmin.users.assignmentRoles.COLLABORATOR"),
+    CO_RECRUITER: t("tenantAdmin.users.assignmentRoles.CO_RECRUITER"),
+    VIEWER: t("tenantAdmin.users.assignmentRoles.VIEWER"),
+  };
+
+  const jobStatusLabel: Record<string, string> = {
+    DRAFT: t("tenantAdmin.users.jobStatuses.DRAFT"),
+    PUBLISHED: t("tenantAdmin.users.jobStatuses.PUBLISHED"),
+    PAUSED: t("tenantAdmin.users.jobStatuses.PAUSED"),
+    CLOSED: t("tenantAdmin.users.jobStatuses.CLOSED"),
+    ARCHIVED: t("tenantAdmin.users.jobStatuses.ARCHIVED"),
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="presentation" onClick={onClose}>
       <div
@@ -971,49 +1009,49 @@ function EmployeeDetailDialog({
             {member.fullName}
           </h2>
           <button type="button" className="text-sm text-[var(--color-text-secondary)]" onClick={onClose}>
-            Đóng
+            {t("tenantAdmin.users.detailDialog.close")}
           </button>
         </div>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Email</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.email")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{member.email}</dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Vai trò</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.role")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{roleName}</dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Workspace</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.workspace")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
               {workspaceLabel[member.workspace ?? ""] ?? member.workspace ?? "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-[var(--color-text-secondary)]">Trạng thái</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.status")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
               {statusLabel[member.status ?? ""] ?? member.status ?? "—"}
             </dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-[var(--color-text-secondary)]">Ngày tham gia</dt>
+            <dt className="text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.joinedAt")}</dt>
             <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
-              {member.createdAt ? new Date(member.createdAt).toLocaleString("vi-VN") : "—"}
+              {member.createdAt ? formatDateTime(member.createdAt, undefined, locale) : "—"}
             </dd>
           </div>
         </dl>
-        <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">Công việc đang phụ trách</h3>
+        <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">{t("tenantAdmin.users.detailDialog.assignedJobsTitle")}</h3>
         {loading && (
           <div className="mt-3 space-y-2" role="status" aria-busy="true">
             {Array.from({ length: 3 }, (_, i) => (
               <Skeleton key={i} className="h-12 w-full rounded-lg" />
             ))}
-            <span className="sr-only">Đang tải danh sách công việc…</span>
+            <span className="sr-only">{t("tenantAdmin.users.detailDialog.loadingJobsSr")}</span>
           </div>
         )}
         {error && <p className="mt-2 text-sm text-status-danger">{error}</p>}
         {!loading && !error && jobs.length === 0 && (
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Chưa được phân công job nào.</p>
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.users.detailDialog.noJobsAssigned")}</p>
         )}
         {jobs.length > 0 && (
           <ul className="mt-2 divide-y divide-[var(--color-border-default)]">

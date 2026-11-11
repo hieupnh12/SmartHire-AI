@@ -1,3 +1,5 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
+
 /** Calendar row shaped for recruiter month view; sourced from Human Interview API. */
 export type InterviewMode = "ONLINE" | "OFFLINE";
 export type InterviewStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "DONE";
@@ -69,3 +71,27 @@ export const roundMeta: Record<InterviewRound, { label: string; dot: string; chi
     tone: "text-violet-700 bg-violet-50",
   },
 };
+
+export function getInterviewStatusLabel(status: InterviewStatus, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.schedules.statusLabels.${status}`;
+  const label = translate(key);
+  return label === key ? interviewStatusLabel[status] : label;
+}
+
+export function getInterviewModeLabel(mode: InterviewMode, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.schedules.modeLabels.${mode}`;
+  const label = translate(key);
+  return label === key ? interviewModeLabel[mode] : label;
+}
+
+export function getInterviewRoundLabel(round: InterviewRound, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.schedules.roundLabels.${round}`;
+  const label = translate(key);
+  return label === key ? interviewRoundLabel[round] : label;
+}
+
+export function getInterviewRoundShortLabel(round: InterviewRound, translate: TranslateFn = globalT) {
+  const key = `recruiter.ops.schedules.roundShort.${round}`;
+  const label = translate(key);
+  return label === key ? (roundMeta[round]?.label ?? round) : label;
+}

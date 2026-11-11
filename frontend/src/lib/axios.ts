@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import type { ApiResponse } from "@/types/api";
 import { getTenantIdFromWindow } from "@/lib/tenant";
+import { t } from "@/i18n";
 
 const baseURL =
   import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
@@ -137,33 +138,36 @@ api.interceptors.response.use(
   },
 );
 
-const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
-  AI_INTERVIEW_PROVIDER_OVERLOADED: "Dịch vụ AI phỏng vấn đang quá tải. Vui lòng thử lại sau.",
-  AI_INTERVIEW_PROVIDER_TIMEOUT: "Dịch vụ AI phản hồi quá lâu. Vui lòng thử lại sau.",
-  AI_INTERVIEW_PROVIDER_UNAVAILABLE: "Chưa kết nối được dịch vụ AI phỏng vấn. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
-  AI_INTERVIEW_PROVIDER_RATE_LIMITED: "Dịch vụ AI đã đạt giới hạn lượt gọi. Vui lòng thử lại sau.",
-  AI_INTERVIEW_PROVIDER_AUTH_FAILED: "Dịch vụ AI từ chối xác thực. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
-  AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND: "Model AI phỏng vấn chưa khả dụng. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
-  AI_INTERVIEW_LOCKED: "Phiên đã bị khóa. Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi; không thể xóa khi đang sinh câu hỏi hoặc đã bắt đầu.",
-  INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
-  VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
-  BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",
-};
+const FRIENDLY_ERROR_CODES = new Set([
+  "AI_INTERVIEW_PROVIDER_OVERLOADED",
+  "AI_INTERVIEW_PROVIDER_TIMEOUT",
+  "AI_INTERVIEW_PROVIDER_UNAVAILABLE",
+  "AI_INTERVIEW_PROVIDER_RATE_LIMITED",
+  "AI_INTERVIEW_PROVIDER_AUTH_FAILED",
+  "AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND",
+  "AI_INTERVIEW_LOCKED",
+  "INTERNAL_ERROR",
+  "VALIDATION_ERROR",
+  "BAD_REQUEST",
+]);
 
-export function getApiErrorMessage(error: unknown, fallback = "Không thể hoàn tất yêu cầu. Vui lòng thử lại."): string {
+export function getApiErrorMessage(error: unknown, fallback?: string): string {
+  const defaultFallback = fallback ?? t("errors.requestFailed");
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as ApiResponse<unknown> | undefined;
     if (data?.errors) {
       return Object.values(data.errors).join(", ");
     }
-    if (data?.code && FRIENDLY_ERROR_MESSAGES[data.code]) return FRIENDLY_ERROR_MESSAGES[data.code];
-    if (error.code === "ECONNABORTED") return "Hệ thống chưa trả lời kịp. Việc này có thể vẫn đang chạy, hãy đợi một lát rồi tải lại.";
-    if (!error.response) return "Không thể kết nối đến hệ thống. Vui lòng kiểm tra mạng và thử lại.";
-    if (error.response.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
-    if (error.response.status === 404) return "Không tìm thấy dữ liệu được yêu cầu.";
-    if (error.response.status >= 500) return FRIENDLY_ERROR_MESSAGES.INTERNAL_ERROR;
+    if (data?.code && FRIENDLY_ERROR_CODES.has(data.code)) {
+      return t(`errors.codes.${data.code}`);
+    }
+    if (error.code === "ECONNABORTED") return t("errors.timeout");
+    if (!error.response) return t("errors.network");
+    if (error.response.status === 403) return t("errors.forbidden");
+    if (error.response.status === 404) return t("errors.notFound");
+    if (error.response.status >= 500) return t("errors.codes.INTERNAL_ERROR");
     if (data?.message) return data.message;
   }
   if (error instanceof Error && import.meta.env.DEV) console.error(error);
-  return fallback;
+  return defaultFallback;
 }

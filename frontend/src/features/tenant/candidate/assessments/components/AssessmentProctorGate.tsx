@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Mic, MonitorUp, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { useT } from "@/i18n";
 import {
   prepareProctorDevices,
   stopProctorSession,
@@ -17,7 +18,9 @@ type Props = {
   onReady: (session: ProctorSession) => void | Promise<void>;
 };
 
-export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", onReady }: Props) {
+export function AssessmentProctorGate({ busy, label, onReady }: Props) {
+  const t = useT();
+  const buttonLabel = label ?? t("candidate.assess.proctorGate.defaultStartLabel");
   const [accepted, setAccepted] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +61,10 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
         !live(prepared.current.camera.getAudioTracks()) ||
         (prepared.current.screen && !live(prepared.current.screen.getVideoTracks()))
       ) {
-        throw new Error("Camera, microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
+        throw new Error(t("candidate.assess.proctorGate.devicesStoppedError"));
       }
       if (!document.documentElement.requestFullscreen) {
-        throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
+        throw new Error(t("candidate.assess.proctorGate.fullscreenUnsupportedError"));
       }
       const devices = prepared.current;
       await expandExamToScreen(devices);
@@ -76,7 +79,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       setReady(false);
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
       if (mounted.current) {
-        setError(cause instanceof Error ? cause.message : "Không thể hoàn tất kiểm tra thiết bị.");
+        setError(cause instanceof Error ? cause.message : t("candidate.assess.proctorGate.checkFailedError"));
       }
     } finally {
       preparingRef.current = false;
@@ -86,16 +89,16 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
 
   return (
     <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] p-4">
-      <p className="text-sm font-semibold">Kiểm tra thiết bị</p>
+      <p className="text-sm font-semibold">{t("candidate.assess.proctorGate.title")}</p>
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <Mic className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Microphone
+          <Mic className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> {t("candidate.assess.proctorGate.microphoneChip")}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Cả màn hình
+          <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> {t("candidate.assess.proctorGate.entireScreenChip")}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera
+          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> {t("candidate.assess.proctorGate.cameraChip")}
         </span>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 text-sm leading-6">
@@ -112,7 +115,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
           }}
         />
         <span>
-          Cho phép camera, microphone và chia sẻ toàn bộ màn hình trong suốt bài thi. Tắt thiết bị, để khuôn mặt ra khỏi khung, hoặc có thêm người trong khung camera được tính là vi phạm.
+          {t("candidate.assess.proctorGate.consentLabel")}
         </span>
       </label>
       {error && (
@@ -122,18 +125,18 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       )}
       {ready && (
         <p className="text-sm text-[var(--color-primary)]" role="status">
-          Thiết bị sẵn sàng. Bấm để vào toàn màn hình và bắt đầu.
+          {t("candidate.assess.proctorGate.devicesReady")}
         </p>
       )}
       <Button size="lg" className="w-full" disabled={!accepted || preparing || busy} onClick={() => void prepare()}>
         <ShieldCheck className="size-4" aria-hidden="true" />
         {preparing || busy
           ? ready
-            ? "Đang mở bài…"
-            : "Đang kiểm tra…"
+            ? t("candidate.assess.proctorGate.openingExam")
+            : t("candidate.assess.proctorGate.checkingDevices")
           : ready
-            ? label
-            : "Kiểm tra thiết bị"}
+            ? buttonLabel
+            : t("candidate.assess.proctorGate.checkDevicesButton")}
       </Button>
     </div>
   );

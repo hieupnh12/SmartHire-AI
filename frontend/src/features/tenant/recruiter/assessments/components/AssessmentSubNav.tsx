@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, ClipboardList, Settings2, Users } from "lucide-react";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export type AssessmentTab = "tests" | "submissions" | "config" | "bank";
@@ -21,30 +22,31 @@ export function AssessmentSubNav({
   activeTab,
   className,
 }: Props) {
+  const t = useT();
   const basePath = `/recruiter/jobs/${jobId}/assessments`;
 
   const navItems = [
     {
       id: "tests" as const,
-      label: "Đề thi",
+      label: t("recruiter.assessments.subNav.tests"),
       to: basePath,
       icon: ClipboardList,
     },
     {
       id: "submissions" as const,
-      label: "Theo dõi nộp bài",
+      label: t("recruiter.assessments.subNav.submissions"),
       to: `${basePath}/submissions`,
       icon: Users,
     },
     {
       id: "bank" as const,
-      label: "Ngân hàng câu hỏi",
+      label: t("recruiter.assessments.subNav.bank"),
       to: `${basePath}/question-bank`,
       icon: BookOpen,
     },
     {
       id: "config" as const,
-      label: "Cấu hình",
+      label: t("recruiter.assessments.subNav.config"),
       to: `${basePath}/new`,
       icon: Settings2,
     },
@@ -57,7 +59,7 @@ export function AssessmentSubNav({
         className,
       )}
       role="tablist"
-      aria-label="Phân hệ bài đánh giá năng lực"
+      aria-label={t("recruiter.assessments.subNav.ariaLabel")}
     >
       <div className="flex min-w-full items-center gap-1 sm:min-w-0">
         {navItems.map((item) => {

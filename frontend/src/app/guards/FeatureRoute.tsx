@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useT } from "@/i18n";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
 import type { RecruiterFeatureCode } from "@/features/tenant/recruiter/nav";
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function FeatureRoute({ feature }: Props) {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
 
@@ -34,10 +36,10 @@ export function FeatureRoute({ feature }: Props) {
   return (
     <section className="space-y-2">
       <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">
-        Không có quyền truy cập
+        {t("ux.noAccessTitle")}
       </h1>
       <p className="max-w-2xl text-[var(--color-text-secondary)]">
-        Chức năng này chưa được company admin phân cho vai trò của bạn.
+        {t("ux.noAccessDesc")}
       </p>
     </section>
   );

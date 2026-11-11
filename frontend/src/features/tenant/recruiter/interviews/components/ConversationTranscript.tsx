@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, Loader2, MessageSquare, User, Volume2 } from "lucide-react";
 import { interviewConversationApi } from "@/api/tenant/interviewConversationApi";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -25,6 +26,7 @@ export function ConversationTranscript({
   interviewId: number;
   maxHeightClass?: string;
 }) {
+  const t = useT();
   const transcript = useInterviewTranscript(interviewId);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<number | null>(null);
@@ -53,7 +55,7 @@ export function ConversationTranscript({
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs" aria-label="Transcript toàn phiên">
+    <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs" aria-label={t("recruiter.interviews.ai.transcript.ariaLabel")}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
@@ -61,16 +63,19 @@ export function ConversationTranscript({
           </div>
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-              Transcript hội thoại phỏng vấn
+              {t("recruiter.interviews.ai.transcript.title")}
             </h3>
             <p className="text-xs text-slate-400">
-              Toàn bộ diễn biến trao đổi giữa AI Interviewer và ứng viên theo thời gian thực.
+              {t("recruiter.interviews.ai.transcript.subtitle")}
             </p>
           </div>
         </div>
         {transcript.data && (
           <span className="rounded-full border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-semibold tabular-nums text-[var(--color-primary-hover)]">
-            {transcript.data.candidateTurns}/{transcript.data.maxTurns} lượt trả lời
+            {t("recruiter.interviews.ai.transcript.turnsCount", {
+              turns: transcript.data.candidateTurns,
+              max: transcript.data.maxTurns,
+            })}
           </span>
         )}
       </div>
@@ -80,7 +85,7 @@ export function ConversationTranscript({
           <Skeleton className="h-16 w-3/4 rounded-xl" />
           <Skeleton className="ml-auto h-16 w-2/3 rounded-xl" />
           <Skeleton className="h-16 w-4/5 rounded-xl" />
-          <span className="sr-only">Đang tải transcript…</span>
+          <span className="sr-only">{t("recruiter.interviews.ai.transcript.loadingSr")}</span>
         </div>
       )}
 
@@ -92,7 +97,7 @@ export function ConversationTranscript({
 
       {transcript.data && transcript.data.messages.length === 0 && (
         <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
-          Chưa có tin nhắn hội thoại nào trong phiên này.
+          {t("recruiter.interviews.ai.transcript.empty")}
         </p>
       )}
 
@@ -114,15 +119,17 @@ export function ConversationTranscript({
                   {isUser ? (
                     <>
                       <User className="size-3.5 text-[var(--color-primary)]" />
-                      <span>Ứng viên</span>
+                      <span>{t("recruiter.interviews.ai.transcript.candidate")}</span>
                     </>
                   ) : (
                     <>
                       <Bot className="size-3.5 text-[var(--color-primary-hover)]" />
-                      <span>AI Interviewer</span>
+                      <span>{t("recruiter.interviews.ai.transcript.aiInterviewer")}</span>
                     </>
                   )}
-                  <span className="text-[10px] font-normal text-slate-400">· Tin #{message.id}</span>
+                  <span className="text-[10px] font-normal text-slate-400">
+                    {t("recruiter.interviews.ai.transcript.messageTag", { id: message.id })}
+                  </span>
                 </span>
                 {message.hasRecording && (
                   <button
@@ -134,12 +141,12 @@ export function ConversationTranscript({
                     {loading === message.id ? (
                       <>
                         <Loader2 className="size-3 animate-spin text-[var(--color-primary)]" />
-                        <span>Đang tải…</span>
+                        <span>{t("recruiter.interviews.ai.transcript.loadingAudio")}</span>
                       </>
                     ) : (
                       <>
                         <Volume2 className="size-3 text-[var(--color-primary)]" />
-                        <span>Nghe bản ghi</span>
+                        <span>{t("recruiter.interviews.ai.transcript.playRecording")}</span>
                       </>
                     )}
                   </button>

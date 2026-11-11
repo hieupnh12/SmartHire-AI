@@ -17,10 +17,12 @@ import type { AvailableAssessment } from "@/api/types/assessment";
 import type { ApplicationSummary } from "@/api/types/applicant";
 import type { UserProfile } from "@/features/tenant/auth/types";
 import { Button } from "@/components/ux/Button";
+import { getAssessmentStatusLabel } from "@/components/ux/assessmentUi";
+import { useT } from "@/i18n";
 import { AssessmentProctorGate, type ProctorSession } from "./AssessmentProctorGate";
-import { ASSESSMENT_GUIDELINES, ASSESSMENT_REGULATIONS } from "../constants/invitationContent";
+import { getAssessmentGuidelines, getAssessmentRegulations } from "../constants/invitationContent";
 
-const regulationIcons: Record<(typeof ASSESSMENT_REGULATIONS)[number]["icon"], LucideIcon> = {
+const regulationIcons: Record<"tab" | "terminal" | "devices", LucideIcon> = {
   tab: AppWindow,
   terminal: Terminal,
   devices: Monitor,
@@ -55,6 +57,7 @@ export function AssessmentInvitationView({
   applications,
   onSelectApplication,
 }: Props) {
+  const t = useT();
   const done =
     test.submissionStatus === "GRADED" ||
     test.submissionStatus === "EXPIRED" ||
@@ -64,16 +67,19 @@ export function AssessmentInvitationView({
   const needsGate = !done || (done && allowRetake);
   const candidateName = user?.fullName ?? application.candidateName;
   const gateLabel = inProgress
-    ? "Tiếp tục làm bài"
+    ? t("candidate.assess.invitation.gateButtonContinue")
     : allowRetake && done
-      ? "Làm lại từ đầu"
-      : "Bắt đầu làm bài";
+      ? t("candidate.assess.invitation.gateButtonRetake")
+      : t("candidate.assess.invitation.gateButtonStart");
+  const regulations = getAssessmentRegulations(t);
+  const guidelines = getAssessmentGuidelines(t, test.durationMinutes);
+  const statusLabel = getAssessmentStatusLabel(test.submissionStatus ?? "NOT_STARTED", t);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
       {!!applications?.length && applications.length > 1 && onSelectApplication && (
         <label className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">Đơn ứng tuyển</span>
+          <span className="font-medium">{t("candidate.assess.invitation.applicationSelectLabel")}</span>
           <select
             className="min-h-10 min-w-64 flex-1 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
             value={application.id}
@@ -82,7 +88,7 @@ export function AssessmentInvitationView({
           >
             {applications.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.jobTitle} · Đơn #{item.id}
+                {t("candidate.assess.invitation.applicationOption", { jobTitle: item.jobTitle, id: item.id })}
               </option>
             ))}
           </select>
@@ -98,7 +104,7 @@ export function AssessmentInvitationView({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                  Lời mời · {companyName}
+                  {t("candidate.assess.invitation.eyebrow", { companyName })}
                 </p>
                 <h1 className="mt-1 truncate text-xl font-semibold tracking-tight sm:text-2xl">{test.title}</h1>
                 <p className="mt-1 truncate text-sm text-[var(--color-on-surface-variant)]">
@@ -107,13 +113,17 @@ export function AssessmentInvitationView({
               </div>
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2">
-              <Fact icon={Clock3} label="Thời lượng" value={`${test.durationMinutes} phút`} />
+              <Fact
+                icon={Clock3}
+                label={t("candidate.assess.invitation.durationLabel")}
+                value={t("candidate.assess.common.minutes", { count: test.durationMinutes })}
+              />
               <Fact
                 icon={Trophy}
-                label="Ngưỡng đạt"
-                value={test.passingScore != null ? String(test.passingScore) : "Theo đề"}
+                label={t("candidate.assess.invitation.passingScoreLabel")}
+                value={test.passingScore != null ? String(test.passingScore) : t("candidate.assess.invitation.passingScoreByTest")}
               />
-              <Fact icon={ClipboardCheck} label="Trạng thái" value={done ? "Đã nộp" : inProgress ? "Đang làm" : "Chưa làm"} />
+              <Fact icon={ClipboardCheck} label={t("candidate.assess.invitation.statusLabel")} value={statusLabel} />
             </dl>
           </header>
 
@@ -128,10 +138,10 @@ export function AssessmentInvitationView({
               <div className="flex flex-col gap-2">
                 <div className="flex shrink-0 items-center gap-2">
                   <Scale className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  <h2 className="text-sm font-semibold">Quy chế phòng thi</h2>
+                  <h2 className="text-sm font-semibold">{t("candidate.assess.invitation.rulesHeading")}</h2>
                 </div>
                 <ul className="flex flex-col gap-2">
-                  {ASSESSMENT_REGULATIONS.map((rule) => {
+                  {regulations.map((rule) => {
                     const Icon = regulationIcons[rule.icon];
                     return (
                       <li
@@ -154,17 +164,15 @@ export function AssessmentInvitationView({
               <div className="rounded-xl border border-[var(--color-border-default)]/60 bg-white p-3.5 shadow-sm">
                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--color-primary)]">
                   <Info className="size-4" aria-hidden="true" />
-                  <span>Lưu ý kỹ thuật & Tiến trình bài làm</span>
+                  <span>{t("candidate.assess.invitation.guidelinesHeading")}</span>
                 </div>
                 <ul className="space-y-2 text-xs text-[var(--color-on-surface-variant)]">
-                  {ASSESSMENT_GUIDELINES.map((item) => (
-                    <li key={item.title} className="flex items-start gap-2 leading-relaxed">
+                  {guidelines.map((item) => (
+                    <li key={item.id} className="flex items-start gap-2 leading-relaxed">
                       <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--color-primary)]" />
                       <div>
                         <strong className="font-medium text-[var(--color-on-surface)]">{item.title}</strong>{" "}
-                        {item.title.startsWith("Đồng hồ")
-                          ? `Thời gian ${test.durationMinutes} phút sẽ chạy liên tục sau khi bắt đầu và không thể tạm dừng.`
-                          : item.body}
+                        {item.body}
                       </div>
                     </li>
                   ))}
@@ -173,12 +181,12 @@ export function AssessmentInvitationView({
             </div>
 
             <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-3 text-xs text-[var(--color-on-surface-variant)]">
-              <span>Đơn #{application.id}</span>
+              <span>{t("candidate.assess.invitation.applicationRef", { id: application.id })}</span>
               <Link
                 className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline"
                 to={`/applications/${application.id}`}
               >
-                Chi tiết đơn
+                {t("candidate.assess.invitation.applicationDetailLink")}
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </Link>
             </footer>
@@ -190,13 +198,17 @@ export function AssessmentInvitationView({
             <div className="flex flex-col gap-4">
               <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                  Bước tiếp theo
+                  {t("candidate.assess.invitation.nextStepEyebrow")}
                 </p>
                 <h2 className="mt-1 text-lg font-semibold">
-                  {inProgress ? "Tiếp tục bài thi" : allowRetake && done ? "Làm lại bài demo" : "Vào bài kiểm tra"}
+                  {inProgress
+                    ? t("candidate.assess.invitation.continueExamHeading")
+                    : allowRetake && done
+                      ? t("candidate.assess.invitation.retakeDemoHeading")
+                      : t("candidate.assess.invitation.enterExamHeading")}
                 </h2>
                 <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  Xác nhận quy chế, rồi kiểm tra camera, microphone và chia sẻ màn hình trước khi vào bài.
+                  {t("candidate.assess.invitation.nextStepDesc")}
                 </p>
               </div>
 
@@ -226,13 +238,13 @@ export function AssessmentInvitationView({
                   onChange={(event) => onAcceptRulesChange(event.target.checked)}
                 />
                 <span className="min-w-0">
-                  <span className="block font-semibold">Tôi đồng ý quy chế phòng thi</span>
+                  <span className="block font-semibold">{t("candidate.assess.invitation.acceptRulesTitle")}</span>
                   <span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">
-                    Cam kết làm bài trung thực và chấp nhận giám sát thiết bị.
+                    {t("candidate.assess.invitation.acceptRulesDesc")}
                   </span>
                   {!acceptRules && (
                     <span className="mt-1.5 block text-sm font-semibold text-[var(--color-primary)]">
-                      Bấm để đồng ý và mở kiểm tra thiết bị
+                      {t("candidate.assess.invitation.acceptRulesHint")}
                     </span>
                   )}
                 </span>
@@ -245,14 +257,14 @@ export function AssessmentInvitationView({
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">
-                    Đồng ý quy chế bên trên để kiểm tra camera, microphone và chia sẻ màn hình.
+                    {t("candidate.assess.invitation.gateLockedPlaceholder")}
                   </div>
                 )}
               </div>
 
               {done && allowRetake && test.submissionId && (
                 <Button variant="secondary" className="w-full shrink-0" disabled={starting} onClick={onContinue}>
-                  Xem kết quả lần làm trước
+                  {t("candidate.assess.invitation.viewPreviousResult")}
                 </Button>
               )}
             </div>
@@ -260,16 +272,16 @@ export function AssessmentInvitationView({
             <div className="flex h-full flex-col justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                  Bước tiếp theo
+                  {t("candidate.assess.invitation.nextStepEyebrow")}
                 </p>
-                <h2 className="mt-1 text-lg font-semibold">Xem kết quả</h2>
+                <h2 className="mt-1 text-lg font-semibold">{t("candidate.assess.invitation.viewResultHeading")}</h2>
                 <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-                  Bài đã nộp. Bạn có thể xem kết quả.
+                  {t("candidate.assess.invitation.viewResultDesc")}
                 </p>
               </div>
               <Button size="lg" className="w-full" disabled={starting} onClick={onContinue}>
                 <ArrowRight className="size-4" aria-hidden="true" />
-                Xem kết quả bài làm
+                {t("candidate.assess.invitation.viewResultButton")}
               </Button>
             </div>
           )}

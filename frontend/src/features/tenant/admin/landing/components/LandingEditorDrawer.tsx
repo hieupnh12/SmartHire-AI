@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   X,
   SlidersHorizontal,
@@ -15,8 +15,16 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { useT } from "@/i18n";
 import type { LandingPageConfig } from "../types/landing";
-import { COLOR_PRESETS, FONT_OPTIONS, BORDER_RADIUS_OPTIONS, BANNER_HEIGHT_OPTIONS, inputClass, labelClass } from "../utils/constants";
+import {
+  getColorPresets,
+  getFontOptions,
+  getBorderRadiusOptions,
+  getBannerHeightOptions,
+  inputClass,
+  labelClass,
+} from "../utils/constants";
 
 interface LandingEditorDrawerProps {
   isDrawerOpen: boolean;
@@ -40,6 +48,7 @@ interface LandingEditorDrawerProps {
 }
 
 export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
+  const t = useT();
   const {
     isDrawerOpen,
     setIsDrawerOpen,
@@ -61,17 +70,25 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
     setNewTagInput,
   } = props;
 
-  const tabs = [
-    { id: "header", label: "Menu Trên", icon: SlidersHorizontal },
-    { id: "theme", label: "Màu & Font", icon: Palette },
-    { id: "hero", label: "Hero Banner", icon: LayoutTemplate },
-    { id: "about", label: "Văn Hóa", icon: Building2 },
-    { id: "benefits", label: "Phúc Lợi", icon: Gift },
-    { id: "techStack", label: "Tech Stack", icon: Code2 },
-    { id: "testimonials", label: "Đánh Giá", icon: MessageSquareQuote },
-    { id: "footer", label: "Chân Trang", icon: Globe2 },
-    { id: "seo", label: "SEO Meta", icon: Search },
-  ];
+  const colorPresets = useMemo(() => getColorPresets(t), [t]);
+  const fontOptions = useMemo(() => getFontOptions(t), [t]);
+  const borderRadiusOptions = useMemo(() => getBorderRadiusOptions(t), [t]);
+  const bannerHeightOptions = useMemo(() => getBannerHeightOptions(t), [t]);
+
+  const tabs = useMemo(
+    () => [
+      { id: "header", label: t("tenantAdmin.landing.drawer.tabs.header"), icon: SlidersHorizontal },
+      { id: "theme", label: t("tenantAdmin.landing.drawer.tabs.theme"), icon: Palette },
+      { id: "hero", label: t("tenantAdmin.landing.drawer.tabs.hero"), icon: LayoutTemplate },
+      { id: "about", label: t("tenantAdmin.landing.drawer.tabs.about"), icon: Building2 },
+      { id: "benefits", label: t("tenantAdmin.landing.drawer.tabs.benefits"), icon: Gift },
+      { id: "techStack", label: t("tenantAdmin.landing.drawer.tabs.techStack"), icon: Code2 },
+      { id: "testimonials", label: t("tenantAdmin.landing.drawer.tabs.testimonials"), icon: MessageSquareQuote },
+      { id: "footer", label: t("tenantAdmin.landing.drawer.tabs.footer"), icon: Globe2 },
+      { id: "seo", label: t("tenantAdmin.landing.drawer.tabs.seo"), icon: Search },
+    ],
+    [t],
+  );
 
   return (
     <aside
@@ -85,13 +102,13 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
           <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-brand-primary" />
-              <h2 className="text-sm font-bold text-slate-900">Bảng Cài Đặt Chi Tiết</h2>
+              <h2 className="text-sm font-bold text-slate-900">{t("tenantAdmin.landing.drawer.title")}</h2>
             </div>
             <button
               type="button"
               onClick={() => setIsDrawerOpen(false)}
               className="p-1.5 rounded-md hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
-              title="Đóng bảng cài đặt"
+              title={t("tenantAdmin.landing.drawer.closeTitle")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -99,20 +116,20 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
           {/* Tab Selector Pills */}
           <div className="p-2 border-b border-slate-100 flex items-center gap-1 overflow-x-auto bg-slate-50/50 [scrollbar-width:none]">
-            {tabs.map((t) => {
-              const Icon = t.icon;
-              const isActive = activeTab === t.id;
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
               return (
                 <button
-                  key={t.id}
+                  key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(t.id)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     isActive ? "bg-brand-primary text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/70"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span>{t.label}</span>
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
@@ -125,10 +142,16 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
               <div className="space-y-4">
                 <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">Ảnh Logo Công Ty</label>
+                    <label className="text-xs font-bold text-slate-800">
+                      {t("tenantAdmin.landing.drawer.header.logoLabel")}
+                    </label>
                     <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-brand-primary text-white text-[11px] font-semibold hover:opacity-95">
                       <Upload className="w-3 h-3" />
-                      <span>{isUploading ? "Đang tải..." : "Tải ảnh lên"}</span>
+                      <span>
+                        {isUploading
+                          ? t("tenantAdmin.landing.drawer.header.uploading")
+                          : t("tenantAdmin.landing.drawer.header.uploadImage")}
+                      </span>
                       <input
                         type="file"
                         accept="image/*"
@@ -143,19 +166,21 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     type="text"
                     value={config.header?.logoImageUrl || ""}
                     onChange={(e) => updateHeader({ logoImageUrl: e.target.value })}
-                    placeholder="Để trống sẽ dùng chữ cái đầu của tên cty"
+                    placeholder={t("tenantAdmin.landing.drawer.header.logoPlaceholder")}
                     className={inputClass}
                   />
-                  <p className="text-[10px] text-slate-400">Nên dùng ảnh PNG nền trong suốt, tỉ lệ ngang.</p>
+                  <p className="text-[10px] text-slate-400">
+                    {t("tenantAdmin.landing.drawer.header.logoHint")}
+                  </p>
                 </div>
 
                 <div>
-                  <label className={labelClass}>Câu Slogan (Dưới tên công ty)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.header.sloganLabel")}</label>
                   <input
                     type="text"
                     value={config.header?.slogan || ""}
                     onChange={(e) => updateHeader({ slogan: e.target.value })}
-                    placeholder="Ví dụ: Cổng Tuyển Dụng Nhân Tài"
+                    placeholder={t("tenantAdmin.landing.drawer.header.sloganPlaceholder")}
                     className={inputClass}
                   />
                 </div>
@@ -166,9 +191,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "theme" && (
               <div className="space-y-5">
                 <div>
-                  <label className={labelClass}>Màu Chủ Đạo Thương Hiệu (Brand Palette)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.theme.brandPaletteLabel")}</label>
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {COLOR_PRESETS.map((p) => (
+                    {colorPresets.map((p) => (
                       <button
                         key={p.hex}
                         type="button"
@@ -180,14 +205,16 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                         }`}
                       >
                         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: p.hex }} />
-                        <span>{p.name.split(" ")[0]}</span>
+                        <span>{p.shortName}</span>
                       </button>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <span className="text-[11px] text-slate-500 mb-1 block">Mã màu HEX (Primary):</span>
+                      <span className="text-[11px] text-slate-500 mb-1 block">
+                        {t("tenantAdmin.landing.drawer.theme.primaryHexLabel")}
+                      </span>
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
@@ -205,7 +232,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     </div>
 
                     <div>
-                      <span className="text-[11px] text-slate-500 mb-1 block">Màu phụ (Secondary):</span>
+                      <span className="text-[11px] text-slate-500 mb-1 block">
+                        {t("tenantAdmin.landing.drawer.theme.secondaryHexLabel")}
+                      </span>
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
@@ -225,13 +254,13 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Bộ Font Chữ Hiển Thị (Font Family)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.theme.fontFamilyLabel")}</label>
                   <select
                     value={config.theme.fontFamily}
                     onChange={(e) => updateTheme({ fontFamily: e.target.value })}
                     className={inputClass}
                   >
-                    {FONT_OPTIONS.map((f) => (
+                    {fontOptions.map((f) => (
                       <option key={f.value} value={f.value}>
                         {f.label}
                       </option>
@@ -240,9 +269,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Bo Góc Thẻ (Border Radius)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.theme.borderRadiusLabel")}</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {BORDER_RADIUS_OPTIONS.map((opt) => (
+                    {borderRadiusOptions.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
@@ -265,18 +294,18 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "hero" && (
               <div className="space-y-4">
                 <div>
-                  <label className={labelClass}>Huy Hiệu (Badge Slogan)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.badgeLabel")}</label>
                   <input
                     type="text"
                     value={config.hero.badgeText}
                     onChange={(e) => updateHero({ badgeText: e.target.value })}
-                    placeholder="Ví dụ: Đổi Mới Sáng Tạo & Đột Phá"
+                    placeholder={t("tenantAdmin.landing.drawer.hero.badgePlaceholder")}
                     className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className={labelClass}>Tiêu Đề Chính (Headline)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.titleLabel")}</label>
                   <input
                     type="text"
                     value={config.hero.title}
@@ -286,7 +315,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Từ Khóa Highlight Gradient</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.highlightLabel")}</label>
                   <input
                     type="text"
                     value={config.hero.highlightWords}
@@ -296,7 +325,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Đoạn Giới Thiệu Ngắn (Subtitle)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.subtitleLabel")}</label>
                   <textarea
                     rows={3}
                     value={config.hero.subtitle}
@@ -307,10 +336,16 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
                 <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">Ảnh Banner Hero</label>
+                    <label className="text-xs font-bold text-slate-800">
+                      {t("tenantAdmin.landing.drawer.hero.bannerImageLabel")}
+                    </label>
                     <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-brand-primary text-white text-[11px] font-semibold hover:opacity-95">
                       <Upload className="w-3 h-3" />
-                      <span>{isUploading ? "Đang tải..." : "Tải ảnh lên"}</span>
+                      <span>
+                        {isUploading
+                          ? t("tenantAdmin.landing.drawer.hero.uploading")
+                          : t("tenantAdmin.landing.drawer.hero.uploadImage")}
+                      </span>
                       <input
                         type="file"
                         accept="image/*"
@@ -325,19 +360,19 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     type="text"
                     value={config.hero.bannerImageUrl}
                     onChange={(e) => updateHero({ bannerImageUrl: e.target.value })}
-                    placeholder="https://example.com/banner.png hoặc tải ảnh từ máy tính"
+                    placeholder={t("tenantAdmin.landing.drawer.hero.bannerPlaceholder")}
                     className={inputClass}
                   />
 
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className={labelClass}>Chiều Cao Banner</label>
+                      <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.bannerHeightLabel")}</label>
                       <select
                         value={config.hero.bannerHeight || "540px"}
                         onChange={(e) => updateHero({ bannerHeight: e.target.value })}
                         className={inputClass}
                       >
-                        {BANNER_HEIGHT_OPTIONS.map((opt) => (
+                        {bannerHeightOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
@@ -346,7 +381,11 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     </div>
 
                     <div>
-                      <label className={labelClass}>Độ Mờ Phủ ({config.hero.overlayOpacity ?? 70}%)</label>
+                      <label className={labelClass}>
+                        {t("tenantAdmin.landing.drawer.hero.overlayOpacityLabel", {
+                          opacity: config.hero.overlayOpacity ?? 70,
+                        })}
+                      </label>
                       <input
                         type="range"
                         min={0}
@@ -362,7 +401,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Nút Kêu Gọi Chính</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.primaryCtaLabel")}</label>
                     <input
                       type="text"
                       value={config.hero.primaryCtaText}
@@ -371,7 +410,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Nút Kêu Gọi Phụ</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.hero.secondaryCtaLabel")}</label>
                     <input
                       type="text"
                       value={config.hero.secondaryCtaText}
@@ -389,7 +428,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                       onChange={(e) => updateHero({ showSearchBar: e.target.checked })}
                       className="rounded text-brand-primary focus:ring-brand-primary"
                     />
-                    <span>Hiện thanh tìm việc làm trong Banner</span>
+                    <span>{t("tenantAdmin.landing.drawer.hero.showSearchBarLabel")}</span>
                   </label>
                 </div>
               </div>
@@ -399,7 +438,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "about" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <label className="font-bold text-slate-900">Bật hiển thị khối Văn Hóa</label>
+                  <label className="font-bold text-slate-900">{t("tenantAdmin.landing.drawer.about.enableLabel")}</label>
                   <input
                     type="checkbox"
                     checked={config.about.enabled}
@@ -409,7 +448,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Tiêu Đề Khối</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.about.titleLabel")}</label>
                   <input
                     type="text"
                     value={config.about.title}
@@ -419,7 +458,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Đoạn Giới Thiệu Văn Hóa</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.about.descriptionLabel")}</label>
                   <textarea
                     rows={4}
                     value={config.about.description}
@@ -430,10 +469,12 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
                 <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">Ảnh Hoạt Động / Văn Hóa</label>
+                    <label className="text-xs font-bold text-slate-800">
+                      {t("tenantAdmin.landing.drawer.about.imageLabel")}
+                    </label>
                     <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-brand-primary text-white text-[11px] font-semibold">
                       <Upload className="w-3 h-3" />
-                      <span>Tải ảnh</span>
+                      <span>{t("tenantAdmin.landing.drawer.about.uploadImage")}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -446,7 +487,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     type="text"
                     value={config.about.cultureImageUrl}
                     onChange={(e) => updateAbout({ cultureImageUrl: e.target.value })}
-                    placeholder="https://example.com/culture.png hoặc tải ảnh từ máy tính"
+                    placeholder={t("tenantAdmin.landing.drawer.about.imagePlaceholder")}
                     className={inputClass}
                   />
                 </div>
@@ -455,18 +496,27 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 <div className="pt-2 border-t border-slate-100 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800">
-                      Số Liệu Nổi Bật ({config.about.stats?.length || 0})
+                      {t("tenantAdmin.landing.drawer.about.statsHeading", {
+                        count: config.about.stats?.length || 0,
+                      })}
                     </label>
                     <button
                       type="button"
                       onClick={() => {
-                        const next = [...(config.about.stats || []), { icon: "Users", value: "100+", label: "Chỉ số mới" }];
+                        const next = [
+                          ...(config.about.stats || []),
+                          {
+                            icon: "Users",
+                            value: "100+",
+                            label: t("tenantAdmin.landing.drawer.about.defaultStatLabel"),
+                          },
+                        ];
                         updateAbout({ stats: next });
                       }}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:underline"
                     >
                       <Plus className="w-3 h-3" />
-                      <span>Thêm số liệu</span>
+                      <span>{t("tenantAdmin.landing.drawer.about.addStat")}</span>
                     </button>
                   </div>
 
@@ -474,7 +524,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     {(config.about.stats || []).map((st, idx) => (
                       <div key={idx} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2 relative group">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">Số liệu #{idx + 1}</span>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            {t("tenantAdmin.landing.drawer.about.statItemTitle", { index: idx + 1 })}
+                          </span>
                           <button
                             type="button"
                             onClick={() => {
@@ -482,14 +534,16 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                               updateAbout({ stats: next });
                             }}
                             className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                            title="Xóa số liệu"
+                            title={t("tenantAdmin.landing.drawer.about.deleteStatTitle")}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <label className="text-[10px] text-slate-500 block mb-0.5">Icon</label>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">
+                              {t("tenantAdmin.landing.drawer.about.iconLabel")}
+                            </label>
                             <select
                               value={st.icon}
                               onChange={(e) => {
@@ -507,7 +561,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] text-slate-500 block mb-0.5">Giá trị</label>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">
+                              {t("tenantAdmin.landing.drawer.about.valueLabel")}
+                            </label>
                             <input
                               type="text"
                               value={st.value}
@@ -521,7 +577,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] text-slate-500 block mb-0.5">Nhãn mô tả</label>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">
+                              {t("tenantAdmin.landing.drawer.about.labelField")}
+                            </label>
                             <input
                               type="text"
                               value={st.label}
@@ -530,7 +588,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                                 next[idx] = { ...next[idx], label: e.target.value };
                                 updateAbout({ stats: next });
                               }}
-                              placeholder="Kỹ Sư Phần Mềm"
+                              placeholder={t("tenantAdmin.landing.drawer.about.labelPlaceholder")}
                               className={inputClass}
                             />
                           </div>
@@ -546,7 +604,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "benefits" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <label className="font-bold text-slate-900">Bật hiển thị khối Phúc Lợi</label>
+                  <label className="font-bold text-slate-900">{t("tenantAdmin.landing.drawer.benefits.enableLabel")}</label>
                   <input
                     type="checkbox"
                     checked={config.benefits.enabled}
@@ -556,7 +614,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Tiêu Đề Khối</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.benefits.titleLabel")}</label>
                   <input
                     type="text"
                     value={config.benefits.title}
@@ -566,7 +624,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Mô Tả Phụ (Subtitle)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.benefits.subtitleLabel")}</label>
                   <input
                     type="text"
                     value={config.benefits.subtitle}
@@ -579,21 +637,27 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 <div className="pt-2 border-t border-slate-100 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800">
-                      Chế Độ Đãi Ngộ ({config.benefits.items?.length || 0})
+                      {t("tenantAdmin.landing.drawer.benefits.itemsHeading", {
+                        count: config.benefits.items?.length || 0,
+                      })}
                     </label>
                     <button
                       type="button"
                       onClick={() => {
                         const next = [
                           ...(config.benefits.items || []),
-                          { icon: "HeartHandshake", title: "Chế Độ Đãi Ngộ Mới", description: "Mô tả chi tiết quyền lợi dành cho nhân viên..." },
+                          {
+                            icon: "HeartHandshake",
+                            title: t("tenantAdmin.landing.drawer.benefits.defaultItemTitle"),
+                            description: t("tenantAdmin.landing.drawer.benefits.defaultItemDesc"),
+                          },
                         ];
                         updateBenefits({ items: next });
                       }}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:underline"
                     >
                       <Plus className="w-3 h-3" />
-                      <span>Thêm đãi ngộ</span>
+                      <span>{t("tenantAdmin.landing.drawer.benefits.addItem")}</span>
                     </button>
                   </div>
 
@@ -601,7 +665,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     {(config.benefits.items || []).map((b, idx) => (
                       <div key={idx} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2 relative group">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">Thẻ #{idx + 1}</span>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            {t("tenantAdmin.landing.drawer.benefits.itemTitle", { index: idx + 1 })}
+                          </span>
                           <button
                             type="button"
                             onClick={() => {
@@ -609,14 +675,16 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                               updateBenefits({ items: next });
                             }}
                             className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                            title="Xóa thẻ đãi ngộ"
+                            title={t("tenantAdmin.landing.drawer.benefits.deleteItemTitle")}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <label className="text-[10px] text-slate-500 block mb-0.5">Icon</label>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">
+                              {t("tenantAdmin.landing.drawer.benefits.iconLabel")}
+                            </label>
                             <select
                               value={b.icon}
                               onChange={(e) => {
@@ -634,7 +702,9 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                             </select>
                           </div>
                           <div className="col-span-2">
-                            <label className="text-[10px] text-slate-500 block mb-0.5">Tiêu đề đãi ngộ</label>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">
+                              {t("tenantAdmin.landing.drawer.benefits.cardTitleLabel")}
+                            </label>
                             <input
                               type="text"
                               value={b.title}
@@ -643,13 +713,15 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                                 next[idx] = { ...next[idx], title: e.target.value };
                                 updateBenefits({ items: next });
                               }}
-                              placeholder="Tiêu đề đãi ngộ"
+                              placeholder={t("tenantAdmin.landing.drawer.benefits.cardTitlePlaceholder")}
                               className={inputClass}
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Mô tả quyền lợi</label>
+                          <label className="text-[10px] text-slate-500 block mb-0.5">
+                            {t("tenantAdmin.landing.drawer.benefits.cardDescLabel")}
+                          </label>
                           <textarea
                             rows={2}
                             value={b.description}
@@ -658,7 +730,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                               next[idx] = { ...next[idx], description: e.target.value };
                               updateBenefits({ items: next });
                             }}
-                            placeholder="Mô tả chi tiết"
+                            placeholder={t("tenantAdmin.landing.drawer.benefits.cardDescPlaceholder")}
                             className={inputClass}
                           />
                         </div>
@@ -673,7 +745,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "techStack" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <label className="font-bold text-slate-900">Bật hiển thị khối Tech Stack</label>
+                  <label className="font-bold text-slate-900">{t("tenantAdmin.landing.drawer.techStack.enableLabel")}</label>
                   <input
                     type="checkbox"
                     checked={config.techStack.enabled}
@@ -683,7 +755,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Tiêu Đề Khối</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.techStack.titleLabel")}</label>
                   <input
                     type="text"
                     value={config.techStack.title}
@@ -693,7 +765,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Mô Tả Phụ</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.techStack.subtitleLabel")}</label>
                   <input
                     type="text"
                     value={config.techStack.subtitle}
@@ -703,7 +775,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Gắn Thẻ Công Nghệ Mới</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.techStack.addTagLabel")}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -719,7 +791,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                           setNewTagInput("");
                         }
                       }}
-                      placeholder="Ví dụ: Java 21, React..."
+                      placeholder={t("tenantAdmin.landing.drawer.techStack.addTagPlaceholder")}
                       className={inputClass}
                     />
                     <Button
@@ -735,7 +807,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                         }
                       }}
                     >
-                      Thêm
+                      {t("tenantAdmin.landing.drawer.techStack.addTagButton")}
                     </Button>
                   </div>
                 </div>
@@ -746,7 +818,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "testimonials" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <label className="font-bold text-slate-900">Bật hiển thị khối Đánh Giá</label>
+                  <label className="font-bold text-slate-900">{t("tenantAdmin.landing.drawer.testimonials.enableLabel")}</label>
                   <input
                     type="checkbox"
                     checked={config.testimonials.enabled}
@@ -756,7 +828,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Tiêu Đề Khối</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.testimonials.titleLabel")}</label>
                   <input
                     type="text"
                     value={config.testimonials.title}
@@ -772,22 +844,22 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Tiêu Đề Cột 1</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.contactTitleLabel")}</label>
                     <input
                       type="text"
                       value={config.footer.contactTitle || ""}
                       onChange={(e) => updateFooter({ contactTitle: e.target.value })}
-                      placeholder="Liên Hệ Tuyển Dụng"
+                      placeholder={t("tenantAdmin.landing.drawer.footer.contactTitlePlaceholder")}
                       className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Tiêu Đề Cột 2</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.socialTitleLabel")}</label>
                     <input
                       type="text"
                       value={config.footer.socialTitle || ""}
                       onChange={(e) => updateFooter({ socialTitle: e.target.value })}
-                      placeholder="Mạng Xã Hội"
+                      placeholder={t("tenantAdmin.landing.drawer.footer.socialTitlePlaceholder")}
                       className={inputClass}
                     />
                   </div>
@@ -795,7 +867,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Email Tuyển Dụng</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.emailLabel")}</label>
                     <input
                       type="email"
                       value={config.footer.contactEmail || ""}
@@ -804,7 +876,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Hotline</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.hotlineLabel")}</label>
                     <input
                       type="text"
                       value={config.footer.contactPhone || ""}
@@ -815,7 +887,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Địa Chỉ Trụ Sở</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.addressLabel")}</label>
                   <input
                     type="text"
                     value={config.footer.address || ""}
@@ -826,7 +898,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>LinkedIn URL</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.linkedinLabel")}</label>
                     <input
                       type="url"
                       value={config.footer.linkedinUrl || ""}
@@ -835,7 +907,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Facebook URL</label>
+                    <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.facebookLabel")}</label>
                     <input
                       type="url"
                       value={config.footer.facebookUrl || ""}
@@ -846,7 +918,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Dòng Bản Quyền</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.copyrightLabel")}</label>
                   <input
                     type="text"
                     value={config.footer.copyrightText || ""}
@@ -856,23 +928,23 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Dòng Phụ Chú Cuối Cùng</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.bottomTextLabel")}</label>
                   <input
                     type="text"
                     value={config.footer.bottomText || ""}
                     onChange={(e) => updateFooter({ bottomText: e.target.value })}
-                    placeholder="Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant"
+                    placeholder={t("tenantAdmin.landing.drawer.footer.bottomTextPlaceholder")}
                     className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className={labelClass}>Mô Tả Chân Trang (Dưới Logo)</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.footer.descriptionLabel")}</label>
                   <textarea
                     rows={2}
                     value={config.footer.description || ""}
                     onChange={(e) => updateFooter({ description: e.target.value })}
-                    placeholder="Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise."
+                    placeholder={t("tenantAdmin.landing.drawer.footer.descriptionPlaceholder")}
                     className={inputClass}
                   />
                 </div>
@@ -883,7 +955,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
             {activeTab === "seo" && (
               <div className="space-y-4">
                 <div>
-                  <label className={labelClass}>Meta Title</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.seo.metaTitleLabel")}</label>
                   <input
                     type="text"
                     value={config.seo.metaTitle}
@@ -892,7 +964,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Meta Description</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.seo.metaDescLabel")}</label>
                   <textarea
                     rows={3}
                     value={config.seo.metaDescription}
@@ -901,7 +973,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>OG Share Image URL</label>
+                  <label className={labelClass}>{t("tenantAdmin.landing.drawer.seo.ogImageLabel")}</label>
                   <input
                     type="text"
                     value={config.seo.ogImageUrl || ""}

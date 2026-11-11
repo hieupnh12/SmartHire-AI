@@ -26,14 +26,14 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
-import { applicationStatusLabel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { formatDate, formatNumber, useLocale, useT, type TranslateFn } from "@/i18n";
 import {
   ApplicantAvatar,
   ApplicantStatusPill,
   SOURCES,
-  SOURCE_LABEL,
   STATUS_TABS,
   formatApplicantDateTime,
+  getApplicantStatusLabel,
   sourceLabel,
   splitApplicantTags,
 } from "@/features/tenant/recruiter/applicants/components/applicantUi";
@@ -63,6 +63,8 @@ function getPaginationItems(current: number, total: number): (number | "ellipsis
 }
 
 export function ApplicantsPage() {
+  const t = useT();
+  const locale = useLocale();
   const token = useAuthStore((s) => s.accessToken);
   const { id: routeJobId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -204,7 +206,7 @@ export function ApplicantsPage() {
       <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--color-border-default)] bg-white p-2.5">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <label className="relative min-w-0 flex-1">
-            <span className="sr-only">Tìm ứng viên</span>
+            <span className="sr-only">{t("recruiter.ops.applicants.list.searchSr")}</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
             <input
               value={q}
@@ -226,14 +228,14 @@ export function ApplicantsPage() {
                 else nextParams.delete("q");
                 resetPageToFirst(nextParams);
               }}
-              placeholder="Tìm theo tên, email, tag hoặc mã giới thiệu..."
+              placeholder={t("recruiter.ops.applicants.list.searchPlaceholder")}
               className="h-9 w-full rounded-lg bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
 
           <div className="flex flex-wrap items-center gap-2">
             <select
-              aria-label="Lọc theo nguồn"
+              aria-label={t("recruiter.ops.applicants.list.sourceFilterAria")}
               value={source}
               onChange={(e) => {
                 const val = e.target.value;
@@ -245,8 +247,8 @@ export function ApplicantsPage() {
               }}
               className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
             >
-              <option value="">Tất cả nguồn</option>
-              {SOURCES.map((item) => <option key={item} value={item}>{SOURCE_LABEL[item]}</option>)}
+              <option value="">{t("recruiter.ops.applicants.list.allSources")}</option>
+              {SOURCES.map((item) => <option key={item} value={item}>{sourceLabel(item, t)}</option>)}
             </select>
 
             <button
@@ -268,7 +270,7 @@ export function ApplicantsPage() {
               )}
             >
               <Archive className="size-3.5" aria-hidden="true" />
-              Đã lưu trữ
+              {t("recruiter.ops.applicants.list.archivedBtn")}
             </button>
 
             {jobId != null && (
@@ -277,7 +279,7 @@ export function ApplicantsPage() {
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary shadow-2xs"
               >
                 <Users className="size-3.5" aria-hidden="true" />
-                Bảng quy trình
+                {t("recruiter.ops.applicants.list.pipelineBoardBtn")}
               </Link>
             )}
 
@@ -286,7 +288,8 @@ export function ApplicantsPage() {
               <button
                 type="button"
                 onClick={() => setConfigOpen((v) => !v)}
-                title="Thông tin cấu hình lọc CV & Hạn nộp"
+                title={t("recruiter.ops.applicants.list.configTooltip")}
+                aria-label={t("recruiter.ops.applicants.list.configTooltip")}
                 className={cn(
                   "grid size-9 place-items-center rounded-lg border transition-colors",
                   configOpen
@@ -302,11 +305,12 @@ export function ApplicantsPage() {
                   <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-2 mb-2.5">
                     <span className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1.5">
                       <Settings className="size-3.5 text-brand-primary" />
-                      Cấu hình & Hạn nộp
+                      {t("recruiter.ops.applicants.list.configTitle")}
                     </span>
                     <button
                       type="button"
                       onClick={() => setConfigOpen(false)}
+                      aria-label={t("recruiter.ops.common.close")}
                       className="text-[var(--color-outline)] hover:text-[var(--color-on-surface)] text-xs font-bold"
                     >
                       ✕
@@ -316,24 +320,28 @@ export function ApplicantsPage() {
                     <div>
                       <p className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1">
                         {jobInfo?.screeningMode === "AUTO" ? <Bot className="size-3 text-brand-primary" /> : <UserCheck className="size-3 text-slate-600" />}
-                        Chế độ lọc CV:
+                        {t("recruiter.ops.applicants.list.screeningModeLabel")}
                         <span className="text-brand-primary font-bold">
-                          {jobInfo?.screeningMode === "AUTO" ? "Tự động" : "Thủ công"}
+                          {jobInfo?.screeningMode === "AUTO"
+                            ? t("recruiter.ops.common.screeningAuto")
+                            : t("recruiter.ops.common.screeningManual")}
                         </span>
                       </p>
                       <p className="text-[var(--color-on-surface-variant)] mt-0.5">
                         {jobInfo?.screeningMode === "AUTO"
-                          ? "Hệ thống tự động chấm điểm và quyết định qua vòng CV."
-                          : "Recruiter tự xem xét và quyết định chuyển vòng."}
+                          ? t("recruiter.ops.applicants.list.screeningAutoDesc")
+                          : t("recruiter.ops.applicants.list.screeningManualDesc")}
                       </p>
                     </div>
                     <div className="border-t border-[var(--color-border-default)]/60 pt-2">
                       <p className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1">
                         <CalendarClock className="size-3 text-amber-600" />
-                        Hạn nộp hồ sơ:
+                        {t("recruiter.ops.applicants.list.deadlineLabel")}
                       </p>
                       <p className="text-[var(--color-on-surface-variant)] mt-0.5">
-                        {jobInfo?.deadline ? formatApplicantDateTime(jobInfo.deadline) : "Không giới hạn hạn nộp"}
+                        {jobInfo?.deadline
+                          ? formatApplicantDateTime(jobInfo.deadline, locale)
+                          : t("recruiter.ops.applicants.list.noDeadlineLimit")}
                       </p>
                     </div>
                   </div>
@@ -344,7 +352,7 @@ export function ApplicantsPage() {
         </div>
 
         {/* Tab list with status counts */}
-        <div role="tablist" aria-label="Lọc theo trạng thái" className="flex flex-wrap gap-1 rounded-lg bg-[var(--color-surface-alt)] p-1">
+        <div role="tablist" aria-label={t("recruiter.ops.applicants.list.statusTabsAria")} className="flex flex-wrap gap-1 rounded-lg bg-[var(--color-surface-alt)] p-1">
           {STATUS_TABS.map((value) => {
             const active = status === value;
             const count = statusCounts[value] ?? (value === "" ? (countQuery.data?.data?.total ?? total) : 0);
@@ -368,7 +376,7 @@ export function ApplicantsPage() {
                     : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
                 )}
               >
-                <span>{value ? applicationStatusLabel(value) : "Tất cả"}</span>
+                <span>{value ? getApplicantStatusLabel(value, t) : t("recruiter.ops.applicants.list.allStatuses")}</span>
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.2 text-[10px] font-bold tabular-nums",
@@ -377,7 +385,7 @@ export function ApplicantsPage() {
                       : "bg-black/5 text-[var(--color-on-surface-variant)]",
                   )}
                 >
-                  {count}
+                  {formatNumber(count, {}, locale)}
                 </span>
               </button>
             );
@@ -388,17 +396,17 @@ export function ApplicantsPage() {
       {list.isError && (
         <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800">
           <AlertCircle className="size-4 shrink-0 text-red-600" aria-hidden="true" />
-          <p className="flex-1 text-sm">{getApiErrorMessage(list.error, "Chưa tải được danh sách ứng viên.")}</p>
+          <p className="flex-1 text-sm">{getApiErrorMessage(list.error, t("recruiter.ops.applicants.list.loadError"))}</p>
           <button type="button" onClick={() => void list.refetch()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-100">
             <RefreshCw className="size-3.5" aria-hidden="true" />
-            Thử lại
+            {t("recruiter.ops.common.retry")}
           </button>
         </div>
       )}
 
       <div className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-sm">
         {list.isPending && !data && (
-          <div className="p-6"><LoadingState label="Đang tải danh sách ứng viên"><TableSkeleton /></LoadingState></div>
+          <div className="p-6"><LoadingState label={t("recruiter.ops.applicants.list.loadingList")}><TableSkeleton /></LoadingState></div>
         )}
 
         {data && rows.length === 0 && (
@@ -406,9 +414,11 @@ export function ApplicantsPage() {
             <span className="grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary">
               {filtered ? <Search className="size-6" aria-hidden="true" /> : <Inbox className="size-6" aria-hidden="true" />}
             </span>
-            <h2 className="mt-4 text-lg font-semibold">{filtered ? "Không có hồ sơ phù hợp" : "Chưa có ứng viên nào"}</h2>
+            <h2 className="mt-4 text-lg font-semibold">
+              {filtered ? t("recruiter.ops.applicants.list.emptyFilteredTitle") : t("recruiter.ops.applicants.list.emptyAllTitle")}
+            </h2>
             <p className="mt-1 max-w-md text-sm text-[var(--color-on-surface-variant)]">
-              {filtered ? "Thử đổi từ khóa, trạng thái, nguồn hoặc bỏ lọc hồ sơ lưu trữ." : "Khi ứng viên nộp CV vào tin tuyển dụng, hồ sơ sẽ xuất hiện tại đây."}
+              {filtered ? t("recruiter.ops.applicants.list.emptyFilteredDesc") : t("recruiter.ops.applicants.list.emptyAllDesc")}
             </p>
           </div>
         )}
@@ -418,12 +428,12 @@ export function ApplicantsPage() {
             <table className={cn("w-full min-w-[900px] text-left text-sm", list.isFetching && "opacity-70 transition-opacity")}>
               <thead>
                 <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-                  <th scope="col" className="px-5">Ứng viên</th>
-                  <th scope="col" className="px-4">Trạng thái</th>
-                  <th scope="col" className="px-4">Nguồn</th>
-                  <th scope="col" className="px-4">Phụ trách</th>
-                  <th scope="col" className="px-4">Ngày nộp</th>
-                  <th scope="col" className="px-5 text-right"><span className="sr-only">Thao tác</span></th>
+                  <th scope="col" className="px-5">{t("recruiter.ops.applicants.list.colApplicant")}</th>
+                  <th scope="col" className="px-4">{t("recruiter.ops.applicants.list.colStatus")}</th>
+                  <th scope="col" className="px-4">{t("recruiter.ops.applicants.list.colSource")}</th>
+                  <th scope="col" className="px-4">{t("recruiter.ops.applicants.list.colAssignee")}</th>
+                  <th scope="col" className="px-4">{t("recruiter.ops.applicants.list.colAppliedAt")}</th>
+                  <th scope="col" className="px-5 text-right"><span className="sr-only">{t("recruiter.ops.common.actionsSrOnly")}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
@@ -440,14 +450,18 @@ export function ApplicantsPage() {
             {/* Nhóm Thông tin Dữ liệu (Left) */}
             <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
               <p>
-                Hiển thị <strong className="font-semibold text-[var(--color-on-surface)]">{from}–{to}</strong> trên <strong className="font-semibold text-[var(--color-on-surface)]">{total}</strong> hồ sơ
+                {t("recruiter.ops.applicants.list.paginationPrefix")}{" "}
+                <strong className="font-semibold text-[var(--color-on-surface)]">{from}–{to}</strong>{" "}
+                {t("recruiter.ops.applicants.list.paginationMiddle")}{" "}
+                <strong className="font-semibold text-[var(--color-on-surface)]">{formatNumber(total, {}, locale)}</strong>{" "}
+                {t("recruiter.ops.applicants.list.paginationSuffix")}
               </p>
               <span className="text-slate-400">·</span>
-              <span className="tabular-nums">Trang {safePage + 1} / {totalPages}</span>
+              <span className="tabular-nums">{t("recruiter.ops.applicants.list.paginationPage", { page: safePage + 1, total: totalPages })}</span>
               {list.isFetching && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
                   <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                  <span className="hidden sm:inline">Đang tải…</span>
+                  <span className="hidden sm:inline">{t("recruiter.ops.common.loading")}</span>
                 </span>
               )}
             </div>
@@ -455,9 +469,9 @@ export function ApplicantsPage() {
             {/* Nhóm Chọn số bản ghi / trang (Center) */}
             <div className="flex items-center justify-start lg:justify-center">
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]">
-                <span>Hiển thị</span>
+                <span>{t("recruiter.ops.applicants.list.showLabel")}</span>
                 <select
-                  aria-label="Số hồ sơ mỗi trang"
+                  aria-label={t("recruiter.ops.applicants.list.pageSizeAria")}
                   value={pageSize}
                   onChange={(e) => {
                     const nextSize = Number(e.target.value);
@@ -467,7 +481,7 @@ export function ApplicantsPage() {
                 >
                   {PAGE_SIZE_OPTIONS.map((size) => (
                     <option key={size} value={size}>
-                      {size} / trang
+                      {t("recruiter.ops.applicants.list.perPageOption", { size })}
                     </option>
                   ))}
                 </select>
@@ -476,12 +490,12 @@ export function ApplicantsPage() {
 
             {/* Nhóm Điều hướng & Nhảy trang (Right) */}
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              <nav className="flex items-center gap-1" aria-label="Phân trang danh sách hồ sơ">
+              <nav className="flex items-center gap-1" aria-label={t("recruiter.ops.applicants.list.paginationAria")}>
                 {/* First Page [|<] */}
                 <button
                   type="button"
-                  aria-label="Về trang đầu"
-                  title="Về trang đầu (Trang 1)"
+                  aria-label={t("recruiter.ops.applicants.list.firstPageAria")}
+                  title={t("recruiter.ops.applicants.list.firstPageTitle")}
                   disabled={safePage === 0}
                   onClick={() => goToPage(0)}
                   className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -492,8 +506,8 @@ export function ApplicantsPage() {
                 {/* Previous [<] */}
                 <button
                   type="button"
-                  aria-label="Trang trước"
-                  title="Trang trước"
+                  aria-label={t("recruiter.ops.applicants.list.prevPageAria")}
+                  title={t("recruiter.ops.applicants.list.prevPageAria")}
                   disabled={safePage === 0}
                   onClick={() => goToPage(safePage - 1)}
                   className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -521,7 +535,7 @@ export function ApplicantsPage() {
                       <button
                         key={item}
                         type="button"
-                        aria-label={`Trang ${item}`}
+                        aria-label={t("recruiter.ops.applicants.list.pageItemAria", { page: item })}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => goToPage(item - 1)}
                         className={cn(
@@ -540,8 +554,8 @@ export function ApplicantsPage() {
                 {/* Next [>] */}
                 <button
                   type="button"
-                  aria-label="Trang sau"
-                  title="Trang sau"
+                  aria-label={t("recruiter.ops.applicants.list.nextPageAria")}
+                  title={t("recruiter.ops.applicants.list.nextPageAria")}
                   disabled={safePage >= totalPages - 1}
                   onClick={() => goToPage(safePage + 1)}
                   className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -552,8 +566,8 @@ export function ApplicantsPage() {
                 {/* Last Page [>|] */}
                 <button
                   type="button"
-                  aria-label="Đến trang cuối"
-                  title={`Đến trang cuối (Trang ${totalPages})`}
+                  aria-label={t("recruiter.ops.applicants.list.lastPageAria")}
+                  title={t("recruiter.ops.applicants.list.lastPageTitle", { total: totalPages })}
                   disabled={safePage >= totalPages - 1}
                   onClick={() => goToPage(totalPages - 1)}
                   className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -575,7 +589,7 @@ export function ApplicantsPage() {
                 }}
                 className="flex items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]"
               >
-                <label htmlFor="jump-page-input" className="whitespace-nowrap">Đi đến:</label>
+                <label htmlFor="jump-page-input" className="whitespace-nowrap">{t("recruiter.ops.applicants.list.jumpToLabel")}</label>
                 <input
                   id="jump-page-input"
                   type="number"
@@ -585,15 +599,15 @@ export function ApplicantsPage() {
                   value={jumpVal}
                   onChange={(e) => setJumpVal(e.target.value)}
                   className="h-8 w-11 rounded-lg border border-[var(--color-border-default)] bg-white px-1 text-center text-xs font-semibold text-[var(--color-on-surface)] shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  title={`Nhập trang từ 1 đến ${totalPages}`}
+                  title={t("recruiter.ops.applicants.list.jumpPageTitle", { total: totalPages })}
                 />
-                <span className="text-xs">Trang</span>
+                <span className="text-xs">{t("recruiter.ops.applicants.list.jumpUnit")}</span>
                 <button
                   type="submit"
                   disabled={!jumpVal || isNaN(Number(jumpVal)) || Number(jumpVal) < 1 || Number(jumpVal) > totalPages}
                   className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-semibold text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Đi
+                  {t("recruiter.ops.applicants.list.jumpBtn")}
                 </button>
               </form>
             </div>
@@ -605,6 +619,8 @@ export function ApplicantsPage() {
 }
 
 function ApplicantRow({ row, onOpen }: { row: ApplicationSummary; onOpen: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   const tags = splitApplicantTags(row.tags).slice(0, 3);
   return (
     <tr
@@ -617,8 +633,16 @@ function ApplicantRow({ row, onOpen }: { row: ApplicationSummary; onOpen: () => 
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-1.5 font-semibold leading-5">
               {row.candidateName}
-              {row.duplicate && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Trùng hồ sơ</span>}
-              {row.archived && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Đã lưu trữ</span>}
+              {row.duplicate && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                  {t("recruiter.ops.applicants.list.duplicateBadge")}
+                </span>
+              )}
+              {row.archived && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                  {t("recruiter.ops.applicants.list.archivedBadge")}
+                </span>
+              )}
             </p>
             <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{row.candidateEmail}</p>
             {tags.length > 0 && (
@@ -633,8 +657,12 @@ function ApplicantRow({ row, onOpen }: { row: ApplicationSummary; onOpen: () => 
       </td>
       <td className="px-4 py-3.5"><ApplicantStatusPill status={row.status} /></td>
       <td className="px-4 py-3.5">
-        <p>{sourceLabel(row.source)}</p>
-        {row.referralCode && <p className="text-xs text-[var(--color-on-surface-variant)]">Mã {row.referralCode}</p>}
+        <p>{sourceLabel(row.source, t)}</p>
+        {row.referralCode && (
+          <p className="text-xs text-[var(--color-on-surface-variant)]">
+            {t("recruiter.ops.applicants.list.referralCode", { code: row.referralCode })}
+          </p>
+        )}
       </td>
       <td className="px-4 py-3.5">
         {row.assigneeName ? (
@@ -643,21 +671,21 @@ function ApplicantRow({ row, onOpen }: { row: ApplicationSummary; onOpen: () => 
             <span className="truncate">{row.assigneeName}</span>
           </span>
         ) : (
-          <span className="text-xs text-[var(--color-outline)]">Chưa phân công</span>
+          <span className="text-xs text-[var(--color-outline)]">{t("recruiter.ops.common.unassigned")}</span>
         )}
       </td>
       <td className="px-4 py-3.5">
-        <p className="whitespace-nowrap">{new Date(row.createdAt).toLocaleDateString("vi-VN")}</p>
-        <p className="text-xs text-[var(--color-on-surface-variant)]">{relativeTime(row.createdAt)}</p>
+        <p className="whitespace-nowrap">{formatDate(row.createdAt, undefined, locale)}</p>
+        <p className="text-xs text-[var(--color-on-surface-variant)]">{relativeTime(row.createdAt, t)}</p>
       </td>
       <td className="px-5 py-3.5 text-right">
         <button
           type="button"
           onClick={(event) => { event.stopPropagation(); onOpen(); }}
-          aria-label={`Xem hồ sơ ${row.candidateName}`}
+          aria-label={t("recruiter.ops.applicants.list.viewProfileAria", { name: row.candidateName })}
           className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand-primary/10 px-3 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
         >
-          Xem hồ sơ
+          {t("recruiter.ops.applicants.list.viewProfileBtn")}
           <ArrowRight className="size-3.5" aria-hidden="true" />
         </button>
       </td>
@@ -665,13 +693,13 @@ function ApplicantRow({ row, onOpen }: { row: ApplicationSummary; onOpen: () => 
   );
 }
 
-function relativeTime(value: string) {
+function relativeTime(value: string, t: TranslateFn) {
   const minutes = Math.floor((Date.now() - new Date(value).getTime()) / 60_000);
-  if (minutes < 1) return "Vừa xong";
-  if (minutes < 60) return `${minutes} phút trước`;
+  if (minutes < 1) return t("recruiter.ops.applicants.list.relativeJustNow");
+  if (minutes < 60) return t("recruiter.ops.applicants.list.relativeMinutes", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return t("recruiter.ops.applicants.list.relativeHours", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} ngày trước`;
-  return `${Math.floor(days / 30)} tháng trước`;
+  if (days < 30) return t("recruiter.ops.applicants.list.relativeDays", { count: days });
+  return t("recruiter.ops.applicants.list.relativeMonths", { count: Math.floor(days / 30) });
 }

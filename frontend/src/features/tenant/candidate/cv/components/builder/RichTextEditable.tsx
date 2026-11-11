@@ -1,14 +1,15 @@
 import { useLayoutEffect, useRef, useState, type ClipboardEvent } from "react";
 import { Bold, Italic, List, ListOrdered } from "lucide-react";
+import { useT } from "@/i18n";
 import { sanitizeHtml } from "../../utils/sanitizeHtml";
 import { editableClass } from "./EditableText";
 import { useCvReadOnly } from "./CvReadOnlyContext";
 
 const commands = [
-  { command: "bold", icon: Bold, label: "In đậm" },
-  { command: "italic", icon: Italic, label: "In nghiêng" },
-  { command: "insertUnorderedList", icon: List, label: "Danh sách gạch đầu dòng" },
-  { command: "insertOrderedList", icon: ListOrdered, label: "Danh sách đánh số" },
+  { command: "bold", icon: Bold, labelKey: "candidate.cv.richText.bold" },
+  { command: "italic", icon: Italic, labelKey: "candidate.cv.richText.italic" },
+  { command: "insertUnorderedList", icon: List, labelKey: "candidate.cv.richText.unorderedList" },
+  { command: "insertOrderedList", icon: ListOrdered, labelKey: "candidate.cv.richText.orderedList" },
 ] as const;
 
 export function RichTextEditable({ value, onChange, placeholder, label, className = "" }: {
@@ -18,6 +19,7 @@ export function RichTextEditable({ value, onChange, placeholder, label, classNam
   label: string;
   className?: string;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
   const readOnly = useCvReadOnly();
@@ -43,23 +45,26 @@ export function RichTextEditable({ value, onChange, placeholder, label, classNam
   return (
     <div className="relative">
       {focused && (
-        <div role="toolbar" aria-label="Định dạng văn bản" className="cv-print-hidden absolute -top-9 left-0 z-20 flex gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow-md">
-          {commands.map(({ command, icon: Icon, label: commandLabel }) => (
-            <button
-              key={command}
-              type="button"
-              title={commandLabel}
-              aria-label={commandLabel}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                document.execCommand(command);
-                emit();
-              }}
-              className="grid size-7 place-items-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-[var(--color-primary)]"
-            >
-              <Icon className="size-3.5" aria-hidden="true" />
-            </button>
-          ))}
+        <div role="toolbar" aria-label={t("candidate.cv.richText.toolbarAria")} className="cv-print-hidden absolute -top-9 left-0 z-20 flex gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow-md">
+          {commands.map(({ command, icon: Icon, labelKey }) => {
+            const commandLabel = t(labelKey);
+            return (
+              <button
+                key={command}
+                type="button"
+                title={commandLabel}
+                aria-label={commandLabel}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  document.execCommand(command);
+                  emit();
+                }}
+                className="grid size-7 place-items-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-[var(--color-primary)]"
+              >
+                <Icon className="size-3.5" aria-hidden="true" />
+              </button>
+            );
+          })}
         </div>
       )}
       <div

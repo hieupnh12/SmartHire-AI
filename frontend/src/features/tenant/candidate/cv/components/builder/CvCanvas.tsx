@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Github, Globe, Linkedin, Mail, MapPin, Phone, Plus, Sparkles, X, type LucideIcon } from "lucide-react";
 import type { CvBuilderData, CvBuilderDetail, CvBuilderPersonalInfo, CvBuilderSection } from "@/api/types/cv";
+import { useT } from "@/i18n";
 import { cvTemplates, type CvLayout } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 import { useCvBuilderStore } from "../../stores/useCvBuilderStore";
 import { cvFonts, cvThemeStyle } from "../../constants/cvTheme";
 import { resolveAvatarFrame } from "../../constants/cvAvatar";
-import { cvFixedHeadings, cvFooter, sideSectionTypes } from "../../utils/createDefaultCv";
+import { cvDocByLanguage, cvFixedHeadings, cvFooter, sideSectionTypes } from "../../utils/createDefaultCv";
 import { PAGE_HEIGHT_MM, paginateCv } from "../../utils/paginateCv";
 import { AiSuggestDialog } from "./AiSuggestDialog";
 import { AvatarSlot, LogoSlot } from "./AvatarSlot";
@@ -22,44 +23,50 @@ const headings = {
   inverse: "mb-2 border-b border-white/40 pb-1 text-[12px] font-bold uppercase tracking-wider text-white",
 };
 
-const contactFields: Array<{ key: "email" | "phone" | "address" | "linkedin" | "github" | "website"; icon: LucideIcon; placeholder: string }> = [
-  { key: "email", icon: Mail, placeholder: "Email" },
-  { key: "phone", icon: Phone, placeholder: "Số điện thoại" },
-  { key: "address", icon: MapPin, placeholder: "Địa chỉ" },
-  { key: "linkedin", icon: Linkedin, placeholder: "linkedin.com/in/…" },
-  { key: "github", icon: Github, placeholder: "github.com/…" },
-  { key: "website", icon: Globe, placeholder: "Portfolio / Website" },
+const contactFields: Array<{ key: "email" | "phone" | "address" | "linkedin" | "github" | "website"; icon: LucideIcon; placeholderKey: string }> = [
+  { key: "email", icon: Mail, placeholderKey: "candidate.cv.canvas.contacts.email" },
+  { key: "phone", icon: Phone, placeholderKey: "candidate.cv.canvas.contacts.phone" },
+  { key: "address", icon: MapPin, placeholderKey: "candidate.cv.canvas.contacts.address" },
+  { key: "linkedin", icon: Linkedin, placeholderKey: "candidate.cv.canvas.contacts.linkedin" },
+  { key: "github", icon: Github, placeholderKey: "candidate.cv.canvas.contacts.github" },
+  { key: "website", icon: Globe, placeholderKey: "candidate.cv.canvas.contacts.website" },
 ];
 
 function Contacts({ info, vertical = false, className = "" }: { info: CvBuilderPersonalInfo; vertical?: boolean; className?: string }) {
+  const t = useT();
   const updatePersonalInfo = useCvBuilderStore((s) => s.updatePersonalInfo);
   return (
     <ul className={`flex text-[12px] ${vertical ? "flex-col gap-1.5" : "flex-wrap gap-x-4 gap-y-1"} ${className}`}>
-      {contactFields.map(({ key, icon: Icon, placeholder }) => (
-        <li key={key} data-cv-field={key} className={`flex items-center gap-1.5 ${info[key] ? "" : "cv-print-empty"}`}>
-          <Icon className="size-3.5 shrink-0 opacity-80" aria-hidden="true" />
-          <EditableText value={info[key] ?? ""} onChange={(value) => updatePersonalInfo({ [key]: value })} placeholder={placeholder} label={placeholder} className="break-all" />
-        </li>
-      ))}
+      {contactFields.map(({ key, icon: Icon, placeholderKey }) => {
+        const placeholder = t(placeholderKey);
+        return (
+          <li key={key} data-cv-field={key} className={`flex items-center gap-1.5 ${info[key] ? "" : "cv-print-empty"}`}>
+            <Icon className="size-3.5 shrink-0 opacity-80" aria-hidden="true" />
+            <EditableText value={info[key] ?? ""} onChange={(value) => updatePersonalInfo({ [key]: value })} placeholder={placeholder} label={placeholder} className="break-all" />
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
 function NameBlock({ info, nameClassName, titleClassName }: { info: CvBuilderPersonalInfo; nameClassName: string; titleClassName: string }) {
+  const t = useT();
   const updatePersonalInfo = useCvBuilderStore((s) => s.updatePersonalInfo);
   return (
     <div>
       <h1 data-cv-field="fullName" className={nameClassName}>
-        <EditableText value={info.fullName} onChange={(fullName) => updatePersonalInfo({ fullName })} placeholder="Họ và tên" label="Họ và tên" />
+        <EditableText value={info.fullName} onChange={(fullName) => updatePersonalInfo({ fullName })} placeholder={t("candidate.cv.canvas.fullName")} label={t("candidate.cv.canvas.fullName")} />
       </h1>
       <p className={titleClassName}>
-        <EditableText value={info.title} onChange={(title) => updatePersonalInfo({ title })} placeholder="Vị trí ứng tuyển" label="Vị trí ứng tuyển" />
+        <EditableText value={info.title} onChange={(title) => updatePersonalInfo({ title })} placeholder={t("candidate.cv.canvas.jobTitle")} label={t("candidate.cv.canvas.jobTitle")} />
       </p>
     </div>
   );
 }
 
 function Summary({ info, heading, headingClassName }: { info: CvBuilderPersonalInfo; heading: string; headingClassName: string }) {
+  const t = useT();
   const updatePersonalInfo = useCvBuilderStore((s) => s.updatePersonalInfo);
   const readOnly = useCvReadOnly();
   const [suggesting, setSuggesting] = useState(false);
@@ -71,7 +78,7 @@ function Summary({ info, heading, headingClassName }: { info: CvBuilderPersonalI
           onClick={() => setSuggesting(true)}
           className="cv-print-hidden absolute -top-1 right-0 z-10 hidden items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 shadow-sm hover:text-[var(--color-primary)] group-focus-within/summary:inline-flex group-hover/summary:inline-flex"
         >
-          <Sparkles className="size-3.5" aria-hidden="true" />AI gợi ý
+          <Sparkles className="size-3.5" aria-hidden="true" />{t("candidate.cv.canvas.aiSuggest")}
         </button>
       )}
       {suggesting && (
@@ -90,24 +97,20 @@ function Summary({ info, heading, headingClassName }: { info: CvBuilderPersonalI
         />
       )}
       <h2 className={headingClassName}>{heading}</h2>
-      <RichTextEditable value={info.summary} onChange={(summary) => updatePersonalInfo({ summary })} placeholder="Tóm tắt ngắn về bản thân, mục tiêu nghề nghiệp…" label="Giới thiệu bản thân" />
+      <RichTextEditable value={info.summary} onChange={(summary) => updatePersonalInfo({ summary })} placeholder={t("candidate.cv.canvas.summaryPlaceholder")} label={t("candidate.cv.canvas.summaryLabel")} />
     </section>
   );
 }
-
-const detailLabels = {
-  vi: { fullName: "Họ và tên", phone: "Điện thoại", email: "Email", address: "Địa chỉ", linkedin: "LinkedIn", github: "GitHub", website: "Website", add: "Thêm dòng", newLabel: "Nhãn", newValue: "Nội dung" },
-  en: { fullName: "Name", phone: "Phone No.", email: "Email", address: "Address", linkedin: "LinkedIn", github: "GitHub", website: "Website", add: "Add row", newLabel: "Label", newValue: "Value" },
-};
 
 const MAX_DETAILS = 12;
 
 /** Key-value personal details table with the photo on the right (enterprise layout). */
 function PersonalDetails({ info, heading, headingClassName, avatar }: { info: CvBuilderPersonalInfo; heading: string; headingClassName: string; avatar: ReactNode }) {
+  const t = useT();
   const updatePersonalInfo = useCvBuilderStore((s) => s.updatePersonalInfo);
   const language = useCvBuilderStore((s) => s.cv?.language ?? "vi");
   const readOnly = useCvReadOnly();
-  const labels = detailLabels[language];
+  const labels = cvDocByLanguage[language].details;
   const details = info.details ?? [];
   const setDetails = (next: CvBuilderDetail[]) => updatePersonalInfo({ details: next });
   const th = "w-[1.35in] py-px pl-[0.25in] pr-2 text-left align-top font-normal";
@@ -133,7 +136,7 @@ function PersonalDetails({ info, heading, headingClassName, avatar }: { info: Cv
                 <td className="relative py-0.5 pr-7 align-top">
                   <EditableText value={detail.value} onChange={(value) => setDetails(details.map((row, i) => (i === index ? { ...row, value } : row)))} placeholder={labels.newValue} label={labels.newValue} />
                   {!readOnly && (
-                    <button type="button" title="Xóa dòng" aria-label="Xóa dòng" onClick={() => setDetails(details.filter((_, i) => i !== index))} className="cv-print-hidden absolute right-0 top-0.5 hidden size-5 place-items-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 group-focus-within/detail:grid group-hover/detail:grid">
+                    <button type="button" title={t("candidate.cv.canvas.deleteRow")} aria-label={t("candidate.cv.canvas.deleteRow")} onClick={() => setDetails(details.filter((_, i) => i !== index))} className="cv-print-hidden absolute right-0 top-0.5 hidden size-5 place-items-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 group-focus-within/detail:grid group-hover/detail:grid">
                       <X className="size-3.5" aria-hidden="true" />
                     </button>
                   )}
@@ -318,7 +321,7 @@ function CanvasLayout({ cv, ref }: { cv: CvBuilderData; ref?: Ref<HTMLDivElement
           </div>
         </header>
         <PersonalDetails info={info} heading={labels.details} headingClassName={plain} avatar={avatar("text-2xl", "box")} />
-        <Summary info={info} heading={cv.language === "en" ? "Professional Summary" : "Tóm tắt chuyên môn"} headingClassName={plain} />
+        <Summary info={info} heading={labels.professionalSummary} headingClassName={plain} />
         <SectionList sections={cv.sections} headingClassName={headingFor} table />
       </div>
     );

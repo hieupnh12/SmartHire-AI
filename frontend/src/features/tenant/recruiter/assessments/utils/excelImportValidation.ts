@@ -1,4 +1,5 @@
-import { rubricSchema, codingSchema, contentError } from "./questionContentValidation";
+import { t as globalT, type TranslateFn } from "@/i18n";
+import { createRubricSchema, createCodingSchema, contentError } from "./questionContentValidation";
 import {
   isSubjectiveKind,
   type BankQuestion,
@@ -78,27 +79,31 @@ function parseScore(raw: string, defaultScore: number): { value: number; empty: 
   return { value: Number(trimmed), empty: false };
 }
 
-function validateChoiceOptions(row: BankQuestion, issues: FieldIssue[]) {
+function validateChoiceOptions(row: BankQuestion, issues: FieldIssue[], t: TranslateFn) {
   const options = [row.optionA, row.optionB, row.optionC, row.optionD].map((option) => option.trim());
   const filledCount = options.filter(Boolean).length;
 
   if (filledCount < 2) {
-    pushIssue(issues, "options", "Cần ít nhất hai lựa chọn trả lời (option_a, option_b, …).");
+    pushIssue(issues, "options", t("recruiter.assessments.importReview.validation.minTwoOptions"));
   }
-  if (!options[0]) pushIssue(issues, "option_a", "Không được để trống.");
-  if (!options[1]) pushIssue(issues, "option_b", "Không được để trống.");
+  if (!options[0]) pushIssue(issues, "option_a", t("recruiter.assessments.importReview.validation.requiredField"));
+  if (!options[1]) pushIssue(issues, "option_b", t("recruiter.assessments.importReview.validation.requiredField"));
 
   return options;
 }
 
-function validateSingleAnswer(row: BankQuestion, options: string[], issues: FieldIssue[]) {
+function validateSingleAnswer(row: BankQuestion, options: string[], issues: FieldIssue[], t: TranslateFn) {
   const answer = row.answer.trim().toUpperCase();
   if (!answer) {
-    pushIssue(issues, "answer", "Không được để trống.");
+    pushIssue(issues, "answer", t("recruiter.assessments.importReview.validation.requiredField"));
     return;
   }
   if (!/^[A-D]$/.test(answer)) {
-    pushIssue(issues, "answer", `"${row.answer.trim()}" không hợp lệ. Chỉ chấp nhận một chữ A, B, C hoặc D.`);
+    pushIssue(
+      issues,
+      "answer",
+      t("recruiter.assessments.importReview.validation.invalidSingleAnswer", { value: row.answer.trim() }),
+    );
     return;
   }
   const index = answer.charCodeAt(0) - 65;
@@ -106,15 +111,18 @@ function validateSingleAnswer(row: BankQuestion, options: string[], issues: Fiel
     pushIssue(
       issues,
       "answer",
-      `"${answer}" không tồn tại vì option_${String.fromCharCode(97 + index)} đang trống.`,
+      t("recruiter.assessments.importReview.validation.missingOptionForAnswer", {
+        answer,
+        letter: String.fromCharCode(97 + index),
+      }),
     );
   }
 }
 
-function validateMultiAnswer(row: BankQuestion, options: string[], issues: FieldIssue[]) {
+function validateMultiAnswer(row: BankQuestion, options: string[], issues: FieldIssue[], t: TranslateFn) {
   const raw = row.answer.trim();
   if (!raw) {
-    pushIssue(issues, "answer", "Không được để trống. Ví dụ hợp lệ: A,C hoặc A,B,C.");
+    pushIssue(issues, "answer", t("recruiter.assessments.importReview.validation.requiredMultiAnswer"));
     return;
   }
   const parts = raw
@@ -123,55 +131,74 @@ function validateMultiAnswer(row: BankQuestion, options: string[], issues: Field
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length === 0) {
-    pushIssue(issues, "answer", `"${raw}" không hợp lệ. Ví dụ hợp lệ: A,C.`);
+    pushIssue(
+      issues,
+      "answer",
+      t("recruiter.assessments.importReview.validation.invalidMultiAnswerEmpty", { value: raw }),
+    );
     return;
   }
   const unique = new Set<string>();
   for (const part of parts) {
     if (!/^[A-D]$/.test(part)) {
-      pushIssue(issues, "answer", `"${part}" không hợp lệ. Chỉ chấp nhận các chữ A–D, cách nhau bằng dấu phẩy.`);
+      pushIssue(
+        issues,
+        "answer",
+        t("recruiter.assessments.importReview.validation.invalidMultiOptionChar", { value: part }),
+      );
       continue;
     }
     if (unique.has(part)) {
-      pushIssue(issues, "answer", `Đáp án "${part}" bị trùng trong danh sách.`);
+      pushIssue(
+        issues,
+        "answer",
+        t("recruiter.assessments.importReview.validation.duplicateMultiOption", { value: part }),
+      );
       continue;
     }
     unique.add(part);
     const index = part.charCodeAt(0) - 65;
     if (!options[index]) {
-      pushIssue(issues, "answer", `"${part}" không tồn tại vì option_${String.fromCharCode(97 + index)} đang trống.`);
+      pushIssue(
+        issues,
+        "answer",
+        t("recruiter.assessments.importReview.validation.missingOptionForAnswer", {
+          answer: part,
+          letter: String.fromCharCode(97 + index),
+        }),
+      );
     }
   }
   if (unique.size < 2) {
-    pushIssue(issues, "answer", "Câu nhiều đáp án cần ít nhất hai đáp án đúng.");
+    pushIssue(issues, "answer", t("recruiter.assessments.importReview.validation.minTwoCorrectAnswers"));
   }
 }
 
-function validateSubjective(row: BankQuestion, issues: FieldIssue[]) {
+function validateSubjective(row: BankQuestion, issues: FieldIssue[], t: TranslateFn) {
   // Sample answer recommended for grading — not a hard blocker for draft save.
   if (!row.sample.trim()) {
     pushIssue(
       issues,
       "sample",
-      "Khuyến nghị có đáp án mẫu để đối chiếu khi chấm (không bắt buộc để lưu nháp).",
+      t("recruiter.assessments.importReview.validation.recommendSampleWarning"),
       "warning",
     );
   }
 }
 
-function validateByType(row: BankQuestion, issues: FieldIssue[]) {
+function validateByType(row: BankQuestion, issues: FieldIssue[], t: TranslateFn) {
   if (row.kind === "TRAC_NGHIEM_DON") {
-    const options = validateChoiceOptions(row, issues);
-    validateSingleAnswer(row, options, issues);
+    const options = validateChoiceOptions(row, issues, t);
+    validateSingleAnswer(row, options, issues, t);
     return;
   }
   if (row.kind === "NHIEU_DAP_AN") {
-    const options = validateChoiceOptions(row, issues);
-    validateMultiAnswer(row, options, issues);
+    const options = validateChoiceOptions(row, issues, t);
+    validateMultiAnswer(row, options, issues, t);
     return;
   }
   if (isSubjectiveKind(row.kind)) {
-    validateSubjective(row, issues);
+    validateSubjective(row, issues, t);
   }
 }
 
@@ -186,7 +213,13 @@ export function answerDisplay(row: BankQuestion): string {
   return row.answer.trim() || "—";
 }
 
-export function validateExcelQuestions(questions: BankQuestion[], defaultScore = 5): ImportRow[] {
+export function validateExcelQuestions(
+  questions: BankQuestion[],
+  defaultScore = 5,
+  t: TranslateFn = globalT,
+): ImportRow[] {
+  const rubricSchema = createRubricSchema(t);
+  const codingSchema = createCodingSchema(t);
   const contentCounts = new Map<string, number>();
   for (const row of questions) {
     if (isBlankQuestion(row)) continue;
@@ -212,38 +245,62 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
     const issues: FieldIssue[] = [];
 
     if (!row.content.trim()) {
-      pushIssue(issues, "content", "Không được để trống.");
+      pushIssue(issues, "content", t("recruiter.assessments.importReview.validation.requiredField"));
     }
 
     if (!ALLOWED_KINDS.includes(row.kind)) {
-      pushIssue(issues, "type", `"${row.kind}" không hợp lệ.`);
+      pushIssue(
+        issues,
+        "type",
+        t("recruiter.assessments.importReview.validation.invalidKind", { kind: row.kind }),
+      );
     }
 
     const scoreInfo = parseScore(row.score, defaultScore);
     if (!scoreInfo.empty) {
       if (!Number.isFinite(scoreInfo.value) || scoreInfo.value < 1 || scoreInfo.value > 10000) {
-        pushIssue(issues, "score", `"${row.score.trim()}" không hợp lệ. Điểm phải từ 1 đến 10.000.`);
+        pushIssue(
+          issues,
+          "score",
+          t("recruiter.assessments.importReview.validation.scoreRangeError", { value: row.score.trim() }),
+        );
       } else if (Math.abs(scoreInfo.value - Math.round(scoreInfo.value)) > 1e-9) {
-        pushIssue(issues, "score", `"${row.score.trim()}" không hợp lệ. Điểm phải là số nguyên từ 1 đến 10.000.`);
+        pushIssue(
+          issues,
+          "score",
+          t("recruiter.assessments.importReview.validation.scoreIntRangeError", { value: row.score.trim() }),
+        );
       }
     }
 
     if (!row.difficulty.trim()) {
-      pushIssue(issues, "difficulty", "Khuyến nghị điền độ khó (Easy / Medium / Hard).", "warning");
+      pushIssue(
+        issues,
+        "difficulty",
+        t("recruiter.assessments.importReview.validation.recommendDifficultyWarning"),
+        "warning",
+      );
     } else if (!isAllowedDifficulty(row.difficulty)) {
       pushIssue(
         issues,
         "difficulty",
-        `"${row.difficulty.trim()}" chưa chuẩn — khuyến nghị Easy, Medium, Hard (vẫn có thể lưu).`,
+        t("recruiter.assessments.importReview.validation.nonStandardDifficultyWarning", {
+          value: row.difficulty.trim(),
+        }),
         "warning",
       );
     }
 
     if (!row.skill.trim()) {
-      pushIssue(issues, "skill", "Khuyến nghị điền kỹ năng.", "warning");
+      pushIssue(
+        issues,
+        "skill",
+        t("recruiter.assessments.importReview.validation.recommendSkillWarning"),
+        "warning",
+      );
     }
 
-    validateByType(row, issues);
+    validateByType(row, issues, t);
     try {
       if (row.kind === "TU_LUAN_CODE") {
         if (row.codingJsonText?.trim()) {
@@ -255,17 +312,29 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
         } else if (row.sample.trim()) {
           rubricSchema.parse({
             referenceAnswer: row.sample.trim(),
-            criteria: [{ description: row.rubric.map((item) => item.text).filter(Boolean).join("; ") || "Độ chính xác và tính hoàn thiện", weight: 100 }],
+            criteria: [
+              {
+                description:
+                  row.rubric.map((item) => item.text).filter(Boolean).join("; ") ||
+                  t("recruiter.assessments.importReview.validation.defaultRubricCriterion"),
+                weight: 100,
+              },
+            ],
           });
         }
       }
     } catch (error) {
-      pushIssue(issues, "rubric", contentError(error));
+      pushIssue(issues, "rubric", contentError(error, t));
     }
 
     const contentKey = row.content.trim().toLowerCase();
     if (contentKey && (contentCounts.get(contentKey) ?? 0) > 1) {
-      pushIssue(issues, "content", "Nội dung câu hỏi bị trùng với dòng khác.", "warning");
+      pushIssue(
+        issues,
+        "content",
+        t("recruiter.assessments.importReview.validation.duplicateContentWarning"),
+        "warning",
+      );
     }
 
     const errorIssues = issues.filter((issue) => issue.level === "error");
@@ -287,7 +356,7 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
   });
 }
 
-export function importErrorCsv(rows: ImportRow[]): string {
+export function importErrorCsv(rows: ImportRow[], t: TranslateFn = globalT): string {
   const cell = (value: string | number) => {
     const text = String(value);
     const safe = /^[=+@\-\t\r]/.test(text) ? "'" + text : text;
@@ -296,7 +365,12 @@ export function importErrorCsv(rows: ImportRow[]): string {
   return (
     "\uFEFF" +
     [
-      ["Dòng Excel", "Trạng thái", "Nội dung", "Chi tiết"],
+      [
+        t("recruiter.assessments.importReview.validation.csvHeaders.line"),
+        t("recruiter.assessments.importReview.validation.csvHeaders.status"),
+        t("recruiter.assessments.importReview.validation.csvHeaders.content"),
+        t("recruiter.assessments.importReview.validation.csvHeaders.details"),
+      ],
       ...rows
         .filter((item) => !item.skipped && item.status !== "VALID")
         .map((item) => [

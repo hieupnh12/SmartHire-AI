@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { QrCode, RefreshCw } from "lucide-react";
+import { useT } from "@/i18n";
 
 interface QrCodeViewProps {
   value: string;
@@ -15,9 +16,11 @@ export function QrCodeView({
   size = 160,
   logoUrl,
   logoText,
-  label = "Mã QR",
+  label,
   className = "",
 }: QrCodeViewProps) {
+  const t = useT();
+  const resolvedLabel = label ?? t("ux.qr.defaultLabel");
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function QrCodeView({
       {!hasError ? (
         <img
           src={qrUrl}
-          alt={label}
+          alt={resolvedLabel}
           width={size}
           height={size}
           className={`rounded-xl object-contain transition-opacity duration-300 ${
@@ -108,10 +111,10 @@ export function QrCodeView({
             type="button"
             onClick={handleReload}
             className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl text-xs text-white opacity-0 hover:opacity-100 transition-opacity"
-            title="Thử tải lại"
+            title={t("ux.qr.reloadTitle")}
           >
             <RefreshCw className="size-4 mb-1 animate-spin" />
-            <span>Tải lại</span>
+            <span>{t("ux.qr.reload")}</span>
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import { AlertTriangle, X } from "lucide-react";
 import { usersApi, type TenantMember, type UserStatus } from "@/api/tenant/usersApi";
 import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 
 type TransferJobsModalProps = {
   open: boolean;
@@ -24,6 +25,7 @@ export function TransferJobsModal({
   onClose,
   onConfirm,
 }: TransferJobsModalProps) {
+  const t = useT();
   const [recipientId, setRecipientId] = useState("");
 
   useEffect(() => {
@@ -51,7 +53,15 @@ export function TransferJobsModal({
     (item) => item.assignmentRole === "OWNER" || item.assignmentRole === "PRIMARY_RECRUITER",
   );
   const displayJobs = ownedJobs.length > 0 ? ownedJobs : allAssignments;
-  const actionLabel = targetStatus === "DISABLED" ? "vô hiệu hóa" : "khóa";
+  const actionLabel =
+    targetStatus === "DISABLED"
+      ? t("tenantAdmin.users.transferModal.actionDisable")
+      : t("tenantAdmin.users.transferModal.actionLock");
+  const getJobStatusLabel = (status: string) => {
+    const key = `tenantAdmin.users.jobStatuses.${status}`;
+    const label = t(key);
+    return label !== key ? label : status;
+  };
 
   return (
     <div
@@ -73,17 +83,20 @@ export function TransferJobsModal({
             </span>
             <div>
               <h2 id="transfer-jobs-title" className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                Chuyển giao tin tuyển dụng
+                {t("tenantAdmin.users.transferModal.title")}
               </h2>
               <p className="text-xs text-[var(--color-text-secondary)]">
-                Cần chuyển quyền chủ sở hữu trước khi {actionLabel} {targetMember.fullName}.
+                {t("tenantAdmin.users.transferModal.subtitle", {
+                  action: actionLabel,
+                  name: targetMember.fullName,
+                })}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng"
+            aria-label={t("tenantAdmin.users.transferModal.closeAria")}
             className="rounded-lg p-1.5 text-[var(--color-text-secondary)] hover:bg-surface-muted"
           >
             <X className="size-4" />
@@ -92,7 +105,7 @@ export function TransferJobsModal({
 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-[var(--color-text-primary)]">
-            Tin tuyển dụng đang do {targetMember.fullName} làm chủ sở hữu:
+            {t("tenantAdmin.users.transferModal.ownedJobsHeading", { name: targetMember.fullName })}
           </p>
           {assignmentsQuery.isLoading ? (
             <Skeleton className="h-20 w-full rounded-lg" />
@@ -102,7 +115,7 @@ export function TransferJobsModal({
                 <li key={job.jobId} className="flex items-center justify-between gap-2 py-2.5">
                   <span className="font-medium text-[var(--color-text-primary)]">{job.title}</span>
                   <span className="shrink-0 rounded bg-surface-card px-2 py-0.5 text-[11px] font-semibold text-brand-primary">
-                    {job.status}
+                    {getJobStatusLabel(job.status)}
                   </span>
                 </li>
               ))}
@@ -112,7 +125,7 @@ export function TransferJobsModal({
 
         <div className="space-y-1.5">
           <label htmlFor="transfer-recipient-select" className="block text-xs font-semibold text-[var(--color-text-primary)]">
-            Chọn nhân sự tiếp nhận quyền chủ sở hữu (OWNER)
+            {t("tenantAdmin.users.transferModal.recipientLabel")}
           </label>
           <select
             id="transfer-recipient-select"
@@ -120,7 +133,7 @@ export function TransferJobsModal({
             onChange={(event) => setRecipientId(event.target.value)}
             className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
           >
-            <option value="">-- Chọn nhân sự đang hoạt động --</option>
+            <option value="">{t("tenantAdmin.users.transferModal.recipientPlaceholder")}</option>
             {eligibleRecipients.map((member) => (
               <option key={member.id} value={member.id}>
                 {member.fullName} ({member.email} · {member.role})
@@ -128,20 +141,22 @@ export function TransferJobsModal({
             ))}
           </select>
           <p className="text-[11px] text-[var(--color-text-secondary)]">
-            Người tiếp nhận cần có quyền tạo tin tuyển dụng hoặc vai trò quản trị.
+            {t("tenantAdmin.users.transferModal.recipientHint")}
           </p>
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border-default)] pt-3">
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            Hủy
+            {t("tenantAdmin.users.transferModal.cancelBtn")}
           </Button>
           <Button
             variant="danger"
             disabled={!recipientId || submitting}
             onClick={() => recipientId && onConfirm(Number(recipientId))}
           >
-            {submitting ? "Đang xử lý..." : `Chuyển giao & ${actionLabel}`}
+            {submitting
+              ? t("tenantAdmin.users.transferModal.submittingBtn")
+              : t("tenantAdmin.users.transferModal.confirmBtn", { action: actionLabel })}
           </Button>
         </div>
       </div>

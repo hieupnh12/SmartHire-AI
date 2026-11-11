@@ -5,6 +5,7 @@ import { TenantInfo, masterAdminApi } from "@/api/master/masterAdminApi";
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useT } from "@/i18n";
 
 interface TenantsTabProps {
   handleOpenCreateContractForTenant: (tenant: TenantInfo) => void;
@@ -17,6 +18,7 @@ export function TenantsTab({
   handleOpenCreateInvoiceForTenant,
   setSelectedTenant,
 }: TenantsTabProps) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: tenants = [] } = useTenants();
@@ -27,12 +29,12 @@ export function TenantsTab({
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("ALL");
 
   const filteredTenants = useMemo(() => {
-    return tenants.filter((t) => {
+    return tenants.filter((tenantItem) => {
       const matchSearch =
-        t.name.toLowerCase().includes(tenantSearch.toLowerCase()) ||
-        t.code.toLowerCase().includes(tenantSearch.toLowerCase()) ||
-        t.subdomain.toLowerCase().includes(tenantSearch.toLowerCase());
-      const matchStatus = tenantStatusFilter === "ALL" || t.status === tenantStatusFilter;
+        tenantItem.name.toLowerCase().includes(tenantSearch.toLowerCase()) ||
+        tenantItem.code.toLowerCase().includes(tenantSearch.toLowerCase()) ||
+        tenantItem.subdomain.toLowerCase().includes(tenantSearch.toLowerCase());
+      const matchStatus = tenantStatusFilter === "ALL" || tenantItem.status === tenantStatusFilter;
       return matchSearch && matchStatus;
     });
   }, [tenants, tenantSearch, tenantStatusFilter]);
@@ -45,10 +47,10 @@ export function TenantsTab({
     const nextStatus = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     try {
       const updated = await masterAdminApi.updateTenantStatus(tenant.id, nextStatus);
-      setTenants(tenants.map((t) => (t.id === updated.id ? updated : t)));
-      triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${nextStatus}`);
-    } catch (err) {
-      alert("Đã xảy ra lỗi khi cập nhật trạng thái Tenant.");
+      setTenants(tenants.map((tenantItem) => (tenantItem.id === updated.id ? updated : tenantItem)));
+      triggerNotification(t("master.ops.tenants.dirPage.statusUpdatedToast", { code: tenant.code, status: nextStatus }));
+    } catch {
+      toast.error(t("master.ops.tenants.dirPage.statusUpdateError"));
     }
   };
 
@@ -58,10 +60,10 @@ export function TenantsTab({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Danh Bạ Khách Hàng Doanh Nghiệp (Tenants)
+            {t("master.ops.tenants.dirPage.title")}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Quản lý danh sách các công ty sử dụng dịch vụ, cấp phát Database và kiểm soát quyền truy cập.
+            {t("master.ops.tenants.dirPage.subtitle")}
           </p>
         </div>
 
@@ -70,7 +72,7 @@ export function TenantsTab({
           className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          <span>Khởi tạo & Cấp phát Tenant mới</span>
+          <span>{t("master.ops.tenants.dirPage.createBtn")}</span>
         </button>
       </div>
 
@@ -80,7 +82,7 @@ export function TenantsTab({
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo Tên doanh nghiệp, Mã Tenant hoặc Subdomain..."
+            placeholder={t("master.ops.tenants.dirPage.searchPlaceholder")}
             value={tenantSearch}
             onChange={(e) => setTenantSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-900 focus:border-blue-600 focus:outline-none transition-colors shadow-2xs"
@@ -94,12 +96,12 @@ export function TenantsTab({
             onChange={(e) => setTenantStatusFilter(e.target.value)}
             className="px-3 py-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 focus:border-blue-600 focus:outline-none shadow-2xs"
           >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang kích hoạt (ACTIVE)</option>
-            <option value="PENDING_PAYMENT">Chờ thanh toán (PENDING_PAYMENT)</option>
-            <option value="SUSPENDED">Đang tạm khóa (SUSPENDED)</option>
-            <option value="PROVISIONING">Đang cấp phát (PROVISIONING)</option>
-            <option value="FAILED">Thất bại (FAILED)</option>
+            <option value="ALL">{t("master.ops.tenants.dirPage.filterAll")}</option>
+            <option value="ACTIVE">{t("master.ops.tenants.dirPage.filterActive")}</option>
+            <option value="PENDING_PAYMENT">{t("master.ops.tenants.dirPage.filterPendingPayment")}</option>
+            <option value="SUSPENDED">{t("master.ops.tenants.dirPage.filterSuspended")}</option>
+            <option value="PROVISIONING">{t("master.ops.tenants.dirPage.filterProvisioning")}</option>
+            <option value="FAILED">{t("master.ops.tenants.dirPage.filterFailed")}</option>
           </select>
         </div>
       </div>
@@ -109,13 +111,13 @@ export function TenantsTab({
         <table className="w-full text-left text-xs text-slate-600">
           <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
             <tr>
-              <th className="p-4">Doanh Nghiệp</th>
-              <th className="p-4">Môi Trường</th>
-              <th className="p-4">Mã Tenant</th>
-              <th className="p-4">Subdomain / Domain</th>
-              <th className="p-4">Database Vật Lý</th>
-              <th className="p-4">Trạng Thái</th>
-              <th className="p-4 text-right">Thao Tác</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colCompany")}</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colEnvironment")}</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colCode")}</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colDomain")}</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colDatabase")}</th>
+              <th className="p-4">{t("master.ops.tenants.dirPage.colStatus")}</th>
+              <th className="p-4 text-right">{t("master.ops.tenants.dirPage.colActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -129,7 +131,7 @@ export function TenantsTab({
                       </div>
                       <div>
                         <div className="font-bold text-slate-900">{tenant.name}</div>
-                        <div className="text-[11px] text-slate-400">ID #{tenant.id}</div>
+                        <div className="text-[11px] text-slate-400">{t("master.ops.tenants.dirPage.idPrefix", { id: tenant.id })}</div>
                       </div>
                     </div>
                   </td>
@@ -142,7 +144,9 @@ export function TenantsTab({
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${tenant.environmentType === "POC_SANDBOX" ? "bg-amber-500" : "bg-emerald-500"}`} />
-                      {tenant.environmentType === "POC_SANDBOX" ? "POC Sandbox" : "Production"}
+                      {tenant.environmentType === "POC_SANDBOX"
+                        ? t("master.ops.tenants.dirPage.envSandbox")
+                        : t("master.ops.tenants.dirPage.envProduction")}
                     </span>
                   </td>
                   <td className="p-4 font-mono font-bold text-blue-600">{tenant.code}</td>
@@ -182,19 +186,19 @@ export function TenantsTab({
                     <button
                       onClick={() => handleOpenCreateContractForTenant(tenant)}
                       className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors inline-flex items-center gap-1"
-                      title="Soạn hợp đồng B2B e-Contract cho doanh nghiệp này"
+                      title={t("master.ops.tenants.dirPage.draftContractTitle")}
                     >
                       <FileSignature className="w-3.5 h-3.5" />
-                      <span>Soạn HĐ</span>
+                      <span>{t("master.ops.tenants.dirPage.draftContractBtn")}</span>
                     </button>
 
                     <button
                       onClick={() => handleOpenCreateInvoiceForTenant(tenant)}
                       className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors inline-flex items-center gap-1"
-                      title="Lập hóa đơn thanh toán cho doanh nghiệp này"
+                      title={t("master.ops.tenants.dirPage.createInvoiceTitle")}
                     >
                       <ReceiptText className="w-3.5 h-3.5" />
-                      <span>Tạo Hóa Đơn</span>
+                      <span>{t("master.ops.tenants.dirPage.createInvoiceBtn")}</span>
                     </button>
 
                     <button
@@ -202,7 +206,7 @@ export function TenantsTab({
                       className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors inline-flex items-center gap-1"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Chi tiết</span>
+                      <span>{t("master.ops.tenants.dirPage.detailBtn")}</span>
                     </button>
 
                     <button
@@ -216,10 +220,10 @@ export function TenantsTab({
                       }`}
                     >
                       {tenant.status === "FAILED" || tenant.status === "PROVISIONING"
-                        ? "Cấp phát lại"
+                        ? t("master.ops.tenants.dirPage.reprovisionBtn")
                         : tenant.status === "ACTIVE"
-                        ? "Tạm khóa"
-                        : "Mở khóa"}
+                        ? t("master.ops.tenants.dirPage.suspendBtn")
+                        : t("master.ops.tenants.dirPage.unlockBtn")}
                     </button>
                   </td>
                 </tr>
@@ -227,7 +231,7 @@ export function TenantsTab({
             ) : (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-slate-500">
-                  Không tìm thấy doanh nghiệp nào phù hợp với từ khóa "{tenantSearch}".
+                  {t("master.ops.tenants.dirPage.emptySearch", { query: tenantSearch })}
                 </td>
               </tr>
             )}

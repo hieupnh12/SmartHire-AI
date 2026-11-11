@@ -23,6 +23,7 @@ import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { TableSkeleton } from "@/components/ux/Skeleton";
+import { formatDate as fmtLocaleDate, formatDateTime as fmtLocaleDateTime, formatTime as fmtLocaleTime, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
@@ -51,21 +52,21 @@ function getPaginationItems(current: number, total: number): (number | "ellipsis
   return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
 }
 
-const tabs: { id: StatusTab; label: string; match: (status: SubmissionStatus) => boolean }[] = [
-  { id: "ALL", label: "Tất cả", match: () => true },
-  { id: "IN_PROGRESS", label: "Đang làm bài", match: (status) => status === "IN_PROGRESS" || status === "NOT_STARTED" },
-  { id: "DONE", label: "Đã nộp", match: (status) => status === "SUBMITTED" || status === "GRADED" },
-  { id: "EXPIRED", label: "Quá giờ", match: (status) => status === "EXPIRED" },
+const tabs: { id: StatusTab; labelKey: string; match: (status: SubmissionStatus) => boolean }[] = [
+  { id: "ALL", labelKey: "recruiter.assessments.submissions.tabs.all", match: () => true },
+  { id: "IN_PROGRESS", labelKey: "recruiter.assessments.submissions.tabs.inProgress", match: (status) => status === "IN_PROGRESS" || status === "NOT_STARTED" },
+  { id: "DONE", labelKey: "recruiter.assessments.submissions.tabs.done", match: (status) => status === "SUBMITTED" || status === "GRADED" },
+  { id: "EXPIRED", labelKey: "recruiter.assessments.submissions.tabs.expired", match: (status) => status === "EXPIRED" },
 ];
 
-function formatTime(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+function formatTime(iso: string | null, locale: Locale, t: TranslateFn) {
+  if (!iso) return t("recruiter.assessments.common.dash");
+  return fmtLocaleTime(iso, { hour: "2-digit", minute: "2-digit" }, locale);
 }
 
-function formatDate(iso: string | null) {
+function formatDate(iso: string | null, locale: Locale) {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return fmtLocaleDate(iso, { day: "2-digit", month: "2-digit", year: "numeric" }, locale);
 }
 
 function isSameDay(iso1: string | null, iso2: string | null) {
@@ -75,20 +76,24 @@ function isSameDay(iso1: string | null, iso2: string | null) {
   return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 }
 
-function computeDuration(startedAt: string | null, submittedAt: string | null): string | null {
+function computeDuration(startedAt: string | null, submittedAt: string | null, t: TranslateFn): string | null {
   if (!startedAt || !submittedAt) return null;
   const diffMs = new Date(submittedAt).getTime() - new Date(startedAt).getTime();
   if (diffMs <= 0) return null;
   const totalMinutes = Math.round(diffMs / 60000);
-  if (totalMinutes < 60) return `${Math.max(1, totalMinutes)} phút`;
+  if (totalMinutes < 60) return `${Math.max(1, totalMinutes)} ${t("recruiter.assessments.common.minutesUnit")}`;
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  return mins > 0 ? `${hours}h ${mins}p` : `${hours} giờ`;
+  return mins > 0
+    ? t("recruiter.assessments.common.hoursMinutesShort", { hours, mins })
+    : t("recruiter.assessments.submissions.durationHours", { hours });
 }
 
-function formatRemaining(seconds: number) {
+function formatRemaining(seconds: number, t: TranslateFn) {
   const minutes = Math.floor(seconds / 60);
-  return minutes > 0 ? `Còn ${minutes} phút` : `Còn ${seconds} giây`;
+  return minutes > 0
+    ? t("recruiter.assessments.submissions.remainingMinutes", { minutes })
+    : t("recruiter.assessments.submissions.remainingSeconds", { seconds });
 }
 
 function initials(name: string | null | undefined) {
@@ -98,41 +103,41 @@ function initials(name: string | null | undefined) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
-function statusMeta(status: SubmissionStatus) {
+function statusMeta(status: SubmissionStatus, t: TranslateFn) {
   switch (status) {
     case "GRADED":
       return {
-        label: "Đã chấm",
+        label: t("recruiter.assessments.submissions.status.GRADED"),
         badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
         dot: "bg-emerald-500",
       };
     case "SUBMITTED":
       return {
-        label: "Đã nộp",
+        label: t("recruiter.assessments.submissions.status.SUBMITTED"),
         badge: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20",
         dot: "bg-[var(--color-primary)]",
       };
     case "IN_PROGRESS":
       return {
-        label: "Đang làm bài",
+        label: t("recruiter.assessments.submissions.status.IN_PROGRESS"),
         badge: "bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40",
         dot: "bg-sky-500 animate-pulse",
       };
     case "NOT_STARTED":
       return {
-        label: "Chưa bắt đầu",
+        label: t("recruiter.assessments.submissions.status.NOT_STARTED"),
         badge: "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
         dot: "bg-slate-400",
       };
     case "EXPIRED":
       return {
-        label: "Quá hạn",
+        label: t("recruiter.assessments.submissions.status.EXPIRED"),
         badge: "bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40",
         dot: "bg-rose-500",
       };
     default:
       return {
-        label: "Đã hủy",
+        label: t("recruiter.assessments.submissions.status.CANCELLED"),
         badge: "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
         dot: "bg-slate-400",
       };
@@ -140,7 +145,8 @@ function statusMeta(status: SubmissionStatus) {
 }
 
 function StatusBadge({ status }: { status: SubmissionStatus }) {
-  const meta = statusMeta(status);
+  const t = useT();
+  const meta = statusMeta(status, t);
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold", meta.badge)}>
       <span className={cn("size-1.5 rounded-full", meta.dot)} />
@@ -150,6 +156,7 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
 }
 
 export function AssessmentSubmissionsPage() {
+  const t = useT();
   const job = useRecruitmentJob();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -331,7 +338,7 @@ export function AssessmentSubmissionsPage() {
                     : "text-[#475467] hover:text-[#101828] dark:text-slate-400 dark:hover:text-slate-200",
                 )}
               >
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
@@ -359,7 +366,7 @@ export function AssessmentSubmissionsPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667085]" />
             <input
               className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-8 text-[13px] text-[#101828] placeholder:text-[#667085] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:bg-slate-900"
-              placeholder="Tìm ứng viên, email…"
+              placeholder={t("recruiter.assessments.submissions.searchPlaceholder")}
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
             />
@@ -368,8 +375,8 @@ export function AssessmentSubmissionsPage() {
                 type="button"
                 onClick={() => handleQueryChange("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer dark:hover:text-slate-200"
-                title="Xóa tìm kiếm"
-                aria-label="Xóa tìm kiếm"
+                title={t("recruiter.assessments.common.actions.clearSearch")}
+                aria-label={t("recruiter.assessments.common.actions.clearSearch")}
               >
                 <X className="size-3.5" />
               </button>
@@ -382,8 +389,8 @@ export function AssessmentSubmissionsPage() {
             onClick={() => void submissions.refetch()}
             disabled={submissions.isFetching}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 text-[#475467] transition-all hover:bg-slate-100 hover:text-[#101828] active:scale-95 disabled:opacity-50 cursor-pointer dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Làm mới dữ liệu"
-            aria-label="Làm mới dữ liệu"
+            title={t("recruiter.assessments.common.actions.refresh")}
+            aria-label={t("recruiter.assessments.common.actions.refresh")}
           >
             <RefreshCw className={cn("size-3.5", submissions.isFetching && "animate-spin text-[var(--color-primary)]")} aria-hidden="true" />
           </button>
@@ -399,10 +406,10 @@ export function AssessmentSubmissionsPage() {
                   ? "bg-white font-semibold text-slate-900 shadow-2xs border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700"
                   : "font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
               )}
-              title="Chế độ Tiêu chuẩn: Thoáng mắt, hiển thị đầy đủ thông tin"
+              title={t("recruiter.assessments.submissions.densityNormalTitle")}
             >
               <Rows3 className="size-3.5" />
-              <span className="hidden sm:inline">Tiêu chuẩn</span>
+              <span className="hidden sm:inline">{t("recruiter.assessments.submissions.densityNormal")}</span>
             </button>
             <button
               type="button"
@@ -413,10 +420,10 @@ export function AssessmentSubmissionsPage() {
                   ? "bg-white font-semibold text-slate-900 shadow-2xs border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700"
                   : "font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
               )}
-              title="Chế độ Thu gọn: Tối ưu số dòng trên màn hình, mật độ dữ liệu cao"
+              title={t("recruiter.assessments.submissions.densityCompactTitle")}
             >
               <SlidersHorizontal className="size-3.5" />
-              <span className="hidden sm:inline">Thu gọn</span>
+              <span className="hidden sm:inline">{t("recruiter.assessments.submissions.densityCompact")}</span>
             </button>
           </div>
         </div>
@@ -434,11 +441,11 @@ export function AssessmentSubmissionsPage() {
           <div className="flex items-center gap-3 p-8">
             <Users className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
             <div>
-              <p className="font-semibold text-slate-900 dark:text-slate-100">Chưa có lượt làm bài phù hợp</p>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.submissions.emptyTitle")}</p>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 {items.length === 0
-                  ? "Chưa ứng viên nào bắt đầu bài đánh giá của vị trí này."
-                  : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+                  ? t("recruiter.assessments.submissions.emptyInitialDesc")
+                  : t("recruiter.assessments.submissions.emptyFilteredDesc")}
               </p>
             </div>
           </div>
@@ -463,18 +470,18 @@ export function AssessmentSubmissionsPage() {
                       density === "compact" ? "text-[10px]" : "text-[11px]",
                     )}
                   >
-                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Ứng viên</th>
-                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Bài đánh giá &amp; Lượt thi</th>
-                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Trạng thái</th>
-                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Thời gian</th>
-                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Điểm số &amp; Đạt</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>{t("recruiter.assessments.submissions.colCandidate")}</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>{t("recruiter.assessments.submissions.colAssessmentAttempt")}</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>{t("recruiter.assessments.submissions.colStatus")}</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>{t("recruiter.assessments.submissions.colTime")}</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>{t("recruiter.assessments.submissions.colScorePass")}</th>
                     <th
                       className={cn(
                         "sticky right-0 z-10 bg-slate-50/95 px-4 text-right shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)] backdrop-blur-xs dark:bg-slate-800/95",
                         density === "compact" ? "py-2" : "py-3",
                       )}
                     >
-                      Thao tác
+                      {t("recruiter.assessments.submissions.colActions")}
                     </th>
                   </tr>
                 </thead>
@@ -503,18 +510,18 @@ export function AssessmentSubmissionsPage() {
               {/* Nhóm 1: Thông tin Dữ liệu (Left) */}
               <div className="flex items-center gap-2 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
                 <p>
-                  Hiển thị{" "}
+                  {t("recruiter.assessments.common.pagination.showing")}{" "}
                   <strong className="font-semibold text-slate-900 dark:text-slate-100">
                     {totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}
                   </strong>{" "}
-                  trên <strong className="font-semibold text-slate-900 dark:text-slate-100">{totalItems}</strong> lượt làm
+                  {t("recruiter.assessments.common.pagination.of")} <strong className="font-semibold text-slate-900 dark:text-slate-100">{totalItems}</strong> {t("recruiter.assessments.submissions.attemptsCountUnit")}
                 </p>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <span className="tabular-nums">Trang {safePage} / {pageCount}</span>
+                <span className="tabular-nums">{t("recruiter.assessments.common.pagination.pageOf", { current: safePage, total: pageCount })}</span>
                 {submissions.isFetching && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
                     <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                    <span className="hidden sm:inline">Đang tải…</span>
+                    <span className="hidden sm:inline">{t("recruiter.assessments.common.loadingEllipsis")}</span>
                   </span>
                 )}
               </div>
@@ -522,9 +529,9 @@ export function AssessmentSubmissionsPage() {
               {/* Nhóm 2: Chọn số bản ghi / trang (Center) */}
               <div className="flex items-center justify-start lg:justify-center">
                 <label className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
-                  <span>Hiển thị</span>
+                  <span>{t("recruiter.assessments.common.pagination.showing")}</span>
                   <select
-                    aria-label="Số lượt làm mỗi trang"
+                    aria-label={t("recruiter.assessments.submissions.perPageAria")}
                     value={pageSize}
                     onChange={(e) => {
                       const nextSize = Number(e.target.value);
@@ -534,7 +541,7 @@ export function AssessmentSubmissionsPage() {
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
                       <option key={size} value={size}>
-                        {size} / trang
+                        {t("recruiter.assessments.common.pagination.perPage", { size })}
                       </option>
                     ))}
                   </select>
@@ -543,12 +550,12 @@ export function AssessmentSubmissionsPage() {
 
               {/* Nhóm 3 & 4: Điều hướng & Nhảy trang (Right) */}
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <nav className="flex items-center gap-1" aria-label="Phân trang danh sách lượt làm bài">
+                <nav className="flex items-center gap-1" aria-label={t("recruiter.assessments.submissions.paginationAria")}>
                   {/* First Page [|<] */}
                   <button
                     type="button"
-                    aria-label="Về trang đầu"
-                    title="Về trang đầu (Trang 1)"
+                    aria-label={t("recruiter.assessments.common.pagination.firstPage")}
+                    title={t("recruiter.assessments.common.pagination.firstPageTitle")}
                     disabled={safePage === 1}
                     onClick={() => goToPage(1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -559,8 +566,8 @@ export function AssessmentSubmissionsPage() {
                   {/* Previous [<] */}
                   <button
                     type="button"
-                    aria-label="Trang trước"
-                    title="Trang trước"
+                    aria-label={t("recruiter.assessments.common.pagination.prevPage")}
+                    title={t("recruiter.assessments.common.pagination.prevPage")}
                     disabled={safePage === 1}
                     onClick={() => goToPage(safePage - 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -586,7 +593,7 @@ export function AssessmentSubmissionsPage() {
                       <button
                         key={item}
                         type="button"
-                        aria-label={`Trang ${item}`}
+                        aria-label={t("recruiter.assessments.common.pagination.pageNumberAria", { page: item })}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => goToPage(item)}
                         className={cn(
@@ -604,8 +611,8 @@ export function AssessmentSubmissionsPage() {
                   {/* Next [>] */}
                   <button
                     type="button"
-                    aria-label="Trang sau"
-                    title="Trang sau"
+                    aria-label={t("recruiter.assessments.common.pagination.nextPage")}
+                    title={t("recruiter.assessments.common.pagination.nextPage")}
                     disabled={safePage >= pageCount}
                     onClick={() => goToPage(safePage + 1)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -616,8 +623,8 @@ export function AssessmentSubmissionsPage() {
                   {/* Last Page [>|] */}
                   <button
                     type="button"
-                    aria-label="Đến trang cuối"
-                    title={`Đến trang cuối (Trang ${pageCount})`}
+                    aria-label={t("recruiter.assessments.common.pagination.lastPage")}
+                    title={t("recruiter.assessments.common.pagination.lastPageTitle", { total: pageCount })}
                     disabled={safePage >= pageCount}
                     onClick={() => goToPage(pageCount)}
                     className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -641,7 +648,7 @@ export function AssessmentSubmissionsPage() {
                   className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400"
                 >
                   <label htmlFor="submission-jump-page" className="whitespace-nowrap">
-                    Đi đến:
+                    {t("recruiter.assessments.common.pagination.goTo")}
                   </label>
                   <input
                     id="submission-jump-page"
@@ -651,16 +658,16 @@ export function AssessmentSubmissionsPage() {
                     value={jumpVal}
                     onChange={(e) => setJumpVal(e.target.value)}
                     placeholder={String(safePage)}
-                    aria-label="Nhập số trang cần đến"
+                    aria-label={t("recruiter.assessments.common.pagination.jumpInputAria")}
                     className="h-8 w-14 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   />
-                  <span>Trang</span>
+                  <span>{t("recruiter.assessments.common.pagination.pageWord")}</span>
                   <button
                     type="submit"
                     disabled={!jumpVal || Number(jumpVal) < 1 || Number(jumpVal) > pageCount}
                     className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs sm:text-[13px] font-semibold text-slate-700 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
-                    Đi
+                    {t("recruiter.assessments.common.pagination.goBtn")}
                   </button>
                 </form>
               </div>
@@ -685,10 +692,12 @@ function SubmissionRow({
   onPrefetch?: () => void;
   onReview: () => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const inProgress = row.status === "IN_PROGRESS";
   const isPendingGrading = row.status === "SUBMITTED" || (row.status !== "IN_PROGRESS" && row.score == null);
   const canReview = ["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status);
-  const durationText = computeDuration(row.startedAt, row.submittedAt);
+  const durationText = computeDuration(row.startedAt, row.submittedAt, t);
   const sameDay = isSameDay(row.startedAt, row.submittedAt);
 
   const padY = density === "compact" ? "py-1.5" : "py-3.5";
@@ -749,10 +758,10 @@ function SubmissionRow({
             <span className="text-slate-300 dark:text-slate-600">•</span>
             {attemptInfo && attemptInfo.totalAttempts > 1 ? (
               <span className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.2 text-[10px] font-bold text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300">
-                Lần {attemptInfo.attempt}/{attemptInfo.totalAttempts}
+                {t("recruiter.assessments.submissions.attemptRatio", { attempt: attemptInfo.attempt, total: attemptInfo.totalAttempts })}
               </span>
             ) : (
-              <span className="text-slate-400 dark:text-slate-500">Lần 1</span>
+              <span className="text-slate-400 dark:text-slate-500">{t("recruiter.assessments.submissions.attemptFirst")}</span>
             )}
           </div>
         </div>
@@ -769,16 +778,16 @@ function SubmissionRow({
           density === "compact" ? (
             <div className="truncate text-xs text-sky-600 dark:text-sky-400 font-medium inline-flex items-center gap-1">
               <Clock3 className="size-3 shrink-0" />
-              <span>{formatTime(row.startedAt)} · {formatRemaining(row.remainingSeconds)}</span>
+              <span>{formatTime(row.startedAt, locale, t)} · {formatRemaining(row.remainingSeconds, t)}</span>
             </div>
           ) : (
             <div className="flex flex-col min-w-0">
               <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
-                {formatTime(row.startedAt)} ({formatDate(row.startedAt)})
+                {formatTime(row.startedAt, locale, t)} ({formatDate(row.startedAt, locale)})
               </span>
               <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
                 <Clock3 className="size-3 shrink-0" aria-hidden="true" />
-                {formatRemaining(row.remainingSeconds)}
+                {formatRemaining(row.remainingSeconds, t)}
               </span>
             </div>
           )
@@ -786,40 +795,47 @@ function SubmissionRow({
           density === "compact" ? (
             <div
               className="truncate text-xs text-slate-700 dark:text-slate-300"
-              title={`Bắt đầu: ${formatTime(row.startedAt)} (${formatDate(row.startedAt)})\nNộp bài: ${formatTime(row.submittedAt)} (${formatDate(row.submittedAt)})\nThời lượng: ${durationText ?? "—"}`}
+              title={t("recruiter.assessments.submissions.timeTooltip", {
+                started: `${formatTime(row.startedAt, locale, t)} (${formatDate(row.startedAt, locale)})`,
+                submitted: `${formatTime(row.submittedAt, locale, t)} (${formatDate(row.submittedAt, locale)})`,
+                duration: durationText ?? t("recruiter.assessments.common.dash"),
+              })}
             >
-              <span>{formatTime(row.startedAt)} ({formatDate(row.startedAt)})</span>
+              <span>{formatTime(row.startedAt, locale, t)} ({formatDate(row.startedAt, locale)})</span>
               <span className="text-slate-400 mx-1">·</span>
-              <strong className="font-semibold text-slate-900 dark:text-slate-100">{durationText ?? "—"}</strong>
+              <strong className="font-semibold text-slate-900 dark:text-slate-100">{durationText ?? t("recruiter.assessments.common.dash")}</strong>
             </div>
           ) : (
             <div
               className="flex flex-col min-w-0"
-              title={`Bắt đầu: ${new Date(row.startedAt ?? "").toLocaleString("vi-VN")}\nNộp bài: ${new Date(row.submittedAt).toLocaleString("vi-VN")}`}
+              title={t("recruiter.assessments.submissions.timeRangeTooltip", {
+                started: row.startedAt ? fmtLocaleDateTime(row.startedAt, undefined, locale) : t("recruiter.assessments.common.dash"),
+                submitted: fmtLocaleDateTime(row.submittedAt, undefined, locale),
+              })}
             >
               <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
                 {sameDay ? (
                   <>
-                    {formatTime(row.startedAt)} - {formatTime(row.submittedAt)}{" "}
-                    <span className="font-normal text-slate-500 dark:text-slate-400">({formatDate(row.submittedAt)})</span>
+                    {formatTime(row.startedAt, locale, t)} - {formatTime(row.submittedAt, locale, t)}{" "}
+                    <span className="font-normal text-slate-500 dark:text-slate-400">({formatDate(row.submittedAt, locale)})</span>
                   </>
                 ) : (
                   <>
-                    {formatTime(row.startedAt)} {formatDate(row.startedAt)} - {formatTime(row.submittedAt)} {formatDate(row.submittedAt)}
+                    {formatTime(row.startedAt, locale, t)} {formatDate(row.startedAt, locale)} - {formatTime(row.submittedAt, locale, t)} {formatDate(row.submittedAt, locale)}
                   </>
                 )}
               </span>
               <span className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                Thời lượng: <strong className="font-medium text-slate-700 dark:text-slate-300">{durationText ?? "—"}</strong>
+                {t("recruiter.assessments.submissions.durationLabel")} <strong className="font-medium text-slate-700 dark:text-slate-300">{durationText ?? t("recruiter.assessments.common.dash")}</strong>
               </span>
             </div>
           )
         ) : (
           <div className="flex flex-col min-w-0">
             <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
-              {formatTime(row.startedAt)} ({formatDate(row.startedAt)})
+              {formatTime(row.startedAt, locale, t)} ({formatDate(row.startedAt, locale)})
             </span>
-            <span className="mt-0.5 text-[11px] text-slate-400 italic">Chưa nộp bài</span>
+            <span className="mt-0.5 text-[11px] text-slate-400 italic">{t("recruiter.assessments.submissions.notSubmittedYet")}</span>
           </div>
         )}
       </td>
@@ -828,21 +844,21 @@ function SubmissionRow({
       <td className={cn("whitespace-nowrap px-4", padY)}>
         {inProgress || row.status === "NOT_STARTED" ? (
           <span className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 font-medium">
-            <Clock3 className="size-3" /> Đang thi
+            <Clock3 className="size-3" /> {t("recruiter.assessments.submissions.takingTest")}
           </span>
         ) : row.status === "SUBMITTED" && row.score == null ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
-            Chờ chấm bài
+            {t("recruiter.assessments.submissions.pendingGrading")}
           </span>
         ) : row.status === "EXPIRED" && row.score == null ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40">
-            Quá giờ (0đ)
+            {t("recruiter.assessments.submissions.expiredZero")}
           </span>
         ) : row.score != null ? (
           density === "compact" ? (
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">
-                {row.score}/{row.totalPoints ?? "—"}đ
+                {row.score}/{row.totalPoints ?? t("recruiter.assessments.common.dash")}{t("recruiter.assessments.common.pointsShort")}
               </span>
               {row.passed != null && (
                 <span
@@ -853,14 +869,14 @@ function SubmissionRow({
                       : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
                   )}
                 >
-                  {row.passed ? "Đạt" : "Trượt"}
+                  {row.passed ? t("recruiter.assessments.submissions.passedShort") : t("recruiter.assessments.submissions.failedShort")}
                 </span>
               )}
             </div>
           ) : (
             <div className="flex flex-col">
               <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                {row.score} <span className="text-xs font-normal text-slate-500">/ {row.totalPoints ?? "—"}đ</span>
+                {row.score} <span className="text-xs font-normal text-slate-500">/ {row.totalPoints ?? t("recruiter.assessments.common.dash")}{t("recruiter.assessments.common.pointsShort")}</span>
               </span>
               {row.passed != null && (
                 <span
@@ -869,13 +885,13 @@ function SubmissionRow({
                     row.passed ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
                   )}
                 >
-                  {row.passed ? "✓ Đạt" : "✗ Chưa đạt"}
+                  {row.passed ? t("recruiter.assessments.submissions.passedCheck") : t("recruiter.assessments.submissions.failedCross")}
                 </span>
               )}
             </div>
           )
         ) : (
-          <span className="text-xs text-slate-400 italic">Chưa có điểm</span>
+          <span className="text-xs text-slate-400 italic">{t("recruiter.assessments.submissions.noScoreYet")}</span>
         )}
       </td>
 
@@ -893,7 +909,7 @@ function SubmissionRow({
             <button
               type="button"
               onClick={onReview}
-              title="Xem & duyệt điểm chi tiết"
+              title={t("recruiter.assessments.submissions.reviewGradeTitle")}
               className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
             >
               <Pencil className="size-3.5" />
@@ -905,7 +921,7 @@ function SubmissionRow({
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
             >
               <Pencil className="size-3.5" />
-              Chấm bài
+              {t("recruiter.assessments.submissions.gradeBtn")}
             </button>
           )
         ) : canReview ? (
@@ -913,7 +929,7 @@ function SubmissionRow({
             <button
               type="button"
               onClick={onReview}
-              title="Xem chi tiết bài làm & nhận xét"
+              title={t("recruiter.assessments.submissions.viewSubmissionTitle")}
               className="inline-flex size-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-2xs hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 transition-all cursor-pointer"
             >
               <Eye className="size-3.5" />
@@ -923,14 +939,14 @@ function SubmissionRow({
               type="button"
               onClick={onReview}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 transition-all cursor-pointer"
-              title="Xem chi tiết bài làm & nhận xét"
+              title={t("recruiter.assessments.submissions.viewSubmissionTitle")}
             >
               <Eye className="size-3.5" />
-              Xem bài làm
+              {t("recruiter.assessments.submissions.viewSubmissionBtn")}
             </button>
           )
         ) : (
-          <span className="text-xs text-slate-400 italic">Đang làm bài</span>
+          <span className="text-xs text-slate-400 italic">{t("recruiter.assessments.submissions.status.IN_PROGRESS")}</span>
         )}
       </td>
     </tr>

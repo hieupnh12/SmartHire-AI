@@ -29,6 +29,7 @@ import {
   Quote,
   FileText,
 } from "lucide-react";
+import { useT } from "@/i18n";
 import type { LandingPageConfig } from "../types/landing";
 import { renderIcon } from "../utils/icons";
 import "@/features/tenant/candidate/jobs/career-page.css";
@@ -75,6 +76,7 @@ interface LandingEditorCanvasProps {
 }
 
 export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
+  const t = useT();
   const {
     config,
     brandName,
@@ -116,7 +118,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
   const validStats = (config.about.stats || []).filter((s) => s.value?.trim() || s.label?.trim());
   const validBenefits = (config.benefits.items || []).filter((b) => b.title?.trim() || b.description?.trim());
-  const validTestimonials = (config.testimonials.items || []).filter((t) => t.name?.trim() || t.quote?.trim());
+  const validTestimonials = (config.testimonials.items || []).filter((item) => item.name?.trim() || item.quote?.trim());
 
   const dynamicThemeStyle: React.CSSProperties = {
     fontFamily: config.theme.fontFamily || "Inter",
@@ -143,8 +145,8 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           isMobile
             ? "w-[390px] min-h-[844px] rounded-[44px] border-[10px] border-slate-200 ring-4 ring-slate-100 my-4 text-xs overflow-hidden"
             : isTablet
-            ? "w-[768px] min-h-[1024px] rounded-[32px] border-[10px] border-slate-200 ring-4 ring-slate-100 my-4 text-sm overflow-hidden"
-            : "w-full max-w-[1440px] rounded-2xl border border-slate-200 text-sm overflow-hidden"
+              ? "w-[768px] min-h-[1024px] rounded-[32px] border-[10px] border-slate-200 ring-4 ring-slate-100 my-4 text-sm overflow-hidden"
+              : "w-full max-w-[1440px] rounded-2xl border border-slate-200 text-sm overflow-hidden"
         }`}
         style={dynamicThemeStyle}
       >
@@ -168,7 +170,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[11px] font-semibold shadow hover:bg-slate-800 transition-transform active:scale-95"
               >
                 <Palette className="w-3 h-3 text-cyan-400" />
-                <span>Đổi Màu & Font</span>
+                <span>{t("tenantAdmin.landing.canvas.editColorsFont")}</span>
               </button>
               <button
                 type="button"
@@ -179,7 +181,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-600 text-white text-[11px] font-semibold shadow hover:bg-cyan-700 transition-transform active:scale-95"
               >
                 <Edit3 className="w-3 h-3" />
-                <span>Sửa Header</span>
+                <span>{t("tenantAdmin.landing.canvas.editHeader")}</span>
               </button>
             </div>
           )}
@@ -187,7 +189,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           {isSectionActive("header") && (
             <div className="absolute -top-3 left-6 z-40 bg-cyan-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
               <Edit3 className="w-2.5 h-2.5" />
-              <span>Đang chỉnh sửa: Header & Logo</span>
+              <span>{t("tenantAdmin.landing.canvas.editingHeader")}</span>
             </div>
           )}
 
@@ -197,7 +199,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               <div className="relative group/logo">
                 <img
                   src={config.header.logoImageUrl}
-                  alt="Company Logo"
+                  alt={t("tenantAdmin.landing.canvas.logoAlt")}
                   className="h-11 max-w-36 object-contain rounded"
                 />
                 {showVisualControls && (
@@ -249,9 +251,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className={`block text-[11px] text-slate-500 outline-none transition-all ${
                   showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                 }`}
-                title={showVisualControls ? "Bấm vào để sửa Slogan" : undefined}
+                title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditSlogan") : undefined}
               >
-                {config.header.slogan || "Cổng tuyển dụng nhân tài"}
+                {config.header.slogan || t("tenantAdmin.landing.canvas.defaultSlogan")}
               </span>
             </div>
           </div>
@@ -260,16 +262,16 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           {!isMobile && (
             <div className="hidden lg:flex items-center gap-7 text-sm font-medium text-slate-700">
               <span className="flex items-center gap-1 hover:text-[var(--color-primary)] transition-colors">
-                Việc làm <ChevronDown className="size-3.5 text-slate-400" />
+                {t("tenantAdmin.landing.canvas.navJobs")} <ChevronDown className="size-3.5 text-slate-400" />
               </span>
               <span className="flex items-center gap-1 hover:text-[var(--color-primary)] transition-colors">
-                Tạo CV <ChevronDown className="size-3.5 text-slate-400" />
+                {t("tenantAdmin.landing.canvas.navCreateCv")} <ChevronDown className="size-3.5 text-slate-400" />
               </span>
               <span className="flex items-center gap-1 hover:text-[var(--color-primary)] transition-colors">
-                Công cụ <ChevronDown className="size-3.5 text-slate-400" />
+                {t("tenantAdmin.landing.canvas.navTools")} <ChevronDown className="size-3.5 text-slate-400" />
               </span>
               <span className="flex items-center gap-1 hover:text-[var(--color-primary)] transition-colors">
-                Về doanh nghiệp <ChevronDown className="size-3.5 text-slate-400" />
+                {t("tenantAdmin.landing.canvas.navAbout")} <ChevronDown className="size-3.5 text-slate-400" />
               </span>
             </div>
           )}
@@ -279,7 +281,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             <button
               type="button"
               className="inline-flex items-center justify-center size-9 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs shadow-sm"
-              title="Đổi ngôn ngữ"
+              title={t("tenantAdmin.landing.canvas.switchLanguageTitle")}
             >
               <Globe className="size-4" />
             </button>
@@ -289,14 +291,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               style={{ backgroundColor: primary }}
             >
               <LogIn className="size-3.5" />
-              <span>Đăng nhập</span>
+              <span>{t("tenantAdmin.landing.canvas.login")}</span>
             </button>
             <button
               type="button"
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold shadow-sm hover:bg-slate-50 transition-colors"
             >
               <Building2 className="size-3.5 text-slate-500" />
-              <span>Nhà tuyển dụng</span>
+              <span>{t("tenantAdmin.landing.canvas.recruiterPortal")}</span>
             </button>
           </div>
         </header>
@@ -320,7 +322,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/95 text-white text-xs font-semibold shadow-xl hover:bg-slate-800 transition-transform active:scale-95 border border-white/20"
               >
                 <Edit3 className="size-3.5 text-cyan-400" />
-                <span>Sửa Hero Banner</span>
+                <span>{t("tenantAdmin.landing.canvas.editHeroBanner")}</span>
               </button>
             </div>
           )}
@@ -328,7 +330,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           {isSectionActive("hero") && (
             <div className="absolute top-3 left-6 z-40 bg-white text-slate-900 text-[10px] font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Đang chỉnh sửa: Hero Banner (Xem bảng bên trái)</span>
+              <span>{t("tenantAdmin.landing.canvas.editingHero")}</span>
             </div>
           )}
 
@@ -336,10 +338,10 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             {/* Top Eyebrow & Title */}
             <div className="mb-6 text-center text-white">
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
-                CỔNG TUYỂN DỤNG {brandName}
+                {t("tenantAdmin.landing.canvas.heroEyebrow", { brand: brandName })}
               </p>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
-                Tìm công việc phù hợp. Phát triển sự nghiệp cùng {brandName}
+                {t("tenantAdmin.landing.canvas.heroHeadline", { brand: brandName })}
               </h1>
             </div>
 
@@ -352,12 +354,12 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   </span>
                   <span className="ml-3 min-w-0 flex-1">
                     <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                      Từ khóa
+                      {t("tenantAdmin.landing.canvas.searchKeywordLabel")}
                     </span>
                     <input
                       type="text"
                       readOnly
-                      placeholder="Vị trí tuyển dụng, kỹ năng..."
+                      placeholder={t("tenantAdmin.landing.canvas.searchKeywordPlaceholder")}
                       className="mt-0.5 w-full min-w-0 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:font-medium placeholder:text-slate-400"
                     />
                   </span>
@@ -369,10 +371,10 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   </span>
                   <span className="ml-3 min-w-0 flex-1">
                     <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                      Địa điểm
+                      {t("tenantAdmin.landing.canvas.searchLocationLabel")}
                     </span>
                     <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800">
-                      Tất cả địa điểm
+                      {t("tenantAdmin.landing.canvas.searchAllLocations")}
                     </span>
                   </span>
                   <ChevronDown className="ml-3 size-4 shrink-0 text-slate-400" />
@@ -384,15 +386,15 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-8 text-sm font-semibold text-white shadow-sm md:h-full transition-all"
                   >
                     <Search className="size-4" />
-                    <span>Tìm việc ngay</span>
+                    <span>{t("tenantAdmin.landing.canvas.searchButton")}</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* 2-Column: Nhóm nghề nghiệp (Left) + Banner Slider Carousel (Right) */}
+            {/* 2-Column: Categories (Left) + Banner Slider Carousel (Right) */}
             <div className="grid gap-4 lg:grid-cols-[330px_minmax(0,1fr)]">
-              {/* Left Column: Nhóm nghề nghiệp */}
+              {/* Left Column: Job Categories */}
               <aside className="career-category-card overflow-hidden rounded-2xl border border-white/45 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
                 <div className="career-category-heading relative overflow-hidden border-b border-[var(--career-border)] px-4 py-3.5">
                   <div className="relative z-10 flex items-center gap-3">
@@ -409,17 +411,21 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       </span>
                     )}
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold text-slate-900">Nhóm nghề nghiệp</h2>
-                      <p className="mt-0.5 text-xs text-slate-600">Khám phá theo phòng ban</p>
+                      <h2 className="truncate text-base font-semibold text-slate-900">
+                        {t("tenantAdmin.landing.canvas.categoriesTitle")}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        {t("tenantAdmin.landing.canvas.categoriesSubtitle")}
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <nav className="space-y-1.5 p-2.5">
                   {[
-                    { name: "Software Development / Engineering", count: "3 vị trí đang mở" },
-                    { name: "Data & Artificial Intelligence", count: "2 vị trí đang mở" },
-                    { name: "Product & UI/UX Design", count: "1 vị trí đang mở" },
+                    { name: "Software Development / Engineering", count: t("tenantAdmin.landing.canvas.category1Count") },
+                    { name: "Data & Artificial Intelligence", count: t("tenantAdmin.landing.canvas.category2Count") },
+                    { name: "Product & UI/UX Design", count: t("tenantAdmin.landing.canvas.category3Count") },
                   ].map((dept) => (
                     <div
                       key={dept.name}
@@ -438,7 +444,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 </nav>
 
                 <div className="group flex min-h-14 items-center justify-between border-t border-[var(--career-border)] bg-[var(--color-primary-subtle)] px-5 text-sm font-semibold text-[var(--color-primary)]">
-                  <span>Xem tất cả vị trí</span>
+                  <span>{t("tenantAdmin.landing.canvas.viewAllPositions")}</span>
                   <span className="grid size-8 place-items-center rounded-full bg-white shadow-sm">
                     <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
                   </span>
@@ -447,7 +453,6 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
               {/* Right Column: Hero Banner Slider Carousel */}
               <div className="career-banner-slider relative min-h-[360px] overflow-hidden rounded-2xl border border-white/35 bg-slate-900 shadow-lg group/slider">
-                {/* Background image */}
                 <img
                   src={config.hero.bannerImageUrl || "/acme_tech_hero.png"}
                   alt="Hero Banner"
@@ -464,7 +469,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className="absolute top-4 right-4 z-30 cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-semibold backdrop-blur-md opacity-0 group-hover/slider:opacity-100 hover:bg-black/80 transition-opacity"
                   >
                     <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Đổi ảnh banner</span>
+                    <span>{t("tenantAdmin.landing.canvas.changeBannerImage")}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -485,9 +490,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       className={`inline-block text-xs font-semibold uppercase tracking-[0.16em] text-cyan-400 outline-none transition-all ${
                         showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Huy hiệu" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBadge") : undefined}
                     >
-                      {config.hero.badgeText || "DẪN ĐẦU GIẢI PHÁP CÔNG NGHỆ ENTERPRISE MULTI-TENANT & AI"}
+                      {config.hero.badgeText || t("tenantAdmin.landing.canvas.defaultHeroBadge")}
                     </span>
                   </div>
 
@@ -499,9 +504,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className={`text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl outline-none transition-all ${
                       showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                     }`}
-                    title={showVisualControls ? "Bấm vào để sửa Tiêu đề Banner" : undefined}
+                    title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBannerTitle") : undefined}
                   >
-                    {config.hero.title || `Chinh Phục Tương Lai Công Nghệ Cùng ${brandName}`}
+                    {config.hero.title || t("tenantAdmin.landing.canvas.defaultHeroTitle", { brand: brandName })}
                   </h2>
 
                   {/* Subtitle */}
@@ -512,9 +517,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className={`mt-4 max-w-xl text-sm leading-6 text-white/80 sm:text-base outline-none transition-all ${
                       showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                     }`}
-                    title={showVisualControls ? "Bấm vào để sửa Đoạn giới thiệu ngắn" : undefined}
+                    title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBannerSubtitle") : undefined}
                   >
-                    {config.hero.subtitle || "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế."}
+                    {config.hero.subtitle || t("tenantAdmin.landing.canvas.defaultHeroSubtitle")}
                   </p>
 
                   {/* Action CTA Button */}
@@ -527,9 +532,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                         className={`outline-none transition-all ${
                           showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""
                         }`}
-                        title={showVisualControls ? "Bấm vào để sửa chữ trên Nút" : undefined}
+                        title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditButtonText") : undefined}
                       >
-                        {config.hero.primaryCtaText || "Khám phá cơ hội"}
+                        {config.hero.primaryCtaText || t("tenantAdmin.landing.canvas.defaultPrimaryCta")}
                       </span>
                       <ArrowRight className="size-4" />
                     </span>
@@ -560,29 +565,29 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           </div>
         </section>
 
-        {/* ================= SECTION 2: FEATURED JOBS (Việc làm nổi bật - Readonly preview) ================= */}
+        {/* ================= SECTION 2: FEATURED JOBS ================= */}
         <section className="career-featured-jobs border-b border-[var(--color-border-default)] py-14 lg:py-20 relative">
           <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
             <div className="career-featured-heading relative mb-7 overflow-hidden rounded-3xl px-6 py-7 text-white sm:px-8 sm:py-9 lg:flex lg:items-end lg:justify-between lg:gap-10">
               <div className="relative z-10 max-w-3xl">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] backdrop-blur-sm">
                   <Sparkles className="size-3.5" />
-                  <span>Cơ hội nghề nghiệp</span>
+                  <span>{t("tenantAdmin.landing.canvas.featuredEyebrow")}</span>
                 </span>
                 <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Việc làm nổi bật dành cho bạn
+                  {t("tenantAdmin.landing.canvas.featuredTitle")}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-                  Khám phá những vị trí mới nhất, so sánh thông tin quan trọng và tìm cơ hội phù hợp với định hướng của bạn.
+                  {t("tenantAdmin.landing.canvas.featuredSubtitle")}
                 </p>
               </div>
               <div className="relative z-10 mt-6 flex items-center gap-4 lg:mt-0">
                 <div className="hidden text-right sm:block">
                   <strong className="block text-2xl font-semibold">8</strong>
-                  <span className="text-xs text-white/70">vị trí đang mở</span>
+                  <span className="text-xs text-white/70">{t("tenantAdmin.landing.canvas.openPositionsCount")}</span>
                 </div>
                 <span className="group inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-[var(--color-primary)] shadow-lg hover:bg-slate-50">
-                  <span>Xem tất cả việc làm</span>
+                  <span>{t("tenantAdmin.landing.canvas.viewAllJobs")}</span>
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
@@ -591,10 +596,10 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             {/* View Tabs */}
             <div className="mb-5 inline-flex rounded-xl border border-[var(--color-border-default)] bg-white p-1 shadow-sm">
               <span className="min-h-10 rounded-lg px-5 text-sm font-semibold flex items-center bg-[var(--color-primary)] text-white shadow-sm">
-                Tất cả vị trí
+                {t("tenantAdmin.landing.canvas.tabAllPositions")}
               </span>
               <span className="min-h-10 rounded-lg px-5 text-sm font-semibold flex items-center text-slate-600">
-                Phù hợp với bạn
+                {t("tenantAdmin.landing.canvas.tabMatchingYou")}
               </span>
             </div>
 
@@ -602,19 +607,19 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start">
               <div className="flex min-h-12 items-center rounded-lg border border-[var(--color-border-default)] bg-white px-4 text-left shadow-sm lg:w-72">
                 <SlidersHorizontal className="mr-3 size-4 text-slate-400" />
-                <span className="mr-2 text-sm text-slate-500">Lọc theo:</span>
-                <span className="text-sm font-semibold text-slate-800 flex-1">Địa điểm</span>
+                <span className="mr-2 text-sm text-slate-500">{t("tenantAdmin.landing.canvas.filterByLabel")}</span>
+                <span className="text-sm font-semibold text-slate-800 flex-1">{t("tenantAdmin.landing.canvas.filterLocation")}</span>
                 <ChevronDown className="size-4 text-slate-400" />
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm shadow-sm">
                   <MapPin className="size-4 text-[var(--color-primary)]" />
-                  <span className="font-medium text-slate-700">Tất cả địa điểm</span>
+                  <span className="font-medium text-slate-700">{t("tenantAdmin.landing.canvas.searchAllLocations")}</span>
                   <ChevronDown className="size-4 text-slate-400" />
                 </div>
                 <div className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm shadow-sm">
                   <Laptop className="size-4 text-[var(--color-primary)]" />
-                  <span className="font-medium text-slate-700">Tất cả hình thức</span>
+                  <span className="font-medium text-slate-700">{t("tenantAdmin.landing.canvas.allWorkModes")}</span>
                   <ChevronDown className="size-4 text-slate-400" />
                 </div>
               </div>
@@ -626,37 +631,37 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 {
                   title: "Senior Fullstack Engineer (React / Spring Boot)",
                   dept: "Software Development",
-                  location: "Hà Nội",
-                  workMode: "Kết hợp",
-                  type: "Toàn thời gian",
-                  salary: "25 - 40 triệu VND",
+                  location: t("tenantAdmin.landing.canvas.sampleJobs.locHanoi"),
+                  workMode: t("tenantAdmin.landing.canvas.sampleJobs.modeHybrid"),
+                  type: t("tenantAdmin.landing.canvas.sampleJobs.typeFullTime"),
+                  salary: t("tenantAdmin.landing.canvas.sampleJobs.salary1"),
                   daysRemaining: 15,
                 },
                 {
                   title: "AI / Machine Learning Engineer (Python, LLM)",
                   dept: "Data & AI",
-                  location: "TP. Hồ Chí Minh",
-                  workMode: "Từ xa",
-                  type: "Toàn thời gian",
-                  salary: "30 - 55 triệu VND",
+                  location: t("tenantAdmin.landing.canvas.sampleJobs.locHcm"),
+                  workMode: t("tenantAdmin.landing.canvas.sampleJobs.modeRemote"),
+                  type: t("tenantAdmin.landing.canvas.sampleJobs.typeFullTime"),
+                  salary: t("tenantAdmin.landing.canvas.sampleJobs.salary2"),
                   daysRemaining: 12,
                 },
                 {
                   title: "Senior Product Designer (UI/UX, Design System)",
                   dept: "Product Design",
-                  location: "Đà Nẵng",
-                  workMode: "Tại văn phòng",
-                  type: "Toàn thời gian",
-                  salary: "20 - 35 triệu VND",
+                  location: t("tenantAdmin.landing.canvas.sampleJobs.locDanang"),
+                  workMode: t("tenantAdmin.landing.canvas.sampleJobs.modeOnsite"),
+                  type: t("tenantAdmin.landing.canvas.sampleJobs.typeFullTime"),
+                  salary: t("tenantAdmin.landing.canvas.sampleJobs.salary3"),
                   daysRemaining: 20,
                 },
                 {
                   title: "DevOps & Cloud Infrastructure Engineer (K8s, AWS)",
                   dept: "Infrastructure",
-                  location: "Hà Nội",
-                  workMode: "Kết hợp",
-                  type: "Toàn thời gian",
-                  salary: "28 - 45 triệu VND",
+                  location: t("tenantAdmin.landing.canvas.sampleJobs.locHanoi"),
+                  workMode: t("tenantAdmin.landing.canvas.sampleJobs.modeHybrid"),
+                  type: t("tenantAdmin.landing.canvas.sampleJobs.typeFullTime"),
+                  salary: t("tenantAdmin.landing.canvas.sampleJobs.salary4"),
                   daysRemaining: 18,
                 },
               ].map((j, idx) => (
@@ -674,7 +679,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
                         <span className="mt-0.5 shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                          Tuyển gấp
+                          {t("tenantAdmin.landing.canvas.urgentBadge")}
                         </span>
                         <h3 className="line-clamp-2 text-lg font-semibold leading-6 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
                           {j.title}
@@ -706,11 +711,11 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       <p className="text-lg font-semibold text-emerald-700">{j.salary}</p>
                       <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700">
                         <Clock className="size-3.5" />
-                        <span>Còn {j.daysRemaining} ngày</span>
+                        <span>{t("tenantAdmin.landing.canvas.daysLeft", { days: j.daysRemaining })}</span>
                       </p>
                     </div>
                     <span className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors">
-                      <span>Xem chi tiết</span>
+                      <span>{t("tenantAdmin.landing.canvas.viewDetails")}</span>
                       <ArrowRight className="size-3.5" />
                     </span>
                   </div>
@@ -741,7 +746,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800 transition-transform active:scale-95"
                 >
                   <Edit3 className="size-3.5 text-cyan-400" />
-                  <span>Sửa Khối Văn Hóa</span>
+                  <span>{t("tenantAdmin.landing.canvas.editAbout")}</span>
                 </button>
               </div>
             )}
@@ -749,7 +754,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             {isSectionActive("about") && (
               <div className="absolute top-4 left-6 z-30 bg-cyan-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
                 <Edit3 className="w-2.5 h-2.5" />
-                <span>Đang chỉnh sửa: Văn Hóa & Giới Thiệu (Xem bảng bên trái)</span>
+                <span>{t("tenantAdmin.landing.canvas.editingAbout")}</span>
               </div>
             )}
 
@@ -760,7 +765,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   {config.about.cultureImageUrl ? (
                     <img
                       src={config.about.cultureImageUrl}
-                      alt="Văn hóa công ty"
+                      alt={t("tenantAdmin.landing.canvas.cultureAlt")}
                       className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover/img:scale-105"
                     />
                   ) : (
@@ -775,7 +780,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       className="absolute top-4 right-4 z-20 cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-semibold backdrop-blur-md opacity-0 group-hover/img:opacity-100 hover:bg-black/80 transition-opacity"
                     >
                       <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Đổi ảnh văn hóa</span>
+                      <span>{t("tenantAdmin.landing.canvas.changeCultureImage")}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -788,10 +793,10 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8 pointer-events-none">
                     <div className="text-white space-y-1">
                       <span className="block text-xs font-semibold uppercase tracking-wider text-white/75">
-                        Văn hóa làm việc
+                        {t("tenantAdmin.landing.canvas.workCultureEyebrow")}
                       </span>
                       <h3 className="text-xl font-semibold font-display">
-                        Cùng phát triển và tạo ra giá trị bền vững
+                        {t("tenantAdmin.landing.canvas.workCultureHeadline")}
                       </h3>
                     </div>
                   </div>
@@ -812,9 +817,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                         color: primary,
                         borderColor: `${primary}30`,
                       }}
-                      title={showVisualControls ? "Bấm vào để sửa Huy hiệu" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBadge") : undefined}
                     >
-                      {config.about.badge || "Về Chúng Tôi"}
+                      {config.about.badge || t("tenantAdmin.landing.canvas.defaultAboutBadge")}
                     </span>
 
                     <h2
@@ -824,9 +829,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       className={`mb-4 mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl outline-none transition-all ${
                         showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Tiêu đề Khối" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditSectionTitle") : undefined}
                     >
-                      {config.about.title || `Vì Sao Bạn Nên Chọn ${brandName}?`}
+                      {config.about.title || t("tenantAdmin.landing.canvas.defaultAboutTitle", { brand: brandName })}
                     </h2>
 
                     <p
@@ -836,14 +841,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       className={`whitespace-pre-line text-sm leading-7 text-slate-600 outline-none transition-all ${
                         showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Đoạn giới thiệu" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditDescription") : undefined}
                     >
                       {config.about.description ||
-                        `Tại ${brandName}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.`}
+                        t("tenantAdmin.landing.canvas.defaultAboutDescription", { brand: brandName })}
                     </p>
                   </div>
 
-                  {/* Numbers Grid (Số Liệu Thông Tin Bên Dưới) */}
+                  {/* Numbers Grid */}
                   <div className="grid gap-4 pt-2 sm:grid-cols-2">
                     {validStats.map((st, i) => (
                       <div
@@ -857,7 +862,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                               type="button"
                               onClick={() => setEditingIconTarget(editingIconTarget?.type === "stat" && editingIconTarget?.index === i ? null : { type: "stat", index: i })}
                               className="p-1 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-cyan-600 shadow-xs"
-                              title="Đổi biểu tượng (icon)"
+                              title={t("tenantAdmin.landing.canvas.changeIconTitle")}
                             >
                               <Sparkles className="size-3" />
                             </button>
@@ -868,7 +873,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                                 updateAbout({ stats: next });
                               }}
                               className="p-1 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-red-600 shadow-xs"
-                              title="Xóa số liệu này"
+                              title={t("tenantAdmin.landing.canvas.deleteStatTitle")}
                             >
                               <Trash2 className="size-3" />
                             </button>
@@ -911,7 +916,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                               showVisualControls ? "hover:scale-110 cursor-pointer" : ""
                             }`}
                             style={{ backgroundColor: `${primary}15`, color: primary }}
-                            title={showVisualControls ? "Bấm để đổi Icon" : undefined}
+                            title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToChangeIconTitle") : undefined}
                           >
                             {renderIcon(st.icon, "size-4")}
                           </button>
@@ -929,7 +934,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                                 ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded"
                                 : ""
                             }`}
-                            title={showVisualControls ? "Bấm vào để sửa Số liệu" : undefined}
+                            title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditStatValue") : undefined}
                           >
                             {st.value}
                           </span>
@@ -948,7 +953,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                               ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded"
                               : ""
                           }`}
-                          title={showVisualControls ? "Bấm vào để sửa Nhãn mô tả" : undefined}
+                          title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditStatLabel") : undefined}
                         >
                           {st.label}
                         </span>
@@ -962,13 +967,20 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          const next = [...(config.about.stats || []), { icon: "Users", value: "100+", label: "Chỉ số mới" }];
+                          const next = [
+                            ...(config.about.stats || []),
+                            {
+                              icon: "Users",
+                              value: "100+",
+                              label: t("tenantAdmin.landing.canvas.defaultStatLabel"),
+                            },
+                          ];
                           updateAbout({ stats: next });
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 hover:border-cyan-500 hover:bg-cyan-50/40 text-xs font-semibold text-slate-600 hover:text-cyan-700 transition-all shadow-2xs active:scale-95"
                       >
                         <Plus className="size-3.5 text-cyan-600" />
-                        <span>+ Thêm số liệu mới</span>
+                        <span>{t("tenantAdmin.landing.canvas.addNewStatButton")}</span>
                       </button>
                     </div>
                   )}
@@ -999,7 +1011,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800 transition-transform active:scale-95"
                 >
                   <Edit3 className="size-3.5 text-cyan-400" />
-                  <span>Sửa Khối Đãi Ngộ</span>
+                  <span>{t("tenantAdmin.landing.canvas.editBenefits")}</span>
                 </button>
               </div>
             )}
@@ -1007,7 +1019,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             {isSectionActive("benefits") && (
               <div className="absolute top-4 left-6 z-30 bg-cyan-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
                 <Edit3 className="w-2.5 h-2.5" />
-                <span>Đang chỉnh sửa: Đãi Ngộ & Phúc Lợi (Xem bảng bên trái)</span>
+                <span>{t("tenantAdmin.landing.canvas.editingBenefits")}</span>
               </div>
             )}
 
@@ -1025,9 +1037,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     color: primary,
                     borderColor: `${primary}30`,
                   }}
-                  title={showVisualControls ? "Bấm vào để sửa Huy hiệu" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBadge") : undefined}
                 >
-                  {config.benefits.badge || "Đãi Ngộ"}
+                  {config.benefits.badge || t("tenantAdmin.landing.canvas.defaultBenefitsBadge")}
                 </span>
 
                 <h2
@@ -1037,9 +1049,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className={`mb-2 mt-3 text-3xl font-semibold tracking-tight text-slate-900 outline-none transition-all ${
                     showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                   }`}
-                  title={showVisualControls ? "Bấm vào để sửa Tiêu đề" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditTitle") : undefined}
                 >
-                  {config.benefits.title || "Chế Độ Đãi Ngộ & Phúc Lợi Toàn Diện"}
+                  {config.benefits.title || t("tenantAdmin.landing.canvas.defaultBenefitsTitle")}
                 </h2>
 
                 <p
@@ -1049,13 +1061,13 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className={`text-sm leading-6 text-slate-600 outline-none transition-all ${
                     showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                   }`}
-                  title={showVisualControls ? "Bấm vào để sửa Đoạn mô tả" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditDescription") : undefined}
                 >
-                  {config.benefits.subtitle || "Chúng tôi chăm sóc toàn diện cho sức khỏe, sự nghiệp và đời sống tinh thần của bạn"}
+                  {config.benefits.subtitle || t("tenantAdmin.landing.canvas.defaultBenefitsSubtitle")}
                 </p>
               </div>
 
-              {/* Benefits Grid (Các Khung Đãi Ngộ) */}
+              {/* Benefits Grid */}
               <div className="career-benefits-grid grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
                 {validBenefits.map((b, i) => (
                   <div
@@ -1073,7 +1085,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           type="button"
                           onClick={() => setEditingIconTarget(editingIconTarget?.type === "benefit" && editingIconTarget?.index === i ? null : { type: "benefit", index: i })}
                           className="p-1 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-cyan-600 shadow-xs"
-                          title="Đổi biểu tượng (icon)"
+                          title={t("tenantAdmin.landing.canvas.changeIconTitle")}
                         >
                           <Sparkles className="size-3" />
                         </button>
@@ -1084,7 +1096,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                             updateBenefits({ items: next });
                           }}
                           className="p-1 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-red-600 shadow-xs"
-                          title="Xóa thẻ đãi ngộ này"
+                          title={t("tenantAdmin.landing.canvas.deleteBenefitTitle")}
                         >
                           <Trash2 className="size-3" />
                         </button>
@@ -1127,7 +1139,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           showVisualControls ? "hover:scale-110 cursor-pointer" : ""
                         }`}
                         style={{ backgroundColor: `${primary}15`, color: primary }}
-                        title={showVisualControls ? "Bấm để đổi Icon" : undefined}
+                        title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToChangeIconTitle") : undefined}
                       >
                         {renderIcon(b.icon, "w-6 h-6")}
                       </button>
@@ -1146,7 +1158,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded"
                           : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Tiêu đề Đãi ngộ" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBenefitTitle") : undefined}
                     >
                       {b.title}
                     </h3>
@@ -1164,7 +1176,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded"
                           : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Chi tiết Đãi ngộ" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBenefitDesc") : undefined}
                     >
                       {b.description}
                     </p>
@@ -1178,7 +1190,11 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     onClick={() => {
                       const next = [
                         ...(config.benefits.items || []),
-                        { icon: "HeartHandshake", title: "Chế Độ Đãi Ngộ Mới", description: "Mô tả chi tiết quyền lợi dành cho nhân viên..." },
+                        {
+                          icon: "HeartHandshake",
+                          title: t("tenantAdmin.landing.canvas.defaultBenefitTitle"),
+                          description: t("tenantAdmin.landing.canvas.defaultBenefitDesc"),
+                        },
                       ];
                       updateBenefits({ items: next });
                     }}
@@ -1187,7 +1203,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     <div className="size-10 rounded-xl bg-slate-100 group-hover/add:bg-cyan-100 flex items-center justify-center mb-2 transition-colors">
                       <Plus className="size-5 text-slate-600 group-hover/add:text-cyan-600" />
                     </div>
-                    <span className="text-sm font-semibold">+ Thêm chế độ đãi ngộ</span>
+                    <span className="text-sm font-semibold">{t("tenantAdmin.landing.canvas.addBenefitCardButton")}</span>
                   </button>
                 )}
               </div>
@@ -1195,31 +1211,31 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           </section>
         )}
 
-        {/* ================= SECTION 5: HIRING PROCESS (Quy trình tuyển dụng - Standard) ================= */}
+        {/* ================= SECTION 5: HIRING PROCESS ================= */}
         <section id="hiring-process" className="career-process-section career-section border-b border-[var(--color-border-default)] py-16 lg:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto mb-12 max-w-2xl text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                Quy trình tuyển dụng
+                {t("tenantAdmin.landing.canvas.processEyebrow")}
               </p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                Minh bạch trong từng bước
+                {t("tenantAdmin.landing.canvas.processTitle")}
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Số vòng và thời gian có thể thay đổi theo từng vị trí; người phụ trách tuyển dụng sẽ thông báo rõ cho bạn.
+                {t("tenantAdmin.landing.canvas.processSubtitle")}
               </p>
             </div>
 
             <ol className="career-process grid gap-4 md:grid-cols-5">
               {[
-                { title: "Gửi hồ sơ", text: "Chọn vị trí và nộp CV phù hợp." },
-                { title: "Trao đổi với HR", text: "Tìm hiểu kỳ vọng từ hai phía." },
-                { title: "Đánh giá chuyên môn", text: "Bài tập hoặc trao đổi nghiệp vụ." },
-                { title: "Phỏng vấn đội ngũ", text: "Gặp quản lý và cộng sự tương lai." },
-                { title: "Kết quả & đề nghị", text: "Nhận phản hồi và thảo luận offer." },
+                { title: t("tenantAdmin.landing.canvas.processSteps.s1Title"), text: t("tenantAdmin.landing.canvas.processSteps.s1Text") },
+                { title: t("tenantAdmin.landing.canvas.processSteps.s2Title"), text: t("tenantAdmin.landing.canvas.processSteps.s2Text") },
+                { title: t("tenantAdmin.landing.canvas.processSteps.s3Title"), text: t("tenantAdmin.landing.canvas.processSteps.s3Text") },
+                { title: t("tenantAdmin.landing.canvas.processSteps.s4Title"), text: t("tenantAdmin.landing.canvas.processSteps.s4Text") },
+                { title: t("tenantAdmin.landing.canvas.processSteps.s5Title"), text: t("tenantAdmin.landing.canvas.processSteps.s5Text") },
               ].map((step, index) => (
                 <li
-                  key={step.title}
+                  key={index}
                   className="career-process-step group relative rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
                   <span className="grid size-10 place-items-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white shadow-[0_0_0_6px_var(--color-primary-subtle)] transition-transform group-hover:scale-110">
@@ -1254,7 +1270,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800 transition-transform active:scale-95"
                 >
                   <Edit3 className="size-3.5 text-cyan-400" />
-                  <span>Sửa Khối Đánh Giá</span>
+                  <span>{t("tenantAdmin.landing.canvas.editTestimonials")}</span>
                 </button>
               </div>
             )}
@@ -1262,7 +1278,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             {isSectionActive("testimonials") && (
               <div className="absolute top-4 left-6 z-30 bg-cyan-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
                 <Edit3 className="w-2.5 h-2.5" />
-                <span>Đang chỉnh sửa: Cảm Nhận Nhân Viên (Xem bảng bên trái)</span>
+                <span>{t("tenantAdmin.landing.canvas.editingTestimonials")}</span>
               </div>
             )}
 
@@ -1280,9 +1296,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     color: primary,
                     borderColor: `${primary}30`,
                   }}
-                  title={showVisualControls ? "Bấm vào để sửa Huy hiệu" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditBadge") : undefined}
                 >
-                  {config.testimonials.badge || "Chia Sẻ"}
+                  {config.testimonials.badge || t("tenantAdmin.landing.canvas.defaultTestimonialsBadge")}
                 </span>
 
                 <h2
@@ -1292,9 +1308,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className={`mt-3 text-3xl font-semibold tracking-tight text-slate-900 outline-none transition-all ${
                     showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                   }`}
-                  title={showVisualControls ? "Bấm vào để sửa Tiêu đề" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditTitle") : undefined}
                 >
-                  {config.testimonials.title || "Đánh Giá Từ Đội Ngũ Kỹ Sư"}
+                  {config.testimonials.title || t("tenantAdmin.landing.canvas.defaultTestimonialsTitle")}
                 </h2>
               </div>
 
@@ -1312,14 +1328,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           updateTestimonials({ items: next });
                         }}
                         className="absolute top-4 right-4 opacity-0 group-hover/story:opacity-100 transition-opacity p-1 rounded-md text-slate-400 hover:text-red-600 bg-white border border-slate-200 shadow-xs"
-                        title="Xóa đánh giá này"
+                        title={t("tenantAdmin.landing.canvas.deleteTestimonialTitle")}
                       >
                         <Trash2 className="size-3.5" />
                       </button>
                     )}
 
                     <Quote className="mb-5 size-9 text-[var(--color-primary)] opacity-25" />
-                    
+
                     <blockquote
                       contentEditable={showVisualControls}
                       suppressContentEditableWarning
@@ -1331,7 +1347,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                       className={`mb-7 flex-1 text-base italic leading-7 text-slate-700 outline-none transition-all ${
                         showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                       }`}
-                      title={showVisualControls ? "Bấm vào để sửa Lời chia sẻ" : undefined}
+                      title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditQuote") : undefined}
                     >
                       “{item.quote}”
                     </blockquote>
@@ -1359,7 +1375,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           className={`text-sm font-semibold text-slate-900 outline-none transition-all ${
                             showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                           }`}
-                          title={showVisualControls ? "Bấm vào để sửa Họ tên" : undefined}
+                          title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditName") : undefined}
                         >
                           {item.name}
                         </div>
@@ -1374,7 +1390,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           className={`text-xs text-slate-500 outline-none transition-all ${
                             showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                           }`}
-                          title={showVisualControls ? "Bấm vào để sửa Vị trí công tác" : undefined}
+                          title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditRole") : undefined}
                         >
                           {item.role}
                         </div>
@@ -1391,14 +1407,19 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     onClick={() => {
                       const next = [
                         ...(config.testimonials.items || []),
-                        { name: "Kỹ Sư Mới", role: "Software Engineer", avatarUrl: "", quote: "Môi trường công nghệ chuyên nghiệp và cơ hội phát triển rất lớn." },
+                        {
+                          name: t("tenantAdmin.landing.canvas.defaultTestimonialName"),
+                          role: t("tenantAdmin.landing.canvas.defaultTestimonialRole"),
+                          avatarUrl: "",
+                          quote: t("tenantAdmin.landing.canvas.defaultTestimonialQuote"),
+                        },
                       ];
                       updateTestimonials({ items: next });
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-slate-300 hover:border-cyan-500 hover:bg-cyan-50/30 text-xs font-semibold text-slate-700 hover:text-cyan-700 transition-all shadow-2xs"
                   >
                     <Plus className="size-3.5 text-cyan-600" />
-                    <span>+ Thêm chia sẻ nhân viên</span>
+                    <span>{t("tenantAdmin.landing.canvas.addTestimonialButton")}</span>
                   </button>
                 </div>
               )}
@@ -1414,25 +1435,25 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 <FileText className="size-5" />
               </span>
               <p className="mt-6 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
-                Câu hỏi thường gặp
+                {t("tenantAdmin.landing.canvas.faqEyebrow")}
               </p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                Thông tin dành cho ứng viên
+                {t("tenantAdmin.landing.canvas.faqTitle")}
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Những điều bạn có thể cần biết trước khi bắt đầu ứng tuyển.
+                {t("tenantAdmin.landing.canvas.faqSubtitle")}
               </p>
             </div>
 
             <div className="space-y-3">
               {[
-                ["Tôi có thể ứng tuyển nhiều vị trí không?", "Có. Bạn nên chọn những vị trí phù hợp nhất với kinh nghiệm và định hướng của mình."],
-                ["Khi nào tôi nhận được phản hồi?", "Thời gian phản hồi phụ thuộc vào từng vị trí. Trạng thái hồ sơ sẽ được cập nhật trong không gian ứng viên."],
-                ["Quy trình phỏng vấn gồm bao nhiêu vòng?", "Thông thường gồm trao đổi với HR, đánh giá chuyên môn và phỏng vấn đội ngũ."],
-                ["Tôi có thể cập nhật CV sau khi nộp không?", "Bạn có thể quản lý và cập nhật CV trong mục CV của tôi trước các lần ứng tuyển tiếp theo."],
+                [t("tenantAdmin.landing.canvas.faqItems.q1"), t("tenantAdmin.landing.canvas.faqItems.a1")],
+                [t("tenantAdmin.landing.canvas.faqItems.q2"), t("tenantAdmin.landing.canvas.faqItems.a2")],
+                [t("tenantAdmin.landing.canvas.faqItems.q3"), t("tenantAdmin.landing.canvas.faqItems.a3")],
+                [t("tenantAdmin.landing.canvas.faqItems.q4"), t("tenantAdmin.landing.canvas.faqItems.a4")],
               ].map(([question, answer], index) => (
                 <div
-                  key={question}
+                  key={index}
                   className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all ${
                     openFaq === index ? "border-[var(--color-primary)]/40 shadow-md" : "border-[var(--color-border-default)]"
                   }`}
@@ -1470,14 +1491,18 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
         <section className="career-section career-section-white px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <div className="career-final-cta mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 overflow-hidden rounded-[2rem] p-8 text-white shadow-xl sm:p-10 lg:flex-row lg:items-center lg:p-12">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">Bước tiếp theo của bạn</p>
-              <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">Sẵn sàng đồng hành cùng {brandName}?</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">
+                {t("tenantAdmin.landing.canvas.finalCtaEyebrow")}
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">
+                {t("tenantAdmin.landing.canvas.finalCtaTitle", { brand: brandName })}
+              </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80">
-                Khám phá các vị trí đang mở và chọn cơ hội phù hợp với kinh nghiệm, kỹ năng và mục tiêu nghề nghiệp của bạn.
+                {t("tenantAdmin.landing.canvas.finalCtaDesc")}
               </p>
             </div>
             <span className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50 shadow-sm">
-              <span>Xem tất cả việc làm</span>
+              <span>{t("tenantAdmin.landing.canvas.viewAllJobs")}</span>
               <ArrowRight className="size-4" />
             </span>
           </div>
@@ -1502,7 +1527,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 text-white text-xs font-semibold shadow hover:bg-slate-700 border border-slate-700 transition-transform active:scale-95"
               >
                 <Edit3 className="size-3.5 text-cyan-400" />
-                <span>Sửa Chân Trang & Liên Hệ</span>
+                <span>{t("tenantAdmin.landing.canvas.editFooter")}</span>
               </button>
             </div>
           )}
@@ -1510,7 +1535,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           {isSectionActive("footer") && (
             <div className="absolute top-4 left-6 z-30 bg-cyan-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
               <Edit3 className="w-2.5 h-2.5" />
-              <span>Đang chỉnh sửa: Chân Trang & Liên Hệ (Xem bảng bên trái)</span>
+              <span>{t("tenantAdmin.landing.canvas.editingFooter")}</span>
             </div>
           )}
 
@@ -1534,27 +1559,29 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className={`text-sm leading-6 text-white/65 outline-none transition-all ${
                     showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                   }`}
-                  title={showVisualControls ? "Bấm vào để sửa Giới thiệu chân trang" : undefined}
+                  title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditFooterDesc") : undefined}
                 >
-                  {config.footer.description || "Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise."}
+                  {config.footer.description || t("tenantAdmin.landing.canvas.defaultFooterDesc")}
                 </p>
               </div>
 
               {/* Col 2: Navigation Links */}
               <div>
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-white">Khám phá</h2>
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-white">
+                  {t("tenantAdmin.landing.canvas.footerExploreTitle")}
+                </h2>
                 <ul className="space-y-3 text-white/65">
-                  <li className="hover:text-white">Việc làm đang tuyển</li>
-                  <li className="hover:text-white">Về chúng tôi</li>
-                  <li className="hover:text-white">Quy trình tuyển dụng</li>
-                  <li className="hover:text-white">Câu hỏi thường gặp</li>
+                  <li className="hover:text-white">{t("tenantAdmin.landing.canvas.footerExploreJobs")}</li>
+                  <li className="hover:text-white">{t("tenantAdmin.landing.canvas.footerExploreAbout")}</li>
+                  <li className="hover:text-white">{t("tenantAdmin.landing.canvas.footerExploreProcess")}</li>
+                  <li className="hover:text-white">{t("tenantAdmin.landing.canvas.footerExploreFaq")}</li>
                 </ul>
               </div>
 
               {/* Col 3: Contact Details */}
               <div className="space-y-3 text-white/65">
                 <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-white">
-                  {config.footer.contactTitle || "Liên hệ tuyển dụng"}
+                  {config.footer.contactTitle || t("tenantAdmin.landing.canvas.defaultFooterContactTitle")}
                 </h2>
 
                 <div className="flex items-start gap-2.5">
@@ -1566,9 +1593,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className={`outline-none transition-all ${
                       showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                     }`}
-                    title={showVisualControls ? "Bấm vào để sửa Địa chỉ" : undefined}
+                    title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditAddress") : undefined}
                   >
-                    {config.footer.address || "Tòa nhà công nghệ cao, TP. Hà Nội"}
+                    {config.footer.address || t("tenantAdmin.landing.canvas.defaultFooterAddress")}
                   </span>
                 </div>
 
@@ -1581,7 +1608,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className={`outline-none transition-all ${
                       showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                     }`}
-                    title={showVisualControls ? "Bấm vào để sửa Email liên hệ" : undefined}
+                    title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditEmail") : undefined}
                   >
                     {config.footer.contactEmail || `careers@${brandName.toLowerCase()}.com`}
                   </span>
@@ -1596,7 +1623,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     className={`outline-none transition-all ${
                       showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                     }`}
-                    title={showVisualControls ? "Bấm vào để sửa Số điện thoại" : undefined}
+                    title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditPhone") : undefined}
                   >
                     {config.footer.contactPhone || "+84 (0) 24 3999 8888"}
                   </span>
@@ -1606,7 +1633,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               {/* Col 4: Social Links */}
               <div className="space-y-3">
                 <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-white">
-                  {config.footer.socialTitle || "Kết nối"}
+                  {config.footer.socialTitle || t("tenantAdmin.landing.canvas.defaultFooterSocialTitle")}
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 text-white/65">
                   <div className="grid size-10 place-items-center rounded-full border border-white/15 hover:border-white/35 hover:text-white transition-colors">
@@ -1634,12 +1661,13 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 className={`outline-none transition-all ${
                   showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""
                 }`}
-                title={showVisualControls ? "Bấm vào để sửa Bản quyền" : undefined}
+                title={showVisualControls ? t("tenantAdmin.landing.canvas.clickToEditCopyright") : undefined}
               >
-                {config.footer.copyrightText || `${brandName} Careers Portal © 2026. Powered by SmartHire AI Multi-Tenant SaaS.`}
+                {config.footer.copyrightText ||
+                  t("tenantAdmin.landing.canvas.defaultFooterCopyright", { brand: brandName })}
               </p>
               <p>
-                {config.footer.bottomText || "Hệ thống tuyển dụng doanh nghiệp"}
+                {config.footer.bottomText || t("tenantAdmin.landing.canvas.defaultFooterBottomText")}
               </p>
             </div>
           </div>

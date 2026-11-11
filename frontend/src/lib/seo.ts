@@ -1,3 +1,5 @@
+import { toOgLocale, useI18nStore } from "@/i18n";
+
 export interface SeoConfig {
   title: string;
   description?: string;
@@ -107,7 +109,7 @@ export function applyDocumentSeo(config: SeoConfig): void {
 
   upsertMeta("property", "og:type", config.ogType ?? "website");
   upsertMeta("property", "og:site_name", config.ogSiteName ?? "SmartHire AI");
-  upsertMeta("property", "og:locale", config.ogLocale ?? "vi_VN");
+  upsertMeta("property", "og:locale", config.ogLocale ?? toOgLocale(useI18nStore.getState().locale));
   upsertMeta("property", "og:title", config.ogTitle ?? title);
   upsertMeta("property", "og:description", config.ogDescription ?? description);
   upsertMeta("property", "og:url", canonicalUrl ?? `${origin}${window.location.pathname}`);
