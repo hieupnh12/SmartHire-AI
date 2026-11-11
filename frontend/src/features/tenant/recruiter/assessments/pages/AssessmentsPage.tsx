@@ -90,7 +90,7 @@ function OriginBadge({ origin }: { origin?: TestOrigin }) {
       className={cn(
         "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
         ai
-          ? "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+          ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
           : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
       )}
     >
@@ -346,7 +346,7 @@ export function AssessmentsPage() {
 
       {/* Thanh tác vụ chọn nhiều (Selection Batch Action Bar) */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#213145] px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-primary)]/25 bg-slate-900 px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
               {selected.length}
@@ -354,7 +354,7 @@ export function AssessmentsPage() {
             <span className="font-medium">Đã chọn {selected.length} bài đánh giá</span>
             <button
               type="button"
-              className="text-xs text-sky-200 hover:underline cursor-pointer"
+              className="text-xs font-medium text-[var(--color-primary)] brightness-125 hover:underline cursor-pointer"
               onClick={() => setSelected(pageRows.map((row) => row.id))}
             >
               Chọn toàn bộ {pageRows.length} bài trên trang
@@ -396,7 +396,7 @@ export function AssessmentsPage() {
             <div className="relative min-w-[200px] max-w-sm flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
-                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
                 placeholder="Tìm theo tên bài đánh giá, mã đề…"
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}
@@ -421,7 +421,7 @@ export function AssessmentsPage() {
                 className={cn(
                   "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                   status !== "ALL"
-                    ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                    ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                     : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                 )}
                 aria-expanded={activeDropdown === "status"}
@@ -455,7 +455,7 @@ export function AssessmentsPage() {
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                         status === item.value
-                          ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                          ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       )}
                     >
@@ -467,7 +467,7 @@ export function AssessmentsPage() {
                         <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400">
                           {item.count}
                         </span>
-                        {status === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                        {status === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                       </div>
                     </button>
                   ))}
@@ -483,7 +483,7 @@ export function AssessmentsPage() {
                 className={cn(
                   "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                   sort !== "latest"
-                    ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                    ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                     : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                 )}
                 aria-expanded={activeDropdown === "sort"}
@@ -514,12 +514,12 @@ export function AssessmentsPage() {
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                         sort === item.value
-                          ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                          ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       )}
                     >
                       <span>{item.label}</span>
-                      {sort === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                      {sort === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                     </button>
                   ))}
                 </div>
@@ -567,7 +567,7 @@ export function AssessmentsPage() {
                       }}
                       className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
                     >
-                      <FileSpreadsheet className="size-4 text-blue-600" />
+                      <FileSpreadsheet className="size-4 text-[var(--color-primary)]" />
                       <div className="text-left">
                         <p className="font-semibold">Xuất bài đã chọn</p>
                         <p className="text-[10px] text-slate-400">{selected.length} bài đã chọn</p>
@@ -594,12 +594,12 @@ export function AssessmentsPage() {
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
             <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
             {query && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                 Từ khóa: "{query}"
                 <button
                   type="button"
                   onClick={() => handleQueryChange("")}
-                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                   aria-label="Xóa từ khóa tìm kiếm"
                 >
                   <X className="size-3" />
@@ -607,12 +607,12 @@ export function AssessmentsPage() {
               </span>
             )}
             {status !== "ALL" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                 Trạng thái: {assessmentStatus[status]}
                 <button
                   type="button"
                   onClick={() => handleStatusChange("ALL")}
-                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                   aria-label="Xóa lọc trạng thái"
                 >
                   <X className="size-3" />
@@ -620,12 +620,12 @@ export function AssessmentsPage() {
               </span>
             )}
             {sort !== "latest" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                 Sắp xếp: {sort === "title" ? "Tên A → Z" : "Thời lượng"}
                 <button
                   type="button"
                   onClick={() => handleSortChange("latest")}
-                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
                   aria-label="Xóa sắp xếp"
                 >
                   <X className="size-3" />
@@ -639,7 +639,7 @@ export function AssessmentsPage() {
                 handleStatusChange("ALL");
                 handleSortChange("latest");
               }}
-              className="ml-auto text-xs font-semibold text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+              className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
             >
               Xóa tất cả bộ lọc
             </button>
@@ -999,7 +999,7 @@ function AssessmentRow({
       </td>
       <td className="min-w-0 px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:border-blue-900 dark:text-blue-300">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/15">
             <ClipboardList className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
@@ -1080,7 +1080,7 @@ function AssessmentRow({
           ) : (
             <Link
               to={String(test.id)}
-              className="inline-flex h-8 items-center gap-1 rounded-xl bg-blue-50 px-2.5 text-xs font-semibold text-[#0066FF] border border-blue-200/80 hover:bg-blue-100 transition-colors shadow-2xs"
+              className="inline-flex h-8 items-center gap-1 rounded-xl bg-brand-primary/10 px-2.5 text-xs font-semibold text-brand-primary transition-colors hover:bg-brand-primary hover:text-white shadow-2xs"
             >
               <Eye className="size-3.5" aria-hidden="true" />
               Xem đề
@@ -1091,7 +1091,7 @@ function AssessmentRow({
             <Link
               to={`${basePath}/submissions?testId=${test.id}`}
               aria-label="Xem bài nộp của ứng viên"
-              className="inline-flex size-8 items-center justify-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-[#0066FF] transition-colors border border-transparent hover:border-blue-200/60"
+              className="inline-flex size-8 items-center justify-center rounded-xl text-slate-500 hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition-colors border border-transparent hover:border-[var(--color-primary)]/20"
             >
               <Users className="size-4" />
             </Link>
@@ -1161,7 +1161,7 @@ function AssessmentRow({
                     className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     onClick={() => setMenuOpen(false)}
                   >
-                    <Users className="size-3.5 text-blue-600" /> Bài nộp ứng viên
+                    <Users className="size-3.5 text-[var(--color-primary)]" /> Bài nộp ứng viên
                   </Link>
                   <Link
                     to={String(test.id)}

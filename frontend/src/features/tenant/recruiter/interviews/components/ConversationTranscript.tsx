@@ -18,7 +18,13 @@ export function useInterviewTranscript(interviewId: number, enabled = true) {
   });
 }
 
-export function ConversationTranscript({ interviewId }: { interviewId: number }) {
+export function ConversationTranscript({
+  interviewId,
+  maxHeightClass = "max-h-[60vh]",
+}: {
+  interviewId: number;
+  maxHeightClass?: string;
+}) {
   const transcript = useInterviewTranscript(interviewId);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<number | null>(null);
@@ -47,19 +53,26 @@ export function ConversationTranscript({ interviewId }: { interviewId: number })
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900" aria-label="Transcript toàn phiên">
-      <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950 dark:text-blue-300">
-          <MessageSquare className="size-4.5" aria-hidden="true" />
+    <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs" aria-label="Transcript toàn phiên">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+            <MessageSquare className="size-4.5" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              Transcript hội thoại phỏng vấn
+            </h3>
+            <p className="text-xs text-slate-400">
+              Toàn bộ diễn biến trao đổi giữa AI Interviewer và ứng viên theo thời gian thực.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
-            Transcript hội thoại phỏng vấn
-          </h3>
-          <p className="text-xs text-slate-400">
-            Toàn bộ diễn biến trao đổi giữa AI Interviewer và ứng viên theo thời gian thực.
-          </p>
-        </div>
+        {transcript.data && (
+          <span className="rounded-full border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-semibold tabular-nums text-[var(--color-primary-hover)]">
+            {transcript.data.candidateTurns}/{transcript.data.maxTurns} lượt trả lời
+          </span>
+        )}
       </div>
 
       {transcript.isPending && (
@@ -77,7 +90,13 @@ export function ConversationTranscript({ interviewId }: { interviewId: number })
         </p>
       )}
 
-      <ol className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+      {transcript.data && transcript.data.messages.length === 0 && (
+        <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
+          Chưa có tin nhắn hội thoại nào trong phiên này.
+        </p>
+      )}
+
+      <ol className={cn("space-y-3 overflow-y-auto pr-1", maxHeightClass)}>
         {transcript.data?.messages.map((message) => {
           const isUser = message.role === "USER";
           return (
@@ -86,20 +105,20 @@ export function ConversationTranscript({ interviewId }: { interviewId: number })
               className={cn(
                 "rounded-2xl p-4 text-xs transition-colors",
                 isUser
-                  ? "border border-blue-100/90 bg-blue-50/40 ml-4 dark:border-blue-900/40 dark:bg-blue-950/20"
-                  : "border border-slate-200/80 bg-slate-50/70 mr-4 dark:border-slate-800 dark:bg-slate-800/40"
+                  ? "ml-4 border border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)]/70"
+                  : "mr-4 border border-slate-200/80 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/40"
               )}
             >
-              <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
                   {isUser ? (
                     <>
-                      <User className="size-3.5 text-[#0066FF]" />
+                      <User className="size-3.5 text-[var(--color-primary)]" />
                       <span>Ứng viên</span>
                     </>
                   ) : (
                     <>
-                      <Bot className="size-3.5 text-violet-600" />
+                      <Bot className="size-3.5 text-[var(--color-primary-hover)]" />
                       <span>AI Interviewer</span>
                     </>
                   )}
@@ -110,16 +129,16 @@ export function ConversationTranscript({ interviewId }: { interviewId: number })
                     type="button"
                     disabled={loading !== null}
                     onClick={() => void play(message.id)}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                    className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {loading === message.id ? (
                       <>
-                        <Loader2 className="size-3 animate-spin text-[#0066FF]" />
+                        <Loader2 className="size-3 animate-spin text-[var(--color-primary)]" />
                         <span>Đang tải…</span>
                       </>
                     ) : (
                       <>
-                        <Volume2 className="size-3 text-[#0066FF]" />
+                        <Volume2 className="size-3 text-[var(--color-primary)]" />
                         <span>Nghe bản ghi</span>
                       </>
                     )}

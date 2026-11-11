@@ -521,6 +521,70 @@ class CvMatchingServiceTest {
         return extraction;
     }
 
+    @Test
+    void alwaysPopulatesStrengthsAndRisksWhenAdvisorIsUnavailableEvenForZeroMatchCv() throws Exception {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(30L);
+        job.setTitle("Senior Backend Developer");
+        job.setMinYearsExperience(new BigDecimal("5.0"));
+        job.setEducationLevel("Đại học");
+        Cv cv = new Cv();
+        cv.setId(30L);
+        cv.setJob(job);
+
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(30L)).thenReturn(List.of(
+                jobSkill("Java", "backend", true),
+                jobSkill("Docker", "devops", true)));
+        when(cvSkillRepository.findByCv_Id(30L)).thenReturn(List.of(cvSkill("Business Analysis"), cvSkill("Stakeholder Management")));
+        CvExtraction extraction = extraction(cv, """
+                {
+                  "education":[{"degree":"Thạc sĩ Kinh tế","school":"ĐH Kinh tế Quốc dân"}],
+                  "experience":[{"title":"Senior Business Consultant","company":"FPT Digital"}],
+                  "projects":[{"name":"ERP Transformation"}],
+                  "skills":[{"name":"Business Analysis"}]
+                }
+                """);
+        CvAnalysis analysis = new CvAnalysis();
+        analysis.setYearsExperience(new BigDecimal("9.0"));
+        when(extractionRepository.findByCv_Id(30L)).thenReturn(Optional.of(extraction));
+        when(analysisRepository.findByCv_Id(30L)).thenReturn(Optional.of(analysis));
+        when(matchScoreRepository.findByJob_IdAndCv_Id(30L, 30L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScore saved = matching(mapper, scoring).score(cv);
+        JsonNode breakdown = read(mapper, saved.getBreakdownJson());
+
+        assertThat(breakdown.path("strengths").isArray()).isTrue();
+        assertThat(breakdown.path("strengths").size()).isGreaterThanOrEqualTo(2);
+        assertThat(breakdown.path("strengths").toString()).contains("Senior Business Consultant").contains("ERP Transformation");
+        assertThat(breakdown.path("risks").isArray()).isTrue();
+        assertThat(breakdown.path("risks").size()).isGreaterThanOrEqualTo(2);
+        assertThat(breakdown.path("risks").toString()).contains("Java").contains("Docker");
+    }
+
+    @Test
+    void backfillsMissingStrengthsOrRisksEvenWhenAiDecisionOmitsThem() throws Exception {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        CvScreeningAdvisor partialAi = (ctx, formulaPassed) -> Optional.of(new CvScreeningAdvisor.Decision(
+                true,
+                "Ứng viên phù hợp vị trí Java Backend.",
+                "Mời phỏng vấn kỹ thuật.",
+                "",
+                List.of(),
+                List.of(),
+                List.of()));
+        MatchScore saved = scoreSingleJava(mapper, scoring, partialAi, 31L, 31L);
+        JsonNode breakdown = read(mapper, saved.getBreakdownJson());
+
+        assertThat(breakdown.path("decisionSource").asText()).isEqualTo("ai");
+        assertThat(breakdown.path("strengths").size()).isGreaterThanOrEqualTo(2);
+        assertThat(breakdown.path("strengths").toString()).contains("Java");
+        assertThat(breakdown.path("risks").size()).isGreaterThanOrEqualTo(2);
+    }
+
     private static JsonNode read(ObjectMapper mapper, String json) {
         try {
             return mapper.readTree(json);

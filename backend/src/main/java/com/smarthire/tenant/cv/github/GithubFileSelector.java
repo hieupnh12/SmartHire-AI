@@ -4,9 +4,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
-/** Picks JD-related source files from a Git tree without calling a model. */
+/** Picks high-signal JD-related source files from a Git tree without calling a model. */
 public final class GithubFileSelector {
     public record TreeFile(String path, String sha, long size) {}
 
@@ -19,7 +20,7 @@ public final class GithubFileSelector {
     private static final Set<String> SKIP_DIRS = Set.of(
             "node_modules", "target", "build", "dist", ".git", "vendor", "coverage", "__pycache__",
             ".next", "out", "bin", "obj", ".gradle", ".idea", ".mvn", "venv", ".venv", "site-packages",
-            "third_party", "third-party", "generated", "gen", "pods");
+            "third_party", "third-party", "generated", "gen", "pods", "migrations", "seed", "seeds", "mocks");
     private static final Set<String> SKIP_EXT = Set.of(
             "png", "jpg", "jpeg", "gif", "webp", "ico", "svg", "mp4", "mov", "zip", "jar", "class",
             "woff", "woff2", "ttf", "eot", "pdf", "map", "exe", "dll", "so", "dylib", "wasm", "parquet",
@@ -28,8 +29,21 @@ public final class GithubFileSelector {
             "java", "kt", "kts", "scala", "groovy", "py", "js", "jsx", "ts", "tsx", "mjs", "cjs", "go",
             "rs", "cs", "php", "rb", "sql", "c", "h", "cpp", "hpp", "cc", "swift", "ex", "exs", "clj",
             "dart", "vue", "svelte");
+    private static final Set<String> LOGIC_CUES = Set.of(
+            "service", "controller", "handler", "security", "config", "worker", "consumer",
+            "publisher", "engine", "manager", "validator", "repository", "usecase", "resolver");
+    private static final Set<String> BOILERPLATE_CUES = Set.of(
+            "dto", "dtos", "entity", "entities", "request", "response", "vo", "pojo", "swagger", "sample");
 
     private GithubFileSelector() {}
+
+    /** Picks the root-most dependency manifest for deterministic 0-token stack extraction. */
+    public static Optional<TreeFile> pickManifest(List<TreeFile> tree, int maxFileBytes) {
+        if (tree == null || tree.isEmpty()) return Optional.empty();
+        return tree.stream()
+                .filter(f -> f != null && f.path() != null && !excluded(f.path()) && manifest(f.path()) && f.size() <= maxFileBytes * 2L)
+                .min(Comparator.comparingInt((TreeFile f) -> f.path().length()).thenComparing(TreeFile::path));
+    }
 
     public static Selection select(Signals signals, List<TreeFile> tree, int maxFiles, int maxFileBytes, int maxTotalBytes) {
         List<String> tokens = tokens(signals);
@@ -37,18 +51,23 @@ public final class GithubFileSelector {
         List<SelectedFile> ranked = new ArrayList<>();
         int skipped = 0;
         for (TreeFile file : tree) {
-            if (file == null || file.path() == null || excluded(file.path()) || file.size() > maxFileBytes) {
+            if (file == null || file.path() == null || excluded(file.path()) || manifest(file.path()) || file.size() > maxFileBytes) {
+                skipped++;
+                continue;
+            }
+            String lower = file.path().toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".d.ts")) {
                 skipped++;
                 continue;
             }
             int score = score(file.path(), tokens, languages);
-            String ext = ext(name(file.path().toLowerCase(Locale.ROOT)));
+            String ext = ext(name(lower));
             boolean languageMatch = !languages.isEmpty() && languages.contains(ext);
             if (score < 5 && !(languageMatch && score >= 3)) {
                 skipped++;
                 continue;
             }
-            ranked.add(new SelectedFile(file.path(), file.sha(), Math.max(file.size(), 1), score, manifest(file.path())));
+            ranked.add(new SelectedFile(file.path(), file.sha(), Math.max(file.size(), 1), score, false));
         }
         ranked.sort(Comparator.comparingInt(SelectedFile::score).reversed().thenComparing(SelectedFile::path));
         List<SelectedFile> chosen = new ArrayList<>();
@@ -58,15 +77,10 @@ public final class GithubFileSelector {
                 skipped++;
                 continue;
             }
-            if (file.manifest() && chosen.stream().anyMatch(SelectedFile::manifest)) {
-                skipped++;
-                continue;
-            }
             chosen.add(file);
             bytes += file.size();
         }
-        boolean evidence = chosen.stream().anyMatch(file -> !file.manifest());
-        if (!evidence) chosen = List.of();
+        if (chosen.isEmpty()) return new Selection(List.of(), skipped, false);
         return new Selection(chosen, skipped, false);
     }
 
@@ -119,7 +133,19 @@ public final class GithubFileSelector {
         if (languages.contains("rb") && file.equals("gemfile")) score += 6;
         if (languages.contains("cs") && file.endsWith(".csproj")) score += 6;
         if (lower.contains("/test/") || lower.contains("/tests/") || file.contains("test") || file.contains("spec")) {
-            score += tokens.contains("test") ? 4 : 1;
+            score += tokens.contains("test") ? 5 : 2;
+        }
+        for (String cue : LOGIC_CUES) {
+            if (file.contains(cue)) {
+                score += 4;
+                break;
+            }
+        }
+        for (String cue : BOILERPLATE_CUES) {
+            if (lower.contains("/" + cue + "/") || file.endsWith(cue + "." + ext)) {
+                score -= 4;
+                break;
+            }
         }
         return score;
     }

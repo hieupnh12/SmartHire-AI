@@ -76,7 +76,7 @@ export function AiQuestionCard({
       className={cn(
         "rounded-2xl border transition-all p-5 shadow-2xs space-y-4",
         isSelected
-          ? "border-[#0066FF]/60 bg-blue-50/15 ring-1 ring-[#0066FF]/20 dark:border-blue-900/80 dark:bg-blue-950/10"
+          ? "border-[var(--color-primary)]/60 bg-[var(--color-primary-subtle)] ring-1 ring-[var(--color-primary)]/20"
           : "border-slate-200/90 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900",
       )}
     >
@@ -89,7 +89,7 @@ export function AiQuestionCard({
               checked={isSelected}
               disabled={busy}
               onChange={() => onToggleSelect(item.id)}
-              className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+              className="size-4 rounded border-slate-300 accent-[var(--color-primary)]"
             />
             <span className="font-bold text-sm text-slate-900 dark:text-white">
               Câu #{index + 1}
@@ -103,20 +103,20 @@ export function AiQuestionCard({
                 className={cn(
                   "rounded-full px-2 py-0.5 text-[10px] font-bold border inline-flex items-center gap-1",
                   isLatestBatch
-                    ? "bg-blue-50 text-[#0066FF] border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800"
+                    ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border-[var(--color-primary)]/25"
                     : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
                 )}
               >
-                {isLatestBatch && <Sparkles className="size-2.5 text-[#0066FF]" />}
+                {isLatestBatch && <Sparkles className="size-2.5 text-[var(--color-primary)]" />}
                 <span>Đợt {item.batch}</span>
                 {isLatestBatch && (
-                  <span className="rounded bg-[#0066FF] px-1 py-0.2 text-[9px] font-bold text-white">
+                  <span className="rounded bg-[var(--color-primary)] px-1 py-0.2 text-[9px] font-bold text-white">
                     MỚI
                   </span>
                 )}
               </span>
             )}
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+            <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20">
               {q.questionType === "MCQ"
                 ? "Trắc nghiệm 1 ĐA"
                 : q.questionType === "MULTIPLE_CHOICE"
@@ -143,9 +143,9 @@ export function AiQuestionCard({
             {modelName && (
               <span
                 title={`Mô hình AI: ${modelName}`}
-                className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-purple-50 to-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200/90 shadow-2xs dark:from-purple-950 dark:to-indigo-950 dark:text-purple-300 dark:border-purple-800"
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs"
               >
-                <Sparkles className="size-3 text-purple-600 dark:text-purple-400" />
+                <Sparkles className="size-3 text-[var(--color-primary)]" />
                 <span>{modelName}</span>
               </span>
             )}

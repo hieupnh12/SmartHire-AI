@@ -177,16 +177,16 @@ app:
     enabled: ${GITHUB_ANALYSIS_ENABLED:true}
     token: ${GITHUB_TOKEN:}
     max-repos: ${GITHUB_MAX_REPOS:2}
-    max-files: ${GITHUB_MAX_FILES:8}
-    max-file-bytes: ${GITHUB_MAX_FILE_BYTES:12000}
-    max-total-bytes: ${GITHUB_MAX_TOTAL_BYTES:48000}
-    max-prompt-chars: ${GITHUB_MAX_PROMPT_CHARS:60000}
+    max-files: ${GITHUB_MAX_FILES:6}
+    max-file-bytes: ${GITHUB_MAX_FILE_BYTES:8000}
+    max-total-bytes: ${GITHUB_MAX_TOTAL_BYTES:28000}
+    max-prompt-chars: ${GITHUB_MAX_PROMPT_CHARS:28000}
     timeout-seconds: ${GITHUB_TIMEOUT_SECONDS:12}
     max-retries: ${GITHUB_MAX_RETRIES:2}
     listener-concurrency: ${GITHUB_LISTENER_CONCURRENCY:1-2}
     # Bump these when the file-selection strategy or the prompt changes so cached results are not reused.
-    strategy-version: github-v1
-    prompt-version: github-prompt-v1
+    strategy-version: github-v2
+    prompt-version: github-prompt-v2
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     # Provider, model and API key per task live only in Master DB (Admin > AI Config)

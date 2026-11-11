@@ -122,7 +122,7 @@ const quickAiTags = [
   "+ Nhấn mạnh bảo mật & edge-case",
 ];
 
-const inputClass = "mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-normal text-[#101828] transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white";
+const inputClass = "mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-normal text-[#101828] transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white";
 const cardClass = "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900";
 
 export type JobAssessmentConfigProps = {
@@ -340,7 +340,7 @@ export function ConfigurationForm({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2.5">
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-[12px] font-semibold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+              <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-[12px] font-semibold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                 Tổng đề: {count} câu hỏi · {total} điểm
               </span>
               <Button
@@ -377,7 +377,7 @@ export function ConfigurationForm({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2.5">
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0066FF]">
+                <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-hover)]">
                   {count} câu hỏi · {total} điểm
                 </span>
                 <Button
@@ -421,7 +421,7 @@ export function ConfigurationForm({
                   className={cn(
                     "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 py-1.5 text-[13px] font-medium transition-all",
                     tab === item.id
-                      ? "bg-blue-50 text-[#0066FF] font-semibold shadow-2xs dark:bg-blue-950 dark:text-blue-300"
+                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                       : "text-[#667085] hover:bg-slate-50 hover:text-[#101828] dark:text-slate-400 dark:hover:bg-slate-800",
                   )}
                 >
@@ -451,7 +451,7 @@ export function ConfigurationForm({
           {/* Khối 1: Tiêu chuẩn đạt & Điểm số */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80">
             <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25">
                 <Target className="size-4" aria-hidden="true" />
               </div>
               <div className="flex items-center gap-1.5">
@@ -462,7 +462,7 @@ export function ConfigurationForm({
                   content="Tỷ lệ phần trăm điểm số tối thiểu để ứng viên được xét vượt qua bài kiểm tra chuyên môn."
                   side="top"
                 >
-                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                     <HelpCircle className="size-3.5" aria-hidden="true" />
                   </span>
                 </Tooltip>
@@ -479,7 +479,7 @@ export function ConfigurationForm({
                     content="Ngưỡng tối thiểu được hệ thống dùng để phân loại tự động kết quả ứng viên (Đạt / Không đạt)."
                     side="top"
                   >
-                    <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                    <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                       <HelpCircle className="size-3.5" aria-hidden="true" />
                     </span>
                   </Tooltip>
@@ -503,18 +503,18 @@ export function ConfigurationForm({
               </div>
 
               {/* Box Preview điểm đạt trực quan */}
-              <div className="flex flex-col justify-between rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div className="flex flex-col justify-between rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)]/50 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-blue-900 dark:text-blue-300">
+                  <span className="text-xs font-semibold text-[var(--color-primary-hover)]">
                     Ngưỡng điểm cần đạt thực tế
                   </span>
-                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-primary-hover)]">
                     {passingPercent}%
                   </span>
                 </div>
                 <div className="my-2.5">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-extrabold text-[#0066FF] dark:text-blue-400">
+                    <span className="text-2xl font-extrabold text-[var(--color-primary)]">
                       {minRequiredPoints}
                     </span>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -522,14 +522,14 @@ export function ConfigurationForm({
                     </span>
                   </div>
                   {/* Progress bar */}
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-blue-200/60 dark:bg-blue-900/40">
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--color-primary)]/20">
                     <div
-                      className="h-full rounded-full bg-[#0066FF] transition-all duration-300"
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-300"
                       style={{ width: `${Math.min(100, Math.max(0, Number(passingPercent) || 0))}%` }}
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                <p className="text-[11px] text-[var(--color-primary-hover)]/85">
                   Ứng viên cần đạt tối thiểu <strong>{minRequiredPoints} điểm</strong> để hoàn thành bài test cho vị trí này.
                 </p>
               </div>
@@ -655,7 +655,7 @@ export function ConfigurationForm({
                   type="checkbox"
                   {...register("autoAssign")}
                   disabled={mutation.isPending}
-                  className="size-4 shrink-0 rounded border-slate-300 text-[#0066FF] focus:ring-[#0066FF] accent-[#0066FF]"
+                  className="size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
                 />
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[13px] font-bold text-[#101828] dark:text-white">
@@ -688,7 +688,7 @@ export function ConfigurationForm({
           {/* Khối 4: Quy tắc chấm đề & Giao kết quả (Grading & Result Publishing) */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80">
             <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25">
                 <CheckCircle2 className="size-4" aria-hidden="true" />
               </div>
               <div className="flex items-center gap-1.5">
@@ -699,7 +699,7 @@ export function ConfigurationForm({
                   content="Cấu hình cơ chế công bố điểm: Tự động gửi kết quả cho ứng viên ngay sau khi chấm hoặc chờ Nhà tuyển dụng duyệt."
                   side="top"
                 >
-                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-purple-600 transition-colors">
+                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                     <HelpCircle className="size-3.5" aria-hidden="true" />
                   </span>
                 </Tooltip>
@@ -712,7 +712,7 @@ export function ConfigurationForm({
                   type="checkbox"
                   {...register("autoGradingEnabled")}
                   disabled={mutation.isPending}
-                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[#0066FF] focus:ring-[#0066FF] accent-[#0066FF]"
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
                 />
                 <div className="flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -723,7 +723,7 @@ export function ConfigurationForm({
                       content="Nếu bật: Sau khi AI & Sandbox chấm xong bài, hệ thống sẽ tự động chốt điểm chính thức và gửi email kết quả cho ứng viên ngay lập tức, không cần Nhà tuyển dụng xác nhận."
                       side="top"
                     >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-purple-600 transition-colors">
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                         <HelpCircle className="size-3.5" aria-hidden="true" />
                       </span>
                     </Tooltip>
@@ -737,7 +737,7 @@ export function ConfigurationForm({
               </label>
               <div className="shrink-0 self-start sm:self-center">
                 {autoGradingEnabled ? (
-                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                     Tự động gửi điểm
                   </span>
                 ) : (
@@ -770,10 +770,10 @@ export function ConfigurationForm({
                   points: mcqPoints,
                   percent: mcqPercent,
                   icon: ListChecks,
-                  iconClass: "text-blue-600 dark:text-blue-400",
-                  iconBg: "bg-blue-50 border-blue-200/60 dark:bg-blue-950 dark:border-blue-800",
-                  badgeClass: "bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950 dark:text-blue-300",
-                  activeBorder: "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/30 dark:bg-blue-950/20 dark:border-blue-400",
+                  iconClass: "text-[var(--color-primary)]",
+                  iconBg: "bg-[var(--color-primary-soft)] border-[var(--color-primary)]/25",
+                  badgeClass: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] border-[var(--color-primary)]/25",
+                  activeBorder: "border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20 bg-[var(--color-primary-soft)]/40",
                 },
                 {
                   id: "ESSAY" as const,
@@ -854,7 +854,7 @@ export function ConfigurationForm({
                 <button
                   type="button"
                   onClick={() => setExerciseFilter("ALL")}
-                  className="font-medium text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+                  className="font-medium text-[var(--color-primary)] hover:underline cursor-pointer"
                 >
                   Hiển thị tất cả 3 phần
                 </button>
@@ -865,7 +865,7 @@ export function ConfigurationForm({
                 <button
                   type="button"
                   onClick={() => setExerciseFilter("MCQ")}
-                  className="font-medium text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+                  className="font-medium text-[var(--color-primary)] hover:underline cursor-pointer"
                 >
                   Chỉ xem dạng Trắc nghiệm
                 </button>
@@ -878,7 +878,7 @@ export function ConfigurationForm({
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-3.5 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25">
                     <ListChecks className="size-4" />
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -889,13 +889,13 @@ export function ConfigurationForm({
                       content="Chấm điểm tự động 100% theo đáp án đúng. Hỗ trợ câu hỏi 1 đáp án (MCQ) và nhiều đáp án (MULTIPLE_CHOICE)."
                       side="top"
                     >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                         <HelpCircle className="size-3.5" aria-hidden="true" />
                       </span>
                     </Tooltip>
                   </div>
                 </div>
-                <span className="rounded-lg bg-blue-50 px-2.5 py-1 font-mono text-xs font-bold text-blue-700 border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                <span className="rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                   {mcqCount} câu · {mcqPoints} điểm ({mcqPercent}%)
                 </span>
               </div>
@@ -913,11 +913,11 @@ export function ConfigurationForm({
                     >
                       <div className="flex items-center justify-between pb-2">
                         <legend className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                          <span className="size-2 rounded-full bg-blue-500" />
+                          <span className="size-2 rounded-full bg-[var(--color-primary)]" />
                           Nhóm trắc nghiệm {groupOrder + 1}
                         </legend>
                         <div className="flex items-center gap-2">
-                          <span className="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs font-bold text-blue-700 border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                          <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                             {(Number(watch(`sections.${index}.count`)) || 0) * (Number(watch(`sections.${index}.points`)) || 0)} đ
                           </span>
                           <button
@@ -1011,7 +1011,7 @@ export function ConfigurationForm({
                 }
                 className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/80 hover:border-slate-400 py-3 text-xs font-semibold text-slate-700 transition-all dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300"
               >
-                <Plus className="size-4 text-blue-600" /> Thêm nhóm câu hỏi trắc nghiệm
+                <Plus className="size-4 text-[var(--color-primary)]" /> Thêm nhóm câu hỏi trắc nghiệm
               </button>
             </div>
           )}
@@ -1154,12 +1154,12 @@ export function ConfigurationForm({
               <div className="mt-5 rounded-2xl border border-slate-200/90 bg-slate-50/40 p-5 space-y-5 dark:border-slate-800 dark:bg-slate-900/40">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <h5 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-                    <Scale className="size-4 text-[#0066FF]" /> Mẫu tiêu chuẩn chấm điểm tự luận AI (Rubric Archetypes)
+                    <Scale className="size-4 text-[var(--color-primary)]" /> Mẫu tiêu chuẩn chấm điểm tự luận AI (Rubric Archetypes)
                     <Tooltip
                       content="Bộ tiêu chuẩn mặc định cho Job. Khi soạn câu hỏi trong ngân hàng, câu hỏi sẽ kế thừa hoặc người ra đề có thể ghi đè riêng nếu có yêu cầu đặc thù."
                       side="top"
                     >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                         <HelpCircle className="size-3.5" aria-hidden="true" />
                       </span>
                     </Tooltip>
@@ -1183,7 +1183,7 @@ export function ConfigurationForm({
                         className={cn(
                           "group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer",
                           isMatching
-                            ? "border-[#0066FF] bg-blue-50/40 shadow-xs ring-2 ring-blue-500/20 dark:border-blue-500 dark:bg-blue-950/30 dark:ring-blue-400/20"
+                            ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/50 shadow-xs ring-2 ring-[var(--color-primary)]/20"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
                         )}
                       >
@@ -1191,13 +1191,13 @@ export function ConfigurationForm({
                           <div className="flex items-center justify-between">
                             <span className={cn(
                               "flex size-7 items-center justify-center rounded-lg text-xs transition-colors",
-                              isMatching ? "bg-[#0066FF] text-white shadow-2xs" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                              isMatching ? "bg-[var(--color-primary)] text-white shadow-2xs" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                             )}>
                               <IconComp className="size-3.5" />
                             </span>
                             <div className="flex items-center gap-1.5">
                               {isMatching ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
                                   <Check className="size-2.5" /> Đang áp dụng
                                 </span>
                               ) : (
@@ -1208,15 +1208,15 @@ export function ConfigurationForm({
                                 className={cn(
                                   "flex size-4 shrink-0 items-center justify-center rounded-full border transition-all",
                                   isMatching
-                                    ? "border-[#0066FF] bg-white dark:bg-slate-900 ring-2 ring-blue-500/20"
+                                    ? "border-[var(--color-primary)] bg-white dark:bg-slate-900 ring-2 ring-[var(--color-primary)]/20"
                                     : "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800",
                                 )}
                               >
-                                {isMatching && <span className="size-2 rounded-full bg-[#0066FF]" />}
+                                {isMatching && <span className="size-2 rounded-full bg-[var(--color-primary)]" />}
                               </span>
                             </div>
                           </div>
-                          <h6 className={cn("text-xs font-bold leading-tight", isMatching ? "text-blue-950 dark:text-blue-200" : "text-slate-800 dark:text-slate-200")}>
+                          <h6 className={cn("text-xs font-bold leading-tight", isMatching ? "text-[var(--color-primary-hover)]" : "text-slate-800 dark:text-slate-200")}>
                             {preset.label}
                           </h6>
                           <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
@@ -1252,7 +1252,7 @@ export function ConfigurationForm({
                                 <input
                                   {...register(`essayCriteria.${rIndex}.name`)}
                                   placeholder="Ví dụ: Bản chất cốt lõi & Khái niệm..."
-                                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-[#101828] transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-[#101828] transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
                                 {errors.essayCriteria?.[rIndex]?.name && (
                                   <span className="mt-1 block text-[11px] font-medium text-[var(--color-error)]">
@@ -1269,7 +1269,7 @@ export function ConfigurationForm({
                                     min={1}
                                     max={100}
                                     {...register(`essayCriteria.${rIndex}.weight`, { valueAsNumber: true })}
-                                    className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-3 pr-7 text-center text-xs font-bold text-slate-900 transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                    className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-3 pr-7 text-center text-xs font-bold text-slate-900 transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                   />
                                   <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                                     %
@@ -1288,7 +1288,7 @@ export function ConfigurationForm({
                                   rows={1}
                                   {...register(`essayCriteria.${rIndex}.guide`)}
                                   placeholder="Mô tả các ý cần có để đạt điểm tối đa..."
-                                  className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800 leading-relaxed transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 resize-y min-h-[36px]"
+                                  className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800 leading-relaxed transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 resize-y min-h-[36px]"
                                 />
                               </td>
 
@@ -1313,9 +1313,9 @@ export function ConfigurationForm({
                               <button
                                 type="button"
                                 onClick={() => appendRubric({ name: "", weight: 10, guide: "" })}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[#0066FF] hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-all cursor-pointer"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-all cursor-pointer"
                               >
-                                <Plus className="size-3.5 text-blue-600" />
+                                <Plus className="size-3.5 text-[var(--color-primary)]" />
                                 <span>Thêm tiêu chí</span>
                               </button>
                             </td>
@@ -1351,13 +1351,13 @@ export function ConfigurationForm({
                 <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                      <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                      <Sparkles className="size-3.5 text-[var(--color-primary)]" />
                       Lưu ý đặc biệt cho AI khi chấm tự luận (Tùy chọn)
                       <Tooltip
                         content="Nội dung này sẽ được chuyển thành System Prompt hướng dẫn AI khi chấm điểm và phân tích câu trả lời của ứng viên"
                         side="top"
                       >
-                        <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                        <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
                           <HelpCircle className="size-3.5" aria-hidden="true" />
                         </span>
                       </Tooltip>
@@ -1372,7 +1372,7 @@ export function ConfigurationForm({
                         key={tag}
                         type="button"
                         onClick={() => handleAddAiTag(tag)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary-hover)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors cursor-pointer"
                       >
                         {tag}
                       </button>
@@ -1383,7 +1383,7 @@ export function ConfigurationForm({
                     rows={3}
                     {...register("essayGradingGuide")}
                     placeholder="Ví dụ: Chấp nhận thuật ngữ tiếng Anh tương đương; Ưu tiên câu trả lời đưa ra ví dụ minh họa thực tế; Không bắt bẻ lỗi chính tả nhỏ..."
-                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 leading-relaxed transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white resize-y"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 leading-relaxed transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white resize-y"
                   />
                 </div>
               </div>
@@ -1598,7 +1598,7 @@ export function ConfigurationForm({
                   <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        <span className="size-2 rounded-full bg-indigo-500" /> AI Code Review (Chấm tiêu chuẩn)
+                        <span className="size-2 rounded-full bg-[var(--color-primary)]" /> AI Code Review (Chấm tiêu chuẩn)
                       </span>
                       <div className="flex items-center gap-1">
                         <input
@@ -1607,7 +1607,7 @@ export function ConfigurationForm({
                           max={100}
                           value={codingAiWeight}
                           onChange={(e) => handleCodingAiWeightChange(Number(e.target.value) || 0)}
-                          className="h-8 w-16 rounded-lg border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-indigo-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          className="h-8 w-16 rounded-lg border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-[var(--color-primary)] focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                         />
                         <span className="text-xs font-bold text-slate-500">%</span>
                       </div>
@@ -1628,7 +1628,7 @@ export function ConfigurationForm({
                       {codingTestWeight >= 15 ? `${codingTestWeight}% Sandbox` : `${codingTestWeight}%`}
                     </div>
                     <div
-                      className="flex items-center justify-center rounded-lg bg-indigo-600 font-mono text-xs font-bold text-white transition-all duration-200 shadow-2xs select-none"
+                      className="flex items-center justify-center rounded-lg bg-[var(--color-primary)] font-mono text-xs font-bold text-white transition-all duration-200 shadow-2xs select-none"
                       style={{ width: `${codingAiWeight}%` }}
                     >
                       {codingAiWeight >= 15 ? `${codingAiWeight}% AI Review` : `${codingAiWeight}%`}
@@ -1663,7 +1663,7 @@ export function ConfigurationForm({
                       }
                       side="top"
                     >
-                      <span className="inline-flex cursor-help items-center text-blue-600 hover:text-blue-700 transition-colors">
+                      <span className="inline-flex cursor-help items-center text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
                         <HelpCircle className="size-4" aria-hidden="true" />
                       </span>
                     </Tooltip>

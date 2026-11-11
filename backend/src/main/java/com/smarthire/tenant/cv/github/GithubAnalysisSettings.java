@@ -22,14 +22,14 @@ public class GithubAnalysisSettings {
             @Value("${app.github.enabled:true}") boolean enabled,
             @Value("${app.github.token:}") String token,
             @Value("${app.github.max-repos:2}") int maxRepos,
-            @Value("${app.github.max-files:8}") int maxFiles,
-            @Value("${app.github.max-file-bytes:12000}") int maxFileBytes,
-            @Value("${app.github.max-total-bytes:48000}") int maxTotalBytes,
-            @Value("${app.github.max-prompt-chars:60000}") int maxPromptChars,
+            @Value("${app.github.max-files:6}") int maxFiles,
+            @Value("${app.github.max-file-bytes:8000}") int maxFileBytes,
+            @Value("${app.github.max-total-bytes:28000}") int maxTotalBytes,
+            @Value("${app.github.max-prompt-chars:28000}") int maxPromptChars,
             @Value("${app.github.timeout-seconds:12}") int timeoutSeconds,
             @Value("${app.github.max-retries:2}") int maxRetries,
-            @Value("${app.github.strategy-version:github-v1}") String strategyVersion,
-            @Value("${app.github.prompt-version:github-prompt-v1}") String promptVersion) {
+            @Value("${app.github.strategy-version:github-v2}") String strategyVersion,
+            @Value("${app.github.prompt-version:github-prompt-v2}") String promptVersion) {
         this.enabled = enabled;
         this.token = token == null ? "" : token;
         this.maxRepos = Math.max(1, maxRepos);
@@ -39,8 +39,8 @@ public class GithubAnalysisSettings {
         this.maxPromptChars = Math.max(2000, maxPromptChars);
         this.timeoutSeconds = Math.max(3, timeoutSeconds);
         this.maxRetries = Math.max(0, maxRetries);
-        this.strategyVersion = strategyVersion == null || strategyVersion.isBlank() ? "github-v1" : strategyVersion;
-        this.promptVersion = promptVersion == null || promptVersion.isBlank() ? "github-prompt-v1" : promptVersion;
+        this.strategyVersion = strategyVersion == null || strategyVersion.isBlank() ? "github-v2" : strategyVersion;
+        this.promptVersion = promptVersion == null || promptVersion.isBlank() ? "github-prompt-v2" : promptVersion;
     }
 
     public boolean enabled() { return enabled; }

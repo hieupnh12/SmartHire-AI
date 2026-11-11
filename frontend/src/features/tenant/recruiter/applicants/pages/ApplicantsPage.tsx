@@ -909,7 +909,13 @@ function AppliedCvReview({ cvs }: { cvs: CvRef[] }) {
           {analyze.isError && <p role="alert" className="text-xs text-red-700">{getApiErrorMessage(analyze.error)}</p>}
           {detail.isError && <p role="alert" className="text-xs text-red-700">{getApiErrorMessage(detail.error)}</p>}
           {cv?.match && (
-            <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={breakdown} />
+            <ScreeningBreakdown
+              score={cv.match.score}
+              modelVersion={cv.match.modelVersion}
+              breakdown={breakdown}
+              extraction={cv.extraction}
+              skills={cv.skills}
+            />
           )}
           <GithubEvidencePanel analysis={cv?.githubAnalysis} />
           {skills.length > 0 && (

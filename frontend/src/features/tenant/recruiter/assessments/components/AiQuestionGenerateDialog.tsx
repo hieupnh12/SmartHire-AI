@@ -365,7 +365,7 @@ export function AiQuestionGenerateDialog({
         {/* Top Header */}
         <header className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-900/60 shadow-2xs">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25 shadow-2xs">
               <Sparkles className="size-5" aria-hidden="true" />
             </div>
             <div>
@@ -373,7 +373,7 @@ export function AiQuestionGenerateDialog({
                 <h2 id="ai-gen-title" className="text-base font-bold text-[#101828] dark:text-white">
                   Studio Sinh câu hỏi bằng AI
                 </h2>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+                <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
                   SmartHire AI Engine
                 </span>
                 <Tooltip content={HELP} side="right">
@@ -407,7 +407,7 @@ export function AiQuestionGenerateDialog({
           <aside className="w-full md:w-[380px] lg:w-[420px] shrink-0 border-r border-slate-200/80 bg-slate-50/70 p-5 overflow-y-auto space-y-4 dark:border-slate-800 dark:bg-slate-900/50">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Sliders className="size-3.5 text-[#0066FF]" /> Cấu hình tham số sinh
+                <Sliders className="size-3.5 text-[var(--color-primary)]" /> Cấu hình tham số sinh
               </span>
               {batchCount > 0 && (
                 <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
@@ -492,7 +492,7 @@ export function AiQuestionGenerateDialog({
                       className={cn(
                         "flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition-all cursor-pointer",
                         isSelected
-                          ? "border-[#0066FF] bg-blue-50/80 text-[#0066FF] ring-2 ring-[#0066FF]/20 dark:bg-blue-950/40 dark:text-blue-300"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] ring-2 ring-[var(--color-primary)]/20"
                           : "border-slate-200/80 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
                       )}
                     >
@@ -523,7 +523,7 @@ export function AiQuestionGenerateDialog({
                       className={cn(
                         "rounded-lg py-1.5 text-xs font-semibold transition-all border",
                         difficulty === d.id
-                          ? "border-[#0066FF] bg-blue-50 text-[#0066FF] shadow-2xs dark:bg-blue-950 dark:text-blue-300"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] shadow-2xs"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800",
                       )}
                     >
@@ -538,7 +538,7 @@ export function AiQuestionGenerateDialog({
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                     Số lượng câu muốn sinh
                   </span>
-                  <span className="text-xs font-bold text-[#0066FF]">{count} câu</span>
+                  <span className="text-xs font-bold text-[var(--color-primary)]">{count} câu</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -548,7 +548,7 @@ export function AiQuestionGenerateDialog({
                     value={count}
                     disabled={busy}
                     onChange={(e) => setCount(Number(e.target.value))}
-                    className="flex-1 accent-[#0066FF] cursor-pointer"
+                    className="flex-1 accent-[var(--color-primary)] cursor-pointer"
                   />
                   <input
                     type="number"
@@ -608,7 +608,7 @@ export function AiQuestionGenerateDialog({
                     checked={includeJd}
                     disabled={busy}
                     onChange={(e) => setIncludeJd(e.target.checked)}
-                    className="size-3.5 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                    className="size-3.5 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                   />
                   <span className="text-xs text-slate-600 dark:text-slate-300">
                     Áp dụng ngữ cảnh JD công việc
@@ -619,8 +619,8 @@ export function AiQuestionGenerateDialog({
 
             {/* 5. Chế độ sinh (Khi đã có câu hỏi nháp) */}
             {drafts.length > 0 && (
-              <div className="space-y-2 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/20">
-                <span className="block text-xs font-bold text-blue-900 dark:text-blue-300">
+              <div className="space-y-2 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)]/50 p-3.5">
+                <span className="block text-xs font-bold text-[var(--color-primary-hover)]">
                   Chế độ sinh câu hỏi tiếp theo
                 </span>
                 <div className="grid grid-cols-2 gap-2">
@@ -631,8 +631,8 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                       generationMode === "APPEND"
-                        ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                        : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-2xs"
+                        : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] dark:border-slate-700 dark:bg-slate-900 dark:text-[var(--color-primary)]",
                     )}
                   >
                     <Plus className="size-3.5" />
@@ -645,15 +645,15 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                       generationMode === "REPLACE"
-                        ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                        : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-2xs"
+                        : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] dark:border-slate-700 dark:bg-slate-900 dark:text-[var(--color-primary)]",
                     )}
                   >
                     <RotateCcw className="size-3.5" />
                     <span>Làm mới (Ghi đè)</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                <p className="text-[11px] text-[var(--color-primary-hover)]/90">
                   {generationMode === "APPEND"
                     ? "Giữ nguyên các câu hiện có và nối tiếp đợt sinh mới vào danh sách nháp."
                     : "Xóa toàn bộ câu nháp cũ và thay thế bằng đợt sinh mới."}
@@ -706,7 +706,7 @@ export function AiQuestionGenerateDialog({
                     }
                     onChange={toggleSelectAll}
                     disabled={filteredDrafts.length === 0 || busy}
-                    className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                    className="size-4 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                   />
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                     Chọn tất cả ({filteredDrafts.length})
@@ -714,7 +714,7 @@ export function AiQuestionGenerateDialog({
                 </label>
 
                 {drafts.length > 0 && (
-                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                     Đã chọn {selectedCount} / {drafts.length} câu
                   </span>
                 )}
@@ -791,7 +791,7 @@ export function AiQuestionGenerateDialog({
               {/* State 1: Chưa có câu hỏi nào */}
               {drafts.length === 0 && !generate.isPending && (
                 <div className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
-                  <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-900 mb-4 shadow-sm">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25 mb-4 shadow-sm">
                     <Sparkles className="size-7" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -803,13 +803,13 @@ export function AiQuestionGenerateDialog({
                   </p>
                   <div className="mt-6 flex flex-wrap justify-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">1.</span> Thiết lập Kỹ năng & Loại câu
+                      <span className="font-bold text-[var(--color-primary)]">1.</span> Thiết lập Kỹ năng & Loại câu
                     </span>
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">2.</span> Nhập chủ đề hoặc dùng JD
+                      <span className="font-bold text-[var(--color-primary)]">2.</span> Nhập chủ đề hoặc dùng JD
                     </span>
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
+                      <span className="font-bold text-[var(--color-primary)]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
                     </span>
                   </div>
                 </div>
@@ -817,12 +817,12 @@ export function AiQuestionGenerateDialog({
 
               {/* State 2: Đang sinh câu hỏi */}
               {generate.isPending && (
-                <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/40 p-8 text-center dark:border-blue-900/60 dark:bg-blue-950/20 animate-pulse">
-                  <RefreshCw className="size-8 text-[#0066FF] animate-spin mb-3" />
-                  <h3 className="text-sm font-bold text-[#0066FF] dark:text-blue-300">
+                <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)]/40 p-8 text-center animate-pulse">
+                  <RefreshCw className="size-8 text-[var(--color-primary)] animate-spin mb-3" />
+                  <h3 className="text-sm font-bold text-[var(--color-primary-hover)]">
                     SmartHire AI đang phân tích và biên soạn câu hỏi...
                   </h3>
-                  <p className="mt-1 max-w-sm text-xs text-blue-800/80 dark:text-blue-400/80">
+                  <p className="mt-1 max-w-sm text-xs text-[var(--color-primary-hover)]/80">
                     {coding
                       ? "Đang khởi tạo thuật toán bài code, giải pháp mẫu và hệ thống test cases tự động."
                       : "Đang tạo các câu hỏi bám sát kiến thức thực tế và kiểm tra độ trùng lặp với ngân hàng."}
@@ -844,7 +844,7 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "rounded-2xl border transition-all p-5 shadow-2xs space-y-4",
                       checked
-                        ? "border-[#0066FF]/60 bg-blue-50/15 ring-1 ring-[#0066FF]/20 dark:border-blue-900/80 dark:bg-blue-950/10"
+                        ? "border-[var(--color-primary)]/60 bg-[var(--color-primary-soft)]/25 ring-1 ring-[var(--color-primary)]/20"
                         : "border-slate-200/90 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900",
                     )}
                   >
@@ -864,7 +864,7 @@ export function AiQuestionGenerateDialog({
                                 return next;
                               });
                             }}
-                            className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                            className="size-4 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                           />
                           <span className="font-bold text-sm text-slate-900 dark:text-white">
                             Câu #{index + 1}
@@ -878,7 +878,7 @@ export function AiQuestionGenerateDialog({
                               Đợt {item.batch}
                             </span>
                           )}
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                          <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                             {q.questionType === "MCQ"
                               ? "Trắc nghiệm 1 ĐA"
                               : q.questionType === "MULTIPLE_CHOICE"
@@ -1095,7 +1095,7 @@ export function AiQuestionGenerateDialog({
               <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                 {selectedCount > 0 ? (
                   <span>
-                    Sẵn sàng lưu <strong className="text-[#0066FF]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
+                    Sẵn sàng lưu <strong className="text-[var(--color-primary)]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
                   </span>
                 ) : drafts.length > 0 ? (
                   <span className="text-amber-600">Vui lòng tích chọn ít nhất 1 câu để lưu.</span>

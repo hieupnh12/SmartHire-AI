@@ -93,6 +93,55 @@ public class RestGithubApiClient implements GithubApiClient {
     }
 
     @Override
+    public UserProfile userProfile(String owner) {
+        try {
+            JsonNode body = json(get("/users/" + seg(owner), JSON));
+            return new UserProfile(
+                    text(body, "login", owner),
+                    text(body, "name", ""),
+                    text(body, "email", ""),
+                    text(body, "created_at", ""),
+                    body.path("public_repos").asInt(0),
+                    body.path("followers").asInt(0));
+        } catch (GithubApiException ex) {
+            if (ex.status() == 404) return null;
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<CommitItem> commits(String owner, String repo, String ref, int limit) {
+        int page = Math.min(30, Math.max(1, limit));
+        String query = "/repos/" + seg(owner) + "/" + seg(repo) + "/commits?per_page=" + page;
+        if (ref != null && !ref.isBlank()) query += "&sha=" + seg(ref);
+        try {
+            JsonNode body = json(get(query, JSON));
+            List<CommitItem> items = new ArrayList<>();
+            if (!body.isArray()) return items;
+            for (JsonNode node : body) {
+                JsonNode commit = node.path("commit");
+                JsonNode author = commit.path("author");
+                String msg = author.path("name").asText("").trim();
+                String message = commit.path("message").asText("");
+                int nl = message.indexOf('\n');
+                if (nl > 0) message = message.substring(0, nl);
+                items.add(new CommitItem(
+                        node.path("sha").asText(""),
+                        node.path("author").path("login").asText(""),
+                        msg,
+                        author.path("email").asText(""),
+                        author.path("date").asText(""),
+                        message.trim()));
+            }
+            return items;
+        } catch (GithubApiException ex) {
+            // GitHub returns 409 when a repository is completely empty (no commits).
+            if (ex.status() == 409 || ex.status() == 404) return List.of();
+            throw ex;
+        }
+    }
+
+    @Override
     public CompareResult compare(String owner, String repo, String base, String head) {
         JsonNode body = json(get("/repos/" + seg(owner) + "/" + seg(repo) + "/compare/" + seg(base) + "..." + seg(head), JSON));
         List<String> paths = new ArrayList<>();
@@ -100,7 +149,27 @@ public class RestGithubApiClient implements GithubApiClient {
             String name = file.path("filename").asText("");
             if (!name.isBlank()) paths.add(name);
         }
-        return new CompareResult(paths);
+        int aheadBy = body.path("ahead_by").asInt(paths.isEmpty() ? 0 : 1);
+        return new CompareResult(paths, aheadBy);
+    }
+
+    @Override
+    public int forkAheadBy(String parentFullName, String forkOwner, String forkBranch) {
+        if (parentFullName == null || !parentFullName.contains("/") || forkOwner == null || forkOwner.isBlank()) {
+            return 1;
+        }
+        int slash = parentFullName.indexOf('/');
+        String parentOwner = parentFullName.substring(0, slash);
+        String parentRepo = parentFullName.substring(slash + 1);
+        String branch = (forkBranch == null || forkBranch.isBlank()) ? "main" : forkBranch;
+        try {
+            JsonNode body = json(get("/repos/" + seg(parentOwner) + "/" + seg(parentRepo)
+                    + "/compare/HEAD..." + seg(forkOwner) + ":" + seg(branch), JSON));
+            return body.path("ahead_by").asInt(0);
+        } catch (GithubApiException ex) {
+            // Do not falsely flag when upstream comparison is unavailable or branch names diverge.
+            return 1;
+        }
     }
 
     @Override
@@ -159,9 +228,25 @@ public class RestGithubApiClient implements GithubApiClient {
         String owner = full.contains("/") ? full.substring(0, full.indexOf('/')) : text(body, "owner", "");
         if (owner.isBlank() && body.path("owner").isObject()) owner = body.path("owner").path("login").asText("");
         String name = text(body, "name", full.contains("/") ? full.substring(full.indexOf('/') + 1) : full);
-        return new RepoSnapshot(full, owner, name, text(body, "description", ""), text(body, "default_branch", "main"),
-                sha, text(body, "language", ""), text(body, "html_url", "https://github.com/" + full),
-                body.path("fork").asBoolean(false), body.path("private").asBoolean(false), body.path("archived").asBoolean(false));
+        String parentFull = body.path("parent").path("full_name").asText("");
+        return new RepoSnapshot(
+                full,
+                owner,
+                name,
+                text(body, "description", ""),
+                text(body, "default_branch", "main"),
+                sha,
+                text(body, "language", ""),
+                text(body, "html_url", "https://github.com/" + full),
+                body.path("fork").asBoolean(false),
+                body.path("private").asBoolean(false),
+                body.path("archived").asBoolean(false),
+                text(body, "created_at", ""),
+                text(body, "pushed_at", ""),
+                body.path("size").asLong(0L),
+                body.path("stargazers_count").asInt(0),
+                body.path("forks_count").asInt(0),
+                parentFull);
     }
 
     private String cap(String text) {

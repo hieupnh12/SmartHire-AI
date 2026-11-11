@@ -38,6 +38,7 @@ export type MatchBreakdown = {
   risks?: string[];
   interviewQuestions?: string[];
   source?: string;
+  decisionSource?: string;
   matched?: RequirementMatch[];
   partialMatches?: RequirementMatch[];
   missing?: RequirementMatch[];
@@ -86,6 +87,8 @@ export type GithubAnalysisView = {
   result: {
     summary?: string;
     confidence?: string;
+    codeDepth?: string;
+    authenticityCue?: string;
     repositories?: Array<{
       fullName?: string;
       url?: string;
@@ -108,6 +111,33 @@ export type GithubAnalysisView = {
     strengths?: string[];
     improvements?: string[];
     unverified?: string[];
+    claimChecks?: Array<{ claim: string; status: string; note: string }>;
+    interviewProbes?: Array<{ repository?: string; topic: string; filePath?: string; question: string }>;
+    authenticity?: {
+      overallTrustLevel?: "HIGH" | "MEDIUM" | "LOW" | "WARNING" | string;
+      overallTrustScore?: number;
+      repositories?: Array<{
+        fullName: string;
+        verdict: string;
+        trustLevel: string;
+        trustScore: number;
+        skippedAi?: boolean;
+        skipReason?: string;
+        fork?: boolean;
+        parentFullName?: string;
+        aheadByParent?: number;
+        sampledCommits?: number;
+        applicantCommits?: number;
+        applicantCommitRatio?: number;
+        distinctAuthors?: number;
+        activeDays?: number;
+        ownerLogin?: string;
+        ownerCreatedAt?: string;
+        ownerPublicRepos?: number;
+        duplicateCvCount?: number;
+        signals?: string[];
+      }>;
+    };
     rejectedUrls?: string[];
     limits?: {
       filesRead?: number;
@@ -132,6 +162,9 @@ export type CvSummary = {
   errorCode: string | null;
   createdAt: string;
   fromBuilder: boolean;
+  githubStatus?: string | null;
+  githubScore?: number | null;
+  githubTrustLevel?: string | null;
 };
 
 export type CvJobStats = {

@@ -725,7 +725,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-all cursor-pointer",
                       activeCollection
-                        ? "bg-blue-50 font-bold text-[#0066FF] dark:bg-blue-950/50 dark:text-blue-300 shadow-2xs"
+                        ? "bg-[var(--color-primary-soft)] font-bold text-[var(--color-primary-hover)] shadow-2xs"
                         : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white"
                     )}
                   >
@@ -736,7 +736,7 @@ export function QuestionBankPage() {
                           item.id === "favorites" && !activeCollection
                             ? "text-amber-500"
                             : activeCollection
-                              ? "text-[#0066FF] dark:text-blue-400"
+                              ? "text-[var(--color-primary)]"
                               : "text-slate-400"
                         )}
                         aria-hidden="true"
@@ -747,7 +747,7 @@ export function QuestionBankPage() {
                       className={cn(
                         "rounded-full px-2 py-0.5 text-[10px] font-semibold",
                         activeCollection
-                          ? "bg-blue-100 text-[#0066FF] dark:bg-blue-900/60 dark:text-blue-300"
+                          ? "bg-[var(--color-primary)]/15 text-[var(--color-primary-hover)]"
                           : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                       )}
                     >
@@ -759,7 +759,7 @@ export function QuestionBankPage() {
             </div>
             <Link
               to="/recruiter"
-              className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/60 px-2.5 py-2 text-xs font-semibold text-[#0066FF] transition-colors hover:bg-blue-50 hover:border-blue-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-blue-400 dark:hover:bg-slate-800"
+              className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/60 px-2.5 py-2 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:border-[var(--color-primary)]/30 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:bg-slate-800"
             >
               Quản lý vị trí tuyển dụng
             </Link>
@@ -771,7 +771,7 @@ export function QuestionBankPage() {
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               {/* Left: Search & Consistent Dropdowns */}
               <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">
-                <div className="relative flex h-9 min-w-[190px] max-w-[260px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 transition-all focus-within:border-[#0066FF] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus-within:bg-slate-900">
+                <div className="relative flex h-9 min-w-[190px] max-w-[260px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 transition-all focus-within:border-[var(--color-primary)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus-within:bg-slate-900">
                   <Search className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
                   <input
                     value={query}
@@ -800,7 +800,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       skill
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "skill"}
@@ -817,7 +817,7 @@ export function QuestionBankPage() {
                           value={skillSearchQuery}
                           onChange={(e) => setSkillSearchQuery(e.target.value)}
                           placeholder="Tìm kỹ năng..."
-                          className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 py-1.5 pl-8 pr-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 border border-slate-100 dark:border-slate-700"
+                          className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 py-1.5 pl-8 pr-2 text-xs outline-none focus:ring-1 focus:ring-[var(--color-primary)] border border-slate-100 dark:border-slate-700"
                           autoFocus
                         />
                       </div>
@@ -832,12 +832,12 @@ export function QuestionBankPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             !skill
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
                           <span>Tất cả kỹ năng</span>
-                          {!skill && <Check className="size-3.5 text-[#0066FF]" />}
+                          {!skill && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                         {filteredSkills.map((item) => (
                           <button
@@ -851,12 +851,12 @@ export function QuestionBankPage() {
                             className={cn(
                               "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                               skill === item
-                                ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                                ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                             )}
                           >
                             <span className="truncate">{item}</span>
-                            {skill === item && <Check className="size-3.5 text-[#0066FF]" />}
+                            {skill === item && <Check className="size-3.5 text-[var(--color-primary)]" />}
                           </button>
                         ))}
                       </div>
@@ -872,7 +872,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       questionType
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "type"}
@@ -901,12 +901,12 @@ export function QuestionBankPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             questionType === item.value
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
                           <span>{item.label}</span>
-                          {questionType === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                          {questionType === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                       ))}
                     </div>
@@ -921,7 +921,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       difficulty
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "difficulty"}
@@ -948,7 +948,7 @@ export function QuestionBankPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             difficulty === item.value
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
@@ -956,7 +956,7 @@ export function QuestionBankPage() {
                             {item.color && <span className={cn("size-2 rounded-full", item.color)} />}
                             <span>{item.label}</span>
                           </div>
-                          {difficulty === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                          {difficulty === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                       ))}
                     </div>
@@ -969,11 +969,11 @@ export function QuestionBankPage() {
                   className={cn(
                     "inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-all cursor-pointer",
                     aiOnly
-                      ? "border-violet-300 bg-violet-50 text-violet-700 font-semibold dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-300 shadow-2xs"
+                      ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                       : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                   )}
                 >
-                  <Sparkles className={cn("size-3.5", aiOnly ? "text-violet-600 dark:text-violet-400" : "text-slate-400")} />
+                  <Sparkles className={cn("size-3.5", aiOnly ? "text-[var(--color-primary)]" : "text-slate-400")} />
                   <span>Câu AI</span>
                 </button>
               </div>
@@ -983,9 +983,9 @@ export function QuestionBankPage() {
                 {/* Primary Button: Sinh bằng AI */}
                 <Link
                   to={`/recruiter/jobs/${job.id}/assessments/ai-generator`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-3.5 text-xs font-semibold text-white shadow-xs hover:opacity-95 transition-all cursor-pointer whitespace-nowrap"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 text-xs font-semibold text-[var(--color-on-primary)] shadow-xs hover:bg-[var(--color-primary-hover)] transition-all cursor-pointer whitespace-nowrap"
                 >
-                  <Sparkles className="size-3.5 text-amber-200" aria-hidden="true" />
+                  <Sparkles className="size-3.5" aria-hidden="true" />
                   <span>Sinh bằng AI</span>
                 </Link>
 
@@ -996,7 +996,7 @@ export function QuestionBankPage() {
                     onClick={() => setActiveDropdown(activeDropdown === "export" ? null : "export")}
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer transition-colors",
-                      activeDropdown === "export" && "border-blue-300 ring-2 ring-blue-500/10"
+                      activeDropdown === "export" && "border-[var(--color-primary)]/40 ring-2 ring-[var(--color-primary)]/15"
                     )}
                     title="Nhập đề thi mẫu Excel hoặc Xuất dữ liệu ngân hàng"
                     aria-expanded={activeDropdown === "export"}
@@ -1032,7 +1032,7 @@ export function QuestionBankPage() {
                         }}
                         className="flex w-full items-start gap-2.5 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
                       >
-                        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400 mt-0.5">
+                        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)] mt-0.5">
                           <Download className="size-4" />
                         </div>
                         <div>
@@ -1051,7 +1051,7 @@ export function QuestionBankPage() {
                     onClick={() => setActiveDropdown(activeDropdown === "sort" ? null : "sort")}
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer whitespace-nowrap",
-                      activeDropdown === "sort" && "border-blue-300 ring-2 ring-blue-500/10"
+                      activeDropdown === "sort" && "border-[var(--color-primary)]/40 ring-2 ring-[var(--color-primary)]/15"
                     )}
                     aria-expanded={activeDropdown === "sort"}
                   >
@@ -1077,12 +1077,12 @@ export function QuestionBankPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             sort === item.value
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
                           <span>{item.label}</span>
-                          {sort === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                          {sort === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                       ))}
                     </div>
@@ -1099,7 +1099,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "rounded-lg p-1.5 transition-colors cursor-pointer",
                       view === "table"
-                        ? "bg-white text-[#0066FF] shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                        ? "bg-white text-[var(--color-primary)] shadow-2xs dark:bg-slate-900"
                         : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     )}
                   >
@@ -1113,7 +1113,7 @@ export function QuestionBankPage() {
                     className={cn(
                       "rounded-lg p-1.5 transition-colors cursor-pointer",
                       view === "cards"
-                        ? "bg-white text-[#0066FF] shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                        ? "bg-white text-[var(--color-primary)] shadow-2xs dark:bg-slate-900"
                         : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     )}
                   >
@@ -1143,12 +1143,12 @@ export function QuestionBankPage() {
                   </span>
                 ))}
                 {aiOnly && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 px-2.5 py-0.5 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
                     <Sparkles className="size-3" /> Chỉ câu AI
                     <button
                       type="button"
                       onClick={handleAiOnlyToggle}
-                      className="rounded-full p-0.5 hover:bg-violet-200/50 dark:hover:bg-violet-900"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15"
                       aria-label="Bỏ lọc chỉ câu AI"
                     >
                       <X className="size-3" />
@@ -1167,11 +1167,11 @@ export function QuestionBankPage() {
           </div>
 
           {selected.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#213145] px-4 py-2.5 text-white shadow-lg">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-primary)]/25 bg-slate-900 px-4 py-2.5 text-white shadow-lg">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">{selected.length}</span>
                 Đã chọn {selected.length} câu hỏi
-                <button type="button" className="text-xs text-sky-200 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
+                <button type="button" className="text-xs text-[var(--color-primary)] brightness-125 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
                   Chọn toàn bộ {pageRows.length} câu trên trang
                 </button>
               </div>
@@ -1294,7 +1294,7 @@ export function QuestionBankPage() {
                                     </>
                                   )}
                                   {row.aiGenerated && (
-                                    <span className="inline-flex items-center gap-0.5 rounded-md bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 px-1.5 py-0.5 text-[10px] font-semibold border border-violet-200/60 dark:border-violet-800/60">
+                                    <span className="inline-flex items-center gap-0.5 rounded-md bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-1.5 py-0.5 text-[10px] font-semibold border border-[var(--color-primary)]/20">
                                       <Sparkles className="size-2.5" aria-hidden="true" /> AI
                                     </span>
                                   )}
@@ -1304,7 +1304,7 @@ export function QuestionBankPage() {
                                   </span>
                                   {row.testTitle && row.testTitle !== row.jobTitle && (
                                     <span
-                                      className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60"
+                                      className="inline-flex items-center rounded-md bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20"
                                       title={`Đang dùng trong: ${row.testTitle}`}
                                     >
                                       +1 đề
@@ -1331,7 +1331,7 @@ export function QuestionBankPage() {
                                   className="w-full block"
                                   contentClassName="max-w-md p-3"
                                 >
-                                  <p className="mt-1 line-clamp-2 break-words text-sm font-medium text-slate-900 dark:text-slate-100 leading-snug group-hover:text-[#0066FF] transition-colors">
+                                  <p className="mt-1 line-clamp-2 break-words text-sm font-medium text-slate-900 dark:text-slate-100 leading-snug group-hover:text-[var(--color-primary)] transition-colors">
                                     {row.question.questionText}
                                   </p>
                                 </Tooltip>
@@ -1349,7 +1349,7 @@ export function QuestionBankPage() {
                                       "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors border-0 cursor-pointer truncate max-w-[100px]",
                                       skill === item
                                         ? "bg-[var(--color-primary)] text-white font-semibold"
-                                        : "bg-[#E0F2FE] text-[#0369A1] hover:bg-sky-200/80 dark:bg-sky-950/60 dark:text-sky-300",
+                                        : "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)]",
                                     )}
                                   >
                                     {item}
@@ -1380,7 +1380,7 @@ export function QuestionBankPage() {
                                     type="button"
                                     aria-label="Xem chi tiết"
                                     onClick={() => openRow(row.key)}
-                                    className="flex size-7 items-center justify-center rounded-lg text-slate-600 hover:bg-blue-50 hover:text-[#0066FF] dark:text-slate-300 dark:hover:bg-blue-950/60 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                                    className="flex size-7 items-center justify-center rounded-lg text-slate-600 hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] dark:text-slate-300 transition-colors cursor-pointer"
                                   >
                                     <Eye className="size-3.5" />
                                   </button>
@@ -1481,7 +1481,7 @@ export function QuestionBankPage() {
                                 {row.difficulty}
                               </span>
                               {row.aiGenerated && (
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100/70 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 px-2 py-0.5 text-[10px] font-semibold border-0">
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2 py-0.5 text-[10px] font-semibold border-0">
                                   <Sparkles className="size-2.5" aria-hidden="true" /> AI
                                 </span>
                               )}
@@ -1660,7 +1660,7 @@ export function QuestionBankPage() {
 
       {active && (
         <>
-          <button type="button" aria-label="Đóng chi tiết câu hỏi" className="fixed inset-0 z-40 bg-[#213145]/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
+          <button type="button" aria-label="Đóng chi tiết câu hỏi" className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveKey(null)} />
           <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col bg-[var(--color-surface-card)] shadow-2xl" aria-label="Chi tiết câu hỏi">
             <div className="flex items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -1776,7 +1776,7 @@ export function QuestionBankPage() {
                 <div className="space-y-3.5">
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <Briefcase className="size-4 text-blue-600 dark:text-blue-400" /> Vị trí tuyển dụng
+                      <Briefcase className="size-4 text-[var(--color-primary)]" /> Vị trí tuyển dụng
                     </div>
                     <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">{active.jobTitle || job.title}</p>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Phòng ban: {active.department || job.department || "Kỹ thuật"}</p>
@@ -1789,7 +1789,7 @@ export function QuestionBankPage() {
 
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <ClipboardList className="size-4 text-indigo-600 dark:text-indigo-400" /> Bài đánh giá liên kết
+                      <ClipboardList className="size-4 text-[var(--color-primary)]" /> Bài đánh giá liên kết
                     </div>
                     <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">{active.testTitle}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1803,7 +1803,7 @@ export function QuestionBankPage() {
                     </div>
                     <Link
                       to={questionPath(active)}
-                      className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[#0066FF] shadow-2xs hover:bg-blue-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 dark:text-blue-400 dark:hover:bg-slate-800 transition-colors"
+                      className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] shadow-2xs hover:bg-[var(--color-primary-subtle)] border border-slate-200 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 transition-colors"
                     >
                       <InfinityIcon className="size-3.5" /> {active.testId ? "Mở đề đánh giá" : "Mở câu hỏi chung"}
                     </Link>
@@ -1811,14 +1811,14 @@ export function QuestionBankPage() {
 
                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <Bot className="size-4 text-violet-600 dark:text-violet-400" /> AI Interview Voice Match
+                      <Bot className="size-4 text-[var(--color-primary)]" /> AI Interview Voice Match
                     </div>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                       Câu hỏi này phù hợp làm đề bài phỏng vấn thoại kỹ thuật với trợ lý ảo Sophia AI trong luồng phỏng vấn ứng viên.
                     </p>
                     <Link
                       to={`/recruiter/jobs/${job.id}/ai-interviews`}
-                      className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-700 dark:text-violet-400 hover:underline"
+                      className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] hover:underline"
                     >
                       Cấu hình phỏng vấn AI <ChevronRight className="size-3.5" />
                     </Link>
@@ -1831,7 +1831,7 @@ export function QuestionBankPage() {
                     <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Dòng thời gian hoạt động</p>
                     <div className="mt-4 relative pl-6 border-l-2 border-slate-200 dark:border-slate-700 space-y-6 text-xs">
                       <div className="relative">
-                        <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-blue-600 text-white ring-4 ring-white dark:ring-slate-900">
+                        <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white ring-4 ring-white dark:ring-slate-900">
                           <Check className="size-2.5" />
                         </span>
                         <p className="font-semibold text-slate-900 dark:text-slate-100">Đã cập nhật câu hỏi</p>
@@ -1842,7 +1842,7 @@ export function QuestionBankPage() {
                       </div>
 
                       <div className="relative">
-                        <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-indigo-500 text-white ring-4 ring-white dark:ring-slate-900">
+                        <span className="absolute -left-[31px] top-0.5 flex size-4 items-center justify-center rounded-full bg-[var(--color-primary)]/80 text-white ring-4 ring-white dark:ring-slate-900">
                           <ClipboardList className="size-2.5" />
                         </span>
                         <p className="font-semibold text-slate-900 dark:text-slate-100">Liên kết vào bài thi</p>

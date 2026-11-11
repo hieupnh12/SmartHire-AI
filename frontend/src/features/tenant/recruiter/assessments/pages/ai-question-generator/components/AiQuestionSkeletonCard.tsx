@@ -17,18 +17,18 @@ export function AiQuestionSkeletonCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-blue-200/60 bg-white p-5 shadow-sm space-y-4.5 dark:border-blue-900/40 dark:bg-slate-900/90",
+        "relative overflow-hidden rounded-2xl border border-[var(--color-primary)]/25 bg-white p-5 shadow-sm space-y-4.5 dark:bg-slate-900/90",
         className,
       )}
     >
       {/* Shimmer sweep animation overlay */}
-      <div className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-blue-500/5 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-[var(--color-primary-soft)] to-transparent" />
 
       {/* Header bar */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="size-4 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-          <div className="h-5 w-20 rounded-md bg-blue-100 dark:bg-blue-950 animate-pulse" />
+          <div className="h-5 w-20 rounded-md bg-[var(--color-primary-soft)] animate-pulse" />
           <div className="h-4 w-14 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse" />
           <div className="h-4 w-16 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse" />
         </div>
@@ -42,8 +42,8 @@ export function AiQuestionSkeletonCard({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-          <div className="flex items-center gap-1.5 text-[11px] text-blue-600 font-medium dark:text-blue-400">
-            <span className="inline-block size-1.5 rounded-full bg-blue-600 animate-ping" />
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-primary)] font-medium">
+            <span className="inline-block size-1.5 rounded-full bg-[var(--color-primary)] animate-ping" />
             <span>Đang soạn thảo câu #{index + 1}...</span>
           </div>
         </div>
@@ -84,7 +84,7 @@ export function AiQuestionSkeletonCard({
 
       {/* Footer explanation shimmer */}
       <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/70">
-        <div className="size-3 rounded-full bg-blue-100 dark:bg-blue-950 animate-pulse" />
+        <div className="size-3 rounded-full bg-[var(--color-primary-soft)] animate-pulse" />
         <div className="h-3 w-1/2 rounded bg-slate-150 dark:bg-slate-800/60 animate-pulse" />
       </div>
     </div>
