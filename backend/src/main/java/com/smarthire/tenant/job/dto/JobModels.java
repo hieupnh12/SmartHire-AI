@@ -134,7 +134,12 @@ public final class JobModels {
             BigDecimal minYearsExperience,
             String educationLevel,
             List<String> skills,
-            boolean acceptingApplications) {}
+            boolean acceptingApplications,
+            Instant publishedAt,
+            Instant updatedAt,
+            BigDecimal salaryMin,
+            BigDecimal salaryMax,
+            String salaryCurrency) {}
 
     public record ApplicationView(
             long id,

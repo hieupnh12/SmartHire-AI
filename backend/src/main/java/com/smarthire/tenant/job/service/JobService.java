@@ -188,10 +188,21 @@ public class JobService {
         }
     }
 
+    public record PublicJobSitemapEntry(long id, Instant lastModified) {}
+
     @Transactional(readOnly = true)
     public List<PublicJob> publicList(String query) {
         return jobs.publicOpen(Instant.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
                 .map(job -> mapper.publicJob(job, jobSkills.findByJob_IdOrderByIdAsc(job.getId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicJobSitemapEntry> publicSitemapEntries() {
+        return jobs.publicOpen(Instant.now(), null, JobStatus.PUBLISHED).stream()
+                .map(job -> new PublicJobSitemapEntry(
+                        job.getId(),
+                        job.getUpdatedAt() != null ? job.getUpdatedAt() : job.getPublishedAt()))
                 .toList();
     }
 

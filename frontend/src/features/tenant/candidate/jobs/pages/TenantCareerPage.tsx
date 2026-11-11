@@ -5,6 +5,9 @@ import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
+import { getCanonicalOrigin } from "@/lib/seo";
+import { buildTenantCareerSeo } from "@/lib/routeSeo";
+import { useSeo } from "@/hooks/useSeo";
 import { jobApi } from "@/api/tenant/jobApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { landingApi } from "@/api/tenant/landingApi";
@@ -479,6 +482,24 @@ export function TenantCareerPage() {
   });
 
   const customLanding = publicLanding.data?.data;
+  const detailJob = publicJobDetail.data?.data ?? null;
+  const detailJobNotFound =
+    isJobDetailPage && !publicJobDetail.isPending && (publicJobDetail.isError || !detailJob);
+  const careerSeo = useMemo(
+    () =>
+      buildTenantCareerSeo({
+        origin: getCanonicalOrigin(),
+        tenantName: theme.name,
+        isJobsPage,
+        isJobDetailPage,
+        job: detailJob,
+        jobNotFound: detailJobNotFound,
+        customLanding,
+        detailLocation: detailJob ? locationLabel(detailJob.location) : null,
+      }),
+    [theme.name, isJobsPage, isJobDetailPage, detailJob, detailJobNotFound, customLanding],
+  );
+  useSeo(careerSeo);
 
   useEffect(() => {
     if (!location.hash || isJobsPage || isJobDetailPage || !publicLanding.isFetched) return;
