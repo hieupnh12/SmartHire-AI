@@ -1,7 +1,8 @@
 import { ArrowRight, Bell, CheckCheck, ChevronRight, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavArcContext, type DockedArcBounds, type NavLinkRect, type SubPillSnapshot } from "@/components/ux/NavArcContext";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { Button } from "@/components/ux/Button";
 import { HeaderActionsMenu } from "@/components/ux/HeaderActionsMenu";
@@ -127,6 +128,112 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
   const showAdminBackBanner =
     isRecruiterWorkspace && !!user && workspaceOf(user.role, user.workspace) === "ADMIN";
+  const canDockWithTopNav =
+    !isRecruiterDashboard &&
+    !isRecruiterQuestionBank &&
+    !isRecruiterJobForm &&
+    !isRecruiterBoard &&
+    displayedLinks.length > 0 &&
+    !(showAdminBackBanner && !isRecruiterQuestionBank);
+
+  const navScrollRef = useRef<HTMLElement>(null);
+  const navTrackRef = useRef<HTMLDivElement>(null);
+  const lastSubArcLeftRef = useRef<number | null>(null);
+  const lastSubPillByGroupRef = useRef<Record<string, SubPillSnapshot>>({});
+  const prevActiveHrefRef = useRef<string | null>(null);
+  const [activePillRect, setActivePillRect] = useState<{ left: number; width: number } | null>(null);
+  const [hoverPillRect, setHoverPillRect] = useState<{ left: number; width: number } | null>(null);
+  const [activeMainRect, setActiveMainRect] = useState<NavLinkRect | null>(null);
+  const [dockedArcBounds, setDockedArcBounds] = useState<DockedArcBounds | null>(null);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
+  const [navSheenKey, setNavSheenKey] = useState(0);
+
+  const measureMainNav = useCallback(() => {
+    const scrollEl = navScrollRef.current;
+    const trackEl = navTrackRef.current;
+    if (!scrollEl || !trackEl) {
+      setActivePillRect(null);
+      setActiveMainRect(null);
+      return;
+    }
+    const activeEl = trackEl.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!activeEl) {
+      setActivePillRect(null);
+      setActiveMainRect(null);
+      prevActiveHrefRef.current = null;
+      return;
+    }
+
+    const left = activeEl.offsetLeft;
+    const width = activeEl.offsetWidth;
+    const visibleLeft = left - scrollEl.scrollLeft;
+    const centerX = visibleLeft + width / 2;
+    const href = activeEl.getAttribute("href");
+
+    if (prevActiveHrefRef.current !== null && prevActiveHrefRef.current !== href) {
+      setNavSheenKey((prev) => prev + 1);
+    }
+    prevActiveHrefRef.current = href;
+
+    setActivePillRect((prev) =>
+      prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.width - width) < 0.5
+        ? prev
+        : { left, width },
+    );
+    setActiveMainRect((prev) =>
+      prev &&
+      Math.abs(prev.left - visibleLeft) < 0.5 &&
+      Math.abs(prev.width - width) < 0.5 &&
+      Math.abs(prev.centerX - centerX) < 0.5
+        ? prev
+        : { left: visibleLeft, width, centerX },
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    measureMainNav();
+    const scrollEl = navScrollRef.current;
+    if (!scrollEl) return;
+
+    const handleScroll = () => measureMainNav();
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => measureMainNav());
+      ro.observe(scrollEl);
+      if (navTrackRef.current) ro.observe(navTrackRef.current);
+    }
+
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) measureMainNav();
+    });
+
+    return () => {
+      cancelled = true;
+      scrollEl.removeEventListener("scroll", handleScroll);
+      ro?.disconnect();
+    };
+  }, [measureMainNav, location.pathname, displayedLinks.length, canDockWithTopNav]);
+
+  useEffect(() => {
+    const onWindowScroll = () => setIsHeaderScrolled(window.scrollY > 8);
+    onWindowScroll();
+    window.addEventListener("scroll", onWindowScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onWindowScroll);
+  }, []);
+
+  const navArcContextValue = useMemo(
+    () => ({
+      activeMainRect,
+      canDockWithTopNav,
+      setDockedArcBounds,
+      lastSubArcLeftRef,
+      lastSubPillByGroupRef,
+    }),
+    [activeMainRect, canDockWithTopNav],
+  );
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
@@ -356,189 +463,261 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     </div>;
   }
 
+  const hasArcBridge =
+    !isHeaderScrolled && !!dockedArcBounds && canDockWithTopNav && !isRecruiterDashboard && displayedLinks.length > 0;
+
   return (
-    <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", isRecruiterBoard && "h-dvh overflow-hidden", isRecruiterJobForm && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
-      {!isRecruiterQuestionBank && <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
-          <div className="flex min-w-0 items-center gap-3">
-            {isRecruiterWorkspace && <JobNavigationDrawer />}
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-primary text-[var(--color-on-primary)] shadow-[0_10px_20px_-10px_var(--color-primary-shadow)]">
-              <Sparkles className="size-[18px]" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <span className="block truncate font-[var(--font-family)] text-lg font-semibold tracking-[-0.02em] text-[var(--color-on-surface)] sm:text-xl">
-                {t("brand.name")}
+    <NavArcContext.Provider value={navArcContextValue}>
+      <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", isRecruiterBoard && "h-dvh overflow-hidden", isRecruiterJobForm && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
+        {!isRecruiterQuestionBank && <header className={cn("sticky top-0 z-40 bg-white/95 backdrop-blur-md transition-shadow duration-300", hasArcBridge ? "shadow-none" : "shadow-[0_1px_3px_rgba(15,23,42,0.05)]")}>
+          <div className="mx-auto flex min-h-14 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
+            <div className="flex min-w-0 items-center gap-3">
+              {isRecruiterWorkspace && <JobNavigationDrawer />}
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-primary text-[var(--color-on-primary)] shadow-[0_8px_18px_-8px_var(--color-primary-shadow)]">
+                <Sparkles className="size-[17px]" aria-hidden="true" />
               </span>
-              <span className="block truncate text-xs font-medium tracking-[0.02em] text-[var(--color-on-surface-variant)]">
-                {t(brandKey)}
-              </span>
+              <div className="min-w-0 leading-tight">
+                <span className="block truncate font-[var(--font-family)] text-base font-semibold tracking-[-0.02em] text-[var(--color-on-surface)] sm:text-lg">
+                  {t("brand.name")}
+                </span>
+                <span className="block truncate text-[11px] font-medium tracking-[0.02em] text-[var(--color-on-surface-variant)]">
+                  {t(brandKey)}
+                </span>
+              </div>
+            </div>
+
+            {useWorkspaceHeader && (
+              <form
+                className="relative mx-auto hidden min-w-0 max-w-xl flex-1 md:block"
+                role="search"
+                onSubmit={submitWorkspaceSearch}
+              >
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[17px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+                <input
+                  data-search-input
+                  name="workspace-search"
+                  type="search"
+                  placeholder={isCandidateWorkspace ? t("shell.workspaceCandidateSearchPlaceholder", { search: t("common.search") }) : t("shell.workspaceRecruiterSearchPlaceholder", { search: t("common.search") })}
+                  aria-label={t("common.search")}
+                  className="min-h-10 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-1.5 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
+                />
+                <button
+                  type="submit"
+                  className="absolute right-1.5 top-1/2 min-h-7 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary"
+                >
+                  {t("common.search")}
+                </button>
+              </form>
+            )}
+
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <Tooltip content={`${t("common.shortcuts")} (?)`} side="bottom">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t("common.shortcuts")}
+                  onClick={openShortcuts}
+                  className="size-9 px-0"
+                >
+                  <CircleHelp className="size-[18px]" aria-hidden="true" />
+                </Button>
+              </Tooltip>
+              {useWorkspaceHeader && showRecruiterNotifications && (
+                <div
+                  className="relative"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false);
+                  }}
+                >
+                  <Tooltip content={t("nav.notifications")} side="bottom" disabled={notificationsOpen}>
+                    <button
+                      type="button"
+                      onClick={() => setNotificationsOpen((v) => !v)}
+                      className={cn(
+                        "relative grid size-9 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
+                        notificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
+                      )}
+                      aria-label={unreadCount ? t("shell.notificationsUnreadAria", { label: t("nav.notifications"), count: unreadCount }) : t("nav.notifications")}
+                      aria-haspopup="dialog"
+                      aria-expanded={notificationsOpen}
+                    >
+                      <Bell className="size-[18px]" aria-hidden="true" />
+                      {unreadCount > 0 && (
+                        <span
+                          className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold leading-5 text-white shadow-sm"
+                          aria-hidden="true"
+                        >
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                      )}
+                    </button>
+                  </Tooltip>
+
+                  {notificationsOpen && (
+                    <NotificationPreviewDialog
+                      items={inbox.data ?? []}
+                      loading={inbox.isPending}
+                      unreadCount={unreadCount}
+                      targetPath={isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications"}
+                      onClose={() => setNotificationsOpen(false)}
+                      onMarkAllRead={() => markAllRead.mutate()}
+                      onOpen={(item) => {
+                        if (!item.readAt) markRead.mutate(item.id);
+                        setNotificationsOpen(false);
+                        const target = notificationPath(item.payloadJson) ?? (isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications");
+                        navigate(target);
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+              {user && !useWorkspaceHeader && (
+                <span
+                  className="hidden size-9 place-items-center rounded-full bg-[var(--container-blue)] text-sm font-semibold text-brand-primary ring-1 ring-inset ring-brand-primary/15 lg:grid"
+                  aria-label={user.fullName}
+                  title={user.fullName}
+                >
+                  {userInitial}
+                </span>
+              )}
+              {useWorkspaceHeader ? (
+                <HeaderActionsMenu
+                  userInitial={userInitial}
+                  userName={user?.fullName}
+                  loadingUser={!!accessToken && !user && profileQuery.isPending}
+                  notificationsPath={isRecruiterWorkspace ? "/recruiter/notifications?tab=settings" : "/notifications?tab=settings"}
+                  onLogout={handleLogout}
+                />
+              ) : (
+                <div className="flex items-center gap-1">
+                  <LanguageSwitcher />
+                  <NavLink to="/" className="hidden min-h-9 items-center gap-2 rounded-[var(--radius-default)] px-3 text-sm font-medium md:inline-flex">
+                    <Home className="size-4" aria-hidden="true" />
+                    {t("common.welcome")}
+                  </NavLink>
+                  <Button variant="primary" size="sm" onClick={handleLogout}>
+                    <LogOut className="size-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">{t("common.logout")}</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
-          {useWorkspaceHeader && (
-            <form
-              className="relative mx-auto hidden min-w-0 max-w-xl flex-1 md:block"
-              role="search"
-              onSubmit={submitWorkspaceSearch}
-            >
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
-              <input
-                data-search-input
-                name="workspace-search"
-                type="search"
-                placeholder={isCandidateWorkspace ? t("shell.workspaceCandidateSearchPlaceholder", { search: t("common.search") }) : t("shell.workspaceRecruiterSearchPlaceholder", { search: t("common.search") })}
-                aria-label={t("common.search")}
-                className="min-h-11 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-2 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
-              />
-              <button
-                type="submit"
-                className="absolute right-1.5 top-1/2 min-h-8 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary"
+          {!isRecruiterDashboard && displayedLinks.length > 0 && (
+            <div className="border-t border-slate-200/75 bg-gradient-to-b from-slate-50/85 via-slate-50/40 to-white">
+              <nav
+                ref={navScrollRef}
+                className="mx-auto max-w-[1440px] overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
+                aria-label={t("a11y.mainNav")}
               >
-                {t("common.search")}
-              </button>
-            </form>
+                <div
+                  ref={navTrackRef}
+                  onMouseLeave={() => setHoverPillRect(null)}
+                  className="relative inline-flex min-w-full items-center gap-1 py-1.5"
+                >
+                  {hoverPillRect && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        left: hoverPillRect.left,
+                        width: hoverPillRect.width,
+                      }}
+                      className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-full bg-slate-200/55 transition-[left,width,opacity] duration-200 ease-out"
+                    />
+                  )}
+                  {activePillRect && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        left: activePillRect.left,
+                        width: activePillRect.width,
+                        transition:
+                          "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
+                      }}
+                      className="pointer-events-none absolute top-1.5 bottom-1.5 overflow-hidden rounded-full bg-white shadow-[0_3px_12px_-3px_var(--color-primary-shadow),0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-[var(--color-primary)]/25"
+                    >
+                      <span
+                        key={navSheenKey}
+                        className="animate-nav-sheen pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-[var(--color-primary-soft)] to-transparent"
+                      />
+                    </div>
+                  )}
+                  {hasArcBridge && activePillRect && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        left: activePillRect.left + 10,
+                        width: Math.max(12, activePillRect.width - 20),
+                        transition:
+                          "left 420ms cubic-bezier(0.34, 1.38, 0.64, 1), width 360ms cubic-bezier(0.22, 1.28, 0.36, 1)",
+                      }}
+                      className="pointer-events-none absolute bottom-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-[var(--color-primary)]/55 to-transparent"
+                    />
+                  )}
+                  {displayedLinks.map((l) => (
+                    <NavLink
+                      key={`${l.labelKey}:${l.to}`}
+                      to={`${basePath}${l.to}`}
+                      end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
+                      onMouseEnter={(event) => {
+                        const target = event.currentTarget;
+                        setHoverPillRect({ left: target.offsetLeft, width: target.offsetWidth });
+                      }}
+                      className={({ isActive }) =>
+                        cn(
+                          "relative z-10 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] transition-all duration-200 active:scale-[0.97]",
+                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-primary)]",
+                          isActive
+                            ? "font-semibold text-brand-primary"
+                            : "font-medium text-slate-600 hover:text-slate-900",
+                        )
+                      }
+                    >
+                      {t(l.labelKey)}
+                    </NavLink>
+                  ))}
+                </div>
+              </nav>
+            </div>
           )}
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Tooltip content={`${t("common.shortcuts")} (?)`} side="bottom">
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={t("common.shortcuts")}
-                onClick={openShortcuts}
-                className="size-10 px-0"
-              >
-                <CircleHelp className="size-[18px]" aria-hidden="true" />
-              </Button>
-            </Tooltip>
-            {useWorkspaceHeader && showRecruiterNotifications && (
-              <div
-                className="relative"
-                onBlur={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false);
-                }}
-              >
-                <Tooltip content={t("nav.notifications")} side="bottom" disabled={notificationsOpen}>
-                  <button
-                    type="button"
-                    onClick={() => setNotificationsOpen((v) => !v)}
-                    className={cn(
-                      "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
-                      notificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
-                    )}
-                    aria-label={unreadCount ? t("shell.notificationsUnreadAria", { label: t("nav.notifications"), count: unreadCount }) : t("nav.notifications")}
-                    aria-haspopup="dialog"
-                    aria-expanded={notificationsOpen}
-                  >
-                    <Bell className="size-5" aria-hidden="true" />
-                    {unreadCount > 0 && (
-                      <span
-                        className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold leading-5 text-white shadow-sm"
-                        aria-hidden="true"
-                      >
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                  </button>
-                </Tooltip>
-
-                {notificationsOpen && (
-                  <NotificationPreviewDialog
-                    items={inbox.data ?? []}
-                    loading={inbox.isPending}
-                    unreadCount={unreadCount}
-                    targetPath={isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications"}
-                    onClose={() => setNotificationsOpen(false)}
-                    onMarkAllRead={() => markAllRead.mutate()}
-                    onOpen={(item) => {
-                      if (!item.readAt) markRead.mutate(item.id);
-                      setNotificationsOpen(false);
-                      const target = notificationPath(item.payloadJson) ?? (isRecruiterWorkspace ? "/recruiter/notifications" : "/notifications");
-                      navigate(target);
+          <div aria-hidden="true" className="pointer-events-none relative h-px w-full bg-[var(--color-border-default)]">
+            {hasArcBridge && dockedArcBounds && (
+              <div className="mx-auto h-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
+                <div className="relative h-full">
+                  <div
+                    style={{
+                      left: Math.max(0, dockedArcBounds.left + 1),
+                      width: Math.max(0, dockedArcBounds.width - 2),
+                      transition: "left 480ms cubic-bezier(0.22, 1.2, 0.36, 1), width 360ms ease-out",
                     }}
+                    className="absolute inset-y-[-0.5px] bg-white"
                   />
-                )}
-              </div>
-            )}
-            {user && !useWorkspaceHeader && (
-              <span
-                className="hidden size-9 place-items-center rounded-full bg-[var(--container-blue)] text-sm font-semibold text-brand-primary ring-1 ring-inset ring-brand-primary/15 lg:grid"
-                aria-label={user.fullName}
-                title={user.fullName}
-              >
-                {userInitial}
-              </span>
-            )}
-            {useWorkspaceHeader ? (
-              <HeaderActionsMenu
-                userInitial={userInitial}
-                userName={user?.fullName}
-                loadingUser={!!accessToken && !user && profileQuery.isPending}
-                notificationsPath={isRecruiterWorkspace ? "/recruiter/notifications?tab=settings" : "/notifications?tab=settings"}
-                onLogout={handleLogout}
-              />
-            ) : (
-              <div className="flex items-center gap-1">
-                <LanguageSwitcher />
-                <NavLink to="/" className="hidden min-h-10 items-center gap-2 rounded-[var(--radius-default)] px-3 text-sm font-medium md:inline-flex">
-                  <Home className="size-4" aria-hidden="true" />
-                  {t("common.welcome")}
-                </NavLink>
-                <Button variant="primary" size="sm" onClick={handleLogout}>
-                  <LogOut className="size-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t("common.logout")}</span>
-                </Button>
+                </div>
               </div>
             )}
           </div>
-        </div>
-
-        {!isRecruiterDashboard && displayedLinks.length > 0 && (
-          <div className="border-t border-[var(--color-border-default)] bg-white/85">
-            <nav
-              className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
-              aria-label={t("a11y.mainNav")}
+        </header>}
+        {showAdminBackBanner && !isRecruiterQuestionBank && (
+          <div
+            className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
+            role="status"
+          >
+            {t("shell.adminBackBanner")}{" "}
+            <Link
+              to="/internal/admin"
+              className="font-semibold text-brand-primary underline underline-offset-2 hover:text-brand-primary-hover"
             >
-              {displayedLinks.map((l) => (
-                <NavLink
-                  key={`${l.labelKey}:${l.to}`}
-                  to={`${basePath}${l.to}`}
-                  end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
-                  className={({ isActive }) =>
-                    cn(
-                      "relative inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)]",
-                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
-                      isActive
-                        ? "bg-[var(--color-primary-soft)] text-brand-primary ring-1 ring-inset ring-brand-primary/20"
-                        : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary",
-                    )
-                  }
-                >
-                  {t(l.labelKey)}
-                </NavLink>
-              ))}
-            </nav>
+              {t("shell.adminBackLink")}
+            </Link>
           </div>
         )}
-      </header>}
-      {showAdminBackBanner && !isRecruiterQuestionBank && (
-        <div
-          className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
-          role="status"
-        >
-          {t("shell.adminBackBanner")}{" "}
-          <Link
-            to="/internal/admin"
-            className="font-semibold text-brand-primary underline underline-offset-2 hover:text-brand-primary-hover"
-          >
-            {t("shell.adminBackLink")}
-          </Link>
-        </div>
-      )}
-      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "flex h-[calc(100dvh-7.5rem)] w-full min-w-0 max-w-full flex-col overflow-hidden px-4 sm:px-6 lg:px-10" : "max-w-[1440px] px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10")}>
-        <Outlet />
-      </main>
-    </div>
+        <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "flex h-[calc(100dvh-7.5rem)] w-full min-w-0 max-w-full flex-col overflow-hidden px-4 sm:px-6 lg:px-10" : "max-w-[1440px] px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10")}>
+          <Outlet />
+        </main>
+      </div>
+    </NavArcContext.Provider>
   );
 }
 

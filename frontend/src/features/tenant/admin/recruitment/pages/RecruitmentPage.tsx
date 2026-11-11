@@ -7,6 +7,7 @@ import { jobApi } from "@/api/tenant/jobApi";
 import type { ApplicationStatus } from "@/api/types/applicant";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
@@ -65,8 +66,10 @@ export function RecruitmentPage() {
   const applicants = useQuery({
     queryKey: ["admin", "job-applicants", jobId, page],
     queryFn: () => applicantApi.listByJob(jobId!, { archived: false, page, size: PAGE_SIZE }),
+    placeholderData: keepPreviousForScope(jobId, 2),
     enabled: jobId != null,
   });
+  const isApplicantsRefreshing = applicants.isFetching && applicants.isPlaceholderData;
 
   const selected = jobItems.find((job) => job.id === jobId) ?? null;
   const rows = applicants.data?.data?.items ?? [];
@@ -131,7 +134,8 @@ export function RecruitmentPage() {
           </div>
         </Card>
 
-        <Card className="overflow-hidden p-0">
+        <Card className="relative overflow-hidden p-0">
+          <TableRefreshBar active={isApplicantsRefreshing} />
           <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] px-5 py-4">
             <Users className="size-5 text-brand-primary" aria-hidden="true" />
             <div>
@@ -151,13 +155,13 @@ export function RecruitmentPage() {
             {jobId == null && !jobs.isLoading && (
               <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.recruitment.selectJobFromLeft")}</p>
             )}
-            {applicants.isLoading && <Skeleton className="h-24 w-full" />}
+            {applicants.isPending && !applicants.data && <Skeleton className="h-24 w-full" />}
             {applicants.isError && <p className="text-sm text-status-danger">{getApiErrorMessage(applicants.error)}</p>}
             {applicants.isSuccess && rows.length === 0 && (
               <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.recruitment.noApplicantsForJob")}</p>
             )}
             {rows.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className={cn("overflow-x-auto transition-opacity duration-200", isApplicantsRefreshing && "opacity-60")}>
                 <table className="w-full min-w-[640px] text-left text-sm">
                   <thead className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
                     <tr>

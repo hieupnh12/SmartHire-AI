@@ -41,6 +41,7 @@ import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 import { queryKeys } from "@/lib/query-keys";
@@ -435,9 +436,10 @@ export function QuestionBankPage() {
         },
         signal
       ),
-    placeholderData: (previousData) => previousData,
+    placeholderData: keepPreviousForScope(job.id, 4),
   });
-  const isInitialLoading = tests.isLoading;
+  const isInitialLoading = tests.isPending && !tests.data;
+  const isTableRefreshing = tests.isFetching && tests.isPlaceholderData;
 
   const rows = useMemo<BankRow[]>(() => {
     return (tests.data?.items ?? []).map((item) => ({
@@ -1210,10 +1212,8 @@ export function QuestionBankPage() {
             </div>
           )}
 
-          <div className={cn(
-            "overflow-hidden rounded-2xl bg-[var(--color-surface-card)] shadow-xs border border-slate-100/80 dark:border-slate-800/60 transition-opacity",
-            tests.isFetching && !isInitialLoading && "opacity-75"
-          )}>
+          <div className="relative overflow-hidden rounded-2xl bg-[var(--color-surface-card)] shadow-xs border border-slate-100/80 dark:border-slate-800/60">
+            <TableRefreshBar active={isTableRefreshing} />
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)] border-b border-slate-100 dark:border-slate-800/60">
               <p>
                 {isInitialLoading ? (
@@ -1232,7 +1232,7 @@ export function QuestionBankPage() {
               )}
             </div>
 
-            {tests.isSuccess && !isInitialLoading && !isTableTransitioning && totalItems === 0 && (
+            {tests.isSuccess && !isInitialLoading && totalItems === 0 && (
               <div className="flex flex-col items-start gap-2 p-8">
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className="font-semibold">{t("recruiter.assessments.bank.general.emptyTitle")}</p>
@@ -1241,7 +1241,7 @@ export function QuestionBankPage() {
               </div>
             )}
 
-            {view === "table" && (isInitialLoading || isTableTransitioning || pageRows.length > 0) && (
+            {view === "table" && (isInitialLoading || pageRows.length > 0) && (
               <div className="w-full max-lg:overflow-x-auto lg:overflow-x-hidden">
                 <table className="w-full table-fixed border-collapse text-left text-sm">
                   <thead>
@@ -1261,8 +1261,8 @@ export function QuestionBankPage() {
                       <th className="w-24 px-2 py-3 text-center">{t("recruiter.assessments.bank.general.colActions")}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {isInitialLoading || isTableTransitioning ? (
+                  <tbody className={cn("divide-y divide-slate-100 dark:divide-slate-800/60 transition-opacity duration-200", (isTableRefreshing || isTableTransitioning) && "opacity-60")}>
+                    {isInitialLoading ? (
                       <QuestionTableRowsSkeleton rows={pageSize} />
                     ) : (
                       pageRows.map((row) => {
@@ -1471,11 +1471,11 @@ export function QuestionBankPage() {
               </div>
             )}
 
-            {view === "cards" && (isInitialLoading || isTableTransitioning || pageRows.length > 0) && (
-              isInitialLoading || isTableTransitioning ? (
+            {view === "cards" && (isInitialLoading || pageRows.length > 0) && (
+              isInitialLoading ? (
                 <QuestionCardsSkeleton count={Math.min(pageSize, 6)} />
               ) : (
-                <div className="grid gap-3.5 p-4 md:grid-cols-2">
+                <div className={cn("grid gap-3.5 p-4 md:grid-cols-2 transition-opacity duration-200", (isTableRefreshing || isTableTransitioning) && "opacity-60")}>
                   {pageRows.map((row) => {
                     const meta = statusMeta(row.testStatus, t);
                     return (

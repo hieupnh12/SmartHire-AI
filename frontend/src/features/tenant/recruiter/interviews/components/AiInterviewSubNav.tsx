@@ -10,6 +10,7 @@ type Props = {
   activeTab: AiInterviewTab;
   className?: string;
   onTabChange?: (tab: AiInterviewTab) => void;
+  onDirectionChange?: (direction: "left" | "right") => void;
 };
 
 export function AiInterviewSubNav({
@@ -17,6 +18,7 @@ export function AiInterviewSubNav({
   activeTab,
   className,
   onTabChange,
+  onDirectionChange,
 }: Props) {
   const t = useT();
   const basePath = `/recruiter/jobs/${jobId}/ai-interviews`;
@@ -43,12 +45,15 @@ export function AiInterviewSubNav({
   ];
 
   return (
-    <nav className={cn("border-b border-slate-200/80 dark:border-slate-800", className)}>
+    <nav className={cn("min-w-0", className)}>
       <PillNav
         items={navItems}
         activeId={activeTab}
         ariaLabel={t("recruiter.interviews.ai.subNav.ariaLabel")}
         onSelect={onTabChange}
+        onDirectionChange={onDirectionChange}
+        variant="docked"
+        dockGroup="ai-interviews"
       />
     </nav>
   );

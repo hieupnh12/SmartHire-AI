@@ -275,6 +275,7 @@ export function AiInterviewsPage() {
   const { interviews, applicants, rows } = useJobAiInterviews(job.id);
 
   const activeSubNavTab = (params.get("tab") as AiInterviewTab) || "sessions";
+  const [subNavDir, setSubNavDir] = useState<"left" | "right">("right");
 
   const [tab, setTab] = useState<QuickTab>("ALL");
   const [query, setQuery] = useState("");
@@ -523,6 +524,7 @@ export function AiInterviewsPage() {
         jobId={job.id}
         activeTab={activeSubNavTab}
         onTabChange={handleSubNavChange}
+        onDirectionChange={setSubNavDir}
       />
 
       {/* Subscription Alert Warning */}
@@ -563,14 +565,14 @@ export function AiInterviewsPage() {
 
       {/* TAB CONTENT: CẤU HÌNH (CONFIG) */}
       {activeSubNavTab === "config" && (
-        <div className="animate-in fade-in-50 duration-200">
+        <div key="config" className={subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right"}>
           <AiInterviewConfigPanel jobId={job.id} onOpenDetail={openSessionDetail} />
         </div>
       )}
 
       {/* TAB CONTENT: THEO DÕI KẾT QUẢ / NỘP BÀI (TRACKING) */}
       {activeSubNavTab === "tracking" && (
-        <div className="flex flex-col gap-4 animate-in fade-in-50 duration-200">
+        <div key="tracking" className={cn("flex flex-col gap-4", subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right")}>
           {/* Subscription Usage Card if available */}
           {sub && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
@@ -841,7 +843,7 @@ export function AiInterviewsPage() {
 
       {/* TAB CONTENT: PHIÊN PHỎNG VẤN (SESSIONS) */}
       {activeSubNavTab === "sessions" && (
-        <>
+        <div key="sessions" className={cn("flex flex-col gap-3.5", subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right")}>
           {/* Multi-Select Floating / Top Batch Action Bar */}
           {selected.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
@@ -1713,7 +1715,7 @@ export function AiInterviewsPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Dialogs */}

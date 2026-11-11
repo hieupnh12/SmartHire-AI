@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Inbox, Settings } from "lucide-react";
 import { PillNav } from "@/components/ux/PillNav";
@@ -18,6 +18,7 @@ export function NotificationsPage() {
   const jobId = id ? Number(id) : undefined;
   const [params, setParams] = useSearchParams();
   const active = params.get("tab") === "settings" ? "settings" : "inbox";
+  const [tabDirection, setTabDirection] = useState<"left" | "right">("right");
   const localizedCategories = useMemo(
     () =>
       recruiterNotificationCategories.map((category) => ({
@@ -51,15 +52,22 @@ export function NotificationsPage() {
               : t("recruiter.ops.notifications.subtitleAll")}
         </p>
       </header>
-      <div className="border-b border-slate-200/80 dark:border-slate-800">
+      <div className="flex items-center">
         <PillNav
           items={tabs.map((item) => ({ id: item.key, label: t(item.labelKey), icon: item.icon }))}
           activeId={active}
           ariaLabel={t("recruiter.ops.notifications.tablistAria")}
           onSelect={(key) => setParams(key === "settings" ? { tab: key } : {}, { replace: true })}
+          onDirectionChange={setTabDirection}
+          variant="cradle"
+          dockGroup="notifications"
         />
       </div>
-      <div role="tabpanel">
+      <div
+        key={active}
+        role="tabpanel"
+        className={tabDirection === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right"}
+      >
         {active === "settings" ? (
           <NotificationSettings
             categories={localizedCategories}

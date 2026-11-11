@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -23,6 +23,7 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
+import { keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
@@ -131,10 +132,11 @@ export function ApplicantsPage() {
       page,
       size: pageSize,
     }),
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousForScope(jobId ?? "all", 2),
     enabled: !!token && !boardView,
     refetchInterval: 5_000,
   });
+  const isTableRefreshing = list.isFetching && list.isPlaceholderData;
   const data = list.data?.data;
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -404,7 +406,8 @@ export function ApplicantsPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-sm">
+        <TableRefreshBar active={isTableRefreshing} />
         {list.isPending && !data && (
           <div className="p-6"><LoadingState label={t("recruiter.ops.applicants.list.loadingList")}><TableSkeleton /></LoadingState></div>
         )}
@@ -425,7 +428,7 @@ export function ApplicantsPage() {
 
         {rows.length > 0 && (
           <div className="overflow-x-auto">
-            <table className={cn("w-full min-w-[900px] text-left text-sm", list.isFetching && "opacity-70 transition-opacity")}>
+            <table className={cn("w-full min-w-[900px] text-left text-sm transition-opacity duration-200", isTableRefreshing && "opacity-60")}>
               <thead>
                 <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
                   <th scope="col" className="px-5">{t("recruiter.ops.applicants.list.colApplicant")}</th>

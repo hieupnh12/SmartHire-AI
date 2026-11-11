@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { recruiterAnalyticsApi } from "@/api/tenant/recruiterAnalyticsApi";
+import { keepPreviousForScope } from "@/components/ux/TableRefresh";
 import type {
   AnalyticsFilter,
   AnalyticsRange,
@@ -41,6 +42,7 @@ export function useJobOverview(jobId: number | undefined, range: AnalyticsRange)
     queryKey: ["recruiter-analytics", "job-overview", jobId ?? null, range, filter.from.slice(0, 10)],
     queryFn: () => recruiterAnalyticsApi.jobOverview({ ...filter, jobId: jobId! }),
     enabled: jobId != null,
+    placeholderData: keepPreviousForScope(jobId ?? null, 2),
     staleTime: 60_000,
     retry: false,
   });
@@ -53,10 +55,15 @@ export function useRecruiterAnalytics(
   enabled = true,
 ) {
   const filter = rangeFilter(range, new Date(), jobId);
+  const scopeJobId = jobId ?? null;
   return useQuery<RecruiterAnalyticsData>({
-    queryKey: ["recruiter-analytics", tab, jobId ?? null, range, filter.from.slice(0, 10)],
+    queryKey: ["recruiter-analytics", tab, scopeJobId, range, filter.from.slice(0, 10)],
     queryFn: () => recruiterAnalyticsApi[tab](filter),
     enabled,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey?.[1] === tab && previousQuery?.queryKey?.[2] === scopeJobId
+        ? previousData
+        : undefined,
     staleTime: 60_000,
     retry: false,
   });
@@ -72,6 +79,7 @@ export function useJobInsights(
     queryKey: ["recruiter-analytics", "job-insights", jobId ?? null, range, filter.from.slice(0, 10)],
     queryFn: () => recruiterAnalyticsApi.jobInsights({ ...filter, jobId: jobId! }),
     enabled: jobId != null && enabled,
+    placeholderData: keepPreviousForScope(jobId ?? null, 2),
     staleTime: 60_000,
     retry: false,
   });

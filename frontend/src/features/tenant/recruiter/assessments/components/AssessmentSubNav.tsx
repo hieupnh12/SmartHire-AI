@@ -53,11 +53,13 @@ export function AssessmentSubNav({
   ];
 
   return (
-    <nav className={cn("border-b border-slate-200/80 dark:border-slate-800", className)}>
+    <nav className={cn("min-w-0", className)}>
       <PillNav
         items={navItems}
         activeId={activeTab}
         ariaLabel={t("recruiter.assessments.subNav.ariaLabel")}
+        variant="docked"
+        dockGroup="assessments"
       />
     </nav>
   );
