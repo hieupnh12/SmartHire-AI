@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { contractApi } from "@/api/master/contractApi";
 import { consultationApi } from "@/api/master/consultationApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 
 export function CreateContractPage() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export function CreateContractPage() {
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
   const [contractTerms, setContractTerms] = useState(`3.1. Cam kết chất lượng (SLA): Bên A cam kết độ sẵn sàng của hạ tầng hệ thống (Uptime SLA) đạt tối thiểu 99.5%/tháng, thực hiện sao lưu dữ liệu tự động định kỳ hàng ngày.
-3.2. Tuân thủ Nghị định 13/2023/NĐ-CP:
+3.2. Tuân thủ ${LEGAL_POLICY_META.lawLabel}:
 - Bên B xác nhận là Bên Kiểm soát Dữ liệu Cá nhân và chịu trách nhiệm thu thập sự đồng ý hợp pháp của Ứng viên trước khi đưa thông tin vào phần mềm.
 - Bên A đóng vai trò là Bên Xử lý Dữ liệu Cá nhân theo ủy quyền; cam kết bảo mật tuyệt đối và không sử dụng dữ liệu riêng của Bên B để huấn luyện mô hình AI công cộng hoặc chia sẻ cho bên thứ ba.
 3.3. Giới hạn trách nhiệm AI: Các tính năng đánh giá tự động của AI đóng vai trò là công cụ hỗ trợ sàng lọc; Bên B giữ toàn quyền và chịu hoàn toàn trách nhiệm đối với các quyết định tuyển dụng nhân sự cuối cùng.`);
@@ -311,7 +312,7 @@ export function CreateContractPage() {
                 required
                 value={contractPartyBAddress}
                 onChange={(e) => setContractPartyBAddress(e.target.value)}
-                placeholder="Số 123 Đường ABC, Quận XYZ, TP. Hà Nội"
+                placeholder="Số 123 Đường ABC, Quận Hải Châu, TP. Đà Nẵng"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600"
               />
             </div>
@@ -443,7 +444,7 @@ export function CreateContractPage() {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">Điều Khoản Dịch Vụ & Cam Kết SLA (Nghị Định 13/2023/NĐ-CP)</label>
+            <label className="block font-semibold text-slate-700 mb-1.5">Điều Khoản Dịch Vụ & Cam Kết SLA (Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP)</label>
             <textarea
               rows={4}
               value={contractTerms}

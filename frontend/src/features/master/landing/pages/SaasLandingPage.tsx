@@ -21,6 +21,8 @@ import {
 import { useLandingModal } from "../context/LandingModalContext";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 
 export function SaasLandingPage() {
   const navigate = useNavigate();
@@ -481,7 +483,7 @@ export function SaasLandingPage() {
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    Tuân thủ Nghị định 13/2023/NĐ-CP & cam kết NDA
+                    Tuân thủ {LEGAL_POLICY_META.lawLabel} & cam kết NDA
                   </span>
                 </div>
 
@@ -643,19 +645,31 @@ export function SaasLandingPage() {
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                         <span>
-                          <strong>{plan.maxJobs > 0 ? plan.maxJobs : "Không giới hạn"}</strong> vị trí tuyển dụng
+                          {plan.maxJobs != null && plan.maxJobs > 0 ? (
+                            <><strong>{formatQuotaLimit(plan.maxJobs, "")}</strong> vị trí tuyển dụng</>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxJobs, "", { unlimitedLabel: "Không giới hạn vị trí tuyển dụng", unsupportedLabel: "Không hỗ trợ đăng tin tuyển dụng" })}</strong>
+                          )}
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                         <span>
-                          Sàng lọc <strong>{plan.maxCvParses > 0 ? plan.maxCvParses.toLocaleString() : "Không giới hạn"} CVs / tháng</strong>
+                          {plan.maxCvParses != null && plan.maxCvParses > 0 ? (
+                            <>Sàng lọc <strong>{formatQuotaLimit(plan.maxCvParses, "CVs", { monthly: true })}</strong></>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxCvParses, "CVs", { monthly: true, unlimitedLabel: "Không giới hạn lượt sàng lọc CV", unsupportedLabel: "Không hỗ trợ sàng lọc CV AI" })}</strong>
+                          )}
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                         <span>
-                          Trợ lý phỏng vấn AI <strong>{plan.maxAiInterviewHours ? `${plan.maxAiInterviewHours}h` : "Không giới hạn"}</strong>
+                          {plan.maxAiInterviewHours != null && plan.maxAiInterviewHours > 0 ? (
+                            <>Trợ lý phỏng vấn AI <strong>{formatQuotaLimit(plan.maxAiInterviewHours, "giờ", { monthly: true })}</strong></>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxAiInterviewHours, "giờ", { monthly: true, unlimitedLabel: "Phỏng vấn AI không giới hạn", unsupportedLabel: "Không hỗ trợ phỏng vấn AI" })}</strong>
+                          )}
                         </span>
                       </li>
                       {isEnterprise && (

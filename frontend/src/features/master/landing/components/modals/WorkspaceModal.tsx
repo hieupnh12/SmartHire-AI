@@ -23,15 +23,6 @@ export function WorkspaceModal() {
     }
   };
 
-  const handleDirectTenantJump = (code: string) => {
-    const currentHost = window.location.host;
-    if (currentHost.includes("localhost")) {
-      window.location.href = `http://${code}.localhost:${window.location.port || 5173}/`;
-    } else {
-      window.location.href = `https://${code}.smarthire.top/`;
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full text-left shadow-2xl relative">
@@ -83,31 +74,8 @@ export function WorkspaceModal() {
           </button>
         </form>
 
-        {/* QUICK SEED WORKSPACE SELECTOR */}
-        <div className="mt-6 pt-5 border-t border-slate-100">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-2.5">
-            Hoặc trải nghiệm nhanh không gian mẫu:
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleDirectTenantJump("se36")}
-              className="px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-xs font-mono text-slate-700 transition-colors text-center active:scale-95"
-            >
-              se36
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDirectTenantJump("se37")}
-              className="px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-xs font-mono text-slate-700 transition-colors text-center active:scale-95"
-            >
-              se37
-            </button>
-          </div>
-        </div>
-
         {/* LINK TO MASTER PLATFORM LOGIN */}
-        <div className="mt-5 text-center">
+        <div className="mt-6 pt-5 border-t border-slate-100 text-center">
           <button
             type="button"
             onClick={() => {

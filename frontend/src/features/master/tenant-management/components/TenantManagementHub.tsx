@@ -10,20 +10,14 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDashed,
-  ClipboardCopy,
   Database,
-  Download,
-  Gauge,
   Eye,
   LoaderCircle,
   Plus,
   RefreshCw,
-  RotateCw,
   Search,
   ServerCog,
   ShieldCheck,
-  TerminalSquare,
-  Trash2,
   UserRoundCog,
   X,
   Receipt,
@@ -129,44 +123,6 @@ function ProvisioningPanel({ tenants, onRetryProvisioning }: Pick<Props, "tenant
   const stages = ["Validate code & subdomain", "Ghi Master DB", "Tạo database & quyền", "Chạy Flyway migrations", "Tạo tenant admin", "Áp dụng plan, quota & pipeline"];
   return <div className="grid gap-5 xl:grid-cols-[1fr_380px]"><section className={cn(cardClass, "overflow-hidden")}><div className="border-b border-slate-100 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Provisioning monitor</h2><p className="mt-1 text-xs text-slate-500">Theo dõi saga idempotent; retry tiếp tục từ bước an toàn gần nhất.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Zero-secret logging</span></div></div><div className="divide-y divide-slate-100">{relevant.map((tenant) => <div key={tenant.id} className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center"><span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", tenant.status === "FAILED" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700")}>{tenant.status === "FAILED" ? <AlertTriangle className="size-5" /> : <LoaderCircle className="size-5 animate-spin" />}</span><div className="flex-1"><h3 className="text-sm font-semibold">{tenant.name}</h3><p className="mt-1 text-xs text-slate-500">{tenant.dbName} · {tenant.status === "FAILED" ? "Tài nguyên một phần được giữ để recovery" : "Đang cấp phát tài nguyên riêng"}</p></div><button type="button" onClick={() => onRetryProvisioning(tenant)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white"><RefreshCw className="size-3.5" />{tenant.status === "FAILED" ? "Retry an toàn" : "Mở chi tiết"}</button></div>)}{relevant.length === 0 && <div className="px-5 py-8 text-center"><CheckCircle2 className="mx-auto size-8 text-emerald-600" /><p className="mt-3 text-sm font-semibold">Không có provisioning cần xử lý</p><p className="mt-1 text-xs text-slate-500">Tất cả tenant trong registry đang ở trạng thái ổn định.</p></div>}</div><div className="border-t border-slate-100 p-5"><h3 className="text-sm font-semibold">Pipeline cấp phát chuẩn</h3><ol className="mt-4 grid gap-3 sm:grid-cols-2">{stages.map((stage, index) => <li key={stage} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"><span className={cn("grid size-7 shrink-0 place-items-center rounded-lg text-xs font-bold", index < 2 ? "bg-emerald-100 text-emerald-700" : index === 2 && sample ? "bg-amber-100 text-amber-700" : "bg-white text-slate-500")}>{index + 1}</span><span className="text-xs font-medium text-slate-700">{stage}</span></li>)}</ol></div></section><aside className={cn(cardClass, "h-fit p-5")}><div className="flex items-center gap-2"><ShieldCheck className="size-5 text-blue-600" /><h2 className="font-semibold">Recovery guardrails</h2></div><div className="mt-4 space-y-3 text-xs leading-5 text-slate-600"><p className="rounded-xl bg-blue-50 p-3"><strong className="block text-blue-900">Idempotency key</strong>Mỗi lần retry dùng tenant ID và checkpoint; không tạo trùng database, user hoặc admin.</p><p className="rounded-xl bg-amber-50 p-3"><strong className="block text-amber-900">Rollback có kiểm soát</strong>Không tự động xóa dữ liệu đã tạo một phần. Super Admin chọn retry hoặc recovery sau khi kiểm tra.</p><p className="rounded-xl bg-slate-50 p-3"><strong className="block text-slate-900">Audit an toàn</strong>Log chỉ chứa stage, mã lỗi và correlation ID; password/connection secret luôn bị loại bỏ.</p></div></aside></div>;
 }
-
-function SagaRecoveryConsole({ tenants }: Pick<Props, "tenants">) {
-  const target = tenants.find((tenant) => tenant.status === "FAILED" || tenant.status === "PROVISIONING") ?? tenants[0];
-  const tenantCode = target?.code ?? "sample-tenant";
-  const lines = [
-    "[ZERO-LOG POLICY ACTIVE] Credentials, JWT tokens and DB passwords are masked.",
-    `[14:22:01.002] INFO TenantProvisioningService: initializing recovery for ${tenantCode}`,
-    `[14:22:01.094] ACQUIRED: pg_advisory_lock for tenant ${target?.id ?? "sample"}`,
-    "[14:22:01.120] CHECKPOINT 1: identifier validation · PASSED",
-    "[14:22:01.144] CHECKPOINT 2: Master tenant registry · PASSED",
-    `[14:22:01.180] CHECKPOINT 3: database ${target?.dbName ?? "smarthire_tenant_sample"} · PASSED`,
-    "[14:22:01.215] CHECKPOINT 4: Flyway tenant migrations · WAITING",
-  ];
-  const content = lines.join("\n");
-  const copyLogs = () => void navigator.clipboard?.writeText(content);
-  const downloadLogs = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ source: "ui-sample", tenant: tenantCode, lines }, null, 2)], { type: "application/json" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `provisioning-${tenantCode}-sample.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-  return <section className={cn(cardClass, "p-5")}><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><TerminalSquare className="size-5" /></span><div><h2 className="font-semibold">Live Saga Recovery Console</h2><p className="mt-1 text-xs text-slate-500">Bản xem trước checkpoint provisioning; chưa kết nối API stream log.</p></div></div><div className="flex items-center gap-2"><span className="size-2 rounded-full bg-blue-600" /><span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700">Sample stream</span></div></div><pre className="mt-5 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-200">{content}</pre><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-slate-500">Buffer: 4096 lines · ANSI UTF-8 · dữ liệu minh họa</span><div className="flex gap-2"><button type="button" onClick={copyLogs} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><ClipboardCopy className="size-3.5" />Copy logs</button><button type="button" onClick={downloadLogs} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Download className="size-3.5" />Download JSON</button></div></div></section>;
-}
-
-function ResourcesPanel({ tenants }: Pick<Props, "tenants">) {
-  const active = tenants.filter((tenant) => tenant.status === "ACTIVE");
-  return <div className="space-y-5"><section className={cn(cardClass, "p-5")}><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Database health & datasource pools</h2><p className="mt-1 text-xs text-slate-500">UI vận hành cho health check và làm mới HikariCP; endpoint backend chưa được khai báo.</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">UI mẫu · chưa có API</span></div><div className="mt-5 grid gap-3 lg:grid-cols-3">{active.slice(0, 3).map((tenant, index) => <article key={tenant.id} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between"><span className="grid size-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><Gauge className="size-4" /></span><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Healthy</span></div><h3 className="mt-3 text-sm font-semibold">{tenant.name}</h3><p className="mt-1 truncate font-mono text-xs text-slate-500">{tenant.dbName}</p><dl className="mt-4 grid grid-cols-3 gap-2 text-center"><div><dt className="text-[10px] text-slate-500">Latency</dt><dd className="text-xs font-semibold">{8 + index * 3} ms</dd></div><div><dt className="text-[10px] text-slate-500">Active</dt><dd className="text-xs font-semibold">{4 + index}/20</dd></div><div><dt className="text-[10px] text-slate-500">Queued</dt><dd className="text-xs font-semibold">0</dd></div></dl><div className="mt-4 flex gap-2"><button type="button" disabled className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 text-xs font-semibold text-slate-400"><Gauge className="size-3.5" />Health check</button><button type="button" disabled className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 text-xs font-semibold text-slate-400"><RotateCw className="size-3.5" />Rotate pool</button></div></article>)}{active.length === 0 && <p className="col-span-full py-8 text-center text-sm text-slate-500">Chưa có tenant ACTIVE để hiển thị.</p>}</div></section><section className={cn(cardClass, "p-5")}><h2 className="font-semibold">Default plan, quota & recruitment blueprint</h2><p className="mt-1 text-xs text-slate-500">Cấu hình được áp dụng sau Flyway và trước khi chuyển tenant sang ACTIVE.</p><div className="mt-5 grid gap-3 sm:grid-cols-3"><Metric label="Default plan" value="Enterprise Pro" helper="Có thể đổi trong quản lý gói" /><Metric label="AI screening" value="10,000 / tháng" helper="Quota mặc định" /><Metric label="Recruiter seats" value="50" helper="SSO/SAML enabled" /></div><div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-4 text-xs font-medium text-slate-700">{["Applied", "CV Screen (AI)", "Shortlist", "Assessment", "AI Interview", "Offer"].map((stage, index) => <span key={stage} className="contents"><span className={cn("rounded-lg px-3 py-2", index === 5 ? "bg-blue-600 text-white" : "bg-white")}>{stage}</span>{index < 5 && <ChevronRight className="size-4 text-slate-400" />}</span>)}</div></section></div>;
-}
-
-function Metric({ label, value, helper }: { label: string; value: string; helper: string }) { return <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-lg font-bold text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{helper}</p></div>; }
-
-function RecoveryPanel() {
-  return <div className="grid gap-5 lg:grid-cols-2"><section className={cn(cardClass, "p-5")}><div className="flex items-center gap-2"><ArchiveRestore className="size-5 text-blue-600" /><h2 className="font-semibold">Backup & restore policy</h2></div><p className="mt-1 text-xs text-slate-500">UI mẫu cho chính sách vòng đời dữ liệu; chưa có API backup/restore.</p><div className="mt-5 space-y-3"><Policy title="Automated backup" value="Daily · 02:00 UTC" detail="Point-in-time recovery trong 7 ngày" /><Policy title="Retention" value="30 ngày" detail="Bản sao mã hóa, tách khỏi tenant database" /><Policy title="Restore workflow" value="Approval required" detail="Restore vào database tạm, health check rồi mới cutover" /></div><button type="button" disabled className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-400"><ArchiveRestore className="size-4" />Tạo restore request</button></section><section className={cn(cardClass, "border-rose-200 p-5")}><div className="flex items-center gap-2 text-rose-700"><Trash2 className="size-5" /><h2 className="font-semibold">Tenant deletion policy</h2></div><p className="mt-1 text-xs text-slate-500">Không xóa trực tiếp. Quy trình bắt buộc suspend, backup cuối và thời gian chờ.</p><ol className="mt-5 space-y-3 text-sm text-slate-700">{["Suspend tenant và revoke phiên truy cập mới", "Tạo final backup, kiểm tra khả năng restore", "Chờ 30 ngày theo retention policy", "Phê duyệt hai người và ghi audit trail", "Xóa database/user, đóng pool rồi ẩn danh metadata"].map((item, index) => <li key={item} className="flex gap-3 rounded-xl bg-rose-50/60 p-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-white text-xs font-bold text-rose-700">{index + 1}</span><span>{item}</span></li>)}</ol><button type="button" disabled className="mt-5 min-h-10 rounded-xl bg-rose-50 px-4 text-sm font-semibold text-rose-300">Yêu cầu xóa tenant</button><p className="mt-2 text-xs text-slate-500">Nút bị khóa cho đến khi backend có approval workflow và retention enforcement.</p></section></div>;
-}
-
-function Policy({ title, value, detail }: { title: string; value: string; detail: string }) { return <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 p-4"><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></div><span className="shrink-0 text-xs font-semibold text-blue-700">{value}</span></div>; }
 
 function TenantDetailPanel({ tenant, detailLoading, onClose }: { tenant: TenantInfo; detailLoading: boolean; onClose: () => void }) {
   const { data: contracts } = useQuery({
@@ -286,7 +242,7 @@ export function TenantManagementHub(props: Props) {
     overview: <OverviewPanel tenants={props.tenants} onNavigate={props.onTabChange} />,
     directory: <DirectoryPanel tenants={props.tenants} onToggleStatus={props.onToggleStatus} onSoftDeleteTenant={props.onSoftDeleteTenant} onRestoreTenant={props.onRestoreTenant} onRetryProvisioning={props.onRetryProvisioning} />,
     create: <CreatePanel onTenantCreated={props.onTenantCreated} onNavigate={props.onTabChange} />,
-    provisioning: <div className="space-y-5"><ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} /><SagaRecoveryConsole tenants={props.tenants} /><ResourcesPanel tenants={props.tenants} /><RecoveryPanel /></div>,
+    provisioning: <ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} />,
   };
   return <div className="space-y-6 animate-fade-in"><div>{panels[props.activeTab]}</div></div>;
 }

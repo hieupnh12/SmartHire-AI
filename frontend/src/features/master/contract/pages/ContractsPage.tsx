@@ -9,6 +9,7 @@ import { ContractItem, contractApi } from "@/api/master/contractApi";
 import { useContracts, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 
@@ -109,6 +110,7 @@ function StatusBadge({ status }: { status: string }) {
 export function ContractsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: contracts = [] } = useContracts();
   const setContracts = (updater: any) => queryClient.setQueryData(masterQueryKeys.contracts(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
@@ -207,13 +209,22 @@ export function ContractsPage() {
       .catch(() => triggerNotification(`Link: ${url}`));
   };
 
-  const handleDeleteContract = async (contract: ContractItem) => {
-    if (!window.confirm("Xác nhận xóa hợp đồng này? Không thể phục hồi!")) return;
-    try {
-      await contractApi.delete(contract.id);
-      setContracts((prev: ContractItem[]) => (prev || []).filter((c: ContractItem) => c.id !== contract.id));
-      triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
-    } catch { alert("Lỗi khi xóa hợp đồng."); }
+  const handleDeleteContract = (contract: ContractItem) => {
+    askConfirm({
+      title: `Xóa hợp đồng ${contract.contractNumber}?`,
+      description: "Thao tác này sẽ xóa hợp đồng và không thể phục hồi.",
+      confirmLabel: "Xóa hợp đồng",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await contractApi.delete(contract.id);
+          setContracts((prev: ContractItem[]) => (prev || []).filter((c: ContractItem) => c.id !== contract.id));
+          triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
+        } catch {
+          toast.error("Lỗi khi xóa hợp đồng.");
+        }
+      },
+    });
   };
 
   return (

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { BrainCircuit, Mail, ArrowUpRight } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 
 const NAV_LINKS = [
   { label: "Giải Pháp AI", to: "/solutions" },
@@ -35,11 +36,11 @@ export function LandingFooter() {
               Nền tảng tuyển dụng AI thế hệ mới dành cho doanh nghiệp — tự động hóa sàng lọc, đánh giá và phỏng vấn với độ chính xác vượt trội.
             </p>
             <a
-              href="mailto:contact@smarthire.top"
+              href={`mailto:${LEGAL_POLICY_META.supportEmail}`}
               className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition-colors"
             >
               <Mail className="w-3.5 h-3.5" />
-              contact@smarthire.top
+              {LEGAL_POLICY_META.supportEmail}
             </a>
           </div>
 
@@ -80,7 +81,7 @@ export function LandingFooter() {
               </li>
               <li>
                 <a
-                  href="mailto:contact@smarthire.top"
+                  href={`mailto:${LEGAL_POLICY_META.supportEmail}`}
                   className="text-xs text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1 group"
                 >
                   Hỗ Trợ Kỹ Thuật

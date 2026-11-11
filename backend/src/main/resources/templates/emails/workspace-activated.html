@@ -334,11 +334,11 @@
             <!-- Footer -->
             <div class="footer">
                 <div>&copy; 2026 SmartHire-AI JSC. All rights reserved.</div>
-                <div style="margin-top: 4px;">Tầng 13, Tòa nhà FPT, ĐH FPT Đà Nẵng, KĐT Công nghệ FPT,
+                <div style="margin-top: 4px;" th:text="${platformAddress} ?: 'Tầng 13, Tòa nhà FPT, ĐH FPT Đà Nẵng, KĐT Công nghệ FPT, P. Hòa Hải, Q. Ngũ Hành Sơn, TP. Đà Nẵng'">Tầng 13, Tòa nhà FPT, ĐH FPT Đà Nẵng, KĐT Công nghệ FPT,
                     P. Hòa Hải, TP. Đà Nẵng</div>
-                <div style="margin-top: 4px;">Hotline: 0988.888.888 &nbsp;|&nbsp; Website: <a
+                <div style="margin-top: 4px;">Hotline: <span th:text="${supportHotline} ?: '0988.888.888'">0988.888.888</span> &nbsp;|&nbsp; Website: <a
                         href="https://smarthire.top" style="color: #2563eb; text-decoration: none;">smarthire.top</a>
-                    &nbsp;|&nbsp; Email: support@smarthire.top</div>
+                    &nbsp;|&nbsp; Email: <span th:text="${supportEmail} ?: 'support@smarthire.top'">support@smarthire.top</span></div>
             </div>
         </div>
     </div>

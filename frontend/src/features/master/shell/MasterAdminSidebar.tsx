@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   BrainCircuit,
   Building2,
+  Calculator,
   CreditCard,
   ReceiptText,
   FileSignature,
@@ -120,6 +121,13 @@ export function MasterAdminSidebar({
           icon: PhoneCall,
         },
         {
+          id: "b2b-deals",
+          label: "Chốt Deal & Báo giá",
+          path: "/admin/deals",
+          activePaths: ["/admin/deals", "/admin/tenants/create"],
+          icon: Calculator,
+        },
+        {
           id: "tenant-provisioning",
           label: "Cấp phát tài nguyên",
           path: "/admin/tenants/provisioning",
@@ -138,7 +146,7 @@ export function MasterAdminSidebar({
           id: "contracts",
           label: "Hợp đồng & ký số",
           path: "/admin/contracts",
-          activePaths: ["/admin/contracts"],
+          activePaths: ["/admin/contracts", "/admin/contracts/create"],
           icon: FileSignature,
         },
         {
@@ -152,7 +160,7 @@ export function MasterAdminSidebar({
           id: "subscriptions",
           label: "Gói dịch vụ SaaS",
           path: "/admin/subscriptions/plans",
-          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview"],
+          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview", "/admin/subscriptions/create"],
           icon: CreditCard,
         },
         {
@@ -254,14 +262,14 @@ export function MasterAdminSidebar({
       aria-label="Điều hướng quản trị nền tảng"
     >
       {/* Brand Header at top of Sidebar (Desktop & Mobile) - seamless with sidebar */}
-      <div className="flex h-16 shrink-0 items-center justify-between px-5">
+      <div className="flex h-16 shrink-0 items-center justify-between md:justify-center px-5">
         <button
           type="button"
           onClick={() => handleNavigate("/admin/dashboard")}
           className="flex items-center gap-2.5 text-left focus-visible:outline-none select-none transition-opacity hover:opacity-85"
         >
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white shadow-xs">
-            <BrainCircuit className="size-4.5 text-white" />
+            <BrainCircuit className="size-[18px] text-white" />
           </div>
           <span className="text-base font-bold tracking-tight text-slate-950 font-display">
             SmartHire<span className="text-blue-600">.Ai</span>
@@ -278,7 +286,7 @@ export function MasterAdminSidebar({
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200/50 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300/75">
         {navEntries.map((entry) => {
           if (entry.type === "single") {
             const isActive =

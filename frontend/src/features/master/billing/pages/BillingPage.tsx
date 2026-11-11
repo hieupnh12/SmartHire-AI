@@ -57,7 +57,7 @@ export function BillingPage() {
           : `Đã mở bán lại gói ${plan.name}`
       );
     } catch {
-      triggerNotification("Lỗi khi cập nhật trạng thái gói");
+      toast.error("Lỗi khi cập nhật trạng thái gói");
     }
   };
 
@@ -105,7 +105,7 @@ export function BillingPage() {
         );
       } else {
         if (!targetTenantId) {
-          triggerNotification("Vui lòng chọn doanh nghiệp (Tenant) để tạo gói Custom");
+          toast.warning("Vui lòng chọn doanh nghiệp (Tenant) để tạo gói Custom");
           setSaving(false);
           return;
         }
@@ -127,7 +127,7 @@ export function BillingPage() {
       }
       setEditingPlan(null);
     } catch {
-      triggerNotification("Đã xảy ra lỗi khi lưu thay đổi gói dịch vụ");
+      toast.error("Đã xảy ra lỗi khi lưu thay đổi gói dịch vụ");
     } finally {
       setSaving(false);
     }

@@ -447,6 +447,50 @@ export function SubscriptionBillingPage() {
         </div>
       )}
 
+      {sub.hasExplicitSubscription &&
+        (sub.subscriptionStatus === "ACTIVE" || sub.subscriptionStatus === "TRIAL") &&
+        sub.daysRemaining <= 7 && (
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border p-4 text-xs sm:text-sm",
+              sub.daysRemaining <= 3
+                ? "border-red-300 bg-red-50 text-red-950"
+                : "border-amber-300 bg-amber-50 text-amber-950",
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                className={cn(
+                  "mt-0.5 size-5 shrink-0",
+                  sub.daysRemaining <= 3 ? "text-red-600" : "text-amber-700",
+                )}
+              />
+              <div>
+                <strong>
+                  {sub.daysRemaining <= 0
+                    ? "Gói dịch vụ hết hạn trong hôm nay:"
+                    : `Gói dịch vụ sắp hết hạn (còn ${sub.daysRemaining} ngày):`}
+                </strong>{" "}
+                Chu kỳ hiện tại sẽ kết thúc vào <strong>{formatDateVi(sub.endsAt)}</strong>.{" "}
+                {sub.nextPlanName
+                  ? `Hệ thống sẽ chuyển sang gói ${formatPlanDisplayName(sub.nextPlanName)} theo lịch đã đặt.`
+                  : "Gia hạn sớm sẽ tự động cộng dồn trọn vẹn số ngày còn lại để không gián đoạn tuyển dụng."}
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant={sub.daysRemaining <= 3 ? "danger" : "primary"}
+              onClick={() =>
+                document
+                  .getElementById("renewal-card")
+                  ?.scrollIntoView({ behavior: "smooth", block: "center" })
+              }
+            >
+              Gia hạn ngay
+            </Button>
+          </div>
+        )}
+
       {sub.subscriptionStatus === "PAST_DUE" && (
         <div className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-300 bg-amber-50 p-4 text-xs sm:text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" />
@@ -578,7 +622,7 @@ export function SubscriptionBillingPage() {
         </Card>
 
         {/* Renewal & Auto-Renew Card */}
-        <Card className="flex flex-col justify-between space-y-5 p-6 border-slate-300 dark:border-slate-700">
+        <Card id="renewal-card" className="flex flex-col justify-between space-y-5 p-6 border-slate-300 dark:border-slate-700">
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
               <span className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-brand-primary">

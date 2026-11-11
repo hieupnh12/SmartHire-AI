@@ -1,5 +1,7 @@
 import { X, FileSignature, Send, Copy, ExternalLink, CheckCircle2, RefreshCw, Download, ShieldCheck } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { PAYMENT_BANK_INFO } from "@/config/paymentConfig";
 
 interface ContractDetailModalProps {
   selectedContract: ContractItem | null;
@@ -107,7 +109,7 @@ export function ContractDetailModal({
             <div className="text-xs font-semibold text-slate-800 mt-0.5">Độc lập - Tự do - Hạnh phúc</div>
             <div className="w-24 h-0.5 bg-slate-800 mx-auto my-2" />
             <div className="text-[11px] text-slate-500 italic">
-              Hà Nội, ngày {new Date(selectedContract.createdAt).getDate()} tháng {new Date(selectedContract.createdAt).getMonth() + 1} năm {new Date(selectedContract.createdAt).getFullYear()}
+              {LEGAL_POLICY_META.city}, ngày {new Date(selectedContract.createdAt).getDate()} tháng {new Date(selectedContract.createdAt).getMonth() + 1} năm {new Date(selectedContract.createdAt).getFullYear()}
             </div>
           </div>
 
@@ -124,10 +126,10 @@ export function ContractDetailModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
             <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-1">
               <div className="font-bold text-indigo-900 uppercase">BÊN A (BÊN CUNG CẤP):</div>
-              <div><span className="font-semibold">Công ty: </span>{selectedContract.partyAName || "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"}</div>
-              <div><span className="font-semibold">MST: </span><span className="font-mono font-bold">{selectedContract.partyATaxCode || "0110889988"}</span></div>
-              <div><span className="font-semibold">Đại diện: </span>{selectedContract.partyARepresentative || "Phan Nhật Hưng"} ({selectedContract.partyAPosition || "Tổng Giám Đốc"})</div>
-              <div><span className="font-semibold">STK: </span><span className="font-mono font-bold">{selectedContract.partyABankAccount || "190388889999"}</span> - Techcombank</div>
+              <div><span className="font-semibold">Công ty: </span>{selectedContract.partyAName || LEGAL_POLICY_META.companyName}</div>
+              <div><span className="font-semibold">MST: </span><span className="font-mono font-bold">{selectedContract.partyATaxCode || LEGAL_POLICY_META.taxCode}</span></div>
+              <div><span className="font-semibold">Đại diện: </span>{selectedContract.partyARepresentative || LEGAL_POLICY_META.representative} ({selectedContract.partyAPosition || LEGAL_POLICY_META.position})</div>
+              <div><span className="font-semibold">STK: </span><span className="font-mono font-bold">{selectedContract.partyABankAccount || PAYMENT_BANK_INFO.accountNumber}</span> - {selectedContract.partyABankName || PAYMENT_BANK_INFO.shortName} ({selectedContract.partyABankBranch || PAYMENT_BANK_INFO.branch})</div>
             </div>
 
             <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-1">

@@ -10,6 +10,7 @@ import type { InvoiceItem } from "@/api/master/billingApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { toast } from "@/stores/toastStore";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -132,6 +133,12 @@ export function BillingWorkspace({
 
   const totalBilled = paidTotal + pendingTotal + overdueTotal;
   const collectionPercent = totalBilled > 0 ? Math.round((paidTotal * 100) / totalBilled) : 100;
+  const paidPct = totalBilled > 0 ? (paidTotal / totalBilled) * 100 : 100;
+  const paidPlusPendingPct = totalBilled > 0 ? ((paidTotal + pendingTotal) / totalBilled) * 100 : 100;
+  const collectionConicGradient =
+    totalBilled > 0
+      ? `conic-gradient(#2563eb 0 ${paidPct}%, #f59e0b ${paidPct}% ${paidPlusPendingPct}%, #ef4444 ${paidPlusPendingPct}% 100%)`
+      : "conic-gradient(#2563eb 0 100%)";
 
   const downloadInvoices = () => {
     const header = "Invoice,Tenant,Plan,Due date,Amount,Status";
@@ -207,7 +214,7 @@ export function BillingWorkspace({
                 <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CreditCard className="size-5" aria-hidden="true" /></span>
               </div>
               <div className="mt-6 flex items-center gap-5">
-                <div className="grid size-28 shrink-0 place-items-center rounded-full bg-[conic-gradient(#2563eb_0_82%,#f59e0b_82%_94%,#ef4444_94%)] p-3">
+                <div className="grid size-28 shrink-0 place-items-center rounded-full p-3" style={{ background: collectionConicGradient }}>
                   <div className="grid size-full place-items-center rounded-full bg-white text-center"><span><strong className="block text-2xl text-slate-950">{collectionPercent}%</strong><small className="text-[10px] font-medium text-slate-500">đã thu</small></span></div>
                 </div>
                 <dl className="min-w-0 flex-1 space-y-3 text-xs">
@@ -411,10 +418,10 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
         </p>
       </div>
       <div className="flex-1 space-y-3 p-6 text-sm text-slate-600">
-        <PlanFeature text={plan.maxJobs < 0 ? "Không giới hạn vị trí tuyển dụng" : `${plan.maxJobs} vị trí tuyển dụng`} />
-        <PlanFeature text={plan.maxCvParses < 0 ? "Không giới hạn phân tích CV" : `${plan.maxCvParses.toLocaleString("vi-VN")} lượt phân tích CV / năm`} />
-        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? "Phỏng vấn AI không giới hạn" : plan.maxAiInterviewHours === 0 ? "Không hỗ trợ AI" : `${plan.maxAiInterviewHours} giờ phỏng vấn AI`} />
-        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? "Lưu trữ không giới hạn" : plan.maxStorageGb === 0 ? "Không cấp phát lưu trữ" : `${plan.maxStorageGb} GB lưu trữ`} />
+        <PlanFeature text={formatQuotaLimit(plan.maxJobs, "vị trí tuyển dụng", { unlimitedLabel: "Không giới hạn vị trí tuyển dụng", unsupportedLabel: "Không hỗ trợ đăng tin tuyển dụng" })} />
+        <PlanFeature text={formatQuotaLimit(plan.maxCvParses, "lượt phân tích CV", { monthly: true, unlimitedLabel: "Không giới hạn phân tích CV", unsupportedLabel: "Không hỗ trợ phân tích CV" })} />
+        <PlanFeature text={formatQuotaLimit(plan.maxAiInterviewHours, "giờ phỏng vấn AI", { monthly: true, unlimitedLabel: "Phỏng vấn AI không giới hạn", unsupportedLabel: "Không hỗ trợ AI" })} />
+        <PlanFeature text={formatQuotaLimit(plan.maxStorageGb, "GB lưu trữ", { unlimitedLabel: "Lưu trữ không giới hạn", unsupportedLabel: "Không cấp phát lưu trữ" })} />
         <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
           <span className="text-slate-500">Hợp đồng đang tham chiếu</span>
           <strong className="text-slate-900">{subscriberCount}</strong>

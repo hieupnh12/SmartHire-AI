@@ -59,7 +59,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = brandKey === "roles.candidate";
   const isRecruiterWorkspace = basePath === "/recruiter";
-  const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace);
+  const isTenantAdminWorkspace = basePath === "/internal/admin";
+  const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace || isTenantAdminWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const markRead = useMutation({
     mutationFn: (id: number | string) => notificationApi.markRead(id),
@@ -75,7 +76,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
   const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
   const isRecruiterBoard = isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board";
-  const isTenantAdminWorkspace = basePath === "/internal/admin";
+
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
   const profileQuery = useQuery({
@@ -320,32 +321,55 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 </button>
               </form>
 
-              <div className="relative justify-self-end">
-                <Tooltip content="Thông báo" side="bottom">
+              <div
+                className="relative justify-self-end"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setIsAdminNotificationsOpen(false);
+                  }
+                }}
+              >
+                <Tooltip content="Thông báo" side="bottom" disabled={isAdminNotificationsOpen}>
                   <button
                     type="button"
                     onClick={() => setIsAdminNotificationsOpen((open) => !open)}
-                    className="grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                    aria-label="Thông báo"
+                    className={cn(
+                      "relative grid size-10 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-sm transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
+                      isAdminNotificationsOpen && "border-brand-primary bg-[var(--color-primary-subtle)] text-brand-primary",
+                    )}
+                    aria-label={unreadCount ? `Thông báo (${unreadCount} chưa đọc)` : "Thông báo"}
                     aria-haspopup="dialog"
                     aria-expanded={isAdminNotificationsOpen}
                   >
                     <Bell className="size-5" aria-hidden="true" />
+                    {unreadCount > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold leading-5 text-white shadow-sm"
+                        aria-hidden="true"
+                      >
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
 
                 {isAdminNotificationsOpen && (
-                  <div role="dialog" aria-label="Thông báo quản trị" className="absolute right-0 top-[calc(100%+10px)] w-[min(22rem,calc(100vw-7rem))] overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-xl">
-                    <div className="border-b border-[var(--color-border-default)] px-5 py-4">
-                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">Thông báo</h2>
-                      <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">Cập nhật dành cho quản trị viên workspace</p>
-                    </div>
-                    <div className="px-5 py-8 text-center">
-                      <span className="mx-auto grid size-11 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-brand-primary"><Bell className="size-5" aria-hidden="true" /></span>
-                      <p className="mt-3 text-sm font-semibold text-[var(--color-on-surface)]">Không có thông báo mới</p>
-                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Các cập nhật quản trị sẽ xuất hiện tại đây.</p>
-                    </div>
-                  </div>
+                  <NotificationPreviewDialog
+                    items={inbox.data ?? []}
+                    loading={inbox.isPending}
+                    unreadCount={unreadCount}
+                    targetPath="/internal/admin/billing"
+                    emptyDescription="Các cảnh báo sắp hết hạn gói, quá hạn thanh toán hoặc chạm ngưỡng quota sẽ xuất hiện tại đây."
+                    footerLabel="Xem gói dịch vụ & thanh toán"
+                    onClose={() => setIsAdminNotificationsOpen(false)}
+                    onMarkAllRead={() => markAllRead.mutate()}
+                    onOpen={(item) => {
+                      if (!item.readAt) markRead.mutate(item.id);
+                      setIsAdminNotificationsOpen(false);
+                      const target = notificationPath(item.payloadJson) ?? "/internal/admin/billing";
+                      navigate(target);
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -561,6 +585,8 @@ function NotificationPreviewDialog({
   onClose,
   onOpen,
   onMarkAllRead,
+  emptyDescription = "Các thông báo mới về ứng viên và tuyển dụng sẽ xuất hiện tại đây.",
+  footerLabel = "Xem tất cả thông báo",
 }: {
   items: Notification[];
   loading: boolean;
@@ -569,6 +595,8 @@ function NotificationPreviewDialog({
   onClose: () => void;
   onOpen: (item: Notification) => void;
   onMarkAllRead: () => void;
+  emptyDescription?: string;
+  footerLabel?: string;
 }) {
   const recent = items.slice(0, 5);
   return (
@@ -625,7 +653,7 @@ function NotificationPreviewDialog({
           <div className="px-5 py-10 text-center">
             <Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p>
-            <p className="mt-1 text-xs text-slate-500">Các thông báo mới về ứng viên và tuyển dụng sẽ xuất hiện tại đây.</p>
+            <p className="mt-1 text-xs text-slate-500">{emptyDescription}</p>
           </div>
         )}
         {recent.map((item) => {
@@ -677,7 +705,7 @@ function NotificationPreviewDialog({
           onClick={onClose}
           className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
         >
-          Xem tất cả thông báo
+          {footerLabel}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </div>

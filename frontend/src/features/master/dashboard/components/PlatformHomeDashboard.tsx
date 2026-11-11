@@ -8,10 +8,14 @@ import {
   CircleDollarSign,
   CreditCard,
   FileClock,
+  HelpCircle,
   Plus,
   ShieldCheck,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +31,74 @@ type Props = {
 
 const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
-function QuickMetric({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon: typeof Activity }) {
-  return <div className={cn(cardClass, "p-4")}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-medium text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{value}</p></div><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon className="size-5" aria-hidden="true" /></span></div><p className="mt-3 text-xs text-slate-500">{helper}</p></div>;
+type MetricBadge = {
+  text: string;
+  tone: "emerald" | "rose" | "amber" | "blue";
+  trend?: "up" | "down";
+};
+
+const badgeToneClass: Record<MetricBadge["tone"], string> = {
+  emerald: "bg-emerald-50 text-emerald-600",
+  rose: "bg-rose-50 text-rose-500",
+  amber: "bg-amber-50 text-amber-600",
+  blue: "bg-blue-50 text-blue-600",
+};
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+function QuickMetric({
+  label,
+  value,
+  tooltip,
+  badge,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tooltip: string;
+  badge?: MetricBadge;
+  icon: typeof Activity;
+}) {
+  return (
+    <div className="flex flex-col justify-between rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_-3px_rgba(15,23,42,0.06)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-600">
+            <span>{label}</span>
+            <span className="ml-1.5 inline-flex align-middle">
+              <HelpTip content={tooltip} label={`Giải thích ${label}`} />
+            </span>
+          </p>
+          <p className="mt-2.5 text-2xl font-semibold tracking-tight text-slate-600">{value}</p>
+        </div>
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-blue-100/75 text-blue-600">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+      </div>
+      {badge && (
+        <div className="mt-4 flex items-center">
+          <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold", badgeToneClass[badge.tone])}>
+            {badge.trend === "up" && <TrendingUp className="size-3" aria-hidden="true" />}
+            {badge.trend === "down" && <TrendingDown className="size-3" aria-hidden="true" />}
+            <span>{badge.text}</span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavigate, onCreateTenant }: Props) {
@@ -46,7 +116,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
   const tasks = [
     {
       title: `${attentionTenants.length} tenant cần kiểm tra`,
-      detail: attentionTenants.length > 0 ? "Provisioning, chờ thanh toán hoặc tạm ngưng" : "Tất cả tenant đang ở trạng thái ổn định",
+      detail: attentionTenants.length > 0 ? "Đang khởi tạo, chờ thanh toán hoặc tạm ngưng" : "Tất cả tenant đang ở trạng thái ổn định",
       icon: Building2,
       tone: attentionTenants.length > 0 ? "rose" : "blue",
       destination: "tenants" as const,
@@ -66,8 +136,8 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
       destination: "analytics" as const,
     },
     {
-      title: `${warnings.length} cảnh báo audit mới`,
-      detail: warnings.length > 0 ? "Kiểm tra sự kiện WARN / ERROR hệ thống" : "Không có cảnh báo bảo mật mới",
+      title: `${warnings.length} cảnh báo hệ thống mới`,
+      detail: warnings.length > 0 ? "Kiểm tra các cảnh báo hoặc lỗi hệ thống" : "Không có cảnh báo bảo mật mới",
       icon: ShieldCheck,
       tone: warnings.length > 0 ? "rose" : "blue",
       destination: "logs" as const,
@@ -75,6 +145,8 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
   ];
 
   const isHealthy = (aiQuota?.systemHealth ?? "HEALTHY") === "HEALTHY";
+  const growthRate = revenue?.growthRate ?? "0.0%";
+  const isNegativeGrowth = growthRate.trim().startsWith("-");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -93,25 +165,43 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
         <QuickMetric
           label="Tenant hoạt động"
           value={`${revenue?.activeTenants ?? activeTenantsList.length}`}
-          helper={`${attentionTenants.length} tenant cần chú ý / tổng ${revenue?.totalTenants ?? tenants.length}`}
+          badge={{
+            text: `${attentionTenants.length} cần chú ý`,
+            tone: attentionTenants.length > 0 ? "amber" : "emerald",
+          }}
+          tooltip={`Số doanh nghiệp đang hoạt động: ${revenue?.activeTenants ?? activeTenantsList.length} / tổng ${revenue?.totalTenants ?? tenants.length} tenant (${attentionTenants.length} tenant cần chú ý).`}
           icon={Building2}
         />
         <QuickMetric
-          label="MRR hiện tại (Quy đổi năm)"
+          label="MRR hiện tại"
           value={`${(revenue?.mrr ?? 0).toLocaleString("vi-VN")} ₫`}
-          helper={`${revenue?.growthRate ?? "0.0%"} doanh thu thu về so với tháng trước`}
+          badge={{
+            text: growthRate,
+            tone: isNegativeGrowth ? "rose" : "emerald",
+            trend: isNegativeGrowth ? "down" : "up",
+          }}
+          tooltip={`Quy đổi năm: doanh thu định kỳ hàng tháng tính từ các hợp đồng gói năm đang hoạt động (${growthRate} doanh thu thu về so với tháng trước).`}
           icon={CircleDollarSign}
         />
         <QuickMetric
           label="AI quota toàn nền tảng"
           value={`${cvUsage}%`}
-          helper={`${(aiQuota?.totalCvParsesUsed ?? 0).toLocaleString("vi-VN")} / ${cvLimit.toLocaleString("vi-VN")} lượt CV AI`}
+          badge={{
+            text: cvUsage >= 80 ? "Gần chạm ngưỡng" : "An toàn",
+            tone: cvUsage >= 80 ? "amber" : "emerald",
+          }}
+          tooltip={`Mức tiêu thụ AI toàn sàn hiện tại: ${(aiQuota?.totalCvParsesUsed ?? 0).toLocaleString("vi-VN")} / ${cvLimit.toLocaleString("vi-VN")} lượt CV AI.`}
           icon={Bot}
         />
         <QuickMetric
           label="Tình trạng hệ thống"
-          value={isHealthy ? "HEALTHY" : "DEGRADED"}
-          helper={`API thành công: ${aiQuota?.apiSuccessRate ?? 100}% · ${aiQuota?.activeModels?.length ?? 0} AI models`}
+          value={isHealthy ? "Ổn định" : "Cảnh báo"}
+          badge={{
+            text: `${aiQuota?.apiSuccessRate ?? 100}%`,
+            tone: isHealthy ? "emerald" : "rose",
+            trend: isHealthy ? "up" : "down",
+          }}
+          tooltip={`Tỷ lệ xử lý AI thành công đạt ${aiQuota?.apiSuccessRate ?? 100}% · ${aiQuota?.activeModels?.length ?? 0} mô hình AI đang hoạt động.`}
           icon={Activity}
         />
       </div>
@@ -119,9 +209,12 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <section className={cn(cardClass, "overflow-hidden")}>
           <div className="flex items-center justify-between border-b border-slate-100 p-5">
-            <div>
-              <h2 className="font-semibold text-slate-950">Dòng sự kiện gần đây</h2>
-              <p className="mt-1 text-xs text-slate-500">Tenant, quota, provisioning và hoạt động quản trị từ Audit Log</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-semibold text-slate-600">Dòng sự kiện gần đây</h2>
+              <HelpTip
+                content="Hoạt động hệ thống, hạn mức sử dụng và thao tác quản trị gần đây"
+                label="Giải thích Dòng sự kiện gần đây"
+              />
             </div>
             <button type="button" onClick={() => onNavigate("logs")} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
               Xem nhật ký <ArrowRight className="size-3.5" />
@@ -135,7 +228,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-900">{log.action}</h3>
+                    <h3 className="text-sm font-semibold text-slate-800">{log.action}</h3>
                     <time className="text-[11px] text-slate-400">{new Date(log.timestamp).toLocaleString("vi-VN")}</time>
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{log.tenantCode} · {log.description}</p>
@@ -148,9 +241,12 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
 
         <section className={cn(cardClass, "p-5")}>
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-slate-950">Cần xử lý</h2>
-              <p className="mt-1 text-xs text-slate-500">Theo mức độ ưu tiên thực tế</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-semibold text-slate-600">Cần xử lý</h2>
+              <HelpTip
+                content="Danh sách hạng mục ưu tiên theo mức độ cần can thiệp thực tế"
+                label="Giải thích Cần xử lý"
+              />
             </div>
             <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", totalActionItems > 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>
               {totalActionItems}
@@ -160,21 +256,27 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
             {tasks.map((item) => {
               const Icon = item.icon;
               return (
-                <button
+                <div
                   key={item.title}
-                  type="button"
-                  onClick={() => onNavigate(item.destination)}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-slate-200 p-3 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/50"
+                  className="relative flex min-h-14 items-center gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
                 >
-                  <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", item.tone === "rose" ? "bg-rose-50 text-rose-700" : item.tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700")}>
-                    <Icon className="size-4" />
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(item.destination)}
+                    aria-label={item.title}
+                    className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                  />
+                  <span className={cn("pointer-events-none relative z-10 grid size-9 shrink-0 place-items-center rounded-lg", item.tone === "rose" ? "bg-rose-50 text-rose-700" : item.tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700")}>
+                    <Icon className="size-4" aria-hidden="true" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{item.detail}</span>
-                  </span>
-                  <ArrowRight className="size-4 shrink-0 text-slate-400" />
-                </button>
+                  <div className="pointer-events-none relative z-10 min-w-0 flex-1">
+                    <span className="text-sm font-semibold text-slate-800">{item.title}</span>
+                    <span className="pointer-events-auto ml-1.5 inline-flex align-middle">
+                      <HelpTip content={item.detail} label={`Giải thích: ${item.title}`} />
+                    </span>
+                  </div>
+                  <ArrowRight className="pointer-events-none relative z-10 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </div>
               );
             })}
           </div>
@@ -189,7 +291,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           rows={[
             ["Độ trễ AI trung bình", aiQuota?.averageLatencyMs ? `${aiQuota.averageLatencyMs} ms` : "< 150 ms"],
             ["Tỷ lệ gọi AI thành công", `${aiQuota?.apiSuccessRate ?? 100}%`],
-            ["Database Pools hoạt động", `${revenue?.activeTenants ?? activeTenantsList.length} / ${revenue?.totalTenants ?? tenants.length} pools`],
+            ["Kết nối dữ liệu hoạt động", `${revenue?.activeTenants ?? activeTenantsList.length} / ${revenue?.totalTenants ?? tenants.length} cụm`],
           ]}
         />
         <SummaryCard
@@ -207,9 +309,9 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           title="Tài chính & Thương mại"
           subtitle="Tổng hợp hóa đơn & hợp đồng"
           rows={[
-            ["ARR (Bản quyền năm)", `${(revenue?.arr ?? 0).toLocaleString("vi-VN")} ₫`],
+            ["Doanh thu định kỳ năm", `${(revenue?.arr ?? 0).toLocaleString("vi-VN")} ₫`],
             ["Hóa đơn chờ thanh toán", `${revenue?.pendingInvoicesCount ?? 0} (${(revenue?.pendingInvoicesAmount ?? 0).toLocaleString("vi-VN")} ₫)`],
-            ["Leads / Hợp đồng chờ xử lý", `${revenue?.openLeadsCount ?? 0} leads · ${revenue?.pendingContractsCount ?? 0} HĐ`],
+            ["Yêu cầu tư vấn / Hợp đồng chờ xử lý", `${revenue?.openLeadsCount ?? 0} yêu cầu · ${revenue?.pendingContractsCount ?? 0} HĐ`],
           ]}
         />
       </div>
@@ -218,5 +320,25 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
 }
 
 function SummaryCard({ icon: Icon, title, subtitle, rows }: { icon: typeof Activity; title: string; subtitle: string; rows: string[][] }) {
-  return <section className={cn(cardClass, "p-5")}><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon className="size-5" /></span><div><h2 className="text-sm font-semibold">{title}</h2><p className="text-xs text-slate-500">{subtitle}</p></div></div><dl className="mt-4 space-y-3 text-sm">{rows.map(([label,value]) => <div key={label} className="flex justify-between"><dt className="text-slate-500">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl></section>;
+  return (
+    <section className={cn(cardClass, "p-5")}>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h2 className="text-sm font-semibold text-slate-600">{title}</h2>
+          <HelpTip content={subtitle} label={`Giải thích ${title}`} />
+        </div>
+      </div>
+      <dl className="mt-4 space-y-3 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="font-semibold text-slate-800">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }

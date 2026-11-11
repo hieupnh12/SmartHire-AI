@@ -7,6 +7,7 @@ import com.smarthire.domain.master.entity.TenantSubscription;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService;
 import com.smarthire.master.subscription.dto.*;
 import com.smarthire.master.subscription.mapper.SubscriptionPlanMapper;
 import com.smarthire.multitenancy.quota.TenantQuotaRedisService;
@@ -17,10 +18,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,6 +51,9 @@ public class MasterSubscriptionService {
 
     @Autowired(required = false)
     private TenantQuotaRedisService quotaRedisService;
+
+    @Autowired(required = false)
+    private SubscriptionLifecycleNotificationService lifecycleNotificationService;
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<SubscriptionPlanResponse> getAllPlans() {
@@ -411,6 +418,7 @@ public class MasterSubscriptionService {
         }
         LocalDateTime now = LocalDateTime.now();
         int transitionedCount = 0;
+        List<Long> notifySubIds = new ArrayList<>();
 
         // 1. TRIAL / ACTIVE subscriptions that reached ends_at
         List<TenantSubscription> dueSubs = subscriptionRepository.findByStatusInAndEndsAtBefore(
@@ -434,7 +442,10 @@ public class MasterSubscriptionService {
                             .upgradedFromSubscriptionId(sub.getId())
                             .build();
                     nextSub.applyPlanSnapshot(downgradedPlan);
-                    subscriptionRepository.save(nextSub);
+                    TenantSubscription savedNextSub = subscriptionRepository.save(nextSub);
+                    if (savedNextSub != null && savedNextSub.getId() != null) {
+                        notifySubIds.add(savedNextSub.getId());
+                    }
                     evictTenantCacheById(sub.getTenantId());
                     transitionedCount++;
                     continue;
@@ -443,6 +454,9 @@ public class MasterSubscriptionService {
 
             sub.setStatus("PAST_DUE");
             sub.setGracePeriodEndsAt(now.plusDays(DEFAULT_GRACE_PERIOD_DAYS));
+            if (sub.getId() != null) {
+                notifySubIds.add(sub.getId());
+            }
             subscriptionRepository.save(sub);
             evictTenantCacheById(sub.getTenantId());
             transitionedCount++;
@@ -452,6 +466,9 @@ public class MasterSubscriptionService {
         List<TenantSubscription> pastGraceSubs = subscriptionRepository.findByStatusAndGracePeriodEndsAtBefore("PAST_DUE", now);
         for (TenantSubscription sub : pastGraceSubs) {
             sub.setStatus("SUSPENDED");
+            if (sub.getId() != null) {
+                notifySubIds.add(sub.getId());
+            }
             subscriptionRepository.save(sub);
             evictTenantCacheById(sub.getTenantId());
             transitionedCount++;
@@ -469,7 +486,25 @@ public class MasterSubscriptionService {
             transitionedCount++;
         }
 
+        notifyLifecycleAlertsAfterCommit(notifySubIds);
         return transitionedCount;
+    }
+
+    private void notifyLifecycleAlertsAfterCommit(List<Long> subIds) {
+        if (lifecycleNotificationService == null || subIds == null || subIds.isEmpty()) {
+            return;
+        }
+        List<Long> idsCopy = List.copyOf(subIds);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    lifecycleNotificationService.notifySubscriptionsByIds(idsCopy);
+                }
+            });
+        } else {
+            lifecycleNotificationService.notifySubscriptionsByIds(idsCopy);
+        }
     }
 
     private void evictTenantCacheById(Long tenantId) {

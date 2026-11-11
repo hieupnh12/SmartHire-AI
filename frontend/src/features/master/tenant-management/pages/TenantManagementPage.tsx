@@ -4,6 +4,7 @@ import { TenantManagementHub, type TenantHubTab } from "../components/TenantMana
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
@@ -16,6 +17,7 @@ export function TenantManagementPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
@@ -31,17 +33,22 @@ export function TenantManagementPage() {
     triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
   };
 
-  const softDeleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(`Bạn có chắc muốn xoá mềm (lưu trữ) tenant ${tenant.code}? Database vẫn được giữ lại và có thể khôi phục sau.`)) {
-      return;
-    }
-    try {
-      const updated = await masterAdminApi.softDeleteTenant(tenant.id);
-      setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(`Đã xoá mềm tenant ${tenant.code}.`);
-    } catch {
-      toast.danger("Lỗi khi xoá mềm tenant.");
-    }
+  const softDeleteTenant = (tenant: TenantInfo) => {
+    askConfirm({
+      title: `Xoá mềm tenant ${tenant.code}?`,
+      description: "Database vẫn được giữ lại và có thể khôi phục sau.",
+      confirmLabel: "Xoá mềm",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const updated = await masterAdminApi.softDeleteTenant(tenant.id);
+          setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
+          triggerNotification(`Đã xoá mềm tenant ${tenant.code}.`);
+        } catch {
+          toast.danger("Lỗi khi xoá mềm tenant.");
+        }
+      },
+    });
   };
 
   const restoreTenant = async (tenant: TenantInfo) => {

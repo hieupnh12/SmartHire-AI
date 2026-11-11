@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
 import { useLandingModal } from "../context/LandingModalContext";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 
 export function PricingPage() {
   const navigate = useNavigate();
@@ -34,13 +35,18 @@ export function PricingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const getPlanValue = (index: number, field: keyof PublicSubscriptionPlan, defaultValue: string, formatSuffix = "") => {
+  const getPlanValue = (
+    index: number,
+    field: keyof PublicSubscriptionPlan,
+    defaultValue: string,
+    unit = "",
+    monthly = false,
+  ) => {
     const plan = plans[index];
     if (!plan) return defaultValue;
     const value = plan[field];
-    if (typeof value === "number") {
-      if (value <= 0) return "Không giới hạn";
-      return `${value.toLocaleString()}${formatSuffix}`;
+    if (typeof value === "number" || value === null || value === undefined) {
+      return formatQuotaLimit(value as number | null | undefined, unit, { monthly });
     }
     return defaultValue;
   };
@@ -49,7 +55,7 @@ export function PricingPage() {
     {
       category: "Sàng Lọc & Phân Tích Hồ Sơ (CV Screening)",
       features: [
-        { name: "Số lượng CV sàng lọc AI hàng tháng", starter: getPlanValue(0, "maxCvParses", "500 CVs/tháng", " CVs/tháng"), pro: getPlanValue(1, "maxCvParses", "1,500 CVs/tháng", " CVs/tháng"), enterprise: getPlanValue(2, "maxCvParses", "Không giới hạn", " CVs/tháng") },
+        { name: "Số lượng CV sàng lọc AI hàng tháng", starter: getPlanValue(0, "maxCvParses", "500 CVs/tháng", "CVs", true), pro: getPlanValue(1, "maxCvParses", "1.500 CVs/tháng", "CVs", true), enterprise: getPlanValue(2, "maxCvParses", "Không giới hạn", "CVs", true) },
         { name: "Bóc tách đa định dạng (PDF, DOCX, Ảnh scanned)", starter: true, pro: true, enterprise: true },
         { name: "Chấm điểm độ khớp JD (Match Score 0-100%)", starter: true, pro: true, enterprise: true },
         { name: "Phát hiện từ khóa spam & CV sao chép", starter: false, pro: true, enterprise: true },
@@ -68,7 +74,7 @@ export function PricingPage() {
     {
       category: "Phỏng Vấn Giọng Nói AI (AI Voice Interview)",
       features: [
-        { name: "Thời lượng Trợ lý phỏng vấn AI/tháng", starter: getPlanValue(0, "maxAiInterviewHours", "Tối đa 10 giờ", " giờ"), pro: getPlanValue(1, "maxAiInterviewHours", "Tối đa 50 giờ", " giờ"), enterprise: getPlanValue(2, "maxAiInterviewHours", "Không giới hạn", " giờ") },
+        { name: "Thời lượng Trợ lý phỏng vấn AI/tháng", starter: getPlanValue(0, "maxAiInterviewHours", "10 giờ/tháng", "giờ", true), pro: getPlanValue(1, "maxAiInterviewHours", "50 giờ/tháng", "giờ", true), enterprise: getPlanValue(2, "maxAiInterviewHours", "Không giới hạn", "giờ", true) },
         { name: "Đàm thoại tiếng Việt & tiếng Anh realtime", starter: true, pro: true, enterprise: true },
         { name: "Phân tích tư duy logic & kỹ năng mềm", starter: false, pro: true, enterprise: true },
         { name: "Ghi âm & bóc băng transcript tự động", starter: true, pro: true, enterprise: true },
@@ -77,7 +83,7 @@ export function PricingPage() {
     {
       category: "Tài Khoản & Quản Trị Hệ Thống",
       features: [
-        { name: "Số lượng vị trí tuyển dụng (Jobs)", starter: getPlanValue(0, "maxJobs", "Tối đa 5", ""), pro: getPlanValue(1, "maxJobs", "Tối đa 20", ""), enterprise: getPlanValue(2, "maxJobs", "Không giới hạn", "") },
+        { name: "Số lượng vị trí tuyển dụng (Jobs)", starter: getPlanValue(0, "maxJobs", "5 vị trí", "vị trí", false), pro: getPlanValue(1, "maxJobs", "20 vị trí", "vị trí", false), enterprise: getPlanValue(2, "maxJobs", "Không giới hạn", "vị trí", false) },
         { name: "Cổng thông tin tuyển dụng (Career Site) riêng", starter: true, pro: true, enterprise: true },
         { name: "Phân quyền theo phòng ban (RBAC)", starter: "Cơ bản", pro: "Tiêu chuẩn", enterprise: "Tùy biến sâu" },
         { name: "Bảng Kanban quản lý phễu tuyển dụng", starter: true, pro: true, enterprise: true },
@@ -189,15 +195,33 @@ export function PricingPage() {
                       </li>
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span><strong>{plan.maxJobs > 0 ? plan.maxJobs : "Không giới hạn"}</strong> vị trí tuyển dụng</span>
+                        <span>
+                          {plan.maxJobs != null && plan.maxJobs > 0 ? (
+                            <><strong>{formatQuotaLimit(plan.maxJobs, "")}</strong> vị trí tuyển dụng</>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxJobs, "", { unlimitedLabel: "Không giới hạn vị trí tuyển dụng", unsupportedLabel: "Không hỗ trợ đăng tin tuyển dụng" })}</strong>
+                          )}
+                        </span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>Sàng lọc <strong>{plan.maxCvParses > 0 ? plan.maxCvParses.toLocaleString() : "Không giới hạn"} CVs / tháng</strong></span>
+                        <span>
+                          {plan.maxCvParses != null && plan.maxCvParses > 0 ? (
+                            <>Sàng lọc <strong>{formatQuotaLimit(plan.maxCvParses, "CVs", { monthly: true })}</strong></>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxCvParses, "CVs", { monthly: true, unlimitedLabel: "Không giới hạn lượt sàng lọc CV", unsupportedLabel: "Không hỗ trợ sàng lọc CV AI" })}</strong>
+                          )}
+                        </span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>Trợ lý phỏng vấn AI <strong>{plan.maxAiInterviewHours ? `${plan.maxAiInterviewHours}h` : "Không giới hạn"}</strong></span>
+                        <span>
+                          {plan.maxAiInterviewHours != null && plan.maxAiInterviewHours > 0 ? (
+                            <>Trợ lý phỏng vấn AI <strong>{formatQuotaLimit(plan.maxAiInterviewHours, "giờ", { monthly: true })}</strong></>
+                          ) : (
+                            <strong>{formatQuotaLimit(plan.maxAiInterviewHours, "giờ", { monthly: true, unlimitedLabel: "Phỏng vấn AI không giới hạn", unsupportedLabel: "Không hỗ trợ phỏng vấn AI" })}</strong>
+                          )}
+                        </span>
                       </li>
                       {isEnterprise && (
                         <li className="flex items-start gap-2.5">
@@ -256,7 +280,7 @@ export function PricingPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {featureMatrix.map((section, sIdx) => (
-                  <tr key={sIdx} className="contents">
+                  <Fragment key={sIdx}>
                     <tr className="bg-slate-100/60 font-bold text-slate-900">
                       <td colSpan={4} className="py-3 px-5 text-xs uppercase tracking-wider text-slate-700">
                         {section.category}
@@ -288,7 +312,7 @@ export function PricingPage() {
                         </td>
                       </tr>
                     ))}
-                  </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Thống nhất pháp nhân Đà Nẵng, TPBank & Luật BVDLCN 2025 2026-11-11 | Master V37 (`V37__unify_da_nang_legal_entity_and_tpbank.sql`) cập nhật `DEFAULT` cho 7 cột Bên A trên `contracts` về cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và TPBank (`07744348801`, Chi nhánh Đà Nẵng); chuẩn hoá `policy_type` mới trên `master_consent_logs` sang `PRIVACY_POLICY_2025` (Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
@@ -50,7 +51,7 @@
 | Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V57 bổ sung `CompanyLocationDepartment` |
 | Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
 | Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 87 (35 master + 52 tenant); V9 redesign nằm ngoài pipeline |
+| Số file migration trong repo | 88 (36 master + 52 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
 | Cập nhật lần cuối | Tenant `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
@@ -195,7 +196,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 14 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Kho khóa API AI mã hóa AES-256-GCM (V14) |
 | 15 | `AiModelConfig` | `ai_model_configs` | AI Engine | Định tuyến Model AI theo tác vụ, chuỗi fallback đa cấp (V14, V24, V29, V30, V31, V32) |
 | 16 | `MasterNotificationLog` | `master_notification_logs` | Notification | Nhật ký gửi email/thông báo cấp nền tảng (V15, V23) |
-| 17 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) tại checkout (V25) |
+| 17 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_2025`; bản ghi cũ V25 dùng `PRIVACY_POLICY_ND13`) tại checkout |
 | 18 | `AiModelPricing` | `ai_model_pricings` | AI Metering & Catalog | Danh mục Model AI chuẩn hóa & Đơn giá USD/1M tokens (V28, V33) |
 | 19 | `TenantAiUsageDaily` | `tenant_ai_usage_daily` | AI Metering | Thống kê tiêu thụ token, độ trễ & chi phí USD theo ngày/tác vụ/model (V28) |
 
@@ -747,7 +748,7 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | `ConsultationRequest` | Lead demo/tư vấn B2B gửi từ landing page | `company_name`, `work_email`, `tenant_id`, `request_type`, `plan_tier`, `primary_need`, `status` | `PENDING` → `CONTACTED` → `PROVISIONED` / `REJECTED` |
 | `SystemSetting` | Tham số cấu hình toàn nền tảng SaaS (V14) | `setting_key` (PK), `setting_value`, `category`, `is_encrypted`, `updated_by` | Đọc/ghi bởi `WORKSPACE_ADMIN` |
 | `MasterNotificationLog` | Nhật ký gửi email/thông báo cấp nền tảng tới doanh nghiệp (V15, V23) | `tenant_code`, `type` (`INVOICE_CREATED`, `QUOTA_WARNING`, `SUBSCRIPTION_EXPIRY`), `to_email`, `status`, `error_message`, `sent_at` | Chỉ ghi thêm |
-| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) tại checkout (V25) | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
+| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_2025` — Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP; bản ghi lịch sử V25 giữ `PRIVACY_POLICY_ND13`) tại checkout | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
 | `AiProviderKey` | Kho khóa API tích hợp các nhà cung cấp AI (V14) | `provider`, `key_alias`, `api_key_encrypted` (AES-256-GCM), `endpoint_url`, `status`, `is_default`, `last_tested_at` | Thêm/sửa/xoá và kiểm tra kết nối trực tiếp |
 | `AiModelConfig` | Định tuyến Model AI theo tác vụ nghiệp vụ (V14, V24) | `task_type`, `provider`, `model_name`, `temperature`, `max_tokens`, `timeout_seconds`, `is_active` | Cấu hình động, cache Redis 6 giờ |
 | `AiModelPricing` | Bảng đơn giá USD/1M tokens theo nhà cung cấp và model (V28) | `provider`, `model_name`, `input_price_per_1m_tokens`, `output_price_per_1m_tokens`, `is_active` | Bảng tra cứu tính chi phí AI thực tế |
@@ -1370,7 +1371,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
 | V23 | `V23__optimize_master_schema.sql` | Tối ưu schema master: liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log |
 | V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
-| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
+| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE` & chính sách DLCN — từ 2026-11-11 ghi nhận `PRIVACY_POLICY_2025` theo Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP; dữ liệu cũ dùng `PRIVACY_POLICY_ND13`) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
 | V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
 | V27 | `V27__two_tier_subscription_architecture.sql` | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng: thêm `version`, `parent_plan_id` (`fk_sp_parent_plan`), `is_custom`, `target_tenant_id` (`fk_sp_target_tenant`), `is_archived`, 2 index trên `subscription_plans`; thêm 11 cột snapshot hợp đồng (`plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`), `grace_period_ends_at`, `next_plan_id` (`fk_ts_next_plan`), `prorated_credit_amount`, `upgraded_from_subscription_id` (`fk_ts_upgraded_from`), `canceled_at`, `cancel_reason`, 2 index và backfill cho `tenant_subscriptions` |
 | V28 | `V28__ai_metering_and_model_pricing.sql` | AI Metering & Cost Tracking: tạo bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `(provider, model_name)`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, FK `fk_taud_tenant` `ON DELETE CASCADE`, UNIQUE `(tenant_id, usage_date, task_type, provider, model_name)`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) |
@@ -1382,6 +1383,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V34 | `V34__interview_speech_ai_tasks.sql` | Seed `ai_model_configs` cho `INTERVIEW_STT` (`gemini-3.1-flash-lite`) và `INTERVIEW_TTS` (`gemini-3.8-flash-tts`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V35 | `V35__question_gen_ai_task.sql` | Seed `ai_model_configs` cho tác vụ `QUESTION_GEN` (`gemini-2.0-flash`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
+| V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
 
 ### 10.3 Lịch sử migration — Tenant
 

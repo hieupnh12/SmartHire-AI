@@ -7,8 +7,9 @@ import {
   CheckCircle2, Building2, CreditCard, FileSignature, Loader2, 
   ShieldCheck, ReceiptText, Plus, X,
   Calculator, ShieldAlert, Sliders, Layers, Check,
-  Mail, Send
+  Mail, Send, HelpCircle
 } from "lucide-react";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { masterTenantApi } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
@@ -16,6 +17,7 @@ import { consultationApi } from "@/api/master/consultationApi";
 import { useSubscriptions, useCreateSubscription, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage } from "@/lib/axios";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import { 
   calculateTemplateAddonQuote, 
   calculateScratchCustomQuote, 
@@ -29,7 +31,7 @@ const wizardSchema = z.object({
   // Step 1: Tenant
   name: z.string().trim().min(1, "Vui lòng nhập tên doanh nghiệp"),
   code: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/, "Mã gồm 2-32 ký tự thường/số (vd: fpt)"),
-  subdomain: z.string().regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, "Subdomain không hợp lệ"),
+  subdomain: z.string().regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, "Tên miền riêng không hợp lệ"),
   environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
   adminName: z.string().trim().min(1, "Vui lòng nhập tên người liên hệ"),
   adminEmail: z.string().trim().email("Email không hợp lệ"),
@@ -74,6 +76,24 @@ const wizardSchema = z.object({
 });
 
 type FormValues = z.infer<typeof wizardSchema>;
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
 
 function CreatePlanInlineForm({ onCancel, onSuccess }: { 
   onCancel: () => void, 
@@ -191,8 +211,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       name: name.trim(),
       code: code.trim().toUpperCase(),
       description: description.trim() || (pricingMode === "TEMPLATE_ADDON"
-        ? `Gói B2B mở rộng từ ${STANDARD_TEMPLATE_PLANS[selectedTemplate]?.name}`
-        : "Gói B2B Enterprise may đo từ đầu"),
+        ? `Gói mở rộng từ ${STANDARD_TEMPLATE_PLANS[selectedTemplate]?.name}`
+        : "Gói thiết kế riêng cho doanh nghiệp"),
       priceYearly: activeResult.totalQuoteVnd,
       maxJobs: finalJobs,
       maxCvParses: finalCv,
@@ -230,7 +250,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
   };
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-  const labelClass = "mb-1 block text-xs font-semibold text-slate-700";
+  const labelClass = "mb-1 block text-xs font-semibold text-slate-600";
 
   return (
     <div ref={containerRef} onKeyDown={handleKeyDown} className="mt-6 rounded-2xl border-2 border-indigo-200 bg-white p-5 sm:p-6 relative animate-in fade-in slide-in-from-top-2 shadow-xl">
@@ -242,10 +262,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-slate-900 text-lg sm:text-xl">Thiết Kế Báo Giá B2B (CPQ Engine)</h3>
-            <span className="text-[11px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
-              Two-Tier V27
-            </span>
+            <h3 className="font-bold text-slate-600 text-lg sm:text-xl">Thiết Kế Báo Giá Doanh Nghiệp</h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">Chọn chế độ định giá phù hợp với quy mô và yêu cầu đàm phán của doanh nghiệp.</p>
         </div>
@@ -274,7 +291,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
             }`}
           >
             <Sliders className="h-3.5 w-3.5" />
-            <span>2. May đo từ đầu (From Scratch)</span>
+            <span>2. Thiết kế từ đầu</span>
           </button>
         </div>
       </div>
@@ -295,7 +312,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           />
         </div>
         <div className="col-span-2">
-          <label className={labelClass}>Mã Code định danh <span className="text-red-500">*</span></label>
+          <label className={labelClass}>Mã gói dịch vụ <span className="text-red-500">*</span></label>
           <input
             name="code"
             required
@@ -346,14 +363,14 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold text-sm text-slate-900">{plan.name}</span>
+                      <span className="font-bold text-sm text-slate-600">{plan.name}</span>
                       {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
                     </div>
                     <div className="text-base font-extrabold text-indigo-700">
                       {plan.priceYearly.toLocaleString("vi-VN")} ₫<span className="text-xs font-normal text-slate-500">/năm</span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-1">
-                      Gốc: {plan.baseJobs} jobs · {plan.baseCvParsesMonthly.toLocaleString()} CV · {plan.baseAiHoursMonthly}h AI · {plan.baseStorageGb}GB
+                      Gốc: {formatQuotaLimit(plan.baseJobs, "vị trí")} · {formatQuotaLimit(plan.baseCvParsesMonthly, "CV", { monthly: true })} · {formatQuotaLimit(plan.baseAiHoursMonthly, "giờ AI", { monthly: true })} · {formatQuotaLimit(plan.baseStorageGb, "GB")}
                     </div>
                   </div>
                 );
@@ -364,9 +381,9 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Add-on Quota Inputs */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className={labelClass}>2. Cấu hình hạn mức mong muốn (Tự động cộng dồn phí Add-on)</label>
+              <label className={labelClass}>2. Cấu hình hạn mức sử dụng (Tự động cộng phí mở rộng)</label>
               <span className="text-[11px] text-indigo-600 font-semibold">
-                Đơn giá: +500k/job · +1.000đ/CV · +200k/h AI · +25k/GB
+                Đơn giá mở rộng: +500k/tin · +1.000đ/CV · +200k/giờ AI · +25k/GB
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -449,8 +466,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Discount Input */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <label className="text-xs font-bold text-slate-800">
-                3. Chiết khấu thương mại đối tác (Commercial Discount)
+              <label className="text-xs font-bold text-slate-600">
+                3. Chiết khấu thương mại đối tác
               </label>
               <span className="text-[11px] text-slate-500">Giảm trừ trên tổng giá niêm yết</span>
             </div>
@@ -480,8 +497,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-200">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-indigo-950 block">1. Phí Nền Tảng Cố Định (Platform Base Fee)</span>
-                <span className="text-[11px] text-indigo-700">Chi phí mở cổng, Dedicated MySQL DB, connection pool HikariCP, Subdomain & SLA</span>
+                <span className="text-xs font-bold text-indigo-950 block">1. Phí Nền Tảng Cố Định</span>
+                <span className="text-[11px] text-indigo-700">Chi phí khởi tạo hệ thống, cơ sở dữ liệu riêng, tên miền riêng và cam kết vận hành</span>
               </div>
               <div className="text-base font-extrabold text-indigo-900">
                 {scratchPlatformFee.toLocaleString("vi-VN")} ₫<span className="text-xs font-normal">/năm</span>
@@ -492,14 +509,14 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Scratch Resource Inputs */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className={labelClass}>2. Định lượng tài nguyên theo nhu cầu (From Zero)</label>
+              <label className={labelClass}>2. Định lượng tài nguyên theo nhu cầu</label>
               <span className="text-[11px] text-indigo-600 font-semibold">
-                Đơn giá: 400k/job · 800đ/CV · 200k/h AI · 50k/GB
+                Đơn giá: 400k/tin · 800đ/CV · 200k/giờ AI · 50k/GB
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Số Jobs mở tối đa</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Số tin tuyển dụng tối đa</label>
                 <input
                   type="number"
                   min={1}
@@ -523,7 +540,10 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchYearlyCv * CPQ_RATES.SCRATCH.CV_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {(scratchYearlyCv * CPQ_RATES.SCRATCH.CV_PRICE_YEARLY).toLocaleString("vi-VN")} ₫/năm
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  ≈ {Math.max(100, Math.round(scratchYearlyCv / 12)).toLocaleString("vi-VN")} CV/tháng (khi lưu gói)
                 </span>
               </div>
 
@@ -537,12 +557,15 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className={inputClass}
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
-                  = {(scratchYearlyAiHours * CPQ_RATES.SCRATCH.AI_HOUR_PRICE_YEARLY).toLocaleString()} ₫/năm
+                  = {(scratchYearlyAiHours * CPQ_RATES.SCRATCH.AI_HOUR_PRICE_YEARLY).toLocaleString("vi-VN")} ₫/năm
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  ≈ {Math.max(1, Math.round(scratchYearlyAiHours / 12)).toLocaleString("vi-VN")} giờ/tháng (khi lưu gói)
                 </span>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Dung lượng Storage (GB)</label>
+                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Dung lượng lưu trữ (GB)</label>
                 <input
                   type="number"
                   min={5}
@@ -560,7 +583,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
 
           {/* Enterprise Advanced Options */}
           <div>
-            <label className={labelClass}>3. Tùy chọn Doanh nghiệp Nâng cao (Enterprise Options)</label>
+            <label className={labelClass}>3. Tùy chọn Nâng cao</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1.5">
               <label className={`flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                 scratchEnableSso ? "border-indigo-600 bg-indigo-50/40" : "border-slate-200 bg-slate-50/50"
@@ -572,8 +595,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">SSO Doanh Nghiệp (+5tr)</span>
-                  <span className="text-[11px] text-slate-500">SAML 2.0 / OIDC / Azure AD</span>
+                  <span className="font-bold text-xs text-slate-600 block">Đăng nhập một lần (+5tr)</span>
+                  <span className="text-[11px] text-slate-500">Kết nối hệ thống đăng nhập nội bộ</span>
                 </div>
               </label>
 
@@ -587,8 +610,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">Docker Code Sandbox (+3tr)</span>
-                  <span className="text-[11px] text-slate-500">Chấm bài thi code tự động</span>
+                  <span className="font-bold text-xs text-slate-600 block">Thi lập trình tự động (+3tr)</span>
+                  <span className="text-[11px] text-slate-500">Chạy và chấm bài thi code tự động</span>
                 </div>
               </label>
 
@@ -602,8 +625,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">Hỗ trợ 24/7 & SLA (+10tr)</span>
-                  <span className="text-[11px] text-slate-500">Kênh chuyên trách & SLA 99.99%</span>
+                  <span className="font-bold text-xs text-slate-600 block">Hỗ trợ ưu tiên 24/7 (+10tr)</span>
+                  <span className="text-[11px] text-slate-500">Kênh hỗ trợ riêng & cam kết ổn định 99,99%</span>
                 </div>
               </label>
             </div>
@@ -612,8 +635,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Discount Input */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <label className="text-xs font-bold text-slate-800">
-                4. Chiết khấu thương mại đối tác (Commercial Discount)
+              <label className="text-xs font-bold text-slate-600">
+                4. Chiết khấu thương mại đối tác
               </label>
               <span className="text-[11px] text-slate-500">Giảm trừ trên tổng giá cấu hình</span>
             </div>
@@ -642,7 +665,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
           <div className="flex items-center gap-2 text-indigo-950 font-bold text-sm">
             <Calculator className="h-4 w-4 text-indigo-600" />
-            <span>BẢNG BÁO GIÁ THƯƠNG MẠI CHUẨN 3 CẤU PHẦN</span>
+            <span>BẢNG BÁO GIÁ THƯƠNG MẠI (3 HẠNG MỤC)</span>
           </div>
           <span className="text-xs font-semibold text-slate-500">
             Thời hạn hiệu lực: 15–30 ngày
@@ -657,22 +680,22 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 <span className="font-semibold">{templateResult.basePlanPrice.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between text-slate-700">
-                <span>2. Gói tài nguyên mở rộng (Add-on Quotas):</span>
+                <span>2. Tài nguyên mở rộng:</span>
                 <span className="font-semibold text-indigo-700">+{templateResult.totalAddonFees.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px] pl-3">
-                <span>• Tổng giá trị niêm yết danh nghĩa (List Price):</span>
+                <span>• Tổng giá niêm yết:</span>
                 <span>{templateResult.listPrice.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-medium">
-                <span>3. Chiết khấu đối tác chiến lược (Discount):</span>
+                <span>3. Chiết khấu đối tác chiến lược:</span>
                 <span>-{templateResult.discountVnd.toLocaleString("vi-VN")} ₫</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex justify-between text-slate-700">
-                <span>1. Phí nền tảng cố định (Dedicated DB, HikariCP, SLA):</span>
+                <span>1. Phí nền tảng cố định (Khởi tạo & vận hành hệ thống riêng):</span>
                 <span className="font-semibold">{scratchResult.platformBaseFee.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between text-slate-700">
@@ -682,18 +705,18 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px] pl-3">
-                <span>• Tổng giá trị niêm yết danh nghĩa (List Price):</span>
+                <span>• Tổng giá niêm yết:</span>
                 <span>{scratchResult.listPrice.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-medium">
-                <span>3. Chiết khấu đối tác chiến lược (Discount):</span>
+                <span>3. Chiết khấu đối tác chiến lược:</span>
                 <span>-{scratchResult.discountVnd.toLocaleString("vi-VN")} ₫</span>
               </div>
             </>
           )}
 
           <div className="border-t-2 border-indigo-100 pt-2.5 flex flex-wrap items-baseline justify-between">
-            <span className="text-sm font-bold text-slate-900">TỔNG GIÁ TRỊ BÁO GIÁ (TOTAL QUOTE):</span>
+            <span className="text-sm font-bold text-slate-600">TỔNG GIÁ TRỊ BÁO GIÁ:</span>
             <div className="text-right">
               <span className="text-2xl font-black text-indigo-700">
                 {activeResult.totalQuoteVnd.toLocaleString("vi-VN")} ₫
@@ -706,10 +729,10 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
         {/* Floor Price and Guardrail */}
         <div className="border-t border-indigo-100 pt-3 flex flex-wrap items-center justify-between text-[11px] gap-2">
           <div className="text-slate-500">
-            Chi phí giá vốn ước tính (Floor Price): <strong>{activeResult.floorPriceVnd.toLocaleString("vi-VN")} ₫</strong> · Giá sàn an toàn (lãi &gt;50%): <strong>{activeResult.safeFloorPriceVnd.toLocaleString("vi-VN")} ₫</strong>
+            Giá vốn ước tính: <strong>{activeResult.floorPriceVnd.toLocaleString("vi-VN")} ₫</strong> · Giá sàn an toàn (lãi &gt;50%): <strong>{activeResult.safeFloorPriceVnd.toLocaleString("vi-VN")} ₫</strong>
           </div>
           <div className="text-emerald-700 font-semibold">
-            Biên LN ước tính: +{activeResult.marginPercent.toFixed(1)}% (+{activeResult.grossProfitVnd.toLocaleString("vi-VN")} ₫)
+            Biên lợi nhuận ước tính: +{activeResult.marginPercent.toFixed(1)}% (+{activeResult.grossProfitVnd.toLocaleString("vi-VN")} ₫)
           </div>
         </div>
 
@@ -719,7 +742,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
             <div className="flex items-start gap-2 font-bold text-red-700">
               <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-red-600" />
               <div>
-                <div className="text-sm font-bold">CẢNH BÁO GIÁ SÀN AN TOÀN (FLOOR PRICE GUARD)!</div>
+                <div className="text-sm font-bold">CẢNH BÁO DƯỚI GIÁ SÀN AN TOÀN!</div>
                 <div className="font-normal text-red-800 mt-0.5">
                   Mức giá chốt <strong>{activeResult.totalQuoteVnd.toLocaleString()} ₫</strong> thấp hơn ngưỡng an toàn <strong>{activeResult.safeFloorPriceVnd.toLocaleString()} ₫</strong> (lợi nhuận gộp dưới 50% hoặc bán lỗ).
                 </div>
@@ -732,7 +755,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 onChange={(e) => setConfirmedLoss(e.target.checked)}
                 className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
               />
-              <span>Tôi xác nhận thương vụ chiến lược này đã có phê duyệt giá bán ưu đãi từ Ban Giám đốc / CFO.</span>
+              <span>Tôi xác nhận thương vụ chiến lược này đã có phê duyệt giá bán ưu đãi từ Ban Giám đốc / Tài chính.</span>
             </label>
           </div>
         )}
@@ -924,7 +947,7 @@ export function B2bDealWizardPageContent() {
   };
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-  const labelClass = "mb-1.5 block text-sm font-semibold text-slate-900";
+  const labelClass = "mb-1.5 block text-sm font-semibold text-slate-600";
 
   if (successData) {
     const isQuote = successData.closingMethod === "QUOTATION";
@@ -936,19 +959,19 @@ export function B2bDealWizardPageContent() {
           }`}>
             {isQuote ? <Mail className="h-10 w-10" /> : <CheckCircle2 className="h-12 w-12" />}
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">
-            {isQuote ? "Gửi Báo Giá Thương Mại Thành Công! 🚀" : "Khởi Tạo Deal B2B Thành Công! 🎉"}
+          <h1 className="text-3xl font-bold text-slate-600 mb-3">
+            {isQuote ? "Gửi Báo Giá Thương Mại Thành Công! 🚀" : "Khởi Tạo Hồ Sơ Doanh Nghiệp Thành Công! 🎉"}
           </h1>
           <p className="text-slate-600 mb-8 max-w-lg mx-auto leading-relaxed">
             {isQuote ? (
               <>
-                Bảng báo giá chi tiết 3 cấu phần đã được gửi tới hòm thư <strong>{successData.recipientEmail}</strong> (hiệu lực trong 15 ngày).
+                Bảng báo giá chi tiết 3 hạng mục đã được gửi tới hòm thư <strong>{successData.recipientEmail}</strong> (hiệu lực trong 15 ngày).
                 Sau khi khách hàng xem và đồng ý phương án, bạn có thể chuyển tiếp sang bước Soạn Hợp đồng hoặc Xuất Hóa đơn.
               </>
             ) : successData.closingMethod === "INVOICE" ? (
-              "Hồ sơ doanh nghiệp và gói dịch vụ đã được ghi nhận ở trạng thái PENDING_PAYMENT. Ngay sau khi Hóa đơn được xác nhận thanh toán (PAID), hệ thống sẽ tự động cấp phát MySQL Database riêng, kích hoạt gói và gửi Email thiết lập mật khẩu cho Admin."
+              "Hồ sơ doanh nghiệp và gói dịch vụ đã được ghi nhận ở trạng thái Chờ thanh toán. Ngay sau khi hóa đơn được xác nhận đã thanh toán, hệ thống sẽ tự động khởi tạo không gian làm việc riêng, kích hoạt gói và gửi email thiết lập mật khẩu cho quản trị viên."
             ) : (
-              "Hợp đồng điện tử đã sẵn sàng gửi khách ký số. Sau khi hoàn tất ký kết và thanh toán, hệ thống sẽ tự động cấp phát MySQL Database riêng và gửi Email kích hoạt cho Admin."
+              "Hợp đồng điện tử đã sẵn sàng gửi khách hàng ký số. Sau khi hoàn tất ký kết và thanh toán, hệ thống sẽ tự động khởi tạo không gian làm việc riêng và gửi email kích hoạt cho quản trị viên."
             )}
           </p>
 
@@ -957,7 +980,7 @@ export function B2bDealWizardPageContent() {
               onClick={() => navigate(isQuote ? "/admin/leads" : "/admin/tenants/directory")}
               className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
             >
-              {isQuote ? "Về Danh sách Yêu cầu Tư vấn (Leads)" : "Về Danh bạ Doanh nghiệp"}
+              {isQuote ? "Về Danh sách Yêu cầu Tư vấn" : "Về Danh bạ Doanh nghiệp"}
             </button>
             <button
               onClick={() => navigate(isQuote ? "/admin/subscriptions/plans" : (successData.closingMethod === "INVOICE" ? "/admin/invoices" : "/admin/contracts"))}
@@ -989,9 +1012,9 @@ export function B2bDealWizardPageContent() {
               {/* STEP 1: TENANT INFO */}
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-blue-600" />
-                    Hồ sơ Doanh nghiệp & Quản trị
+                    Thông tin Doanh nghiệp & Quản trị viên
                   </h2>
                 </div>
 
@@ -1003,13 +1026,13 @@ export function B2bDealWizardPageContent() {
                   </div>
 
                   <div>
-                    <label className={labelClass}>Mã Code <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Mã doanh nghiệp <span className="text-red-500">*</span></label>
                     <input {...form.register("code")} className={`${inputClass} font-mono text-blue-700 font-semibold`} />
                     {form.formState.errors.code && <p className="mt-1 text-xs text-red-600">{form.formState.errors.code.message}</p>}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Subdomain <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Tên miền riêng <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <input {...form.register("subdomain")} className={`${inputClass} font-mono pr-28 text-blue-700 font-semibold`} />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">.smarthire.top</span>
@@ -1019,25 +1042,26 @@ export function B2bDealWizardPageContent() {
 
 
                   <div className="sm:col-span-2 pt-4 border-t border-slate-100">
-                    <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> Tài khoản Quản trị (Invite & Claim Account)
+                    <h3 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                      <span>Tài khoản Quản trị viên</span>
+                      <HelpTip
+                        content="Hệ thống không cấp mật khẩu tạo sẵn. Sau khi khởi tạo tài khoản doanh nghiệp, hệ thống sẽ tự động gửi email chứa liên kết kích hoạt một lần (hiệu lực 72 giờ) tới email quản trị viên để tự thiết lập mật khẩu riêng."
+                        label="Giải thích bảo mật tài khoản quản trị"
+                      />
                     </h3>
                   </div>
 
                   <div>
-                    <label className={labelClass}>Họ tên Admin <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Họ tên quản trị viên <span className="text-red-500">*</span></label>
                     <input {...form.register("adminName")} className={inputClass} placeholder="Nguyễn Văn A" />
                     {form.formState.errors.adminName && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminName.message}</p>}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Email Admin <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Email quản trị viên <span className="text-red-500">*</span></label>
                     <input type="email" {...form.register("adminEmail")} className={inputClass} placeholder="admin@domain.com" />
                     {form.formState.errors.adminEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminEmail.message}</p>}
-                  </div>
-
-                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 leading-relaxed">
-                    <strong>Bảo mật Enterprise:</strong> Hệ thống không cấp mật khẩu tĩnh. Sau khi tạo Workspace, hệ thống sẽ tự động gửi email chứa liên kết kích hoạt một lần (Magic Link có hiệu lực 72 giờ) tới địa chỉ email trên để khách hàng tự thiết lập mật khẩu riêng.
                   </div>
                 </div>
 
@@ -1046,17 +1070,20 @@ export function B2bDealWizardPageContent() {
               {/* STEP 2: PLAN SELECTION */}
               <div className="space-y-6 pt-8 border-t border-slate-200">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-blue-600" />
-                    Gói Dịch Vụ & Chu Kỳ
+                    <span>Gói Dịch Vụ & Chu Kỳ</span>
+                    <HelpTip
+                      content="Phân bổ tài nguyên và tính năng cho Doanh nghiệp."
+                      label="Giải thích Gói Dịch Vụ & Chu Kỳ"
+                    />
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">Phân bổ tài nguyên và tính năng cho Doanh nghiệp.</p>
                 </div>
 
                 <div className="space-y-2">
                   <label className={labelClass}>Chu kỳ bản quyền</label>
                   <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold">
-                    <span>Hàng Năm (Yearly License Only)</span>
+                    <span>Theo năm (Bản quyền năm)</span>
                   </div>
                 </div>
 
@@ -1079,28 +1106,28 @@ export function B2bDealWizardPageContent() {
                           }`}
                       >
                         <div className="flex justify-between items-start mb-4">
-                          <h4 className="font-bold text-slate-900 text-lg">{plan.name}</h4>
+                          <h4 className="font-bold text-slate-600 text-lg">{plan.name}</h4>
                           {isSelected && <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />}
                         </div>
-                        <div className="text-2xl font-bold text-slate-900 mb-1">
+                        <div className="text-2xl font-bold text-slate-600 mb-1">
                           {price?.toLocaleString("vi-VN")} ₫
                         </div>
                         <div className="text-xs text-slate-500 font-medium pb-4 border-b border-slate-100">
                           /năm
                         </div>
 
-                        <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                        <ul className="mt-4 space-y-2 text-sm text-slate-500">
                           <li className="flex items-center justify-between">
                             <span>Tin tuyển dụng:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxJobs === -1 ? "Không giới hạn" : plan.maxJobs}</span>
+                            <span className="font-semibold text-slate-600">{formatQuotaLimit(plan.maxJobs, "vị trí")}</span>
                           </li>
                           <li className="flex items-center justify-between">
                             <span>Lượt CV AI:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxCvParses === -1 ? "Không giới hạn" : plan.maxCvParses}</span>
+                            <span className="font-semibold text-slate-600">{formatQuotaLimit(plan.maxCvParses, "CV", { monthly: true })}</span>
                           </li>
                           <li className="flex items-center justify-between">
                             <span>Phỏng vấn AI:</span>
-                            <span className="font-semibold text-slate-900">{plan.maxAiInterviewHours === -1 ? "Không giới hạn" : `${plan.maxAiInterviewHours}h`}</span>
+                            <span className="font-semibold text-slate-600">{formatQuotaLimit(plan.maxAiInterviewHours, "giờ", { monthly: true })}</span>
                           </li>
                         </ul>
                       </div>
@@ -1140,68 +1167,83 @@ export function B2bDealWizardPageContent() {
               {/* STEP 3: CLOSING METHOD */}
               <div className="space-y-6 pt-8 border-t border-slate-200">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <FileSignature className="h-5 w-5 text-blue-600" />
-                    Hình thức Báo giá & Pháp lý B2B
+                    <span>Hình thức Báo giá & Pháp lý</span>
+                    <HelpTip
+                      content="Chọn gửi báo giá thương mại để khách xem trước hoặc tiến hành lập hóa đơn / hợp đồng ngay."
+                      label="Giải thích Hình thức Báo giá & Pháp lý"
+                    />
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">Chọn gửi Báo giá thương mại (Chặng 1) hoặc tiến hành lập Hóa đơn / Hợp đồng (Chặng 2).</p>
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-4">
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "QUOTATION" ? "border-purple-600 bg-purple-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="QUOTATION" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-purple-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <Mail className="h-4 w-4 text-purple-600" /> 1. Gửi Báo giá (Chặng 1)
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Gửi email Báo giá 3 cấu phần chi tiết để khách trình duyệt. Chưa cần MST, chưa tạo DB.
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "QUOTATION"
+                        ? "border-purple-600 bg-purple-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="QUOTATION" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-purple-600" />
+                      <Mail className="h-4 w-4 shrink-0 text-purple-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">1. Gửi Báo giá</span>
+                    </label>
+                    <HelpTip
+                      content="Gửi email báo giá chi tiết 3 hạng mục để khách hàng xem và duyệt. Chưa cần mã số thuế, chưa khởi tạo hệ thống."
+                      label="Giải thích Gửi Báo giá"
+                    />
+                  </div>
 
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "INVOICE" ? "border-amber-500 bg-amber-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="INVOICE" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-amber-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <ReceiptText className="h-4 w-4 text-amber-600" /> 2. Xuất Hóa đơn trực tiếp
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Xuất hóa đơn thanh toán năm (VietQR SePay / VNPay). Tự động kích hoạt khi nhận thanh toán.
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "INVOICE"
+                        ? "border-amber-500 bg-amber-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="INVOICE" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-amber-600" />
+                      <ReceiptText className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">2. Xuất Hóa đơn trực tiếp</span>
+                    </label>
+                    <HelpTip
+                      content="Xuất hóa đơn thanh toán theo năm (chuyển khoản QR / cổng thanh toán). Hệ thống tự động kích hoạt khi nhận thanh toán."
+                      label="Giải thích Xuất Hóa đơn trực tiếp"
+                    />
+                  </div>
 
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "CONTRACT" ? "border-indigo-600 bg-indigo-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="CONTRACT" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-indigo-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <FileSignature className="h-4 w-4 text-indigo-600" /> 3. Hợp đồng E-Contract
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Soạn hợp đồng pháp lý Việt Nam gửi ký số điện tử (Dropbox Sign) trước khi thanh toán.
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "CONTRACT"
+                        ? "border-indigo-600 bg-indigo-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="CONTRACT" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-indigo-600" />
+                      <FileSignature className="h-4 w-4 shrink-0 text-indigo-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">3. Ký hợp đồng điện tử</span>
+                    </label>
+                    <HelpTip
+                      content="Soạn hợp đồng điện tử gửi khách hàng ký số trực tuyến trước khi thanh toán."
+                      label="Giải thích Ký hợp đồng điện tử"
+                    />
+                  </div>
                 </div>
 
                 {form.watch("closingMethod") === "QUOTATION" ? (
                   <div className="space-y-4 bg-purple-50/40 rounded-2xl p-5 border border-purple-200 animate-in fade-in">
-                    <div className="flex items-start gap-2.5">
-                      <Mail className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-bold text-purple-950 text-sm">Chặng 1: Gửi Báo Giá Thương Mại (Commercial Proposal)</h4>
-                        <p className="text-xs text-purple-800 mt-0.5 leading-relaxed">
-                          Hệ thống sẽ gửi email báo giá chuyên nghiệp gồm bảng 3 cấu phần (Phí bản quyền nền tảng, Quota mở rộng, Chiết khấu đối tác) kèm hiệu lực 15 ngày tới khách hàng.
-                          Ở chặng này <strong>không bắt buộc</strong> nhập Mã số thuế, địa chỉ pháp lý hay đại diện ký tên.
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-purple-600 shrink-0" />
+                      <h4 className="font-bold text-slate-600 text-sm flex items-center gap-2">
+                        <span>Gửi Báo Giá Thương Mại</span>
+                        <HelpTip
+                          content="Hệ thống sẽ gửi email báo giá chi tiết gồm 3 hạng mục (Phí bản quyền nền tảng, Tài nguyên mở rộng, Chiết khấu đối tác) kèm hiệu lực 15 ngày tới khách hàng. Ở bước này không bắt buộc nhập mã số thuế, địa chỉ pháp lý hay người đại diện ký tên."
+                          label="Giải thích Gửi Báo Giá Thương Mại"
+                        />
+                      </h4>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4 pt-2">
@@ -1225,8 +1267,8 @@ export function B2bDealWizardPageContent() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-6 bg-slate-50 rounded-2xl p-5 border border-slate-200 animate-in fade-in">
                     <div className="sm:col-span-2">
-                      <h3 className="font-bold text-slate-900 text-sm mb-4">
-                        {form.watch("closingMethod") === "INVOICE" ? "Thông tin Xuất Hóa Đơn B2B" : "Thông tin Pháp lý Hợp đồng (Bên B)"}
+                      <h3 className="font-bold text-slate-600 text-sm mb-4">
+                        {form.watch("closingMethod") === "INVOICE" ? "Thông tin Xuất Hóa Đơn" : "Thông tin Pháp lý Hợp đồng (Bên B)"}
                       </h3>
                     </div>
 
@@ -1279,9 +1321,9 @@ export function B2bDealWizardPageContent() {
                     ) : form.watch("closingMethod") === "QUOTATION" ? (
                       <><Send className="h-4 w-4" /> Gửi Email Báo Giá Cho Khách Hàng</>
                     ) : form.watch("closingMethod") === "INVOICE" ? (
-                      <><ReceiptText className="h-4 w-4" /> Hoàn tất Deal & Phát hành Hóa đơn</>
+                      <><ReceiptText className="h-4 w-4" /> Hoàn tất & Phát hành Hóa đơn</>
                     ) : (
-                      <><FileSignature className="h-4 w-4" /> Hoàn tất Deal & Soạn Hợp đồng</>
+                      <><FileSignature className="h-4 w-4" /> Hoàn tất & Soạn Hợp đồng</>
                     )}
                   </button>
                 </div>

@@ -363,49 +363,71 @@ export function OrderLookupModal() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
                           <div className="sm:col-span-5 flex flex-col items-center justify-center">
-                            <div className="border border-slate-200 p-2 rounded-xl bg-white shadow-2xs">
-                              <img
-                                src={order.qrUrl || "/sepay_qr.png"}
-                                alt="VietQR SePay"
-                                className="w-40 h-40 object-contain"
-                              />
-                            </div>
-                            <span className="text-[10px] text-slate-400 mt-1">Hỗ trợ 40+ App ngân hàng & Ví điện tử</span>
+                            {order.qrUrl ? (
+                              <>
+                                <div className="border border-slate-200 p-2 rounded-xl bg-white shadow-2xs">
+                                  <img
+                                    src={order.qrUrl}
+                                    alt="VietQR SePay"
+                                    className="w-40 h-40 object-contain"
+                                  />
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1">Hỗ trợ 40+ App ngân hàng & Ví điện tử</span>
+                              </>
+                            ) : (
+                              <div className="w-44 h-44 rounded-xl border border-dashed border-amber-300 bg-amber-50/70 p-3 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                                <AlertCircle className="w-5 h-5 text-amber-600 mb-1.5" />
+                                <span className="font-semibold">Chưa có mã VietQR</span>
+                                <span className="text-[11px] text-amber-700 mt-1">
+                                  Vui lòng chuyển khoản thủ công theo thông tin bên cạnh.
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="sm:col-span-7 space-y-2 text-xs">
                             <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
                               <span className="text-slate-500">Ngân hàng:</span>
-                              <span className="font-bold text-slate-800">{order.bankName || "TPBank"}</span>
+                              <span className="font-bold text-slate-800">{order.bankName || "—"}</span>
                             </div>
+                            {order.bankBranch && (
+                              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                                <span className="text-slate-500">Chi nhánh:</span>
+                                <span className="font-semibold text-slate-800">{order.bankBranch}</span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
                               <span className="text-slate-500">Số tài khoản:</span>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-blue-700">{order.accountNumber || "07744348801"}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopy(order.accountNumber || "07744348801", "số tài khoản")}
-                                  className="text-slate-400 hover:text-slate-700 p-0.5"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
+                                <span className="font-mono font-bold text-blue-700">{order.accountNumber || "—"}</span>
+                                {order.accountNumber && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy(order.accountNumber, "số tài khoản")}
+                                    className="text-slate-400 hover:text-slate-700 p-0.5"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
                               <span className="text-slate-500">Chủ tài khoản:</span>
-                              <span className="font-bold text-slate-800">{order.accountName || "NGUYEN NHAT SINH"}</span>
+                              <span className="font-bold text-slate-800">{order.accountName || "—"}</span>
                             </div>
                             <div className="flex items-center justify-between p-2 rounded-lg bg-amber-50/80 border border-amber-200">
                               <span className="text-amber-800 font-medium">Nội dung CK:</span>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-amber-900">{order.transferSyntax}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopy(order.transferSyntax, "nội dung chuyển khoản")}
-                                  className="text-amber-700 hover:text-amber-900 p-0.5"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
+                                <span className="font-mono font-bold text-amber-900">{order.transferSyntax || "—"}</span>
+                                {order.transferSyntax && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy(order.transferSyntax, "nội dung chuyển khoản")}
+                                    className="text-amber-700 hover:text-amber-900 p-0.5"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>

@@ -16,19 +16,21 @@ import { cn } from "@/lib/utils";
 function getAdminPageTitle(pathname: string): string {
   if (pathname.startsWith("/admin/dashboard")) return "SmartHire AI";
   if (pathname.startsWith("/admin/analytics")) return "Thống Kê";
+  if (pathname.startsWith("/admin/leads")) return "Yêu Cầu Tư Vấn & Demo";
+  if (pathname.startsWith("/admin/deals") || pathname.startsWith("/admin/tenants/create")) return "Chốt Deal & Báo Giá B2B";
   if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) return "Danh Bạ Doanh Nghiệp";
-  if (pathname.startsWith("/admin/tenants/create")) return "Khởi Tạo Doanh Nghiệp";
   if (pathname.startsWith("/admin/tenants/provisioning")) return "Cấp Phát Tài Nguyên";
   if (pathname.startsWith("/admin/tenants")) return "Quản Lý Doanh Nghiệp";
-  if (pathname.startsWith("/admin/subscriptions")) return "Gói Dịch Vụ";
-  if (pathname.startsWith("/admin/billing/invoices")) return "Hóa Đơn & Thu Phí";
-  if (pathname.startsWith("/admin/billing/vnpay")) return "Cổng VNPay";
-  if (pathname.startsWith("/admin/billing")) return "Gói & Thanh Toán";
   if (pathname.startsWith("/admin/contracts/create")) return "Tạo Hợp Đồng";
   if (pathname.startsWith("/admin/contracts")) return "Hợp Đồng & Ký Số";
-  if (pathname.startsWith("/admin/leads")) return "Yêu Cầu Demo & Báo Giá";
+  if (pathname.startsWith("/admin/invoices")) return "Hóa Đơn Thanh Toán";
+  if (pathname.startsWith("/admin/subscriptions/create")) return "Tạo Gói Dịch Vụ";
+  if (pathname.startsWith("/admin/subscriptions/allocations")) return "Phân Bổ Gói Dịch Vụ";
+  if (pathname.startsWith("/admin/subscriptions")) return "Gói Dịch Vụ";
+  if (pathname.startsWith("/admin/system/logs")) return "Nhật Ký Hệ Thống";
+  if (pathname.startsWith("/admin/system/ai-usage")) return "Báo Cáo Sử Dụng AI";
+  if (pathname.startsWith("/admin/system/ai-quotas")) return "Hạn Ngạch AI";
   if (pathname.startsWith("/admin/system/ai-config")) return "Cấu Hình AI Engine";
-  if (pathname.startsWith("/admin/system/audit-logs")) return "Nhật Ký Hệ Thống";
   if (pathname.startsWith("/admin/system")) return "Quản Trị Hệ Thống";
   if (pathname.startsWith("/admin/account/profile")) return "Hồ Sơ Của Bạn";
   if (pathname.startsWith("/admin/account/security")) return "Tài Khoản Và Bảo Mật";
@@ -157,7 +159,7 @@ export function MasterAdminLayout() {
         )}
       >
         {/* Top Header of Main Area (scrolls with page, soft elevated with blurred drop shadow) */}
-        <header className="relative z-20 flex h-16 w-full items-center justify-between bg-white pl-1.5 sm:pl-2 pr-4 sm:pr-6 lg:pr-8 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] border-b border-slate-100/80 transition-shadow">
+        <header className="relative z-20 flex h-16 w-full items-center justify-between bg-white pl-1.5 sm:pl-2 pr-3 sm:pr-4 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] border-b border-slate-100/80 transition-shadow">
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* 3-bar Menu Toggle Button (sits close to edge, larger size-7) */}
             <button
@@ -172,7 +174,7 @@ export function MasterAdminLayout() {
 
             {/* Page Title & Context */}
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900 tracking-tight sm:text-lg">
+              <h2 className="text-base font-bold text-slate-600 tracking-tight sm:text-lg">
                 {pageTitle}
               </h2>
             </div>
@@ -306,13 +308,13 @@ export function MasterAdminLayout() {
         </header>
 
         {/* Page Body */}
-        <main className="w-full min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <main className="w-full min-w-0 flex-1 px-3 py-5 sm:px-4 sm:py-6">
           <Outlet />
         </main>
 
         {/* Footer */}
         <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
-          <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8">
+          <div className="flex w-full items-center justify-center px-3 sm:px-4">
             <span>SmartHire-AI Platform © 2026 · Cổng Quản Trị Trung Tâm</span>
           </div>
         </footer>

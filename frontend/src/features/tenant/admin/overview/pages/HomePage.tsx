@@ -257,6 +257,21 @@ export function HomePage() {
                   status={sub.subscriptionStatus}
                   label={formatSubscriptionStatusLabel(sub.subscriptionStatus)}
                 />
+                {sub.hasExplicitSubscription &&
+                  (sub.subscriptionStatus === "ACTIVE" || sub.subscriptionStatus === "TRIAL") &&
+                  sub.daysRemaining <= 7 && (
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        sub.daysRemaining <= 3
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {sub.daysRemaining <= 0
+                        ? "Hết hạn hôm nay"
+                        : `Sắp hết hạn (${sub.daysRemaining} ngày)`}
+                    </span>
+                  )}
                 {pendingInvoiceCount > 0 && (
                   <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
                     {pendingInvoiceCount} hóa đơn chờ thanh toán

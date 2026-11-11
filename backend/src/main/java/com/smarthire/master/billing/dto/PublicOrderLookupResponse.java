@@ -32,6 +32,7 @@ public class PublicOrderLookupResponse {
     private LocalDateTime dueDate;
     private LocalDateTime paidAt;
     private String bankName;
+    private String bankBranch;
     private String accountNumber;
     private String accountName;
     private String transferSyntax;

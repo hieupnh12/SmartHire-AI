@@ -29,21 +29,21 @@ Dùng PostgreSQL (`smarthire_master`) cho dữ liệu nền tảng và một dat
 1. Khi Workspace Admin hoàn tất B2B Deal Wizard, frontend gửi `POST /api/v1/master/tenants/onboard` với `deferProvisioning = true`.
 2. Backend tạo bản ghi `tenants` ở trạng thái `PENDING_PAYMENT`: **chưa** cấp phát MySQL Database riêng, **chưa** gửi email kích hoạt và **không** tự động gán gói `STARTER` mồ côi.
 3. Bước tiếp theo của Wizard tạo duy nhất một bản ghi `tenant_subscriptions` ở trạng thái `PENDING` kèm đầy đủ 11 cột snapshot V27 của gói đã thoả thuận, gắn với Hợp đồng (`contracts`) hoặc Hoá đơn (`invoices`).
-4. **Cơ chế kích hoạt một điểm (Single Activation Trigger)**: Chỉ khi Hoá đơn được xác nhận thanh toán (`PAID` qua Webhook SePay/VNPay/PayPal hoặc Admin bấm Duyệt), `MasterInvoiceService.activatePaidInvoice()` mới gọi `MasterTenantService.provisionAndActivateDeferredTenant(tenantId)` để:
-   - Chuyển duy nhất bản ghi `tenant_subscriptions` từ `PENDING` sang `ACTIVE` (nếu là nâng cấp thì chuyển gói cũ sang `UPGRADED`).
-   - Cấp phát MySQL Database riêng + chạy Flyway migration + tạo lời mời `TENANT_ADMIN`.
-   - Chuyển `tenants.status` sang `ACTIVE` và gửi email kích hoạt tài khoản cho khách hàng.
+4. **Cơ chế kích hoạt một điểm (Single Activation Trigger)**: Chỉ khi Hoá đơn được xác nhận thanh toán (`PAID` qua Webhook SePay/VNPay/PayPal hoặc Admin bấm Duyệt), `MasterBillingService.completePaidInvoice()` (hoặc `updateInvoiceStatus(..., "PAID")`) thực hiện:
+   - Gọi `applyPaidSubscriptionForInvoice()` chuyển duy nhất bản ghi `tenant_subscriptions` từ `PENDING` sang `ACTIVE` và đóng các bản ghi `ACTIVE`/`TRIAL`/`PAST_DUE`/`PENDING` cũ sang `CANCELED` (`UPGRADED_TO_<CODE>` hoặc `SUPERSEDED_BY_SUBSCRIPTION_<ID>`).
+   - Chuyển `tenants.status` từ `PENDING_PAYMENT`/`FAILED` sang `PROVISIONING` và phát sự kiện `TenantPaymentSuccessEvent`.
+   - `TenantProvisioningEventListener.onTenantPaymentSuccess()` (`@Async`, `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)`) gọi `MasterTenantService.provisionPendingTenant(tenantId)` (có khoá độc quyền trong `TenantProvisioningService.provisionWithInvitation`) để cấp phát MySQL Database riêng, chạy Flyway migration, tạo lời mời `TENANT_ADMIN` và chuyển `tenants.status = 'ACTIVE'`, sau đó gửi email kích hoạt qua `MasterNotificationService.sendWorkspaceActivated(...)`.
 
 ### C. Luồng Retry, Vận hành & Xoá mềm (Soft Delete / Restore)
-1. Retry qua `POST /api/v1/master/tenants/{id}/retry`; PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời. Nếu admin chưa kích hoạt, retry làm mới token lời mời và gửi lại link kích hoạt.
-2. Xoá mềm qua `PATCH /api/v1/master/tenants/{id}/soft-delete`: đánh dấu `is_deleted = true`, `deleted_at = now()`, chuyển trạng thái sang `SUSPENDED` và đóng Hikari connection pool trong bộ nhớ nhưng **giữ nguyên** MySQL Database vật lý và toàn bộ lịch sử hoá đơn/hợp đồng để bảo toàn đối soát kế toán.
-3. Khôi phục qua `PATCH /api/v1/master/tenants/{id}/restore`: gỡ cờ `is_deleted = false` và mở lại trạng thái `ACTIVE`.
+1. Retry qua `POST /api/v1/master/tenants/{id}/retry` (payload `TenantAdminRequest` gồm `adminName`, `adminEmail`); PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời. Nếu admin chưa kích hoạt, retry làm mới token lời mời và gửi lại link kích hoạt.
+2. Xoá mềm qua `PATCH /api/v1/master/tenants/{id}/soft-delete`: đánh dấu `is_deleted = true`, `deleted_at = now()`, chuyển trạng thái `ACTIVE` sang `SUSPENDED` và đóng Hikari connection pool trong bộ nhớ (`pools.evict`) nhưng **giữ nguyên** MySQL Database vật lý và toàn bộ lịch sử hoá đơn/hợp đồng để bảo toàn đối soát kế toán.
+3. Khôi phục qua `POST /api/v1/master/tenants/{id}/restore`: gỡ cờ `is_deleted = false`, `deleted_at = null` và **giữ nguyên trạng thái `SUSPENDED`** để Workspace Admin kiểm tra và chủ động kích hoạt lại qua `PATCH /api/v1/master/tenants/{id}/status?status=ACTIVE`.
 
-Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đoạn, Workspace Admin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
+Luồng `/onboard` (`deferProvisioning = false`) và `/retry` thực hiện provisioning đồng bộ trong request; luồng kích hoạt sau thanh toán chạy bất đồng bộ `@Async` sau commit qua `TenantProvisioningEventListener` (Webhook trả HTTP 200 ngay). Nếu quá trình bị gián đoạn, Workspace Admin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
 
 ## Business Rules
 
-- Webhook thanh toán SePay mặc định bắt buộc chữ ký HMAC; header `X-Test-Simulation` không được bỏ qua xác thực. Timestamp được gửi kèm phải là số và nằm trong khoảng lệch cho phép 5 phút. Muốn chạy mô phỏng không chữ ký trên môi trường kiểm thử riêng phải cấu hình `SEPAY_REQUIRE_SIGNATURE=false`.
+- Webhook thanh toán SePay mặc định bắt buộc xác thực chữ ký HMAC-SHA256 (`X-SePay-Signature` với `{timestamp}.{raw_body}` hoặc `{raw_body}`) hoặc `Authorization: Apikey <secretKey>` (`sepay.require-signature=true`); header `X-Test-Simulation` không được bỏ qua xác thực. Nếu gửi kèm `X-SePay-Timestamp`, giá trị phải là số và nằm trong khoảng lệch cho phép 5 phút (±300 giây). Muốn chạy mô phỏng không chữ ký trên môi trường kiểm thử riêng phải cấu hình biến môi trường `SEPAY_REQUIRE_SIGNATURE=false`.
 - Lỗi nội bộ trả thông báo chung; chi tiết exception và tên database chỉ ghi ở log server, không đưa vào response API.
 - API master quản trị chỉ nhận `WORKSPACE_ADMIN`; chỉ login và kiểm tra tenant đang ACTIVE được công khai.
 - Tạo tài khoản nhân sự nội bộ và quản trị viên doanh nghiệp bắt buộc qua cơ chế lời mời kích hoạt một lần (`member_invitations`); hệ thống không cấp mật khẩu tĩnh và không gửi mật khẩu plaintext qua email.
@@ -75,15 +75,16 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 | POST | `/api/v1/master/tenants/{id}/retry` | WORKSPACE_ADMIN |
 | GET | `/api/v1/master/tenants` | WORKSPACE_ADMIN |
 | GET | `/api/v1/master/tenants/{id}` | WORKSPACE_ADMIN |
+| PUT | `/api/v1/master/tenants/{id}` | WORKSPACE_ADMIN (Cập nhật metadata doanh nghiệp) |
 | PATCH | `/api/v1/master/tenants/{id}/status?status=ACTIVE\|SUSPENDED` | WORKSPACE_ADMIN |
 | PATCH | `/api/v1/master/tenants/{id}/soft-delete` | WORKSPACE_ADMIN |
-| PATCH | `/api/v1/master/tenants/{id}/restore` | WORKSPACE_ADMIN |
-| PUT | `/api/v1/master/tenants/{id}/quotas` | WORKSPACE_ADMIN (Override hạn mức trực tiếp vào snapshot gói đang ACTIVE) |
-| POST | `/api/v1/master/tenants/{id}/impersonate` | WORKSPACE_ADMIN (Ghi `platform_audit_logs` + phát hành token 15 phút) |
-| GET | `/api/v1/master/tenants/check/{codeOrSubdomain}` | Public, trả boolean |
+| POST | `/api/v1/master/tenants/{id}/restore` | WORKSPACE_ADMIN (Gỡ cờ xoá mềm, giữ trạng thái `SUSPENDED`) |
+| GET | `/api/v1/master/tenants/check-subdomain/{subdomain}` | Public, trả boolean |
 | POST | `/api/v1/tenant/users/invitations/accept` | Public, bắt buộc tenant (One-Time Activation) |
 | POST | `/api/v1/tenant/auth/login` | Public, bắt buộc tenant |
 | GET | `/api/v1/tenant/auth/me` | Tenant user |
+
+> **Lưu ý:** Điều chỉnh/ghi đè hạn mức của doanh nghiệp được thực hiện thông qua `PUT /api/v1/master/subscriptions/tenants/{tenantId}` (`MASTER-02`) và `PUT /api/v1/master/ai/quotas/{tenantId}` (`MASTER-07`), không đặt tại `/api/v1/master/tenants/{id}`.
 
 Request tự động (`deferProvisioning` tùy chọn, mặc định `false`):
 
@@ -110,17 +111,15 @@ Request tự động (`deferProvisioning` tùy chọn, mặc định `false`):
 
 ## UI mockup
 
-- Landing page hiển thị hai không gian mẫu đang có dữ liệu là `se36` và `se37`.
-- Trang Tenant Not Found điều hướng về domain nền tảng hiện tại: `smarthire.top` ở production và `localhost` khi phát triển local.
-
-- `/onboard`: form Workspace Admin có validation, trạng thái chờ và lỗi.
-- `/onboard?retry=<id>`: form retry với thông tin admin.
-- Dashboard master có cụm quản lý vòng đời tenant: tạo mới, danh bạ, bốn trạng thái `PROVISIONING` / `ACTIVE` / `FAILED` / `SUSPENDED`, suspend/reactivate và Retry cho `FAILED`/`PROVISIONING`.
-- Màn hình provisioning mô tả sáu checkpoint: kiểm tra định danh, ghi Master DB, tạo database/quyền, Flyway, tenant admin, áp dụng plan/quota/pipeline; kèm guardrail idempotency, recovery và zero-secret logging.
-- Trang Theo dõi provisioning gom các khối vận hành liên quan: health check, datasource pool rotation, plan/quota mặc định, recruitment pipeline, backup, restore, retention và quy trình xóa tenant. Các thao tác chưa có API được khóa và ghi rõ là UI mẫu.
-- Trang Theo dõi provisioning có `Live Saga Recovery Console` dạng UI mẫu để xem checkpoint, copy log và tải JSON minh họa; chưa kết nối API stream log.
-- Cụm Hệ thống có `Traffic Ingress Inspector` để mô phỏng resolve host, trạng thái tenant và quyết định routing từ Master Registry; công cụ không gửi request thật hoặc truy vấn tenant database.
-- Không hiển thị mật khẩu DB hoặc mật khẩu admin mặc định.
+- Modal **Vào Workspace** trên Landing Page ([`WorkspaceModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/landing/components/modals/WorkspaceModal.tsx)) cho phép nhập `subdomain` doanh nghiệp để điều hướng tới `<subdomain>.smarthire.top/internal/login` (hoặc `<subdomain>.localhost:<port>/internal/login` ở môi trường local), kèm liên kết tới `/admin/login`.
+- Trang Tenant Not Found điều hướng về domain nền tảng hiện tại (`smarthire.top` ở production và `localhost` ở local).
+- `/onboard` ([`TenantOnboardPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/onboarding/pages/TenantOnboardPage.tsx)): form Workspace Admin khởi tạo tenant trực tiếp và `?retry=<id>` cho tenant `FAILED`/`PROVISIONING`.
+- Quản lý vòng đời tenant tại `/admin/tenants/{overview|directory|create|provisioning}` ([`TenantManagementPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/tenant-management/pages/TenantManagementPage.tsx) & [`TenantManagementHub.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/tenant-management/components/TenantManagementHub.tsx)):
+  - `OverviewPanel`: 4 thẻ KPI tổng quan và sơ đồ 4 bước vòng đời tenant (`Đăng ký` -> `Provisioning` -> `Migration` -> `Kích hoạt`).
+  - `DirectoryPanel`: tìm kiếm, lọc trạng thái (`ACTIVE`, `PENDING_PAYMENT`, `PROVISIONING`, `FAILED`, `SUSPENDED`, `SOFT_DELETED`), thao tác suspend/reactivate, retry, xoá mềm/khôi phục và panel chi tiết `TenantDetailPanel` tải kèm hợp đồng (`contracts`) & hoá đơn (`invoices`) liên kết.
+  - `ProvisioningPanel`: theo dõi tenant `PROVISIONING`/`FAILED` qua **6 checkpoint** chuẩn (`Validate code & subdomain`, `Ghi Master DB`, `Tạo database & quyền`, `Chạy Flyway migrations`, `Tạo tenant admin`, `Áp dụng plan, quota & pipeline`) cùng 3 guardrail (`Idempotency key`, `Rollback có kiểm soát`, `Audit an toàn` zero-secret logging).
+  - *Ghi chú route `/admin/tenants/create` & `/admin/deals`:* Trên router chính thức (`router.tsx`), đường dẫn tạo mới trong khu vực Admin trỏ tới [`B2bDealWizardPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/onboarding/pages/B2bDealWizardPage.tsx) (`MASTER-06`), còn `CreatePanel` nằm trong `TenantManagementHub.tsx`.
+- Không hiển thị mật khẩu DB hoặc mật khẩu admin mặc định trên UI; `activationUrl` chỉ hiển thị một lần ngay sau khi onboard/retry.
 
 ## Kiểm thử
 

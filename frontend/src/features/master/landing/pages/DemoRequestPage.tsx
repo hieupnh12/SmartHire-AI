@@ -11,6 +11,7 @@ import {
   BrainCircuit,
 } from "lucide-react";
 import { consultationApi } from "@/api/master/consultationApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 
 /* ─────────────────────────────────────────────
    Job-title options
@@ -325,7 +326,7 @@ export function DemoRequestPage() {
         );
       } else {
         setSubmitError(
-          "Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.top"
+          `Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới ${LEGAL_POLICY_META.supportEmail}`
         );
       }
     } finally {

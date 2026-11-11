@@ -4,6 +4,7 @@ import { InvoiceItem, billingApi } from "@/api/master/billingApi";
 import { useTenants, useSubscriptions, useInvoices, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { CreateInvoiceModal } from "@/features/master/billing/components/modals/CreateInvoiceModal";
 import { InvoiceDetailModal } from "@/features/master/billing/components/modals/InvoiceDetailModal";
@@ -46,6 +47,7 @@ function InvoicesContent({
   setSelectedInvoice,
 }: InvoicesTabProps) {
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
   const { data: invoices = [] } = useInvoices();
@@ -92,24 +94,29 @@ function InvoicesContent({
 
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
-  const handleMarkInvoicePaid = async (inv: InvoiceItem) => {
-    if (!window.confirm(`Xác nhận duyệt thanh toán cho Hóa đơn ${inv.invoiceNumber}?\n\nNếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.`)) {
-      return;
-    }
-    setApprovingId(inv.id);
-    try {
-      const updated = await billingApi.approve(inv.id);
-      setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
-      if (selectedInvoice?.id === inv.id) {
-        setSelectedInvoice(updated);
-      }
-      triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
-    } catch (err: any) {
-      const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
-      alert(msg);
-    } finally {
-      setApprovingId(null);
-    }
+  const handleMarkInvoicePaid = (inv: InvoiceItem) => {
+    askConfirm({
+      title: `Duyệt thanh toán hóa đơn ${inv.invoiceNumber}?`,
+      description:
+        "Nếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.",
+      confirmLabel: "Duyệt thanh toán",
+      onConfirm: async () => {
+        setApprovingId(inv.id);
+        try {
+          const updated = await billingApi.approve(inv.id);
+          setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
+          if (selectedInvoice?.id === inv.id) {
+            setSelectedInvoice(updated);
+          }
+          triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
+        } catch (err: any) {
+          const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
+          toast.error(msg);
+        } finally {
+          setApprovingId(null);
+        }
+      },
+    });
   };
 
   const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {

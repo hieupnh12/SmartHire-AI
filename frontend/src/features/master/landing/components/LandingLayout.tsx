@@ -3,7 +3,6 @@ import { useLocation, Outlet } from "react-router-dom";
 import { LandingModalProvider } from "../context/LandingModalContext";
 import { LandingHeader } from "./LandingHeader";
 import { LandingFooter } from "./LandingFooter";
-import { DemoModal } from "./modals/DemoModal";
 import { WorkspaceModal } from "./modals/WorkspaceModal";
 import { OrderLookupModal } from "./modals/OrderLookupModal";
 
@@ -56,7 +55,6 @@ export function LandingLayout({ children }: { children?: React.ReactNode }) {
         <LandingFooter />
 
         {/* SHARED MODALS */}
-        <DemoModal />
         <WorkspaceModal />
         <OrderLookupModal />
       </div>

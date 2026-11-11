@@ -28,8 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import com.smarthire.master.billing.dto.OrderPdfData;
@@ -69,8 +67,15 @@ public class MasterBillingService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaRedisService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
+
+    private com.smarthire.config.PlatformProperties getPlatformProperties() {
+        return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<InvoiceResponse> getAllInvoices(String statusFilter, Long tenantId) {
@@ -286,9 +291,20 @@ public class MasterBillingService {
             );
         }
 
+        com.smarthire.config.PlatformProperties props = getPlatformProperties();
+        com.smarthire.config.PlatformProperties.Legal legal = props.getLegal();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = props.getPayment().getBank();
+
+        String defaultVersion = StringUtils.hasText(legal.getTermsVersion()) ? legal.getTermsVersion() : DEFAULT_TERMS_VERSION;
         String policyVersion = StringUtils.hasText(request.getTermsVersion())
                 ? request.getTermsVersion().trim()
-                : DEFAULT_TERMS_VERSION;
+                : defaultVersion;
+        String privacyPolicyCode = StringUtils.hasText(legal.getPrivacyPolicyCode())
+                ? legal.getPrivacyPolicyCode()
+                : "PRIVACY_POLICY_2025";
+        String privacyLawLabel = StringUtils.hasText(legal.getPrivacyLawLabel())
+                ? legal.getPrivacyLawLabel()
+                : "Luật Bảo vệ dữ liệu cá nhân 2025 & Nghị định số 356/2025/NĐ-CP";
         LocalDateTime acceptedAt = LocalDateTime.now();
         String safeIp = StringUtils.hasText(clientIp) ? clientIp.trim() : "127.0.0.1";
         String safeUserAgent = StringUtils.hasText(userAgent) ? userAgent.trim() : "UNKNOWN";
@@ -366,7 +382,7 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
-        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Decree 13/2023/ND-CP Privacy Policy)
+        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Personal Data Protection Law 2025)
         MasterConsentLog tosConsent = MasterConsentLog.builder()
                 .tenantId(tenant.getId())
                 .invoiceId(savedInvoice.getId())
@@ -386,7 +402,7 @@ public class MasterBillingService {
                 .invoiceId(savedInvoice.getId())
                 .actorName(request.getAdminFullName().trim())
                 .actorEmail(request.getAdminEmail().trim())
-                .policyType("PRIVACY_POLICY_ND13")
+                .policyType(privacyPolicyCode)
                 .policyVersion(policyVersion)
                 .accepted(true)
                 .ipAddress(safeIp)
@@ -402,29 +418,26 @@ public class MasterBillingService {
                 .action("ACCEPT_CHECKOUT_TERMS")
                 .level("INFO")
                 .ipAddress(safeIp)
-                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (NĐ 13/2023/NĐ-CP) phiên bản "
+                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
                         + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
                 .metadataJson(String.format(
-                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"PRIVACY_POLICY_ND13\"],\"acceptedAt\":\"%s\"}",
+                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"%s\"],\"acceptedAt\":\"%s\"}",
                         savedInvoice.getInvoiceNumber(),
                         policyVersion,
+                        privacyPolicyCode,
                         acceptedAt
                 ))
                 .createdAt(acceptedAt)
                 .build();
         platformAuditLogRepository.save(auditLog);
 
-        // 5. Bank Info and SePay VietQR (TPBank)
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        // 5. Bank Info and SePay VietQR (Centralized PlatformProperties)
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
-        String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-        String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger()
-                + "&addInfo=" + encodedSyntax
-                + "&accountName=" + encodedAccount;
+        String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
         // 6. Asynchronously generate PDF and send Order Confirmation Email
         CompletableFuture.runAsync(() -> {
@@ -450,6 +463,7 @@ public class MasterBillingService {
                         .unitPrice(unitPriceVnd)
                         .totalPrice(amountVnd)
                         .bankName(bankName)
+                        .bankBranch(bankBranch)
                         .accountNumber(accountNumber)
                         .accountName(accountName)
                         .transferSyntax(transferSyntax)
@@ -688,21 +702,28 @@ public class MasterBillingService {
     }
 
     public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
-        return toCheckoutResponse(invoice, tenant, plan);
+        return toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
     }
 
     public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        return toCheckoutResponse(invoice, tenant, plan, new com.smarthire.config.PlatformProperties());
+    }
+
+    public static CheckoutResponse toCheckoutResponse(
+            Invoice invoice,
+            TenantInfo tenant,
+            SubscriptionPlan plan,
+            com.smarthire.config.PlatformProperties props) {
+        com.smarthire.config.PlatformProperties safeProps = props != null ? props : new com.smarthire.config.PlatformProperties();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = safeProps.getPayment().getBank();
+
         BigDecimal amountVnd = invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO;
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
         String transferSyntax = "SH " + invoice.getInvoiceNumber();
-        String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-        String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger()
-                + "&addInfo=" + encodedSyntax
-                + "&accountName=" + encodedAccount;
+        String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
         String planName = plan != null ? plan.getName() : "Gói dịch vụ";
         String planCode = plan != null ? plan.getCode() : "CUSTOM";
@@ -720,6 +741,7 @@ public class MasterBillingService {
                 .currency(StringUtils.hasText(invoice.getCurrency()) ? invoice.getCurrency() : "VND")
                 .status(invoice.getStatus())
                 .bankName(bankName)
+                .bankBranch(bankBranch)
                 .accountNumber(accountNumber)
                 .accountName(accountName)
                 .transferSyntax(transferSyntax)
@@ -772,9 +794,11 @@ public class MasterBillingService {
         Map<Long, SubscriptionPlan> planMap = planRepository.findAll().stream()
                 .collect(Collectors.toMap(SubscriptionPlan::getId, Function.identity(), (a, b) -> a));
 
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = getPlatformProperties().getPayment().getBank();
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
 
         return matchingInvoices.stream().map(inv -> {
             TenantInfo tenant = tenantMap.get(inv.getTenantId());
@@ -790,12 +814,7 @@ public class MasterBillingService {
 
             BigDecimal amountVnd = inv.getAmount() != null ? inv.getAmount() : BigDecimal.ZERO;
             String transferSyntax = "SH " + inv.getInvoiceNumber();
-            String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-            String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-            String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                    + amountVnd.toBigInteger()
-                    + "&addInfo=" + encodedSyntax
-                    + "&accountName=" + encodedAccount;
+            String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
             boolean canPay = "PENDING".equalsIgnoreCase(inv.getStatus());
 
@@ -819,6 +838,7 @@ public class MasterBillingService {
                     .dueDate(inv.getDueDate())
                     .paidAt(inv.getPaidAt())
                     .bankName(bankName)
+                    .bankBranch(bankBranch)
                     .accountNumber(accountNumber)
                     .accountName(accountName)
                     .transferSyntax(transferSyntax)

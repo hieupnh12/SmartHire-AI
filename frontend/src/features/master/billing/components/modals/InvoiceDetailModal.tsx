@@ -115,7 +115,7 @@ export function InvoiceDetailModal({
 
           {selectedInvoice.termsAccepted && (
             <div className="flex justify-between pb-2 border-b border-slate-200/70">
-              <span className="text-slate-500">Đồng Thuận Pháp Lý (ToS & NĐ13):</span>
+              <span className="text-slate-500">Đồng Thuận Pháp Lý (ToS & DLCN 2025):</span>
               <span className="font-semibold text-emerald-700 text-right">
                 Đã đồng ý ({selectedInvoice.termsVersion || "v2026.10"})
                 {selectedInvoice.termsAcceptedAt ? ` · ${selectedInvoice.termsAcceptedAt}` : ""}

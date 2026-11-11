@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { contractApi, ContractItem } from "@/api/master/contractApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { PAYMENT_BANK_INFO } from "@/config/paymentConfig";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import {
   FileSignature,
   ShieldCheck,
@@ -266,7 +269,7 @@ export function PublicContractSigningPage() {
           <h5 className="text-xs font-semibold text-slate-800 mt-1">Độc lập - Tự do - Hạnh phúc</h5>
           <div className="w-36 h-0.5 bg-slate-900 mx-auto my-3" />
           <p className="text-[11px] text-slate-500 italic">
-            Hà Nội, ngày {new Date(contract.createdAt).getDate()} tháng {new Date(contract.createdAt).getMonth() + 1} năm{" "}
+            {LEGAL_POLICY_META.city}, ngày {new Date(contract.createdAt).getDate()} tháng {new Date(contract.createdAt).getMonth() + 1} năm{" "}
             {new Date(contract.createdAt).getFullYear()}
           </p>
         </div>
@@ -288,7 +291,7 @@ export function PublicContractSigningPage() {
           <p>• Căn cứ Bộ luật Dân sự số 91/2015/QH13;</p>
           <p>• Căn cứ Luật Thương mại số 36/2005/QH11;</p>
           <p>• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15;</p>
-          <p>• Căn cứ Nghị định số 13/2023/NĐ-CP của Chính phủ về Bảo vệ dữ liệu cá nhân;</p>
+          <p>• Căn cứ {LEGAL_POLICY_META.lawLabel};</p>
           <p>• Căn cứ vào nhu cầu và năng lực thực tế của hai bên.</p>
         </div>
 
@@ -300,33 +303,33 @@ export function PublicContractSigningPage() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
             <h3 className="font-bold text-sm text-indigo-900 uppercase mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>BÊN A: {contract.partyAName || "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"}</span>
+              <span>BÊN A: {contract.partyAName || LEGAL_POLICY_META.companyName}</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
               <div>
                 <span className="font-semibold">Mã số thuế: </span>
-                <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || "0110889988"}</span>
+                <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || LEGAL_POLICY_META.taxCode}</span>
               </div>
               <div>
                 <span className="font-semibold">Người đại diện: </span>
-                <span>{contract.partyARepresentative || "Phan Nhật Hưng"} — Chức vụ: {contract.partyAPosition || "Tổng Giám Đốc"}</span>
+                <span>{contract.partyARepresentative || LEGAL_POLICY_META.representative} — Chức vụ: {contract.partyAPosition || LEGAL_POLICY_META.position}</span>
               </div>
               <div className="sm:col-span-2">
                 <span className="font-semibold">Trụ sở: </span>
-                <span>{contract.partyAAddress || "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội"}</span>
+                <span>{contract.partyAAddress || LEGAL_POLICY_META.address}</span>
               </div>
               <div>
-                <span className="font-semibold">Email pháp chế: </span>
-                <span>{contract.partyAEmail || "legal@smarthire.top"}</span>
+                <span className="font-semibold">Email liên hệ: </span>
+                <span>{contract.partyAEmail || LEGAL_POLICY_META.supportEmail}</span>
               </div>
               <div>
                 <span className="font-semibold">Hotline: </span>
-                <span>{contract.partyAPhone || "1900 6868"}</span>
+                <span>{contract.partyAPhone || LEGAL_POLICY_META.hotline}</span>
               </div>
               <div className="sm:col-span-2">
                 <span className="font-semibold">Tài khoản: </span>
-                <span className="font-mono font-bold">{contract.partyABankAccount || "190388889999"}</span> tại{" "}
-                <span>{contract.partyABankName || "Ngân hàng Techcombank"} – {contract.partyABankBranch || "CN Hà Nội"}</span>
+                <span className="font-mono font-bold">{contract.partyABankAccount || PAYMENT_BANK_INFO.accountNumber}</span> tại{" "}
+                <span>{contract.partyABankName || PAYMENT_BANK_INFO.bankName} – {contract.partyABankBranch || PAYMENT_BANK_INFO.branch}</span>
               </div>
             </div>
           </div>
@@ -395,11 +398,44 @@ export function PublicContractSigningPage() {
                   </code>
                 </div>
                 <div>
-                  • <strong>Hạn mức tài nguyên định kỳ:</strong> Tối đa{" "}
-                  <strong>{contract.maxJobs && contract.maxJobs >= 9999 ? "Không giới hạn" : (contract.maxJobs ?? "Không giới hạn")}</strong> vị trí tuyển dụng (Jobs);{" "}
-                  <strong>{(contract.maxCvParses ?? 5000).toLocaleString("vi-VN")}</strong> lượt phân tích CV AI/tháng;{" "}
-                  <strong>{(contract.maxAiInterviewHours ?? 200).toLocaleString("vi-VN")}</strong> giờ phỏng vấn AI/tháng;{" "}
-                  <strong>{contract.maxStorageGb ?? 100} GB</strong> lưu trữ.
+                  • <strong>Hạn mức tài nguyên định kỳ:</strong>{" "}
+                  <strong>
+                    {formatQuotaLimit(contract.maxJobs, "vị trí tuyển dụng (Jobs)", {
+                      unlimitedLabel: "Không giới hạn vị trí tuyển dụng",
+                      unsupportedLabel: "Không hỗ trợ đăng tin tuyển dụng",
+                    })}
+                  </strong>;{" "}
+                  <strong>
+                    {formatQuotaLimit(contract.maxCvParses, "lượt phân tích CV AI", {
+                      monthly: true,
+                      unlimitedLabel: "Không giới hạn phân tích CV AI",
+                      unsupportedLabel: "Không hỗ trợ phân tích CV AI",
+                    })}
+                  </strong>;{" "}
+                  <strong>
+                    {formatQuotaLimit(contract.maxAiInterviewHours, "giờ phỏng vấn AI", {
+                      monthly: true,
+                      unlimitedLabel: "Không giới hạn phỏng vấn AI",
+                      unsupportedLabel: "Không hỗ trợ phỏng vấn AI",
+                    })}
+                  </strong>;{" "}
+                  {contract.maxProctoringHours !== undefined && (
+                    <>
+                      <strong>
+                        {formatQuotaLimit(contract.maxProctoringHours, "giờ giám sát AI Proctoring", {
+                          monthly: true,
+                          unlimitedLabel: "Không giới hạn AI Proctoring",
+                          unsupportedLabel: "Không hỗ trợ AI Proctoring",
+                        })}
+                      </strong>;{" "}
+                    </>
+                  )}
+                  <strong>
+                    {formatQuotaLimit(contract.maxStorageGb, "GB lưu trữ", {
+                      unlimitedLabel: "Không giới hạn lưu trữ",
+                      unsupportedLabel: "Không cấp phát lưu trữ",
+                    })}
+                  </strong>.
                 </div>
               </div>
               <p>
@@ -459,7 +495,7 @@ export function PublicContractSigningPage() {
                 3.1. <strong>Cam kết Mức dịch vụ (SLA):</strong> Bên A cam kết độ sẵn sàng của hệ thống đạt tối thiểu <strong>99.5%/tháng</strong>, hỗ trợ kỹ thuật trong suốt thời hạn hợp đồng và thực hiện sao lưu dữ liệu tự động hàng ngày (Daily Backup).
               </p>
               <p>
-                3.2. <strong>Bảo vệ Dữ liệu Cá nhân (Nghị định 13/2023/NĐ-CP):</strong> Bên B đóng vai trò là <strong>Bên Kiểm soát Dữ liệu</strong> và chịu trách nhiệm thu thập sự đồng ý hợp pháp của ứng viên. Bên A đóng vai trò là <strong>Bên Xử lý Dữ liệu</strong>, cam kết chỉ xử lý dữ liệu theo yêu cầu của Bên B, không chia sẻ cho bên thứ ba và không sử dụng dữ liệu của Bên B vào mục đích thương mại khác.
+                3.2. <strong>Bảo vệ Dữ liệu Cá nhân ({LEGAL_POLICY_META.lawLabel}):</strong> Bên B đóng vai trò là <strong>Bên Kiểm soát Dữ liệu</strong> và chịu trách nhiệm thu thập sự đồng ý hợp pháp của ứng viên. Bên A đóng vai trò là <strong>Bên Xử lý Dữ liệu</strong>, cam kết chỉ xử lý dữ liệu theo yêu cầu của Bên B, không chia sẻ cho bên thứ ba và không sử dụng dữ liệu của Bên B vào mục đích thương mại khác.
               </p>
               <p>
                 3.3. <strong>Giới hạn Trách nhiệm đối với Trí tuệ Nhân tạo (AI Disclaimer):</strong> Các kết quả phân tích CV, chấm điểm phỏng vấn và cảnh báo gian lận do AI tạo ra đóng vai trò là công cụ tham khảo hỗ trợ ra quyết định. Bên B có toàn quyền và chịu hoàn toàn trách nhiệm pháp lý đối với quyết định tuyển dụng cuối cùng đối với ứng viên.
@@ -480,7 +516,7 @@ export function PublicContractSigningPage() {
                 4.2. Chữ ký điện tử xác thực qua nền tảng <strong>Dropbox Sign</strong> của đại diện hai bên kèm theo Biên bản kiểm toán (Audit Trail) và mã băm mật mã <strong>SHA-256</strong> có giá trị pháp lý nguyên vẹn và tương đương với hợp đồng văn bản giấy được ký tay, đóng dấu pháp nhân.
               </p>
               <p>
-                4.3. Mọi tranh chấp phát sinh từ Hợp đồng này trước hết được giải quyết thông qua thương lượng thiện chí. Trường hợp không đạt được thỏa thuận trong vòng 30 ngày, vụ việc sẽ được đưa ra giải quyết tại <strong>Tòa án nhân dân có thẩm quyền tại Thành phố Hà Nội</strong>. Phán quyết của Tòa án là quyết định cuối cùng buộc hai bên phải thi hành.
+                4.3. Mọi tranh chấp phát sinh từ Hợp đồng này trước hết được giải quyết thông qua thương lượng thiện chí. Trường hợp không đạt được thỏa thuận trong vòng 30 ngày, vụ việc sẽ được đưa ra giải quyết tại <strong>{LEGAL_POLICY_META.disputeCourt}</strong>. Phán quyết của Tòa án là quyết định cuối cùng buộc hai bên phải thi hành.
               </p>
             </div>
           </div>
@@ -500,8 +536,8 @@ export function PublicContractSigningPage() {
                 <div className="text-[9px] text-emerald-700 font-semibold">Chữ ký số hợp lệ</div>
               </div>
             </div>
-            <span className="font-bold text-slate-900 mt-2">{contract.partyARepresentative || "Phan Nhật Hưng"}</span>
-            <span className="text-[11px] text-slate-500">{contract.partyAPosition || "Tổng Giám Đốc"}</span>
+            <span className="font-bold text-slate-900 mt-2">{contract.partyARepresentative || LEGAL_POLICY_META.representative}</span>
+            <span className="text-[11px] text-slate-500">{contract.partyAPosition || LEGAL_POLICY_META.position}</span>
           </div>
 
           {/* Bên B Signature */}

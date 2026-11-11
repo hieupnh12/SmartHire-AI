@@ -19,6 +19,7 @@ import com.smarthire.domain.tenant.repository.AiAnswerRecordingRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.InterviewMessageRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
+import com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService;
 import com.smarthire.master.subscription.dto.CloneCustomPlanRequest;
 import com.smarthire.master.subscription.dto.SubscriptionPlanResponse;
 import com.smarthire.master.subscription.dto.UpdateSubscriptionPlanRequest;
@@ -445,5 +446,45 @@ class TwoTierSubscriptionArchitectureTest {
         tenantSubscriptionQuotaService.cancelPendingInvoice(88L);
         assertThat(ownedInv.getStatus()).isEqualTo("CANCELLED");
         assertThat(pendingSub.getStatus()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    void processSubscriptionLifecycleTransitions_NotifiesNewlyPastDueAndSuspendedSubscriptions() {
+        com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService lifecycleService =
+                org.mockito.Mockito.mock(com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService.class);
+        ReflectionTestUtils.setField(masterSubscriptionService, "lifecycleNotificationService", lifecycleService);
+
+        TenantSubscription activeExpired = TenantSubscription.builder()
+                .id(601L)
+                .tenantId(10L)
+                .planId(2L)
+                .status("ACTIVE")
+                .endsAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+        TenantSubscription pastDueOverGrace = TenantSubscription.builder()
+                .id(602L)
+                .tenantId(11L)
+                .planId(2L)
+                .status("PAST_DUE")
+                .gracePeriodEndsAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+
+        when(subscriptionRepository.findByStatusInAndEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq(java.util.List.of("TRIAL", "ACTIVE")), any()))
+                .thenReturn(java.util.List.of(activeExpired));
+        when(subscriptionRepository.findByStatusAndGracePeriodEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq("PAST_DUE"), any()))
+                .thenReturn(java.util.List.of(pastDueOverGrace));
+        when(subscriptionRepository.findByStatusAndGracePeriodEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq("SUSPENDED"), any()))
+                .thenReturn(java.util.List.of());
+        when(subscriptionRepository.save(any(TenantSubscription.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        int transitioned = masterSubscriptionService.processSubscriptionLifecycleTransitions();
+
+        assertThat(transitioned).isEqualTo(2);
+        assertThat(activeExpired.getStatus()).isEqualTo("PAST_DUE");
+        assertThat(pastDueOverGrace.getStatus()).isEqualTo("SUSPENDED");
+        verify(lifecycleService).notifySubscriptionsByIds(java.util.List.of(601L, 602L));
     }
 }

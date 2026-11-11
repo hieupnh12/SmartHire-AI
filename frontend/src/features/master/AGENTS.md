@@ -14,10 +14,18 @@ master/<feature>/<technical-folder>/<file>
 
 Current feature folders:
 
+- `account/`
+- `analytics/`
 - `auth/`
+- `billing/`
+- `contract/`
 - `dashboard/`
 - `landing/`
+- `leads/`
 - `onboarding/`
+- `shell/`
+- `system/`
+- `tenant-management/`
 
 Inside a feature, add `pages/`, `components/`, `api/`, `hooks/`, `services/`, `constants/`, `types/`, or `utils/` only when that folder contains real files.
 
@@ -29,4 +37,4 @@ Inside a feature, add `pages/`, `components/`, `api/`, `hooks/`, `services/`, `c
 - Shared landlord UI for one feature lives in `<feature>/components/`.
 - Static config and demo data live in `<feature>/constants/`.
 - Feature contracts live in `<feature>/types/`.
-- Update `frontend/src/app/router.tsx` when moving or adding route-level pages.
+- Update `frontend/src/app/router.tsx`, `frontend/src/features/master/shell/MasterAdminSidebar.tsx`, and `frontend/src/features/master/README.md` when moving or adding route-level pages.

@@ -24,6 +24,7 @@ public class OrderPdfData {
     private BigDecimal unitPrice;
     private BigDecimal totalPrice;
     private String bankName;
+    private String bankBranch;
     private String accountNumber;
     private String accountName;
     private String transferSyntax;

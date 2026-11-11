@@ -28,7 +28,7 @@ public class CreateContractRequest {
     private BigDecimal contractValue;
 
     @Builder.Default
-    private String currency = "USD";
+    private String currency = "VND";
 
     @NotNull(message = "Ngày bắt đầu hiệu lực không được để trống")
     private LocalDate startDate;

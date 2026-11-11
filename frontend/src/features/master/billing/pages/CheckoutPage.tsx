@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
   CheckCircle2,
   Copy,
@@ -20,10 +20,14 @@ import {
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { LegalPolicyModal, type LegalPolicyTab } from "../components/modals/LegalPolicyModal";
+import { toast } from "@/stores/toastStore";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 
-const CURRENT_POLICY_VERSION = "v2026.10";
+const CURRENT_POLICY_VERSION = LEGAL_POLICY_META.version;
 
 export function CheckoutPage() {
+  const navigate = useNavigate();
   const { planCode } = useParams<{ planCode: string }>();
   const [searchParams] = useSearchParams();
   const invoiceParam = searchParams.get("invoice") || searchParams.get("invoiceId") || searchParams.get("invoiceNumber");
@@ -171,14 +175,14 @@ export function CheckoutPage() {
   }, [plans, selectedPlanCode]);
   const currentAmountVnd = useMemo(() => {
     if (!currentPlan) return 0;
-    const basePrice = currentPlan.priceYearly || 36000000;
+    const basePrice = currentPlan.priceYearly ?? 0;
     return basePrice * quantity;
   }, [currentPlan, quantity]);
   // Realtime Subdomain Check
   const handleCheckSubdomain = async () => {
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSub || cleanSub.length < 3) {
-      alert("Subdomain phải có ít nhất 3 ký tự (chữ thường, số, gạch ngang).");
+      toast.warning("Subdomain phải có ít nhất 3 ký tự (chữ thường, số, gạch ngang).");
       return;
     }
     setSubdomainStatus("CHECKING");
@@ -203,7 +207,11 @@ export function CheckoutPage() {
     return `${years} Năm (${fmt(start)} - ${fmt(end)})`;
   };
   const handleDownloadQr = async () => {
-    const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
+    const qrSource = orderResult?.qrUrl;
+    if (!qrSource) {
+      toast.error("Chưa có mã VietQR cho đơn hàng này. Vui lòng chuyển khoản thủ công theo thông tin bên cạnh.");
+      return;
+    }
     try {
       const res = await fetch(qrSource);
       const blob = await res.blob();
@@ -449,28 +457,28 @@ export function CheckoutPage() {
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">Đơn giá niêm yết:</span>
                       <span className="font-semibold text-slate-900">
-                        {(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ / năm
+                        {currentPlan.priceYearly > 0 ? `${currentPlan.priceYearly.toLocaleString("vi-VN")} đ / năm` : "Liên hệ báo giá"}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">Vị trí tuyển dụng:</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxJobs > 0 ? `${currentPlan.maxJobs} vị trí` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxJobs, "vị trí", { monthly: false })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">Sàng lọc CV AI:</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxCvParses > 0 ? `${currentPlan.maxCvParses.toLocaleString()} CVs / tháng` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxCvParses, "CVs", { monthly: true })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">Phỏng vấn trợ lý AI:</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxAiInterviewHours && currentPlan.maxAiInterviewHours > 0 ? `${currentPlan.maxAiInterviewHours} giờ` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxAiInterviewHours, "giờ", { monthly: true })}
                       </span>
                     </div>
                   </div>
@@ -508,7 +516,7 @@ export function CheckoutPage() {
                     {/* Right: Phép tính & Thành tiền */}
                     <div className="flex items-center gap-1.5 sm:justify-end">
                       <span className="text-slate-500 text-[11px]">
-                        {quantity > 1 ? `${quantity} x ${(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ =` : "Thành tiền:"}
+                        {quantity > 1 ? `${quantity} x ${(currentPlan.priceYearly ?? 0).toLocaleString('vi-VN')} đ =` : "Thành tiền:"}
                       </span>
                       <span className="text-base font-extrabold text-slate-900">
                         {currentAmountVnd.toLocaleString('vi-VN')}
@@ -693,11 +701,11 @@ export function CheckoutPage() {
                                       }
                                     },
                                     () => {
-                                      alert("Không thể lấy vị trí hiện tại. Vui lòng cấp quyền truy cập vị trí.");
+                                      toast.warning("Không thể lấy vị trí hiện tại. Vui lòng cấp quyền truy cập vị trí.");
                                     }
                                   );
                                 } else {
-                                  alert("Trình duyệt không hỗ trợ lấy vị trí.");
+                                  toast.warning("Trình duyệt không hỗ trợ lấy vị trí.");
                                 }
                               }}
                               className="text-blue-600 hover:text-blue-700 p-1 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-1 text-[11px] font-semibold"
@@ -709,7 +717,7 @@ export function CheckoutPage() {
                           </div>
                           <input
                             type="text"
-                            placeholder="Số 10 Phạm Hùng, Cầu Giấy, Hà Nội"
+                            placeholder="Tầng 13, Tòa nhà FPT, KĐT Công nghệ FPT, Q. Ngũ Hành Sơn, TP. Đà Nẵng"
                             value={billingAddress}
                             onChange={(e) => setBillingAddress(e.target.value)}
                             className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
@@ -963,7 +971,7 @@ export function CheckoutPage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setPolicyModalTab("PRIVACY_ND13");
+                            setPolicyModalTab("PRIVACY_2025");
                           }}
                           className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
                         >
@@ -1018,7 +1026,7 @@ export function CheckoutPage() {
                   type="button"
                   onClick={() => {
                     if (invoiceParam) {
-                      window.location.href = "/pricing";
+                      navigate("/pricing");
                     } else {
                       setCurrentStep(1);
                     }
@@ -1125,21 +1133,33 @@ export function CheckoutPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
                         {/* Cột trái: QR Code to hơn + Lưu mã QR */}
                         <div className="sm:col-span-6 flex flex-col items-center justify-center shrink-0">
-                          <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
-                            <img
-                              src={orderResult?.qrUrl || "/sepay_qr.png"}
-                              alt="VietQR Chuyển Khoản SePay"
-                              className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleDownloadQr}
-                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Lưu mã QR</span>
-                          </button>
+                          {orderResult?.qrUrl ? (
+                            <>
+                              <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
+                                <img
+                                  src={orderResult.qrUrl}
+                                  alt="VietQR Chuyển Khoản SePay"
+                                  className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleDownloadQr}
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Lưu mã QR</span>
+                              </button>
+                            </>
+                          ) : (
+                            <div className="w-52 h-52 sm:w-60 sm:h-60 rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                              <AlertCircle className="w-6 h-6 text-amber-600 mb-2" />
+                              <span className="font-semibold">Chưa tải được mã VietQR tự động</span>
+                              <span className="text-[11px] text-amber-700 mt-1">
+                                Vui lòng chuyển khoản thủ công theo thông tin tài khoản bên cạnh.
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Cột phải: Danh sách thông tin tài khoản nhỏ gọn hơn */}
@@ -1150,20 +1170,22 @@ export function CheckoutPage() {
                               Số tài khoản:
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.accountNumber || "07744348801"}
+                              {orderResult.accountNumber || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountNumber || "07744348801", "acc")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép số tài khoản"
-                            >
-                              {copiedField === "acc" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountNumber && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountNumber, "acc")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title="Sao chép số tài khoản"
+                              >
+                                {copiedField === "acc" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Tên tài khoản */}
@@ -1172,20 +1194,22 @@ export function CheckoutPage() {
                               Tên tài khoản:
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.accountName || "NGUYEN NHAT SINH"}
+                              {orderResult.accountName || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountName || "NGUYEN NHAT SINH", "name")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép tên tài khoản"
-                            >
-                              {copiedField === "name" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountName && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountName, "name")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title="Sao chép tên tài khoản"
+                              >
+                                {copiedField === "name" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Ngân hàng */}
@@ -1194,7 +1218,7 @@ export function CheckoutPage() {
                               Ngân hàng:
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.bankName || "Ngân hàng TMCP Tiên Phong (TPBank)"}
+                              {orderResult.bankName || "—"}
                             </span>
                           </div>
 
@@ -1204,20 +1228,22 @@ export function CheckoutPage() {
                               Chi nhánh:
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              Hà Nội
+                              {orderResult.bankBranch || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy("Hà Nội", "branch")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép chi nhánh"
-                            >
-                              {copiedField === "branch" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.bankBranch && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.bankBranch!, "branch")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title="Sao chép chi nhánh"
+                              >
+                                {copiedField === "branch" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Số tiền */}
@@ -1226,22 +1252,22 @@ export function CheckoutPage() {
                               Số tiền:
                             </span>
                             <span className="font-bold text-slate-900 text-xs sm:text-[13px]">
-                              {(orderResult.amountVnd || 36000000).toLocaleString("vi-VN")} VND
+                              {orderResult.amountVnd != null ? `${orderResult.amountVnd.toLocaleString("vi-VN")} VND` : "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy((orderResult.amountVnd || 36000000).toString(), "amount")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép số tiền"
-                            >
-                              {copiedField === "amount" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.amountVnd != null && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(String(orderResult.amountVnd), "amount")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title="Sao chép số tiền"
+                              >
+                                {copiedField === "amount" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Nội dung */}
@@ -1250,22 +1276,24 @@ export function CheckoutPage() {
                               Nội dung:
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`}
+                              {orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`, "syntax")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép nội dung"
-                            >
-                              {copiedField === "syntax" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {(orderResult.transferSyntax || orderResult.invoiceNumber) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber}`, "syntax")
+                                }
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title="Sao chép nội dung"
+                              >
+                                {copiedField === "syntax" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1370,19 +1398,31 @@ export function CheckoutPage() {
                   {activePaymentTab === "QR_CODE" && (
                     <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl bg-blue-50/40 border border-blue-100 pt-6">
                       <div className="flex flex-col items-center shrink-0">
-                        <img
-                          src={orderResult?.qrUrl || "/sepay_qr.png"}
-                          alt="VietQR Chuyển Khoản SePay"
-                          className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleDownloadQr}
-                          className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Lưu mã QR</span>
-                        </button>
+                        {orderResult?.qrUrl ? (
+                          <>
+                            <img
+                              src={orderResult.qrUrl}
+                              alt="VietQR Chuyển Khoản SePay"
+                              className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleDownloadQr}
+                              className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Lưu mã QR</span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="w-44 h-44 rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-3 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                            <AlertCircle className="w-5 h-5 text-amber-600 mb-1.5" />
+                            <span className="font-semibold">Chưa có mã VietQR</span>
+                            <span className="text-[11px] text-amber-700 mt-1">
+                              Vui lòng chuyển khoản thủ công theo thông tin đơn hàng.
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="font-bold text-slate-900 text-base">Mã QR Thanh Toán Tự Động</div>
@@ -1390,8 +1430,8 @@ export function CheckoutPage() {
                           Sử dụng bất kỳ ứng dụng ngân hàng hoặc ví điện tử có hỗ trợ VietQR để quét mã. Số tiền và nội dung chuyển khoản đã được mã hóa tự động chính xác 100%.
                         </p>
                         <div className="pt-2 text-xs text-slate-700 space-y-1">
-                          <div>• Số tiền: <strong className="text-emerald-600 font-bold">{orderResult.amountVnd.toLocaleString("vi-VN")} VND</strong></div>
-                          <div>• Nội dung: <strong className="font-mono text-blue-700 font-bold">{orderResult.transferSyntax}</strong></div>
+                          <div>• Số tiền: <strong className="text-emerald-600 font-bold">{orderResult.amountVnd != null ? `${orderResult.amountVnd.toLocaleString("vi-VN")} VND` : "—"}</strong></div>
+                          <div>• Nội dung: <strong className="font-mono text-blue-700 font-bold">{orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}</strong></div>
                         </div>
                       </div>
                     </div>
@@ -1586,12 +1626,12 @@ export function CheckoutPage() {
                   <Printer className="w-4 h-4 text-slate-500" />
                   <span>In Hóa Đơn</span>
                 </button>
-                <a
-                  href="/"
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block"
+                <Link
+                  to="/"
+                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block text-center"
                 >
                   Về Trang Chủ
-                </a>
+                </Link>
               </div>
             </div>
           </div>
@@ -1599,7 +1639,8 @@ export function CheckoutPage() {
       </main>
       <LegalPolicyModal
         openTab={policyModalTab}
-        policyVersion="15/06/2026"
+        policyVersion={CURRENT_POLICY_VERSION}
+        effectiveDate={LEGAL_POLICY_META.effectiveDate}
         onClose={() => setPolicyModalTab(null)}
         onSwitchTab={(tab) => setPolicyModalTab(tab)}
         isAccepted={isTermsAccepted}
