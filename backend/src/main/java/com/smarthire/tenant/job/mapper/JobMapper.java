@@ -128,7 +128,12 @@ public class JobMapper {
                 job.getMinYearsExperience(),
                 job.getEducationLevel(),
                 skills.stream().map(row -> row.getSkill().getName()).toList(),
-                accepting(job));
+                accepting(job),
+                job.getPublishedAt(),
+                job.getUpdatedAt(),
+                job.isSalaryVisible() ? job.getSalaryMin() : null,
+                job.isSalaryVisible() ? job.getSalaryMax() : null,
+                job.isSalaryVisible() ? job.getSalaryCurrency() : null);
     }
 
     public StageView stage(RecruitmentStage stage) {

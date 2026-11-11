@@ -2,6 +2,7 @@ import { JobRecruitmentWorkspace } from "@/features/tenant/recruiter/jobs/compon
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { RouteSeoManager } from "@/app/RouteSeoManager";
 import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SolutionsPage } from "@/features/master/landing/pages/SolutionsPage";
 import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
@@ -127,7 +128,9 @@ function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
 
 export function AppRouter() {
   return (
-    <Routes>
+    <>
+      <RouteSeoManager />
+      <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
       <Route path="/solutions" element={<PublicMarketingRoute><SolutionsPage /></PublicMarketingRoute>} />
       <Route path="/preview" element={<PublicMarketingRoute><PreviewPage /></PublicMarketingRoute>} />
@@ -332,5 +335,6 @@ export function AppRouter() {
       <Route path="/admin/login" element={<MasterLoginPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
