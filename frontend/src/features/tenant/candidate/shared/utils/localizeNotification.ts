@@ -355,6 +355,13 @@ const BODY_RULES_BY_TYPE: Record<string, BodyPatternRule[]> = {
       params: (m) => ({ testTitle: m[1], jobTitle: m[2], minutes: m[3] }),
     },
   ],
+  CANDIDATE_JOB_ALERT: [
+    {
+      pattern: /^.+? vừa đăng tuyển vị trí mới: (.+?)(?: • .+)?\.$/,
+      key: "CANDIDATE_JOB_ALERT.body",
+      params: (m) => ({ jobTitle: m[1] }),
+    },
+  ],
 };
 
 function localizeCandidateStageBody(type: string, body: string, translate: TranslateFn): string | null {
@@ -420,6 +427,10 @@ function localizeTitle(item: Notification, translate: TranslateFn): string {
       return jobSuffixMatch("Cập nhật kết quả ứng tuyển:", "APPLICATION_REJECTED.titleUpdated")
         ?? jobSuffixMatch("Kết quả ứng tuyển:", "APPLICATION_REJECTED.titleResult")
         ?? resolveKey(translate, "APPLICATION_REJECTED.title")
+        ?? item.title;
+    case "CANDIDATE_JOB_ALERT":
+      return jobSuffixMatch("Việc làm mới phù hợp:", "CANDIDATE_JOB_ALERT.titleWithJob")
+        ?? resolveKey(translate, "CANDIDATE_JOB_ALERT.title")
         ?? item.title;
     default:
       return resolveKey(translate, `${item.type}.title`) ?? item.title;

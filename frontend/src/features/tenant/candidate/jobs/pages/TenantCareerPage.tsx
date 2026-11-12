@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -12,6 +12,15 @@ import { jobApi } from "@/api/tenant/jobApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { landingApi } from "@/api/tenant/landingApi";
 import { cvApi } from "@/api/tenant/cvApi";
+import { recommendationApi } from "@/api/tenant/recommendationApi";
+import { savedJobApi } from "@/api/tenant/savedJobApi";
+import {
+  JobAlertsPanel,
+} from "@/features/tenant/candidate/jobs/components/JobAlertsPanel";
+import {
+  SAVED_JOBS_QUERY_KEY,
+  SAVED_JOB_IDS_QUERY_KEY,
+} from "@/features/tenant/candidate/jobs/pages/SavedJobsPage";
 import type { PublicJob } from "@/api/types/job";
 import { compareLocaleText, formatDate, toIntlLocale, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -63,6 +72,8 @@ import {
   FileText,
   ChevronDown,
   Check,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -383,11 +394,15 @@ function LocationDropdown({ locations, value, onChange, jobs }: {
   );
 }
 
-function FeaturedJobCard({ job, tenantName, primaryColor, matchedSkills }: {
+function FeaturedJobCard({ job, tenantName, primaryColor, matchedSkills, matchScore, isCandidate, saved, onToggleSave }: {
   job: PublicJob;
   tenantName: string;
   primaryColor: string;
   matchedSkills?: string[];
+  matchScore?: number;
+  isCandidate?: boolean;
+  saved?: boolean;
+  onToggleSave?: (jobId: number) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -397,12 +412,31 @@ function FeaturedJobCard({ job, tenantName, primaryColor, matchedSkills }: {
   const employmentType = employmentTypeLabel(job.employmentType, t, locale);
   return (
     <article className="career-featured-job-card group flex min-w-0 flex-col rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-[var(--color-primary)]/45 hover:shadow-[0_16px_34px_rgba(15,23,42,0.10)]">
-      <div className="flex min-w-0 gap-4">
+      <div className="flex min-w-0 items-start gap-4">
         <span className="grid size-16 shrink-0 place-items-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-xl font-semibold shadow-sm" style={{ color: primaryColor }} aria-hidden="true">{tenantName.charAt(0).toUpperCase()}</span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">{deadline?.urgent && <span className="mt-0.5 shrink-0 rounded-full bg-[var(--color-warning-container)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-on-warning-container)]">{t("candidate.core.career.card.urgent")}</span>}<h3 className="line-clamp-2 text-lg font-semibold leading-6 text-[var(--color-on-surface)]"><Link to={`/jobs/${job.id}`} className="text-left transition-colors hover:text-[var(--color-primary)]">{job.title}</Link></h3></div>
+          <div className="flex items-start gap-2">
+            {deadline?.urgent && <span className="mt-0.5 shrink-0 rounded-full bg-[var(--color-warning-container)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-on-warning-container)]">{t("candidate.core.career.card.urgent")}</span>}
+            {typeof matchScore === "number" && (
+              <span className="mt-0.5 shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                {t("candidate.core.career.card.matchScore", { score: Math.round(matchScore) })}
+              </span>
+            )}
+            <h3 className="line-clamp-2 flex-1 text-lg font-semibold leading-6 text-[var(--color-on-surface)]"><Link to={`/jobs/${job.id}`} className="text-left transition-colors hover:text-[var(--color-primary)]">{job.title}</Link></h3>
+          </div>
           <p className="mt-2 truncate text-sm text-[var(--color-on-surface-variant)]">{tenantName}{job.department ? ` · ${job.department}` : ""}</p>
         </div>
+        {isCandidate && onToggleSave && (
+          <button
+            type="button"
+            onClick={() => onToggleSave(job.id)}
+            aria-label={saved ? t("candidate.core.career.card.unsaveJob") : t("candidate.core.career.card.saveJob")}
+            aria-pressed={saved}
+            className={`grid size-9 shrink-0 place-items-center rounded-lg border transition-colors ${saved ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "border-[var(--color-border-default)] text-slate-400 hover:border-[var(--color-primary)]/30 hover:text-[var(--color-primary)]"}`}
+          >
+            {saved ? <BookmarkCheck className="size-4" aria-hidden="true" /> : <Bookmark className="size-4" aria-hidden="true" />}
+          </button>
+        )}
       </div>
       <div className="mt-5 flex min-h-7 flex-wrap gap-2">
         {location && <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]"><MapPin className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><span className="truncate">{location}</span></span>}
@@ -464,6 +498,7 @@ export function TenantCareerPage() {
 
   const token = useAuthStore((s) => s.accessToken);
   const authUser = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
   const isCandidate = Boolean(token) && authUser?.role === "CANDIDATE";
   const publicJobs = useQuery({
     queryKey: ["public-jobs", isJobsPage ? submittedSearch : ""],
@@ -499,12 +534,42 @@ export function TenantCareerPage() {
     () => (myApplications.data?.data ?? []).find((app) => !["REJECTED", "FAILED", "WITHDRAWN"].includes(app.status)),
     [myApplications.data],
   );
-  const analyzedCv = candidateCvs.data?.data.find((cv) => cv.status === "ANALYZED");
-  const candidateCvDetail = useQuery({
-    queryKey: ["career-candidate-cv", analyzedCv?.id],
-    queryFn: () => cvApi.get(analyzedCv!.id),
-    enabled: isCandidate && Boolean(analyzedCv),
+  const recommendedJobsQuery = useQuery({
+    queryKey: ["career-recommended-jobs"],
+    queryFn: () => recommendationApi.jobsForMe(8),
+    enabled: isCandidate && jobView === "recommended",
   });
+  const savedJobIdsQuery = useQuery({
+    queryKey: SAVED_JOB_IDS_QUERY_KEY,
+    queryFn: savedJobApi.ids,
+    enabled: isCandidate,
+  });
+  const savedJobIds = useMemo(() => new Set(savedJobIdsQuery.data ?? []), [savedJobIdsQuery.data]);
+  const toggleSaveMutation = useMutation({
+    mutationFn: async ({ targetJobId, alreadySaved }: { targetJobId: number; alreadySaved: boolean }) => {
+      if (alreadySaved) {
+        await savedJobApi.remove(targetJobId);
+        return false;
+      }
+      await savedJobApi.save(targetJobId);
+      return true;
+    },
+    onSuccess: (nowSaved, { targetJobId }) => {
+      queryClient.setQueryData<number[]>(SAVED_JOB_IDS_QUERY_KEY, (prev) => {
+        const list = prev ?? [];
+        return nowSaved
+          ? (list.includes(targetJobId) ? list : [targetJobId, ...list])
+          : list.filter((id) => id !== targetJobId);
+      });
+      void queryClient.invalidateQueries({ queryKey: SAVED_JOBS_QUERY_KEY });
+      toast.success(t(nowSaved ? "candidate.core.career.card.savedToast" : "candidate.core.career.card.removedToast"));
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+  const toggleSaveJob = (targetJobId: number) => {
+    if (!isCandidate) return;
+    toggleSaveMutation.mutate({ targetJobId, alreadySaved: savedJobIds.has(targetJobId) });
+  };
 
   const customLanding = publicLanding.data?.data;
   const detailJob = publicJobDetail.data?.data ?? null;
@@ -600,15 +665,7 @@ export function TenantCareerPage() {
     if (featuredFilterType === "experience") return matchesExperienceFilter(job, featuredExperience);
     return matchesSalaryFilter(job, featuredSalary);
   }).slice(0, 8);
-  const cvSkillNames = new Set((candidateCvDetail.data?.data.skills ?? []).flatMap((skill) => [skill.skillName, skill.canonicalName].map((name) => name.trim().toLocaleLowerCase())));
-  const recommendedJobs = jobsList
-    .map((job) => ({
-      job,
-      matchedSkills: job.skills.filter((skill) => cvSkillNames.has(skill.trim().toLocaleLowerCase())),
-    }))
-    .filter((item) => item.matchedSkills.length > 0)
-    .sort((a, b) => b.matchedSkills.length - a.matchedSkills.length)
-    .slice(0, 8);
+  const recommendedJobs = recommendedJobsQuery.data?.items ?? [];
   const heroSlides = [
     {
       eyebrow: customLanding?.hero?.badgeText || t("candidate.core.career.home.slide1Eyebrow", { tenantName: theme.name }),
@@ -856,7 +913,7 @@ export function TenantCareerPage() {
                       </section>
                     </article>
                     <aside className="space-y-5 lg:sticky lg:top-24">
-                      <section className="rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Briefcase className="size-5" aria-hidden="true" /></span><h2 className="text-lg font-semibold">{t("candidate.core.career.detail.generalInfoTitle")}</h2></div><dl className="mt-5 divide-y divide-[var(--color-border-default)] text-sm">{detailLocation && <div className="flex gap-3 py-3 first:pt-0"><MapPin className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.locationLabel")}</dt><dd className="mt-1 font-semibold">{detailLocation}</dd></div></div>}{detailWorkMode && <div className="flex gap-3 py-3"><Laptop className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.workModeLabel")}</dt><dd className="mt-1 font-semibold">{detailWorkMode}</dd></div></div>}{job.employmentType && <div className="flex gap-3 py-3"><Clock className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.employmentTypeLabel")}</dt><dd className="mt-1 font-semibold">{employmentTypeLabel(job.employmentType, t, locale)}</dd></div></div>}{job.minYearsExperience != null && <div className="flex gap-3 py-3"><Briefcase className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.experienceLabel")}</dt><dd className="mt-1 font-semibold">{job.minYearsExperience === 0 ? t("candidate.core.career.detail.experienceNone") : t("candidate.core.career.detail.experienceFromYears", { years: job.minYearsExperience })}</dd></div></div>}{job.educationLevel && <div className="flex gap-3 py-3"><Award className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.educationLabel")}</dt><dd className="mt-1 font-semibold">{job.educationLevel}</dd></div></div>}{detailDeadlineLabel && <div className="flex gap-3 py-3"><Clock className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.deadlineLabel")}</dt><dd className="mt-1 font-semibold">{detailDeadlineLabel}</dd></div></div>}</dl>{appliedJobIds.has(job.id) ? <Link to="/applications" className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-5 text-sm font-semibold text-[var(--color-primary)]"><CheckCircle2 className="size-4" aria-hidden="true" />{t("candidate.core.career.detail.appliedViewStatus")}</Link> : <button type="button" onClick={() => startApply(job)} disabled={!job.acceptingApplications} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">{job.acceptingApplications ? (token ? t("candidate.core.career.detail.applyNow") : t("candidate.core.career.detail.loginToApply")) : t("candidate.core.career.detail.closedNotice")}<ArrowRight className="size-4" aria-hidden="true" /></button>}<p className="mt-3 text-center text-xs leading-5 text-slate-500">{t("candidate.core.career.detail.privacyNote")}</p></section>
+                      <section className="rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Briefcase className="size-5" aria-hidden="true" /></span><h2 className="text-lg font-semibold">{t("candidate.core.career.detail.generalInfoTitle")}</h2></div>{isCandidate && <button type="button" onClick={() => toggleSaveJob(job.id)} aria-label={savedJobIds.has(job.id) ? t("candidate.core.career.card.unsaveJob") : t("candidate.core.career.card.saveJob")} aria-pressed={savedJobIds.has(job.id)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${savedJobIds.has(job.id) ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "border-[var(--color-border-default)] text-slate-600 hover:border-[var(--color-primary)]/30 hover:text-[var(--color-primary)]"}`}>{savedJobIds.has(job.id) ? <BookmarkCheck className="size-4" aria-hidden="true" /> : <Bookmark className="size-4" aria-hidden="true" />}{savedJobIds.has(job.id) ? t("candidate.core.career.savedJobs.unsave") : t("candidate.core.career.card.saveJob")}</button>}</div><dl className="mt-5 divide-y divide-[var(--color-border-default)] text-sm">{detailLocation && <div className="flex gap-3 py-3 first:pt-0"><MapPin className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.locationLabel")}</dt><dd className="mt-1 font-semibold">{detailLocation}</dd></div></div>}{detailWorkMode && <div className="flex gap-3 py-3"><Laptop className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.workModeLabel")}</dt><dd className="mt-1 font-semibold">{detailWorkMode}</dd></div></div>}{job.employmentType && <div className="flex gap-3 py-3"><Clock className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.employmentTypeLabel")}</dt><dd className="mt-1 font-semibold">{employmentTypeLabel(job.employmentType, t, locale)}</dd></div></div>}{job.minYearsExperience != null && <div className="flex gap-3 py-3"><Briefcase className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.experienceLabel")}</dt><dd className="mt-1 font-semibold">{job.minYearsExperience === 0 ? t("candidate.core.career.detail.experienceNone") : t("candidate.core.career.detail.experienceFromYears", { years: job.minYearsExperience })}</dd></div></div>}{job.educationLevel && <div className="flex gap-3 py-3"><Award className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.educationLabel")}</dt><dd className="mt-1 font-semibold">{job.educationLevel}</dd></div></div>}{detailDeadlineLabel && <div className="flex gap-3 py-3"><Clock className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><dt className="text-xs text-slate-500">{t("candidate.core.career.detail.deadlineLabel")}</dt><dd className="mt-1 font-semibold">{detailDeadlineLabel}</dd></div></div>}</dl>{appliedJobIds.has(job.id) ? <Link to="/applications" className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-5 text-sm font-semibold text-[var(--color-primary)]"><CheckCircle2 className="size-4" aria-hidden="true" />{t("candidate.core.career.detail.appliedViewStatus")}</Link> : <button type="button" onClick={() => startApply(job)} disabled={!job.acceptingApplications} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">{job.acceptingApplications ? (token ? t("candidate.core.career.detail.applyNow") : t("candidate.core.career.detail.loginToApply")) : t("candidate.core.career.detail.closedNotice")}<ArrowRight className="size-4" aria-hidden="true" /></button>}<p className="mt-3 text-center text-xs leading-5 text-slate-500">{t("candidate.core.career.detail.privacyNote")}</p></section>
                       <JobDetailAppQrCard
                         jobId={job.id}
                         jobTitle={job.title}
@@ -868,7 +925,7 @@ export function TenantCareerPage() {
                       <section className="rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><span className="grid size-12 place-items-center overflow-hidden rounded-xl bg-[var(--color-primary)] text-lg font-semibold text-white">{customLanding?.header?.logoImageUrl ? <img src={customLanding.header.logoImageUrl} alt="" className="size-full object-contain bg-white p-1" /> : theme.name.charAt(0).toUpperCase()}</span><div><p className="font-semibold text-slate-900">{theme.name}</p><p className="text-xs text-slate-500">{t("candidate.core.career.detail.recruiterLabel")}</p></div></div><p className="mt-4 text-sm leading-6 text-slate-600">{customLanding?.about?.description || customLanding?.footer?.description || t("candidate.core.career.detail.companyDefaultDesc")}</p><div className="mt-5 space-y-3 border-t border-[var(--color-border-default)] pt-4 text-sm">{customLanding?.footer?.address && <p className="flex items-start gap-2 text-slate-600"><Building className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />{customLanding.footer.address}</p>}{customLanding?.footer?.contactEmail && <a href={`mailto:${customLanding.footer.contactEmail}`} className="flex items-center gap-2 text-slate-600 hover:text-[var(--color-primary)]"><Mail className="size-4 shrink-0" aria-hidden="true" />{customLanding.footer.contactEmail}</a>}{customLanding?.footer?.websiteUrl && <a href={customLanding.footer.websiteUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 font-semibold text-[var(--color-primary)]"><Globe className="size-4 shrink-0" aria-hidden="true" />{t("candidate.core.career.detail.viewWebsite")}</a>}</div></section>
                     </aside>
                   </div>
-                  {relatedJobs.length > 0 && <section className="mt-12 border-t border-[var(--color-border-default)] pt-10" aria-labelledby="related-jobs-title"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">{t("candidate.core.career.detail.exploreMore")}</p><h2 id="related-jobs-title" className="mt-1 text-2xl font-semibold">{t("candidate.core.career.detail.relatedJobsTitle")}</h2></div><Link to="/jobs" className="hidden text-sm font-semibold text-[var(--color-primary)] hover:underline sm:block">{t("candidate.core.career.detail.viewAll")}</Link></div><div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{relatedJobs.map((relatedJob) => <FeaturedJobCard key={relatedJob.id} job={relatedJob} tenantName={theme.name} primaryColor={primaryColor} />)}</div></section>}
+                  {relatedJobs.length > 0 && <section className="mt-12 border-t border-[var(--color-border-default)] pt-10" aria-labelledby="related-jobs-title"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">{t("candidate.core.career.detail.exploreMore")}</p><h2 id="related-jobs-title" className="mt-1 text-2xl font-semibold">{t("candidate.core.career.detail.relatedJobsTitle")}</h2></div><Link to="/jobs" className="hidden text-sm font-semibold text-[var(--color-primary)] hover:underline sm:block">{t("candidate.core.career.detail.viewAll")}</Link></div><div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{relatedJobs.map((relatedJob) => <FeaturedJobCard key={relatedJob.id} job={relatedJob} tenantName={theme.name} primaryColor={primaryColor} isCandidate={isCandidate} saved={savedJobIds.has(relatedJob.id)} onToggleSave={toggleSaveJob} />)}</div></section>}
                 </div>
               </>;
             })()}
@@ -971,17 +1028,16 @@ export function TenantCareerPage() {
                   {featuredFilterType === "experience" && <FilterValueDropdown label={t("candidate.core.career.home.chooseExperience")} value={featuredExperience} onChange={setFeaturedExperience} icon={Briefcase} options={EXPERIENCE_FILTER_VALUES.map((filter) => ({ value: filter, label: filter === "ALL" ? t("candidate.core.career.home.allExperiences") : t(`candidate.core.career.experienceFilters.${filter}`) }))} />}
                 </div>
               </div>
-              {publicJobs.isPending ? <div className="grid gap-5 md:grid-cols-2" role="status" aria-label={t("candidate.core.career.home.loadingJobsAria")}>{[0, 1, 2, 3].map((item) => <div key={item} className="h-64 animate-pulse rounded-2xl bg-white" />)}</div> : publicJobs.isError ? <p role="alert" className="text-sm text-[var(--color-error)]">{getApiErrorMessage(publicJobs.error)}</p> : featuredJobs.length > 0 ? <div className="grid auto-rows-fr gap-5 md:grid-cols-2">{featuredJobs.map((job) => <FeaturedJobCard key={job.id} job={job} tenantName={theme.name} primaryColor={primaryColor} />)}</div> : <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] bg-white p-8 text-center text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.career.home.noFilteredJobs")}</p>}
+              {publicJobs.isPending ? <div className="grid gap-5 md:grid-cols-2" role="status" aria-label={t("candidate.core.career.home.loadingJobsAria")}>{[0, 1, 2, 3].map((item) => <div key={item} className="h-64 animate-pulse rounded-2xl bg-white" />)}</div> : publicJobs.isError ? <p role="alert" className="text-sm text-[var(--color-error)]">{getApiErrorMessage(publicJobs.error)}</p> : featuredJobs.length > 0 ? <div className="grid auto-rows-fr gap-5 md:grid-cols-2">{featuredJobs.map((job) => <FeaturedJobCard key={job.id} job={job} tenantName={theme.name} primaryColor={primaryColor} isCandidate={isCandidate} saved={savedJobIds.has(job.id)} onToggleSave={toggleSaveJob} />)}</div> : <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] bg-white p-8 text-center text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.career.home.noFilteredJobs")}</p>}
             </>}
 
             {jobView === "recommended" && isCandidate && (
-              candidateCvs.isPending ? <p role="status" className="rounded-xl bg-white p-6 text-sm text-slate-600">{t("candidate.core.career.home.checkingProfile")}</p>
-              : candidateCvs.isError ? <p role="alert" className="rounded-xl bg-white p-6 text-sm text-[var(--color-error)]">{t("candidate.core.career.home.loadCvError")}</p>
-              : !analyzedCv ? <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-7 text-center shadow-sm sm:p-10"><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Settings className="size-6" aria-hidden="true" /></span><h3 className="mt-4 text-xl font-semibold">{t("candidate.core.career.home.setupCareerTitle")}</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--color-on-surface-variant)]">{t("candidate.core.career.home.setupCareerDesc")}</p><Link to="/cv" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]"><FileText className="size-4" aria-hidden="true" />{t("candidate.core.career.home.setupCareerAction")}</Link></div>
-              : candidateCvDetail.isPending ? <p role="status" className="rounded-xl bg-white p-6 text-sm text-slate-600">{t("candidate.core.career.home.analyzingFit")}</p>
+              recommendedJobsQuery.isPending ? <p role="status" className="rounded-xl bg-white p-6 text-sm text-slate-600">{t("candidate.core.career.home.analyzingFit")}</p>
+              : recommendedJobsQuery.isError ? <p role="alert" className="rounded-xl bg-white p-6 text-sm text-[var(--color-error)]">{getApiErrorMessage(recommendedJobsQuery.error) || t("candidate.core.career.home.loadCvError")}</p>
+              : !recommendedJobsQuery.data?.hasAnalyzedCv ? <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-7 text-center shadow-sm sm:p-10"><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Settings className="size-6" aria-hidden="true" /></span><h3 className="mt-4 text-xl font-semibold">{t("candidate.core.career.home.setupCareerTitle")}</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--color-on-surface-variant)]">{t("candidate.core.career.home.setupCareerDesc")}</p><Link to="/cv" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]"><FileText className="size-4" aria-hidden="true" />{t("candidate.core.career.home.setupCareerAction")}</Link></div>
               : recommendedJobs.length > 0 ? (() => {
                 const [recBefore, recAfter] = t("candidate.core.career.home.recommendedBanner", { filename: "\0" }).split("\0");
-                return <><div className="mb-5 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)]">{recBefore}<strong className="text-[var(--color-on-surface)]">{analyzedCv.originalFilename}</strong>{recAfter}</div><div className="grid gap-5 md:grid-cols-2">{recommendedJobs.map(({ job, matchedSkills }) => <FeaturedJobCard key={job.id} job={job} tenantName={theme.name} primaryColor={primaryColor} matchedSkills={matchedSkills} />)}</div></>;
+                return <><div className="mb-5 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)]">{recBefore}<strong className="text-[var(--color-on-surface)]">{recommendedJobsQuery.data.analyzedCvFilename}</strong>{recAfter}</div><div className="grid gap-5 md:grid-cols-2">{recommendedJobs.map(({ job, matchedSkills, score }) => <FeaturedJobCard key={job.id} job={job} tenantName={theme.name} primaryColor={primaryColor} matchedSkills={matchedSkills} matchScore={score} isCandidate={isCandidate} saved={savedJobIds.has(job.id)} onToggleSave={toggleSaveJob} />)}</div></>;
               })()
               : <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-8 text-center"><h3 className="text-lg font-semibold">{t("candidate.core.career.home.noMatchedTitle")}</h3><p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.career.home.noMatchedDesc")}</p><div className="mt-5 flex flex-wrap justify-center gap-3"><button type="button" onClick={() => setJobView("featured")} className="min-h-11 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white">{t("candidate.core.career.home.viewAllJobs")}</button><Link to="/cv" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--color-border-default)] px-5 text-sm font-semibold">{t("candidate.core.career.home.updateCv")}</Link></div></div>
             )}
@@ -1262,6 +1318,15 @@ export function TenantCareerPage() {
               </aside>
 
               <div className="min-w-0">
+                {isCandidate && (
+                  <div className="mb-5">
+                    <JobAlertsPanel
+                      defaultKeyword={submittedSearch}
+                      defaultDepartment={selectedDepartment !== "ALL" ? selectedDepartment : ""}
+                      defaultLocation={selectedLocation !== "ALL" ? selectedLocation : ""}
+                    />
+                  </div>
+                )}
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div>{(() => {
                   const [beforeCount, afterCount] = t("candidate.core.career.jobsPage.foundCount", { count: "\0" }).split("\0");
                   return <p className="text-sm text-[var(--color-on-surface-variant)]">{beforeCount}<strong className="font-semibold text-[var(--color-on-surface)]">{filteredJobs.length}</strong>{afterCount}</p>;
@@ -1273,7 +1338,7 @@ export function TenantCareerPage() {
                     : null;
                   const jobLocation = locationLabel(job.location, t);
                   const jobWorkMode = workModeLabel(job.workMode ?? (isWorkModeText(job.location) ? job.location : null), t, locale);
-                  return <article key={job.id} className="group rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm transition-[transform,border-color,box-shadow] hover:-translate-y-0.5 hover:border-[var(--color-primary)]/40 hover:shadow-lg sm:p-6"><div className="flex min-w-0 gap-4"><span className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-lg font-semibold text-[var(--color-primary)]" aria-hidden="true">{theme.name.charAt(0).toUpperCase()}</span><div className="min-w-0 flex-1"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2">{job.department && <span className="rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-primary)]">{job.department}</span>}{deadline?.urgent && <span className="rounded-full bg-[var(--color-warning-container)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-on-warning-container)]">{t("candidate.core.career.card.urgent")}</span>}</div><h2 className="mt-2 break-words text-xl font-semibold leading-7"><Link to={`/jobs/${job.id}`} className="text-left transition-colors hover:text-[var(--color-primary)]">{job.title}</Link></h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{theme.name}</p></div><div className="shrink-0 sm:text-right">{job.salary ? <p className="text-lg font-semibold text-emerald-700">{formatSalary(job.salary)}</p> : <p className="text-sm font-medium text-slate-500">{t("candidate.core.career.card.negotiableSalary")}</p>}</div></div><div className="mt-4 flex flex-wrap gap-2">{jobLocation && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600"><MapPin className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />{jobLocation}</span>}{jobWorkMode && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)]"><Laptop className="size-3.5" aria-hidden="true" />{jobWorkMode}</span>}{job.employmentType && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600"><Briefcase className="size-3.5" aria-hidden="true" />{employmentTypeLabel(job.employmentType, t, locale)}</span>}{job.minYearsExperience != null && <span className="rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600">{t("candidate.core.career.jobsPage.yearsExperience", { years: job.minYearsExperience })}</span>}</div>{job.skills.length > 0 && <div className="mt-4 flex flex-wrap gap-1.5">{job.skills.slice(0, 5).map((skill) => <span key={skill} className="rounded-md border border-[var(--color-border-default)] px-2 py-1 text-[11px] font-medium text-slate-600">{skill}</span>)}{job.skills.length > 5 && <span className="px-2 py-1 text-[11px] text-slate-500">+{job.skills.length - 5}</span>}</div>}<div className="mt-5 flex flex-col gap-3 border-t border-[var(--color-border-default)] pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-500">{deadline && jobDeadlineLabel ? <>{t("candidate.core.career.jobsPage.deadlineWithDate", { date: jobDeadlineLabel })}{deadline.urgent ? t("candidate.core.career.jobsPage.deadlineUrgentDays", { days: deadline.daysRemaining }) : ""}</> : t("candidate.core.career.jobsPage.acceptingApplications")}</p><div className="flex gap-2"><Link to={`/jobs/${job.id}`} className="inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-semibold text-slate-600 hover:bg-[var(--color-surface-alt)]">{t("candidate.core.career.card.viewDetails")}</Link>{appliedJobIds.has(job.id) ? <Link to="/applications" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary)]"><CheckCircle2 className="size-4" aria-hidden="true" />{t("candidate.core.career.jobsPage.appliedBadge")}</Link> : <button type="button" onClick={() => startApply(job)} disabled={!job.acceptingApplications} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">{job.acceptingApplications ? (token ? t("candidate.core.career.detail.applyNow") : t("candidate.core.career.detail.loginToApply")) : t("candidate.core.career.jobsPage.closedBadge")}{job.acceptingApplications && <ArrowRight className="size-4" aria-hidden="true" />}</button>}</div></div></div></div></article>;
+                  return <article key={job.id} className="group rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm transition-[transform,border-color,box-shadow] hover:-translate-y-0.5 hover:border-[var(--color-primary)]/40 hover:shadow-lg sm:p-6"><div className="flex min-w-0 gap-4"><span className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)] text-lg font-semibold text-[var(--color-primary)]" aria-hidden="true">{theme.name.charAt(0).toUpperCase()}</span><div className="min-w-0 flex-1"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2">{job.department && <span className="rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-primary)]">{job.department}</span>}{deadline?.urgent && <span className="rounded-full bg-[var(--color-warning-container)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-on-warning-container)]">{t("candidate.core.career.card.urgent")}</span>}</div><h2 className="mt-2 break-words text-xl font-semibold leading-7"><Link to={`/jobs/${job.id}`} className="text-left transition-colors hover:text-[var(--color-primary)]">{job.title}</Link></h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{theme.name}</p></div><div className="flex shrink-0 items-start gap-2 sm:flex-col sm:items-end">{job.salary ? <p className="text-lg font-semibold text-emerald-700">{formatSalary(job.salary)}</p> : <p className="text-sm font-medium text-slate-500">{t("candidate.core.career.card.negotiableSalary")}</p>}{isCandidate && <button type="button" onClick={() => toggleSaveJob(job.id)} aria-label={savedJobIds.has(job.id) ? t("candidate.core.career.card.unsaveJob") : t("candidate.core.career.card.saveJob")} aria-pressed={savedJobIds.has(job.id)} className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${savedJobIds.has(job.id) ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "border-[var(--color-border-default)] text-slate-500 hover:border-[var(--color-primary)]/30 hover:text-[var(--color-primary)]"}`}>{savedJobIds.has(job.id) ? <BookmarkCheck className="size-3.5" aria-hidden="true" /> : <Bookmark className="size-3.5" aria-hidden="true" />}</button>}</div></div><div className="mt-4 flex flex-wrap gap-2">{jobLocation && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600"><MapPin className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />{jobLocation}</span>}{jobWorkMode && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)]"><Laptop className="size-3.5" aria-hidden="true" />{jobWorkMode}</span>}{job.employmentType && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600"><Briefcase className="size-3.5" aria-hidden="true" />{employmentTypeLabel(job.employmentType, t, locale)}</span>}{job.minYearsExperience != null && <span className="rounded-full bg-[var(--color-surface-alt)] px-3 py-1.5 text-xs text-slate-600">{t("candidate.core.career.jobsPage.yearsExperience", { years: job.minYearsExperience })}</span>}</div>{job.skills.length > 0 && <div className="mt-4 flex flex-wrap gap-1.5">{job.skills.slice(0, 5).map((skill) => <span key={skill} className="rounded-md border border-[var(--color-border-default)] px-2 py-1 text-[11px] font-medium text-slate-600">{skill}</span>)}{job.skills.length > 5 && <span className="px-2 py-1 text-[11px] text-slate-500">+{job.skills.length - 5}</span>}</div>}<div className="mt-5 flex flex-col gap-3 border-t border-[var(--color-border-default)] pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-500">{deadline && jobDeadlineLabel ? <>{t("candidate.core.career.jobsPage.deadlineWithDate", { date: jobDeadlineLabel })}{deadline.urgent ? t("candidate.core.career.jobsPage.deadlineUrgentDays", { days: deadline.daysRemaining }) : ""}</> : t("candidate.core.career.jobsPage.acceptingApplications")}</p><div className="flex gap-2"><Link to={`/jobs/${job.id}`} className="inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-semibold text-slate-600 hover:bg-[var(--color-surface-alt)]">{t("candidate.core.career.card.viewDetails")}</Link>{appliedJobIds.has(job.id) ? <Link to="/applications" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary)]"><CheckCircle2 className="size-4" aria-hidden="true" />{t("candidate.core.career.jobsPage.appliedBadge")}</Link> : <button type="button" onClick={() => startApply(job)} disabled={!job.acceptingApplications} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">{job.acceptingApplications ? (token ? t("candidate.core.career.detail.applyNow") : t("candidate.core.career.detail.loginToApply")) : t("candidate.core.career.jobsPage.closedBadge")}{job.acceptingApplications && <ArrowRight className="size-4" aria-hidden="true" />}</button>}</div></div></div></div></article>;
                 })}</div>}
               </div>
             </div>

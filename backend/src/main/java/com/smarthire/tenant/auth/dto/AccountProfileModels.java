@@ -1,11 +1,26 @@
 package com.smarthire.tenant.auth.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public final class AccountProfileModels {
     private AccountProfileModels() {
+    }
+
+    public record ProfileLinks(
+            @Size(max = 512, message = "Liên kết GitHub tối đa 512 ký tự")
+            String github,
+            @Size(max = 512, message = "Liên kết LinkedIn tối đa 512 ký tự")
+            String linkedin,
+            @Size(max = 512, message = "Liên kết Portfolio tối đa 512 ký tự")
+            String portfolio,
+            @Size(max = 512, message = "Liên kết Website tối đa 512 ký tự")
+            String website) {
+        public static ProfileLinks empty() {
+            return new ProfileLinks(null, null, null, null);
+        }
     }
 
     public record AccountProfileResponse(
@@ -17,7 +32,8 @@ public final class AccountProfileModels {
             String headline,
             String bio,
             String avatarUrl,
-            boolean hasPassword) {
+            boolean hasPassword,
+            ProfileLinks links) {
     }
 
     public record UpdateAccountProfileRequest(
@@ -30,6 +46,8 @@ public final class AccountProfileModels {
             @Size(max = 255, message = "Tiêu đề hồ sơ tối đa 255 ký tự")
             String headline,
             @Size(max = 2000, message = "Giới thiệu tối đa 2000 ký tự")
-            String bio) {
+            String bio,
+            @Valid
+            ProfileLinks links) {
     }
 }

@@ -40,6 +40,7 @@ import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
 import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
 import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
+import { SavedJobsPage } from "@/features/tenant/candidate/jobs/pages/SavedJobsPage";
 import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/components/CareerNavigationLayout";
 import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
 import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
@@ -179,6 +180,7 @@ export function AppRouter() {
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
         <Route element={<CareerNavigationLayout />}>
+          <Route path="/saved-jobs" element={<SavedJobsPage />} />
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />

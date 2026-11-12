@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Lưu việc làm & Thông báo việc làm mới 2026-11-12 | Tenant V60 (`V60__saved_jobs_and_job_alerts.sql`) tạo `saved_jobs` (entity `SavedJob`, 2 FK `ON DELETE CASCADE`, UNIQUE `(candidate_id, job_id)`, 2 index) và `job_alerts` (entity `JobAlert`, 1 FK `ON DELETE CASCADE`, 2 index), đồng thời bổ sung index `idx_rec_subject_target` trên `recommendations (subject_type, subject_id, target_type, score DESC)` |
 | Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
@@ -46,13 +47,13 @@
 | Phân tích GitHub khi sàng CV 2026-10-21 | Tenant V54 tạo `github_analyses` (entity `GithubAnalysis`, 2 FK CASCADE, UNIQUE `(cv_id, job_id)`) và `github_repo_caches` (entity `GithubRepoCache`, không FK, UNIQUE repo+commit+fingerprint+strategy). Không lưu source code. Điểm GitHub tách khỏi `match_scores` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V57 | 71 bảng (70 sau V54 + `company_location_departments`); không tính Flyway history |
-| Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V57 bổ sung `CompanyLocationDepartment` |
-| Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
-| Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 87 (35 master + 52 tenant); V9 redesign nằm ngoài pipeline |
+| Bảng tenant sau V60 | 73 bảng (71 sau V57/V59 + `saved_jobs`, `job_alerts`); không tính Flyway history |
+| Entity JPA tenant | 68 class `@Entity` theo checkout hiện tại; V60 bổ sung `SavedJob`, `JobAlert` |
+| Khoá ngoại tenant | 96 (93 trước V60 + `fk_saved_jobs_candidate`, `fk_saved_jobs_job`, `fk_job_alerts_candidate` đều `ON DELETE CASCADE`) |
+| Ràng buộc UNIQUE tenant | V60 thêm `uk_saved_jobs_candidate_job`. V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 88 (35 master + 53 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
+| Cập nhật lần cuối | Tenant `V60` (`saved_jobs`, `job_alerts`, `idx_rec_subject_target`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -269,6 +270,8 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 64 | `GithubAnalysis` | `github_analyses` | CV & AI screening | Có |
 | 65 | `GithubRepoCache` | `github_repo_caches` | CV & AI screening | Có |
 | 66 | `CompanyLocationDepartment` | `company_location_departments` | Job & Skill | Có |
+| 67 | `SavedJob` | `saved_jobs` | Job & Skill | Có |
+| 68 | `JobAlert` | `job_alerts` | Job & Skill | Có |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -520,6 +523,8 @@ flowchart LR
         skills
         job_skills
         recruitment_stages
+        saved_jobs
+        job_alerts
     end
     subgraph APP["Application pipeline · TRỤC XOAY"]
         applications
@@ -608,6 +613,9 @@ erDiagram
     applications ||--o{ candidate_rankings : "thứ hạng trong job"
     jobs ||--o{ candidate_rankings : "bảng xếp hạng của job"
     jobs ||--o| ranking_configs : "trọng số chấm điểm 1:1"
+    candidates ||--o{ saved_jobs : "đánh dấu lưu tin"
+    jobs ||--o{ saved_jobs : "được ứng viên lưu"
+    candidates ||--o{ job_alerts : "đăng ký thông báo việc mới"
 ```
 
 ### 4.5 Tenant — CV & AI screening
@@ -776,6 +784,8 @@ của màn assessment hiện tại.
 | `JobSkill` | Kỹ năng mà job yêu cầu | Bảng nối N-N, mang thêm `weight`, `required`, `min_level` để phục vụ chấm điểm khớp |
 | `RecruitmentStage` | Sáu vòng catalog cố định mỗi job (Applied→Hired); recruiter sắp xếp/ẩn vòng giữa | `stage_code`, `sort_order`, `active`, `is_terminal` |
 | `CompanyDirectoryEntry` | Danh mục phòng ban và địa điểm làm việc của tenant | `entry_type` phân biệt `DEPARTMENT`/`LOCATION`; tên không trùng trong cùng loại |
+| `SavedJob` | Việc làm ứng viên đã đánh dấu lưu (V60) | UNIQUE `(candidate_id, job_id)`; 2 FK `ON DELETE CASCADE` tới `candidates` và `jobs` |
+| `JobAlert` | Đăng ký nhận thông báo việc làm mới theo tiêu chí lọc (V60) | Hỗ trợ lọc `keyword`, `department`, `location`, `work_mode`, `employment_type` và kênh `web_enabled`/`email_enabled`; tự xoá khi xoá `candidates` |
 
 ### 5.4 Tenant — Application pipeline
 
@@ -1018,6 +1028,9 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 | `coding_problems` | `question_id` | `questions` | Có | 0..1:0..1 (UQ) | `fk_cp_question` (V53, RESTRICT) |
 | `answers` | `reviewed_by` | `users` | Có | N:1 | `fk_answer_reviewer` (V53, RESTRICT) |
+| `saved_jobs` | `candidate_id` | `candidates` | Không | N:1 | `fk_saved_jobs_candidate` (V60), DELETE CASCADE |
+| `saved_jobs` | `job_id` | `jobs` | Không | N:1 | `fk_saved_jobs_job` (V60), DELETE CASCADE |
+| `job_alerts` | `candidate_id` | `candidates` | Không | N:1 | `fk_job_alerts_candidate` (V60), DELETE CASCADE |
 
 V21 bỏ các FK cùng 19 bảng archive và xóa hai cột `ranking_sources.legacy_attempt_id` /
 `legacy_interview_id`. Không tạo FK thay thế dựa trên ID cũ; nguồn ranking hiện hành vẫn dùng
@@ -1116,6 +1129,7 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `company_location_departments` | `uk_company_loc_dept` | `(location_name, department_name)` | Một phòng ban chỉ gán 1 lần tại một địa điểm (V55) |
 | `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi nhân sự một cài đặt cho mỗi loại thông báo |
 | `notification_preferences` | `uk_notification_preference_candidate_category` | `(candidate_id, category)` | Mỗi ứng viên một cài đặt cho mỗi loại thông báo (V51) |
+| `saved_jobs` | `uk_saved_jobs_candidate_job` | `(candidate_id, job_id)` | Mỗi ứng viên chỉ lưu một tin tuyển dụng tối đa một lần (V60) |
 
 ### 8.3 Máy trạng thái
 
@@ -1264,6 +1278,11 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Tenant | `github_repo_caches` | `idx_github_repo_cache_lookup` | `(repo_full_name, skill_fingerprint, strategy_version)` | Tìm cache cũ khi commit đổi (V54) |
 | Tenant | `company_location_departments` | `idx_cld_location` | `(location_name)` | Lọc phòng ban theo địa điểm (V55) |
 | Tenant | `company_location_departments` | `idx_cld_department` | `(department_name)` | Lọc địa điểm theo phòng ban (V55) |
+| Tenant | `saved_jobs` | `idx_saved_jobs_candidate` | `(candidate_id, created_at DESC)` | Lấy danh sách việc làm đã lưu theo thứ tự mới nhất (V60) |
+| Tenant | `saved_jobs` | `idx_saved_jobs_job` | `(job_id)` | Tra cứu bookmark theo job (V60) |
+| Tenant | `job_alerts` | `idx_job_alerts_candidate` | `(candidate_id)` | Lấy cấu hình thông báo việc làm của ứng viên (V60) |
+| Tenant | `job_alerts` | `idx_job_alerts_active` | `(active)` | Quét các đăng ký thông báo đang bật khi publish job mới (V60) |
+| Tenant | `recommendations` | `idx_rec_subject_target` | `(subject_type, subject_id, target_type, score DESC)` | Truy vấn snapshot gợi ý xếp hạng cao nhất theo đối tượng (V60) |
 | Tenant | `candidates` | `idx_candidates_status` | `(status)` | Lọc ứng viên theo trạng thái tài khoản (V51) |
 | Tenant | `notifications` | `idx_notif_candidate` | `(candidate_id, created_at)` | Danh sách thông báo in-app của ứng viên (V51) |
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
@@ -1442,6 +1461,8 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V56 | `V56__coding_constraints_and_explanations.sql` | `coding_problems.constraints_text` TEXT nullable; `test_cases.explanation` TEXT nullable. Không thêm bảng/FK/UNIQUE/index |
 | V57 | `V57__company_location_departments.sql` | `company_location_departments` + entity `CompanyLocationDepartment` (UNIQUE `(location_name, department_name)`, 2 index). Backfill từ jobs. Đánh lại từ V55 vì trùng version |
 | V58 | `V58__test_origin.sql` | `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED`. Backfill `GENERATED` theo description đề bốc từ ngân hàng. Không thêm bảng/FK/UNIQUE |
+| V59 | `V59__test_auto_grading.sql` | Thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (`JobTest.autoGradingEnabled`). Không thêm bảng/FK/UNIQUE |
+| V60 | `V60__saved_jobs_and_job_alerts.sql` | Tạo `saved_jobs` (`SavedJob`, 2 FK CASCADE, UNIQUE `(candidate_id, job_id)`, 2 index), `job_alerts` (`JobAlert`, 1 FK CASCADE, 2 index), và index `idx_rec_subject_target` trên `recommendations` |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

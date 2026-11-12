@@ -124,6 +124,13 @@ public class JobService {
         this.closures = closures;
     }
 
+    private org.springframework.beans.factory.ObjectProvider<JobAlertService> jobAlerts;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setJobAlerts(org.springframework.beans.factory.ObjectProvider<JobAlertService> jobAlerts) {
+        this.jobAlerts = jobAlerts;
+    }
+
     public Map<String, String> health() {
         return Map.of("module", "job", "status", "ready");
     }
@@ -344,7 +351,8 @@ public class JobService {
                 || job.getDescription() == null || job.getDescription().isBlank()) {
             throw new BusinessException("Title and description are required to publish", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_NOT_READY");
         }
-        if (jobSkills.findByJob_IdOrderByIdAsc(id).isEmpty()) {
+        List<JobSkill> requiredSkills = jobSkills.findByJob_IdOrderByIdAsc(id);
+        if (requiredSkills.isEmpty()) {
             throw new BusinessException("Add at least one skill before publishing", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_SKILLS_REQUIRED");
         }
         if (stages.findByJob_IdOrderBySortOrderAsc(id).isEmpty()) {
@@ -352,12 +360,19 @@ public class JobService {
             jobAccess.requireOwner(id);
         }
         ensureCatalogStages(job);
+        boolean firstPublish = job.getPublishedAt() == null;
         job.setStatus(JobStatus.PUBLISHED);
-        job.setPublishedAt(job.getPublishedAt() == null ? Instant.now() : job.getPublishedAt());
+        job.setPublishedAt(firstPublish ? Instant.now() : job.getPublishedAt());
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
         scheduleJobExpiry(job);
+        if (firstPublish && jobAlerts != null) {
+            JobAlertService alertService = jobAlerts.getIfAvailable();
+            if (alertService != null) {
+                alertService.notifyMatchingSubscribers(job, requiredSkills);
+            }
+        }
         return get(id);
     }
 
