@@ -1,5 +1,6 @@
 package com.smarthire.tenant.aiInterview.mapper;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.smarthire.domain.tenant.entity.AiAnswer;
 import com.smarthire.domain.tenant.entity.AiFeedback;
 import com.smarthire.domain.tenant.entity.AiInterview;
@@ -57,7 +58,30 @@ public class AiInterviewMapper {
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableUntil(),
                 roadmap(interview), InterviewPolicies.isV2(interview), InterviewPolicies.voiceEnabled(interview),
                 InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio(), InterviewPolicies.isConversation(interview),
-                maxQuestionCount(interview));
+                maxQuestionCount(interview),
+                isQuestionsApproved(interview),
+                getQuestionsApprovedAt(interview));
+    }
+
+    public static boolean isQuestionsApproved(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return false;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            return node.path("questionsApproved").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static Instant getQuestionsApprovedAt(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return null;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            String at = node.path("questionsApprovedAt").asText(null);
+            return at != null && !at.isBlank() ? Instant.parse(at) : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static int maxQuestionCount(AiInterview interview) {
@@ -117,6 +141,11 @@ public class AiInterviewMapper {
 
     public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback,
             boolean revealCorrectOption, boolean revealExplanation) {
+        return toQuestion(question, answer, feedback, revealCorrectOption, revealExplanation, revealExplanation);
+    }
+
+    public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback,
+            boolean revealCorrectOption, boolean revealExplanation, boolean revealReference) {
         List<String> options = texts(question.getOptionsJson() == null ? null : InterviewPolicies.tree(question.getOptionsJson()));
         String stageTitle = null;
         List<String> competencies = List.of();
@@ -138,12 +167,30 @@ public class AiInterviewMapper {
             language = config.getOrDefault("language", "Vietnamese").toString();
             if ("COMMUNICATION".equals(process.key()) && !InterviewProcessSettings.bool(config, "generateTranscript", false)) responseMode = "text";
         }
+        String referenceAnswer = null;
+        List<AiQuestionResponse.KeyPointDto> keyPoints = null;
         if (question.getRubricJson() != null) {
             if (rubric != null) {
                 if (rubric.path("stageTitle").isTextual()) stageTitle = rubric.path("stageTitle").asText();
                 else if (rubric.path("processKey").isTextual()) stageTitle = processTitle(rubric.path("processKey").asText());
                 competencies = texts(rubric.path("competencies"));
                 skills = texts(rubric.path("skills"));
+                if (revealReference) {
+                    if (rubric.path("referenceAnswer").isTextual()) {
+                        referenceAnswer = rubric.path("referenceAnswer").asText();
+                    }
+                    if (rubric.path("keyPoints").isArray()) {
+                        var kps = new ArrayList<AiQuestionResponse.KeyPointDto>();
+                        for (JsonNode kp : rubric.path("keyPoints")) {
+                            String pt = kp.path("point").asText(null);
+                            String tgt = kp.path("target").asText(null);
+                            if (pt != null && !pt.isBlank()) {
+                                kps.add(new AiQuestionResponse.KeyPointDto(pt, tgt));
+                            }
+                        }
+                        if (!kps.isEmpty()) keyPoints = kps;
+                    }
+                }
             }
         }
         return new AiQuestionResponse(
@@ -160,7 +207,8 @@ public class AiInterviewMapper {
                 skills.isEmpty() ? null : skills,
                 revealCorrectOption ? question.getCorrectOption() : null,
                 revealExplanation ? question.getExplanation() : null,
-                correctOptions, multiple, explanationRequired, difficulty, hint, question.getQuestionRole(), responseMode, language);
+                correctOptions, multiple, explanationRequired, difficulty, hint, question.getQuestionRole(), responseMode, language,
+                referenceAnswer, keyPoints);
     }
 
     private static String processTitle(String key) {
@@ -232,10 +280,16 @@ public class AiInterviewMapper {
     public List<AiQuestionResponse> toQuestions(
             List<AiQuestion> questions, Map<Long, AiAnswer> answersByQuestionId,
             Map<Long, AiFeedback> feedbackByAnswerId, boolean revealCorrectOption, boolean revealExplanation) {
+        return toQuestions(questions, answersByQuestionId, feedbackByAnswerId, revealCorrectOption, revealExplanation, revealExplanation);
+    }
+
+    public List<AiQuestionResponse> toQuestions(
+            List<AiQuestion> questions, Map<Long, AiAnswer> answersByQuestionId,
+            Map<Long, AiFeedback> feedbackByAnswerId, boolean revealCorrectOption, boolean revealExplanation, boolean revealReference) {
         return questions.stream().map(q -> {
             AiAnswer answer = answersByQuestionId.get(q.getId());
             AiFeedback feedback = answer == null ? null : feedbackByAnswerId.get(answer.getId());
-            return toQuestion(q, answer, feedback, revealCorrectOption, revealExplanation);
+            return toQuestion(q, answer, feedback, revealCorrectOption, revealExplanation, revealReference);
         }).toList();
     }
 }

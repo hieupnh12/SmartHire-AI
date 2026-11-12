@@ -80,9 +80,14 @@ export function conversationQuestionCount(config?: Record<string, unknown> | nul
 
 export function visibleInterviewDetails(interview: AiInterview): AiInterview {
   const roadmap = interview.roadmap?.filter(step => step.title.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
-  const questions = interview.questions.filter(question => question.stageTitle
-    ? question.stageTitle.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS
-    : question.questionType.toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
+  const questions = interview.questions.filter(question => {
+    const stage = question.stageTitle?.trim().toUpperCase();
+    const type = question.questionType?.trim().toUpperCase();
+    if (stage) return stage === AVAILABLE_INTERVIEW_PROCESS;
+    if (type === AVAILABLE_INTERVIEW_PROCESS) return true;
+    if (interview.conversational) return true;
+    return false;
+  });
   return { ...interview, roadmap, questions,
     questionCount: roadmap?.length ? roadmap.reduce((total, step) => total + step.questionCount, 0)
       : questions.filter(question => question.questionRole !== "FOLLOW_UP").length };

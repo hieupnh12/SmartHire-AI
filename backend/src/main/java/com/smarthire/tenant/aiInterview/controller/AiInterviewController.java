@@ -140,6 +140,27 @@ public class AiInterviewController {
         return ApiResponse.ok(aiInterviewService.generate(id));
     }
 
+    @PostMapping("/{id}/questions/approve")
+    @Operation(summary = "Approve questions and index key points into Vector DB / RAG (staff)")
+    public ApiResponse<AiInterviewResponse> approveQuestions(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.approveQuestions(id));
+    }
+
+    @PostMapping("/{id}/questions/unapprove")
+    @Operation(summary = "Reopen questions for editing/regeneration (staff)")
+    public ApiResponse<AiInterviewResponse> unapproveQuestions(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.unapproveQuestions(id));
+    }
+
+    @PostMapping("/{id}/questions/{questionId}/regenerate")
+    @Operation(summary = "Regenerate a single question using AI (staff)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
+    public ApiResponse<AiInterviewResponse> regenerateQuestion(
+            @PathVariable long id,
+            @PathVariable long questionId) {
+        return ApiResponse.ok(aiInterviewService.regenerateQuestion(id, questionId));
+    }
+
     @PostMapping("/{id}/score")
     @Operation(summary = "Retry a failed AI evaluation without creating another attempt (staff)")
     public ApiResponse<AiInterviewResponse> score(@PathVariable long id) {

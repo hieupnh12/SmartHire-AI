@@ -9,7 +9,7 @@ name: smarthire-prod
 
 services:
   postgres:
-    image: postgres:17.11
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: smarthire_postgres

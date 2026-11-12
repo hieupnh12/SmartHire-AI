@@ -1136,6 +1136,24 @@ một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, n�
 
 **Ràng buộc:** `fk_ai_log_interview` (ON DELETE CASCADE), index `idx_ai_interview_logs_interview (ai_interview_id, id)`
 
+### H.8 `ai_interview_rag_audits` — Lưu vết đánh giá ngữ nghĩa RAG & Vector DB
+
+Entity `AiInterviewRagAudit` (V60).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Khóa chính |
+| `ai_interview_id` | BIGINT | FK → `ai_interviews.id`, IDX | Không | — | Phiên phỏng vấn (ON DELETE CASCADE) |
+| `ai_question_id` | BIGINT | FK → `ai_questions.id` | Có | NULL | Câu hỏi liên quan (ON DELETE CASCADE) |
+| `candidate_answer` | TEXT | | Có | NULL | Nội dung câu trả lời của ứng viên |
+| `similarity_score` | DECIMAL(5, 4) | | Có | NULL | Độ tương đồng Cosine đo được (0.0000 - 1.0000) |
+| `threshold_used` | DECIMAL(5, 4) | | Không | 0.6500 | Ngưỡng tương đồng áp dụng (mặc định 0.65) |
+| `matched_keypoints_json` | JSON | | Có | NULL | Danh sách các ý chính nói trúng |
+| `missing_keypoints_json` | JSON | | Có | NULL | Danh sách các ý chính còn thiếu |
+| `created_at` | TIMESTAMP | | Không | now | Thời điểm ghi log |
+
+**Ràng buộc:** `fk_rag_audit_interview` (ON DELETE CASCADE), `fk_rag_audit_question` (ON DELETE CASCADE), index `idx_rag_audit_interview (ai_interview_id)`
+
 ---
 
 ## I. Notification

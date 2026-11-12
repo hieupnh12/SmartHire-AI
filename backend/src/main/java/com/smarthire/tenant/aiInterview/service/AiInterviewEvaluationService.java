@@ -68,6 +68,12 @@ public class AiInterviewEvaluationService {
     private final NotificationPreferenceService preferences;
     private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
     private final RankingDataRepository rankingData;
+    private InterviewRagService ragService;
+
+    @Autowired(required = false)
+    public void setRagService(InterviewRagService ragService) {
+        this.ragService = ragService;
+    }
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
@@ -151,9 +157,7 @@ public class AiInterviewEvaluationService {
 
     private void generate(AiInterview interview) {
         if (InterviewPolicies.isConversation(interview)) {
-            if (interview.getContextSnapshotJson() == null) interview.setContextSnapshotJson(context(interview.getApplication()).toString());
-            interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
-            activity.record(interview, "CONVERSATION_READY", "Conversation context captured; greeting generated on start");
+            generateConversation(interview);
             return;
         }
         if (InterviewPolicies.isV2(interview)) {
@@ -205,6 +209,125 @@ public class AiInterviewEvaluationService {
                         + " đã sẵn sàng. Bạn có thể bắt đầu AI Interview.", false);
     }
 
+    private void generateConversation(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) {
+            interview.setContextSnapshotJson(context(interview.getApplication()).toString());
+        }
+        var existing = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+        if (!existing.isEmpty()) {
+            interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+            activity.record(interview, "CONVERSATION_READY", "Existing questions ready; greeting generated on start");
+            return;
+        }
+
+        int target = Math.clamp(interview.getApplication().getJob().getAiInterviewQuestionCount(), MIN_QUESTIONS, MAX_QUESTIONS);
+        var data = context(interview.getApplication());
+        var request = data.deepCopy();
+        request.put("questionCount", target);
+
+        String prompt = "Generate exactly questionCount Vietnamese job interview questions for this role conversation. "
+                + "For each question, provide questionText, questionType (TECHNICAL, SITUATIONAL, or BEHAVIORAL), "
+                + "referenceAnswer (a concise correct model answer in Vietnamese), and keyPoints (3 to 5 items with point and target). "
+                + "Return JSON: {\"questions\":[{\"questionText\":\"...\",\"questionType\":\"TECHNICAL\",\"referenceAnswer\":\"...\",\"keyPoints\":[{\"point\":\"...\",\"target\":\"TECHNICAL_KNOWLEDGE\"}]}]}.";
+
+        try {
+            JsonNode output = ai.generate(prompt, request).path("questions");
+            List<AiQuestion> generated = new ArrayList<>();
+            if (output.isArray() && !output.isEmpty()) {
+                for (JsonNode row : output) {
+                    String text = row.path("questionText").asText("").trim();
+                    if (text.isEmpty()) continue;
+                    String type = row.path("questionType").asText("TECHNICAL").trim().toUpperCase(Locale.ROOT);
+                    ObjectNode baseRubric = mapper.createObjectNode()
+                            .put("stageTitle", "Communication")
+                            .put("processKey", "COMMUNICATION");
+                    String rubric = InterviewRubric.withReference(baseRubric.toString(), row);
+                    var question = AiQuestion.builder()
+                            .aiInterview(interview)
+                            .questionText(text)
+                            .questionType(QUESTION_TYPES.contains(type) ? type : "TECHNICAL")
+                            .questionOrder(generated.size())
+                            .rubricJson(rubric)
+                            .build();
+                    generated.add(question);
+                }
+            }
+            if (!generated.isEmpty()) {
+                questions.saveAll(generated);
+                if (ragService != null) {
+                    try {
+                        ragService.indexQuestionsKeyPoints(generated);
+                    } catch (Exception ex) {
+                        log.warn("Could not pre-index conversation key points: {}", ex.getMessage());
+                    }
+                }
+                interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+                activity.record(interview, "CONVERSATION_QUESTIONS_READY", generated.size() + " questions with keypoints generated for conversation");
+                return;
+            }
+        } catch (Exception ex) {
+            log.warn("Failed generating conversation questions with keypoints: {}", ex.getMessage());
+        }
+
+        interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+        activity.record(interview, "CONVERSATION_READY", "Conversation context captured; greeting generated on start");
+    }
+
+    public void regenerateSingleQuestion(AiInterview interview, AiQuestion targetQuestion) {
+        var allQuestions = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+        var data = context(interview.getApplication());
+        var request = data.deepCopy();
+
+        var otherQuestionsArray = request.putArray("existingQuestions");
+        for (var q : allQuestions) {
+            if (!q.getId().equals(targetQuestion.getId())) {
+                var item = otherQuestionsArray.addObject();
+                item.put("questionOrder", q.getQuestionOrder());
+                item.put("questionText", q.getQuestionText());
+                item.put("questionType", q.getQuestionType());
+            }
+        }
+        request.put("replacedQuestionOrder", targetQuestion.getQuestionOrder());
+        request.put("replacedQuestionText", targetQuestion.getQuestionText());
+        request.put("replacedQuestionType", targetQuestion.getQuestionType());
+
+        String prompt = "Generate exactly 1 new replacement Vietnamese job interview question for position #" + (targetQuestion.getQuestionOrder() + 1) + ". "
+                + "Context: We are replacing question: '" + targetQuestion.getQuestionText() + "'. "
+                + "Candidate evidence/CV and other existing questions in this interview are provided in the payload. "
+                + "Ensure logical continuity with previous questions (e.g. if previous questions asked about a project or technology, follow up with practical usage, challenges, architecture or reasoning), "
+                + "while avoiding repeating or overlapping with any existing questions. "
+                + "Provide questionText, questionType (TECHNICAL, SITUATIONAL, or BEHAVIORAL), "
+                + "referenceAnswer (a concise correct model answer in Vietnamese), and keyPoints (3 to 5 items with point and target: TECHNICAL_KNOWLEDGE, PROBLEM_SOLVING, REASONING, or COMMUNICATION). "
+                + "Return JSON: {\"questionText\":\"...\",\"questionType\":\"TECHNICAL\",\"referenceAnswer\":\"...\",\"keyPoints\":[{\"point\":\"...\",\"target\":\"TECHNICAL_KNOWLEDGE\"}]}.";
+
+        JsonNode output = ai.generate(prompt, request);
+        JsonNode qNode = output.has("questionText") ? output : (output.path("questions").isArray() && !output.path("questions").isEmpty() ? output.path("questions").get(0) : null);
+        if (qNode == null || !qNode.has("questionText")) {
+            throw new IllegalStateException("AI did not return a valid question");
+        }
+
+        String text = qNode.path("questionText").asText("").trim();
+        String type = qNode.path("questionType").asText("TECHNICAL").trim().toUpperCase(Locale.ROOT);
+        ObjectNode baseRubric = mapper.createObjectNode()
+                .put("stageTitle", "Communication")
+                .put("processKey", "COMMUNICATION");
+        String rubric = InterviewRubric.withReference(baseRubric.toString(), qNode);
+
+        targetQuestion.setQuestionText(text);
+        targetQuestion.setQuestionType(QUESTION_TYPES.contains(type) ? type : "TECHNICAL");
+        targetQuestion.setRubricJson(rubric);
+        questions.save(targetQuestion);
+
+        if (ragService != null) {
+            try {
+                ragService.indexQuestionsKeyPoints(List.of(targetQuestion));
+            } catch (Exception ex) {
+                log.warn("Could not pre-index regenerated question key points: {}", ex.getMessage());
+            }
+        }
+        activity.record(interview, "QUESTION_REGENERATED", "Question #" + (targetQuestion.getQuestionOrder() + 1) + " regenerated by AI");
+    }
+
     private void evaluate(AiInterview interview) {
         if (InterviewPolicies.isConversation(interview)) { finish(interview, conversation.evaluate(interview)); return; }
         if (InterviewPolicies.isV2(interview)) { evaluateV2(interview); return; }
@@ -228,8 +351,38 @@ public class AiInterviewEvaluationService {
                 .divide(BigDecimal.valueOf(validated.size()), 2, RoundingMode.HALF_UP);
         // Validate the whole provider result before any evaluation or outcome is persisted.
         feedbacks.saveAll(validated);
-        activity.record(interview, "FEEDBACK_SAVED", validated.size() + " AI feedbacks saved; interview score " + total + "/100");
-        finish(interview, total);
+
+        BigDecimal llmScore = total;
+        BigDecimal finalScore = llmScore;
+        var report = mapper.createObjectNode();
+        report.put("overallScore", llmScore);
+        report.put("llmScore", llmScore);
+
+        if (ragService != null) {
+            try {
+                var ragSummary = ragService.evaluateAnswers(interview, saved, InterviewRagService.DEFAULT_SIMILARITY_THRESHOLD);
+                if (ragSummary.totalKeyPoints() > 0) {
+                    BigDecimal ragScore = BigDecimal.valueOf(ragSummary.overallSemanticMatchPercentage());
+                    // Hybrid formula: 40% Vector/RAG Semantic Match + 60% LLM Evaluation Score
+                    finalScore = BigDecimal.valueOf(0.40).multiply(ragScore)
+                            .add(BigDecimal.valueOf(0.60).multiply(llmScore))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    report.put("overallScore", finalScore);
+                    report.put("ragScore", ragScore);
+                    var ragNode = report.putObject("ragSemanticEvaluation");
+                    ragNode.put("semanticMatchPercentage", ragSummary.overallSemanticMatchPercentage());
+                    ragNode.put("threshold", ragSummary.thresholdUsed());
+                    ragNode.put("totalKeyPoints", ragSummary.totalKeyPoints());
+                    ragNode.put("matchedKeyPoints", ragSummary.totalMatchedKeyPoints());
+                    ragNode.set("details", mapper.valueToTree(ragSummary.results()));
+                }
+            } catch (Exception ex) {
+                log.warn("RAG evaluation in standard interview skipped: {}", ex.getMessage());
+            }
+        }
+        interview.setReportJson(report.toString());
+        activity.record(interview, "FEEDBACK_SAVED", validated.size() + " AI feedbacks saved; final hybrid score " + finalScore + "/100 (LLM: " + llmScore + ")");
+        finish(interview, finalScore);
     }
 
     private void evaluateV2(AiInterview interview) {
@@ -300,8 +453,32 @@ public class AiInterviewEvaluationService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(evaluated.size() + unaskedMain), 2, RoundingMode.HALF_UP));
         }
         report.put("overallScore", score);
+        report.put("llmScore", score);
+        BigDecimal finalScore = score;
+        if (ragService != null) {
+            try {
+                var ragSummary = ragService.evaluateAnswers(interview, saved, InterviewRagService.DEFAULT_SIMILARITY_THRESHOLD);
+                if (ragSummary.totalKeyPoints() > 0) {
+                    BigDecimal ragScore = BigDecimal.valueOf(ragSummary.overallSemanticMatchPercentage());
+                    // Hybrid: 40% Vector/RAG Semantic Match + 60% LLM Evaluation Score
+                    finalScore = BigDecimal.valueOf(0.40).multiply(ragScore)
+                            .add(BigDecimal.valueOf(0.60).multiply(score))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    report.put("overallScore", finalScore);
+                    report.put("ragScore", ragScore);
+                    var ragNode = report.putObject("ragSemanticEvaluation");
+                    ragNode.put("semanticMatchPercentage", ragSummary.overallSemanticMatchPercentage());
+                    ragNode.put("threshold", ragSummary.thresholdUsed());
+                    ragNode.put("totalKeyPoints", ragSummary.totalKeyPoints());
+                    ragNode.put("matchedKeyPoints", ragSummary.totalMatchedKeyPoints());
+                    ragNode.set("details", mapper.valueToTree(ragSummary.results()));
+                }
+            } catch (Exception ex) {
+                log.warn("RAG evaluation in V2 interview skipped: {}", ex.getMessage());
+            }
+        }
         interview.setReportJson(report.toString());
-        finish(interview, score);
+        finish(interview, finalScore);
     }
 
 
@@ -403,8 +580,34 @@ public class AiInterviewEvaluationService {
         }
         var report = InterviewRubric.report(InterviewPolicies.config(interview).policy(), validated);
         feedbacks.saveAll(validated);
+        BigDecimal llmScore = report.path("overallScore").decimalValue();
+        BigDecimal finalScore = llmScore;
+        ((ObjectNode) report).put("llmScore", llmScore);
+
+        if (ragService != null) {
+            try {
+                var ragSummary = ragService.evaluateAnswers(interview, open, InterviewRagService.DEFAULT_SIMILARITY_THRESHOLD);
+                if (ragSummary.totalKeyPoints() > 0) {
+                    BigDecimal ragScore = BigDecimal.valueOf(ragSummary.overallSemanticMatchPercentage());
+                    // Hybrid formula: 40% Vector/RAG Semantic Match + 60% LLM Evaluation Score
+                    finalScore = BigDecimal.valueOf(0.40).multiply(ragScore)
+                            .add(BigDecimal.valueOf(0.60).multiply(llmScore))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    ((ObjectNode) report).put("overallScore", finalScore);
+                    ((ObjectNode) report).put("ragScore", ragScore);
+                    var ragNode = ((ObjectNode) report).putObject("ragSemanticEvaluation");
+                    ragNode.put("semanticMatchPercentage", ragSummary.overallSemanticMatchPercentage());
+                    ragNode.put("threshold", ragSummary.thresholdUsed());
+                    ragNode.put("totalKeyPoints", ragSummary.totalKeyPoints());
+                    ragNode.put("matchedKeyPoints", ragSummary.totalMatchedKeyPoints());
+                    ragNode.set("details", mapper.valueToTree(ragSummary.results()));
+                }
+            } catch (Exception ex) {
+                log.warn("RAG evaluation in planned interview skipped: {}", ex.getMessage());
+            }
+        }
         interview.setReportJson(report.toString());
-        finish(interview, report.path("overallScore").decimalValue());
+        finish(interview, finalScore);
     }
 
     /** Answer keys are written without seeing candidate answers and reused on every later scoring retry. */

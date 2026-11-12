@@ -24,6 +24,11 @@ export type AiAnswer = {
   speechMetrics?: SpeechMetrics | null;
 };
 
+export type KeyPoint = {
+  point: string;
+  target?: string | null;
+};
+
 export type AiQuestion = {
   id: number;
   aiInterviewId: number;
@@ -46,6 +51,8 @@ export type AiQuestion = {
   questionRole?: "MAIN" | "FOLLOW_UP";
   responseMode?: string;
   language?: string;
+  referenceAnswer?: string | null;
+  keyPoints?: KeyPoint[] | null;
 };
 
 export type AiInterview = {
@@ -78,6 +85,8 @@ export type AiInterview = {
   status: AiInterviewStatus;
   createdAt: string;
   questions: AiQuestion[];
+  questionsApproved?: boolean;
+  questionsApprovedAt?: string | null;
 };
 
 export type RoadmapStep = { title: string; kind: "OPEN" | "MCQ"; questionCount: number };
@@ -123,6 +132,31 @@ export type AiInterviewConfig = {
   policy: InterviewPolicy;
 };
 
+export type KeyPointMatch = {
+  index: number;
+  point: string;
+  target: string;
+  similarity: number;
+  matched: boolean;
+};
+
+export type QuestionRagDetail = {
+  questionId: number;
+  questionText: string;
+  matchPercentage: number;
+  matchedKeyPoints: string[];
+  missingKeyPoints: string[];
+  details: KeyPointMatch[];
+};
+
+export type RagSemanticEvaluation = {
+  semanticMatchPercentage: number;
+  threshold: number;
+  totalKeyPoints: number;
+  matchedKeyPoints: number;
+  details?: QuestionRagDetail[];
+};
+
 export type AiInterviewReport = {
   evaluationMode?: "POST_SESSION";
   summary?: string;
@@ -130,6 +164,9 @@ export type AiInterviewReport = {
   weaknesses?: string;
   criteriaEvidence?: Record<string, { messageId: number; quote: string }[]>;
   overallScore: number;
+  llmScore?: number;
+  ragScore?: number;
+  ragSemanticEvaluation?: RagSemanticEvaluation;
   communicationCriteria?: Record<string, number>;
   criterionWeights?: Record<string, number>;
   weights?: Partial<Record<CompetencyKey, number>>;

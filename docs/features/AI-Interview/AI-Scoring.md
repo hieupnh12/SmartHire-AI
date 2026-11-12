@@ -1,5 +1,26 @@
 # AI Interview Scoring
 
+## Đánh giá & Chấm điểm Phỏng vấn AI với RAG & Vector DB (2026-11-12)
+
+Hệ thống nâng cấp cơ chế đánh giá câu trả lời phỏng vấn ứng viên bằng kỹ thuật **Advanced RAG và Vector DB**:
+1. **Hạ ngưỡng tương đồng (Threshold = 0.65):**
+   - Không áp dụng ngưỡng tuyệt đối (1.0 hay 100%) vì ứng viên diễn đạt bằng vốn từ tự nhiên đa dạng.
+   - Ngưỡng cosine similarity được chuẩn hóa ở mức **0.65** (65% semantic match) để hệ thống nhận diện đúng ý nghĩa trọng tâm của câu trả lời so với từng Key Point mẫu.
+2. **Lưu vết và chấm điểm dữ liệu (Audit & Traceability):**
+   - Toàn bộ dữ liệu đầu vào (câu hỏi/JD/Key Points mẫu có vector embedding) và đầu ra (câu trả lời của ứng viên) đều được đối soát và lưu vết vào bảng `ai_interview_rag_audits`.
+   - Bảng lưu chi tiết `similarity_score`, `threshold_used` (0.65), `matched_keypoints_json` và `missing_keypoints_json` để làm cơ sở giải trình và kiểm định chất lượng chấm.
+3. **Cơ chế Chấm điểm Hybrid (Hybrid Scoring Engine):**
+   - Kết hợp giữa độ chuẩn xác ngữ nghĩa của Vector DB và chiều sâu đánh giá của LLM:
+     $$\text{OverallScore} = 0.40 \times \text{ragSemanticMatch} + 0.60 \times \text{llmScore}$$
+   - Trong đó:
+     - `ragSemanticMatch` (40%): Tỷ lệ phần trăm các Key Points mẫu mà câu trả lời ứng viên vượt qua ngưỡng cosine similarity 0.65.
+     - `llmScore` (60%): Điểm đánh giá đa chiều (Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp) từ LLM dựa trên rubric và ngữ cảnh công việc.
+   - Khi không có Key Points (hoặc câu trắc nghiệm đơn thuần), hệ thống tự động fallback 100% sang điểm rubric thông thường.
+4. **Quy trình Duyệt đề & Nạp RAG của Recruiter:**
+   - Khi phiên được khởi tạo, AI sinh sẵn câu hỏi kèm đáp án mẫu và các Key Points tiêu chuẩn.
+   - Nhà tuyển dụng (Recruiter) có toàn quyền xem lại, điều chỉnh nội dung câu hỏi/Key Points.
+   - Sau khi kiểm tra chuẩn xác, Recruiter bấm **"Duyệt đề & Nạp RAG"** (`POST /api/v1/ai-interviews/{id}/questions/approve`). Hệ thống sẽ tự động gọi Embedding Model (`models/gemini-embedding-001`, vector 768 chiều) để mã hóa toàn bộ Key Points và chuyển trạng thái phiên sang `QUESTIONS_READY` cho ứng viên bắt đầu.
+
 ## Trọng số tiêu chí hội thoại theo Job (2026-10-15)
 
 Recruiter thiết lập trong **Cấu hình chung** bốn trọng số: Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp (0–100%, tổng 100%) và trọng tâm tối đa 2.000 ký tự. Luồng hỏi/chấm dùng cùng snapshot thiết lập và Job Skills. Điểm tổng Conversation = tổng `(điểm tiêu chí × trọng số) / 100`; mặc định 25% mỗi tiêu chí giữ nguyên kết quả cho snapshot cũ. Backend tính tổng, model chỉ trả điểm và bằng chứng. `report_json` bổ sung `criterionWeights`; giao diện báo cáo hiển thị trọng số từng tiêu chí.

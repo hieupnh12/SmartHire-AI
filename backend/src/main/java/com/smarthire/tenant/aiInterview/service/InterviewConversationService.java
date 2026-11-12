@@ -69,6 +69,18 @@ public class InterviewConversationService {
     private final InterviewConversationClient ai;
     private final ObjectMapper mapper;
     private final RedisService redis;
+    private AiQuestionRepository questions;
+    private InterviewRagService ragService;
+
+    @Autowired(required = false)
+    public void setQuestions(AiQuestionRepository questions) {
+        this.questions = questions;
+    }
+
+    @Autowired(required = false)
+    public void setRagService(InterviewRagService ragService) {
+        this.ragService = ragService;
+    }
 
     @Autowired
     public InterviewConversationService(AiInterviewRepository interviews, InterviewSessionRepository sessions,
@@ -202,7 +214,35 @@ public class InterviewConversationService {
             total = total.add(score.multiply(BigDecimal.valueOf(criterionWeights.get(key))));
         }
         BigDecimal score = total.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        report.put("overallScore", score); report.putObject("competencies").put("COMMUNICATION", score);
+        BigDecimal llmScore = score;
+        BigDecimal finalScore = llmScore;
+        report.put("llmScore", llmScore);
+
+        if (ragService != null && questions != null) {
+            try {
+                var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+                if (!paper.isEmpty()) {
+                    var ragSummary = ragService.evaluateInterviewConversation(interview, history, paper, InterviewRagService.DEFAULT_SIMILARITY_THRESHOLD);
+                    if (ragSummary.totalKeyPoints() > 0) {
+                        BigDecimal ragScore = BigDecimal.valueOf(ragSummary.overallSemanticMatchPercentage());
+                        // Hybrid: 40% Vector/RAG Semantic Match + 60% LLM Evaluation Score
+                        finalScore = BigDecimal.valueOf(0.40).multiply(ragScore)
+                                .add(BigDecimal.valueOf(0.60).multiply(llmScore))
+                                .setScale(2, RoundingMode.HALF_UP);
+                        report.put("ragScore", ragScore);
+                        var ragNode = report.putObject("ragSemanticEvaluation");
+                        ragNode.put("semanticMatchPercentage", ragSummary.overallSemanticMatchPercentage());
+                        ragNode.put("threshold", ragSummary.thresholdUsed());
+                        ragNode.put("totalKeyPoints", ragSummary.totalKeyPoints());
+                        ragNode.put("matchedKeyPoints", ragSummary.totalMatchedKeyPoints());
+                        ragNode.set("details", mapper.valueToTree(ragSummary.results()));
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        report.put("overallScore", finalScore); report.putObject("competencies").put("COMMUNICATION", finalScore);
         report.putObject("weights").put("COMMUNICATION", 100); report.putObject("skills");
         report.put("summary", hasAnswer ? requiredText(output, "summary") : "No candidate answer was submitted.");
         report.put("strengths", hasAnswer ? requiredText(output, "strengths") : "No evidence.");
@@ -212,7 +252,7 @@ public class InterviewConversationService {
         }
         interview.setReportJson(report.toString());
         session.setEndedAt(interview.getCompletedAt());
-        return score;
+        return finalScore;
     }
 
     @Transactional(readOnly = true)
@@ -311,6 +351,15 @@ public class InterviewConversationService {
         result.set("jobContext", InterviewPolicies.tree(interview.getContextSnapshotJson()));
         result.set("configuration", mapper.valueToTree(InterviewPolicies.config(interview)));
         result.set("assessment", assessment(interview));
+        if (questions != null) {
+            var approvedList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+            if (!approvedList.isEmpty()) {
+                var arr = result.putArray("approvedQuestions");
+                for (var q : approvedList) {
+                    arr.addObject().put("question", q.getQuestionText()).put("rubric", q.getRubricJson());
+                }
+            }
+        }
         return result;
     }
     private ObjectNode assessment(AiInterview interview) {

@@ -62,6 +62,12 @@ public class AiInterviewService {
     @SuppressWarnings("unused")
     private final com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns;
     private final com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents;
+    private InterviewRagService ragService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRagService(InterviewRagService ragService) {
+        this.ragService = ragService;
+    }
 
     public AiInterviewService(
             AiInterviewRepository interviews,
@@ -164,7 +170,21 @@ public class AiInterviewService {
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
         RecruitmentStage stage = resolveStage(request.workflowStageId(), application);
 
-        return mapper.toResponse(invitations.invite(application.getId(), stage));
+        var existing = interviews.findByApplication_IdOrderByIdDesc(application.getId());
+        AiInterview interview;
+        if (!existing.isEmpty() && isFinished(existing.get(0).getStatus())) {
+            interview = invitations.openNextAttempt(application.getId());
+        } else {
+            interview = invitations.invite(application.getId(), stage);
+        }
+        if (interview.getStatus() == AiInterviewStatus.GENERATING) {
+            try {
+                evaluation.process(interview.getId());
+            } catch (Exception ex) {
+                // Background worker can retry if immediate generation fails
+            }
+        }
+        return mapper.toResponse(interview, loadQuestionResponses(interview));
     }
 
     @Transactional(readOnly = true)
@@ -400,7 +420,7 @@ public class AiInterviewService {
         AiQuestion saved = questions.save(question);
         syncQuestionStatus(interview);
         activity.record(interview, "QUESTION_ADDED", "Question " + saved.getId() + " at order " + saved.getQuestionOrder());
-        return mapper.toQuestion(saved, null, null);
+        return mapper.toQuestion(saved, null, null, false, false, true);
     }
 
     @Transactional
@@ -429,7 +449,7 @@ public class AiInterviewService {
         activity.record(interview, "QUESTION_UPDATED", "Question " + questionId);
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElse(null);
         AiFeedback feedback = answer == null ? null : feedbacks.findByAiAnswer_Id(answer.getId()).orElse(null);
-        return mapper.toQuestion(questions.save(question), answer, feedback);
+        return mapper.toQuestion(questions.save(question), answer, feedback, false, false, true);
     }
 
     @Transactional
@@ -508,8 +528,10 @@ public class AiInterviewService {
         if (!access.staff() && interview.getStartedAt() == null) return List.of();
         boolean completed = interview.getStatus() == AiInterviewStatus.PASSED
                 || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED;
-        boolean revealCorrect = access.staff() && completed;
-        boolean revealExplanation = access.staff() && completed;
+        boolean isStaff = access.staff();
+        boolean revealCorrect = isStaff && completed;
+        boolean revealExplanation = isStaff && completed;
+        boolean revealReference = isStaff;
         if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {
             var review = InterviewPolicies.config(interview).policy().review();
             revealCorrect = review != null && review.showCorrectAnswer();
@@ -544,7 +566,7 @@ public class AiInterviewService {
                         InterviewProcessSettings.bool(config, "showExplanationAfterInterview", review != null && review.showExplanationAfterInterview()));
             }).toList();
         }
-        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealCorrect, revealExplanation);
+        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealCorrect, revealExplanation, revealReference);
     }
 
     private RecruitmentStage resolveStage(Long workflowStageId, Application application) {
@@ -586,9 +608,12 @@ public class AiInterviewService {
     }
 
     private void requireEditable(AiInterview interview) {
-        if (interview.getStartedAt() != null || interview.getStatus() != AiInterviewStatus.CREATED
-                && interview.getStatus() != AiInterviewStatus.QUESTIONS_READY && interview.getStatus() != AiInterviewStatus.ERROR) {
+        if (interview.getStartedAt() != null || (interview.getStatus() != AiInterviewStatus.CREATED
+                && interview.getStatus() != AiInterviewStatus.QUESTIONS_READY && interview.getStatus() != AiInterviewStatus.ERROR)) {
             throw new BusinessException("Interview content is locked", HttpStatus.CONFLICT, "AI_INTERVIEW_LOCKED");
+        }
+        if (AiInterviewMapper.isQuestionsApproved(interview)) {
+            throw new BusinessException("Đề phỏng vấn đã được duyệt và nạp RAG. Vui lòng mở khóa sửa đề nếu muốn thay đổi.", HttpStatus.CONFLICT, "AI_QUESTIONS_APPROVED");
         }
     }
 
@@ -627,14 +652,101 @@ public class AiInterviewService {
         if (interview.getStatus() == AiInterviewStatus.GENERATING) return mapper.toResponse(interview);
         requireEditable(interview);
         var draft = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id);
-        if (!draft.isEmpty() && (!InterviewPolicies.isV2(interview)
-                || !answers.findByAiQuestion_IdIn(draft.stream().map(AiQuestion::getId).toList()).isEmpty())) {
-            throw new BusinessException("Only unanswered process drafts can be regenerated", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
+        if (!draft.isEmpty()) {
+            boolean hasAnswers = !answers.findByAiQuestion_IdIn(draft.stream().map(AiQuestion::getId).toList()).isEmpty();
+            if (hasAnswers || interview.getStartedAt() != null) {
+                throw new BusinessException("Only unanswered process drafts can be regenerated", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
+            }
+            questions.deleteAll(draft);
         }
         interview.setErrorMessage(null);
         interview.setStatus(AiInterviewStatus.GENERATING);
         activity.record(interview, "GENERATION_QUEUED", "Requested by staff");
-        return mapper.toResponse(interview);
+        try {
+            evaluation.process(interview.getId());
+        } catch (Exception ex) {
+            // Keep queued if background retry is needed
+        }
+        return mapper.toResponse(interview, loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public AiInterviewResponse approveQuestions(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (isFinished(interview.getStatus())) {
+            throw new BusinessException("AI interview is already finished", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_FINISHED");
+        }
+        var draft = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id);
+        if (draft.isEmpty()) {
+            interview.setStatus(AiInterviewStatus.GENERATING);
+            try {
+                evaluation.process(interview.getId());
+            } catch (Exception ignored) {}
+            draft = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id);
+        }
+        if (draft.isEmpty()) {
+            throw new BusinessException("Chưa có câu hỏi nào được tạo để duyệt", HttpStatus.BAD_REQUEST, "NO_QUESTIONS_TO_APPROVE");
+        }
+        int indexedCount = 0;
+        if (ragService != null) {
+            indexedCount = ragService.indexQuestionsKeyPoints(draft);
+        }
+        interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+        interview.setErrorMessage(null);
+        setQuestionsApproved(interview, true);
+        activity.record(interview, "QUESTIONS_APPROVED",
+                "Đề phỏng vấn đã được Recruiter duyệt (" + draft.size() + " câu hỏi, " + indexedCount + " vector keypoints đã được nạp RAG).");
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public AiInterviewResponse unapproveQuestions(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (interview.getStartedAt() != null || isFinished(interview.getStatus())) {
+            throw new BusinessException("Không thể mở lại đề khi ứng viên đã bắt đầu hoặc hoàn tất phỏng vấn", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_STARTED");
+        }
+        setQuestionsApproved(interview, false);
+        activity.record(interview, "QUESTIONS_UNAPPROVED", "Recruiter mở khóa chỉnh sửa lại đề phỏng vấn.");
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    private void setQuestionsApproved(AiInterview interview, boolean approved) {
+        com.fasterxml.jackson.databind.node.ObjectNode ctx;
+        try {
+            ctx = interview.getContextSnapshotJson() == null 
+                ? (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}")
+                : ((com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getContextSnapshotJson())).deepCopy();
+        } catch (Exception e) {
+            ctx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}");
+        }
+        ctx.put("questionsApproved", approved);
+        if (approved) {
+            ctx.put("questionsApprovedAt", Instant.now().toString());
+        } else {
+            ctx.remove("questionsApprovedAt");
+        }
+        interview.setContextSnapshotJson(ctx.toString());
+    }
+
+    @Transactional
+    public AiInterviewResponse regenerateQuestion(long id, long questionId) {
+        requireStaff();
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireEditable(interview);
+        AiQuestion question = questions.findById(questionId)
+                .filter(q -> q.getAiInterview() != null && q.getAiInterview().getId().equals(id))
+                .orElseThrow(() -> new BusinessException("Question not found", HttpStatus.NOT_FOUND, "QUESTION_NOT_FOUND"));
+
+        if (!answers.findByAiQuestion_IdIn(List.of(questionId)).isEmpty() || interview.getStartedAt() != null) {
+            throw new BusinessException("Cannot regenerate answered question", HttpStatus.CONFLICT, "QUESTION_ALREADY_ANSWERED");
+        }
+
+        evaluation.regenerateSingleQuestion(interview, question);
+        return mapper.toResponse(interview, loadQuestionResponses(interview));
     }
 
     @Transactional

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, CalendarClock, CheckCircle2, ChevronRight, CircleAlert, Gauge, LockKeyhole, Network, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Timer, Trash2, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, CalendarClock, CheckCircle2, ChevronRight, CircleAlert, Gauge, ListChecks, LockKeyhole, Network, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Timer, Trash2, X, type LucideIcon } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { COMPETENCY_LABELS, type AiAnswer, type AiFeedback, type AiInterview, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
@@ -39,15 +39,36 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
   };
 
   const generate = useMutation({ mutationFn: () => aiInterviewApi.generate(interviewId), onSuccess: refresh });
+  const approve = useMutation({
+    mutationFn: () => aiInterviewApi.approveQuestions(interviewId),
+    onSuccess: () => {
+      toast.success("Đã duyệt đề phỏng vấn và nạp Vector Keypoints vào RAG thành công!");
+      refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Không thể duyệt đề phỏng vấn");
+    },
+  });
+  const unapprove = useMutation({
+    mutationFn: () => aiInterviewApi.unapproveQuestions(interviewId),
+    onSuccess: () => {
+      toast.success("Đã mở khóa đề phỏng vấn để chỉnh sửa");
+      refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Không thể mở khóa đề phỏng vấn");
+    },
+  });
   const score = useMutation({ mutationFn: () => aiInterviewApi.retryScore(interviewId), onSuccess: refresh });
   const interview = useMemo(() => detail.data ? visibleInterviewDetails(detail.data) : undefined, [detail.data]);
   const transcript = useInterviewTranscript(interviewId, !!interview?.conversational && !!interview.completedAt);
   const availableSession = !!detail.data?.processBased && !!detail.data.roadmap?.length
     && detail.data.roadmap.every(step => step.title.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
-  const editable = availableSession && !!interview && !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
+  const isApproved = !!interview?.questionsApproved;
+  const editable = !!interview && !interview.startedAt && !isApproved && ["CREATED", "QUESTIONS_READY", "ERROR", "GENERATING"].includes(interview.status);
   const planned = !!interview?.questions.some(q => q.stageTitle);
   const stageGroups = useMemo(() => interview ? groupQuestionsByStage(interview) : [], [interview]);
-  const busy = generate.isPending || score.isPending;
+  const busy = generate.isPending || score.isPending || approve.isPending || unapprove.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in-50 duration-200" role="presentation" onClick={onClose}>
@@ -179,26 +200,26 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
 
               {/* Questions List & Session Governance */}
               <div className="grid items-start gap-6 lg:grid-cols-12">
-                {!interview.conversational && (
-                  <section className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 lg:col-span-8">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                          Câu hỏi ({interview.questions.length})
-                        </h3>
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          Nội dung, câu trả lời và đánh giá theo từng câu hỏi.
-                        </p>
-                      </div>
-                      {editable && !interview.conversational && (interview.questions.length === 0 || interview.processBased) && (
+                <section className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 lg:col-span-8">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                        Câu hỏi ({interview.questions.length})
+                      </h3>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {interview.conversational ? "Bộ câu hỏi & đáp án mẫu làm cơ sở định hướng hội thoại và đối soát RAG." : "Nội dung, câu trả lời và đánh giá theo từng câu hỏi."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {editable && (
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => {
                             if (!interview.questions.length) { generate.mutate(); return; }
                             askConfirm({
-                              title: "Sinh lại bộ câu hỏi nháp?",
-                              description: "AI sẽ dùng cấu hình đã lưu của phiên. Chỉ thay câu hỏi nháp chưa trả lời khi bộ mới hợp lệ; giữ nguyên lượt phỏng vấn.",
+                              title: "Sinh lại bộ câu hỏi?",
+                              description: "AI sẽ tạo lại bộ câu hỏi và đáp án mẫu mới theo cấu hình Job.",
                               confirmLabel: "Sinh lại",
                               onConfirm: async () => { await generate.mutateAsync(); },
                             });
@@ -206,37 +227,97 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
                           className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all cursor-pointer"
                         >
                           <Sparkles className="size-3.5 text-[#0066FF]" aria-hidden="true" />
-                          <span>{generate.isPending ? "Đang gửi yêu cầu…" : interview.questions.length ? "Sinh lại theo cấu hình" : "Sinh câu hỏi bằng AI"}</span>
+                          <span>{generate.isPending ? "Đang gửi yêu cầu…" : interview.questions.length ? "Sinh lại toàn bộ bằng AI" : "Sinh câu hỏi bằng AI"}</span>
+                        </button>
+                      )}
+                      {!isApproved && interview && !interview.startedAt && !["PASSED", "FAILED"].includes(interview.status) && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            askConfirm({
+                              title: "Duyệt đề & Nạp Vector RAG?",
+                              description: "Hệ thống sẽ tính toán vector embeddings cho các key points của câu hỏi và nạp vào Vector DB phục vụ chấm điểm RAG.",
+                              confirmLabel: "Duyệt & Nạp RAG",
+                              onConfirm: async () => { await approve.mutateAsync(); },
+                            });
+                          }}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                          <span>{approve.isPending ? "Đang nạp RAG…" : "Duyệt đề & Nạp RAG"}</span>
+                        </button>
+                      )}
+                      {isApproved && (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                            <span>Đã duyệt đề & Nạp RAG</span>
+                          </span>
+                          {!interview.startedAt && !["PASSED", "FAILED"].includes(interview.status) && (
+                            <button
+                              type="button"
+                              disabled={busy || unapprove.isPending}
+                              onClick={() => {
+                                askConfirm({
+                                  title: "Mở khóa đề phỏng vấn?",
+                                  description: "Sau khi mở khóa, bạn có thể chỉnh sửa hoặc sinh lại câu hỏi. Khi hoàn tất, bạn cần bấm 'Duyệt đề & Nạp RAG' lại để cập nhật vector embeddings.",
+                                  confirmLabel: "Mở khóa sửa đề",
+                                  onConfirm: async () => { await unapprove.mutateAsync(); },
+                                });
+                              }}
+                              className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                              title="Mở khóa để sửa đổi hoặc sinh lại câu hỏi"
+                            >
+                              <Pencil className="size-3 text-slate-500" />
+                              <span>Mở khóa sửa đề</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {!interview.questions.length && !stageGroups.length && interview.status !== "GENERATING" && (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-6 text-center dark:border-slate-700 dark:bg-slate-800/30">
+                      <Sparkles className="mx-auto size-7 text-[#0066FF] mb-2 opacity-80" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Chưa có bộ câu hỏi phỏng vấn cho phiên này.</p>
+                      <p className="text-[11px] text-slate-500 mt-1 mb-3">Bạn có thể bấm sinh câu hỏi tự động từ Job để kiểm tra, chỉnh sửa và nạp RAG trước khi ứng viên bắt đầu.</p>
+                      {editable && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => generate.mutate()}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#0066FF] px-3 text-xs font-semibold text-white hover:bg-blue-600 transition-all cursor-pointer"
+                        >
+                          <Sparkles className="size-3.5" />
+                          <span>{generate.isPending ? "Đang sinh câu hỏi…" : "Sinh câu hỏi bằng AI"}</span>
                         </button>
                       )}
                     </div>
+                  )}
 
-                    {!interview.questions.length && !stageGroups.length && interview.status !== "GENERATING" && (
-                      <p className="text-xs text-slate-400 p-4">Chưa có lộ trình hoặc câu hỏi Communication.</p>
-                    )}
+                  <ol className="space-y-4" aria-label="Lộ trình và câu hỏi phỏng vấn">
+                    {stageGroups.map((stage, stageIndex) => (
+                      <StageQuestionGroup
+                        key={`${stage.title}-${stageIndex}`}
+                        stage={stage}
+                        stageIndex={stageIndex}
+                        interviewId={interviewId}
+                        allQuestions={interview.questions}
+                        completed={!!interview.completedAt}
+                        editable={editable && !busy}
+                        onChanged={refresh}
+                      />
+                    ))}
+                  </ol>
 
-                    <ol className="space-y-4" aria-label="Lộ trình và câu hỏi phỏng vấn">
-                      {stageGroups.map((stage, stageIndex) => (
-                        <StageQuestionGroup
-                          key={`${stage.title}-${stageIndex}`}
-                          stage={stage}
-                          stageIndex={stageIndex}
-                          interviewId={interviewId}
-                          allQuestions={interview.questions}
-                          completed={!!interview.completedAt}
-                          editable={editable && !busy}
-                          onChanged={refresh}
-                        />
-                      ))}
-                    </ol>
+                  {editable && !busy && !planned && (
+                    <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />
+                  )}
+                </section>
 
-                    {editable && !busy && !planned && (
-                      <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />
-                    )}
-                  </section>
-                )}
-
-                <div className={`space-y-5 ${interview.conversational ? "lg:col-span-12" : "lg:sticky lg:top-24 lg:col-span-4"}`}>
+                <div className="space-y-5 lg:sticky lg:top-24 lg:col-span-4">
                   <SessionGovernance interview={interview} />
 
                   <details onToggle={event => setShowLogs(event.currentTarget.open)} className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
@@ -284,7 +365,11 @@ function groupQuestionsByStage(interview: AiInterview): StageGroup[] {
   const normalize = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
   const assigned = new Set<number>();
   const groups: StageGroup[] = (interview.roadmap ?? []).map(step => {
-    const questions = interview.questions.filter(question => normalize(question.stageTitle) === normalize(step.title));
+    const questions = interview.questions.filter(question => {
+      if (normalize(question.stageTitle) === normalize(step.title)) return true;
+      if (!question.stageTitle && interview.conversational && normalize(step.title) === "communication") return true;
+      return false;
+    });
     questions.forEach(question => assigned.add(question.id));
     return { title: step.title, kind: step.kind, configuredCount: step.questionCount, questions };
   });
@@ -298,7 +383,12 @@ function groupQuestionsByStage(interview: AiInterview): StageGroup[] {
   namedStages.forEach((questions, title) => groups.push({ title, kind: stageKind(questions), configuredCount: questions.length, questions }));
 
   const unassigned = interview.questions.filter(question => !assigned.has(question.id));
-  if (unassigned.length > 0) groups.push({ title: "Câu hỏi bổ sung", kind: stageKind(unassigned), configuredCount: unassigned.length, questions: unassigned });
+  if (unassigned.length > 0) groups.push({
+    title: interview.roadmap?.length ? "Câu hỏi bổ sung" : "Bộ câu hỏi phỏng vấn AI",
+    kind: stageKind(unassigned),
+    configuredCount: unassigned.length,
+    questions: unassigned
+  });
   return groups;
 }
 
@@ -612,6 +702,16 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
       onChanged();
     },
   });
+  const regenSingle = useMutation({
+    mutationFn: () => aiInterviewApi.regenerateQuestion(interviewId, question.id),
+    onSuccess: () => {
+      toast.success(`Đã sinh lại câu hỏi #${index + 1} bằng AI`);
+      onChanged();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Không thể sinh lại câu hỏi");
+    },
+  });
   const answer = question.answer;
   const planned = !!question.stageTitle;
   const mcq = !!question.options?.length;
@@ -682,12 +782,67 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
                 <strong>Giải thích:</strong> {question.explanation}
               </p>
             )}
+
+            {/* Reference Answer for Staff */}
+            {question.referenceAnswer && (
+              <div className="mt-3 rounded-xl border border-blue-200/80 bg-blue-50/60 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/40">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0066FF] dark:text-blue-400">
+                  <BookOpen className="size-3.5" aria-hidden="true" />
+                  <span>Đáp án mẫu định hướng (AI Reference Answer):</span>
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap text-xs font-normal leading-relaxed text-slate-800 dark:text-slate-200">
+                  {question.referenceAnswer}
+                </p>
+              </div>
+            )}
+
+            {/* Key Points & Criteria for Staff */}
+            {question.keyPoints && question.keyPoints.length > 0 && (
+              <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/50">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <ListChecks className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                    <span>Ý chính đối soát RAG ({question.keyPoints.length} tiêu chí đánh giá):</span>
+                  </div>
+                </div>
+                <ul className="mt-2 space-y-1.5 text-xs">
+                  {question.keyPoints.map((kp, i) => (
+                    <li key={i} className="flex items-start gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="flex-1 font-normal leading-relaxed">{kp.point}</span>
+                      {kp.target && (
+                        <span className="shrink-0 rounded-md bg-white border border-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">
+                          {COMPETENCY_LABELS[kp.target as CompetencyKey] ?? kp.target}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           {editable && !(planned && mcq) && (
-            <div className="flex shrink-0 gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                disabled={regenSingle.isPending}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-blue-200/80 bg-blue-50/70 px-2.5 text-xs font-semibold text-[#0066FF] hover:bg-blue-100 hover:border-blue-300 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-all cursor-pointer disabled:opacity-50"
+                title="Sinh lại câu hỏi này bằng AI (dựa theo CV và các câu hỏi khác)"
+                onClick={() => {
+                  askConfirm({
+                    title: `Sinh lại câu hỏi #${index + 1} bằng AI?`,
+                    description: "AI sẽ tạo câu hỏi mới thay thế cho câu hỏi này, giữ mạch phỏng vấn liền mạch với các câu hỏi khác.",
+                    confirmLabel: "Sinh lại bằng AI",
+                    onConfirm: async () => { await regenSingle.mutateAsync(); },
+                  });
+                }}
+              >
+                <Sparkles className={cn("size-3.5", regenSingle.isPending && "animate-spin")} aria-hidden="true" />
+                <span>{regenSingle.isPending ? "Đang sinh…" : "Sinh lại bằng AI"}</span>
+              </button>
+              <button
+                type="button"
+                className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                 aria-label="Sửa câu hỏi"
                 onClick={() => setEditing(true)}
               >

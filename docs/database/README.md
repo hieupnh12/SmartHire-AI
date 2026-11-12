@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| AI Interview RAG & Vector Evaluation 2026-11-12 | Master V37 (`V37__enable_pgvector_and_vector_store.sql`): kích hoạt extension `vector` và bảng `vector_store`. Tenant V60 (`V60__ai_interview_rag_evaluation.sql`) tạo bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`, 2 FK tới `ai_interviews` và `ai_questions`, 1 index `idx_rag_audit_interview`) lưu vết đánh giá ngữ nghĩa và độ tương đồng Cosine vector RAG |
 | Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
@@ -269,6 +270,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 64 | `GithubAnalysis` | `github_analyses` | CV & AI screening | Có |
 | 65 | `GithubRepoCache` | `github_repo_caches` | CV & AI screening | Có |
 | 66 | `CompanyLocationDepartment` | `company_location_departments` | Job & Skill | Có |
+| 67 | `AiInterviewRagAudit` | `ai_interview_rag_audits` | AI Interview RAG & Vector | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -1382,6 +1384,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V34 | `V34__interview_speech_ai_tasks.sql` | Seed `ai_model_configs` cho `INTERVIEW_STT` (`gemini-3.1-flash-lite`) và `INTERVIEW_TTS` (`gemini-3.8-flash-tts`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V35 | `V35__question_gen_ai_task.sql` | Seed `ai_model_configs` cho tác vụ `QUESTION_GEN` (`gemini-2.0-flash`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
+| V37 | `V37__enable_pgvector_and_vector_store.sql` | Kích hoạt extension `vector` (nếu có) và tạo bảng `vector_store` cho AI Interview RAG |
 
 ### 10.3 Lịch sử migration — Tenant
 
@@ -1442,6 +1445,8 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V56 | `V56__coding_constraints_and_explanations.sql` | `coding_problems.constraints_text` TEXT nullable; `test_cases.explanation` TEXT nullable. Không thêm bảng/FK/UNIQUE/index |
 | V57 | `V57__company_location_departments.sql` | `company_location_departments` + entity `CompanyLocationDepartment` (UNIQUE `(location_name, department_name)`, 2 index). Backfill từ jobs. Đánh lại từ V55 vì trùng version |
 | V58 | `V58__test_origin.sql` | `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED`. Backfill `GENERATED` theo description đề bốc từ ngân hàng. Không thêm bảng/FK/UNIQUE |
+| V59 | `V59__test_auto_grading.sql` | `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE phục vụ tự động chốt điểm và gửi kết quả đề thi |
+| V60 | `V60__ai_interview_rag_evaluation.sql` | Bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`): lưu vết đánh giá ngữ nghĩa RAG, độ tương đồng vector, ngưỡng áp dụng và danh sách key points |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
