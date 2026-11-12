@@ -26,7 +26,9 @@ export interface ContractItem {
   maxJobs?: number;
   maxCvParses?: number;
   maxAiInterviewHours?: number;
+  maxProctoringHours?: number;
   maxStorageGb?: number;
+  videoRetentionDays?: number;
   consultationRequestId?: number;
   title: string;
   contractValue: number;

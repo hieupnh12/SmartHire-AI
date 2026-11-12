@@ -145,7 +145,9 @@ class MasterBillingServiceTest {
         assertThat(response.getCurrency()).isEqualTo("VND");
         assertThat(response.getStatus()).isEqualTo("PENDING");
         assertThat(response.getBankName()).isEqualTo("Ngân hàng TMCP Tiên Phong (TPBank)");
+        assertThat(response.getBankBranch()).isEqualTo("Chi nhánh Đà Nẵng");
         assertThat(response.getAccountNumber()).isEqualTo("07744348801");
+        assertThat(response.getAccountName()).isEqualTo("NGUYEN NHAT SINH");
         assertThat(response.getTransferSyntax()).startsWith("SH ");
         assertThat(response.getQrUrl()).contains("07744348801");
         assertThat(response.getQrUrl()).contains("12000000");
@@ -161,8 +163,11 @@ class MasterBillingServiceTest {
         assertThat(consentCaptor.getValue().get(0).getPolicyType()).isEqualTo("TERMS_OF_SERVICE");
         assertThat(consentCaptor.getValue().get(0).getIpAddress()).isEqualTo("203.113.152.10");
         assertThat(consentCaptor.getValue().get(0).getUserAgent()).isEqualTo("Mozilla/5.0 Chrome/130");
-        assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_ND13");
-        verify(platformAuditLogRepository).save(any(PlatformAuditLog.class));
+        assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_2025");
+
+        ArgumentCaptor<PlatformAuditLog> auditCaptor = ArgumentCaptor.forClass(PlatformAuditLog.class);
+        verify(platformAuditLogRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getDescription()).contains("Luật Bảo vệ dữ liệu cá nhân 2025");
     }
 
     @Test

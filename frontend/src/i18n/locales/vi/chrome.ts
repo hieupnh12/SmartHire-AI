@@ -101,6 +101,8 @@ export const chromeVi = {
     adminNotificationsSubtitle: "Cập nhật dành cho quản trị viên workspace",
     adminNotificationsEmptyTitle: "Không có thông báo mới",
     adminNotificationsEmptyDesc: "Các cập nhật quản trị sẽ xuất hiện tại đây.",
+    adminSubscriptionNotificationsEmptyDesc: "Các cảnh báo sắp hết hạn gói, quá hạn thanh toán hoặc chạm ngưỡng quota sẽ xuất hiện tại đây.",
+    adminSubscriptionNotificationsViewAll: "Xem gói dịch vụ & thanh toán",
   },
   seo: {
     siteName: "SmartHire AI",

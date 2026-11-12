@@ -1,14 +1,16 @@
 import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, Inbox, Building2, FileSignature, Calculator } from "lucide-react";
+import { Plus, Search, Filter, Inbox, FileSignature, Calculator, Eye } from "lucide-react";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { useLeads, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSelect";
 import { LeadDetailModal } from "../components/LeadDetailModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import React from "react";
-import { useT, useLocale, formatDateTime } from "@/i18n";
+import { useT, useLocale, formatDate, formatDateTime } from "@/i18n";
 
 export function LeadsPage() {
   const t = useT();
@@ -49,6 +51,43 @@ export function LeadsPage() {
   const pendingLeadsCount = useMemo(() => {
     return leads.filter((l) => l.status === "PENDING").length;
   }, [leads]);
+
+  const statusFilterOptions = useMemo<CustomSelectOption<string>[]>(
+    () => [
+      { value: "ALL", label: t("master.ops.leads.filterAll"), count: leads.length },
+      {
+        value: "PENDING",
+        label: t("master.ops.leads.filterPending"),
+        dotClassName: "bg-amber-500",
+        count: leads.filter((l) => l.status === "PENDING").length,
+      },
+      {
+        value: "CONTACTED",
+        label: t("master.ops.leads.filterContacted"),
+        dotClassName: "bg-blue-500",
+        count: leads.filter((l) => l.status === "CONTACTED").length,
+      },
+      {
+        value: "QUOTED",
+        label: t("master.ops.leads.filterQuoted"),
+        dotClassName: "bg-purple-500",
+        count: leads.filter((l) => l.status === "QUOTED").length,
+      },
+      {
+        value: "PROVISIONED",
+        label: t("master.ops.leads.filterProvisioned"),
+        dotClassName: "bg-emerald-500",
+        count: leads.filter((l) => l.status === "PROVISIONED").length,
+      },
+      {
+        value: "REJECTED",
+        label: t("master.ops.leads.filterRejected"),
+        dotClassName: "bg-rose-500",
+        count: leads.filter((l) => l.status === "REJECTED").length,
+      },
+    ],
+    [leads, t],
+  );
 
   const handleProvisionFromLead = (lead: ConsultationResponse) => {
     const query = new URLSearchParams({
@@ -136,40 +175,43 @@ export function LeadsPage() {
             placeholder={t("master.ops.leads.searchPlaceholder")}
             value={leadSearch}
             onChange={(e) => setLeadSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600"
+            className="w-full min-h-10 pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-xl shadow-2xs focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-100 transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-          <select
+        <div className="w-full sm:w-[235px] shrink-0">
+          <CustomSelect
             value={leadStatusFilter}
-            onChange={(e) => setLeadStatusFilter(e.target.value)}
-            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 font-semibold text-slate-700"
-          >
-            <option value="ALL">{t("master.ops.leads.filterAll", { count: leads.length })}</option>
-            <option value="PENDING">{t("master.ops.leads.filterPending", { count: leads.filter((l) => l.status === "PENDING").length })}</option>
-            <option value="CONTACTED">{t("master.ops.leads.filterContacted", { count: leads.filter((l) => l.status === "CONTACTED").length })}</option>
-            <option value="QUOTED">{t("master.ops.leads.filterQuoted", { count: leads.filter((l) => l.status === "QUOTED").length })}</option>
-            <option value="PROVISIONED">{t("master.ops.leads.filterProvisioned", { count: leads.filter((l) => l.status === "PROVISIONED").length })}</option>
-            <option value="REJECTED">{t("master.ops.leads.filterRejected", { count: leads.filter((l) => l.status === "REJECTED").length })}</option>
-          </select>
+            onChange={setLeadStatusFilter}
+            options={statusFilterOptions}
+            icon={<Filter className="size-3.5" />}
+            ariaLabel={t("master.ops.leads.filterAria")}
+          />
         </div>
       </div>
 
       {/* Leads Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-xs">
+            <colgroup>
+              <col />
+              <col />
+              <col className="w-[118px]" />
+              <col />
+              <col className="w-[104px]" />
+              <col className="w-[154px]" />
+              <col className="w-[194px]" />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
-                <th className="py-3 px-4">{t("master.ops.leads.colCompany")}</th>
-                <th className="py-3 px-4">{t("master.ops.leads.colContact")}</th>
-                <th className="py-3 px-4">{t("master.ops.leads.colTypePlan")}</th>
-                <th className="py-3 px-4">{t("master.ops.leads.colNotes")}</th>
-                <th className="py-3 px-4">{t("master.ops.leads.colTime")}</th>
-                <th className="py-3 px-4">{t("master.ops.leads.colStatus")}</th>
-                <th className="py-3 px-4 text-right">{t("master.ops.leads.colActions")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colCompany")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colContact")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colTypePlan")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colNotes")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colTime")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colStatus")}</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">{t("master.ops.leads.colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -181,129 +223,228 @@ export function LeadsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900">{lead.companyName}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-slate-400" />
-                        <span>{t("master.ops.leads.companySizePrefix", { size: lead.companySize || t("master.ops.leads.unknownSize") })}</span>
-                      </div>
-                    </td>
+                filteredLeads.map((lead) => {
+                  const notePreview = lead.notes || lead.primaryNeed || "";
+                  const createdDate = new Date(lead.createdAt);
 
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800">{lead.contactName}</div>
-                      {lead.jobTitle && <div className="text-[11px] text-slate-500">{lead.jobTitle}</div>}
-                      <div className="text-[11px] text-blue-600 font-mono mt-0.5">{lead.workEmail}</div>
-                      {lead.phoneNumber && (
-                        <div className="text-[11px] text-slate-500 font-mono">{lead.phoneNumber}</div>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                          lead.requestType === "CONTRACT_QUOTE"
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : "bg-sky-50 text-sky-700 border border-sky-200"
-                        }`}
-                      >
-                        {lead.requestType === "CONTRACT_QUOTE"
-                          ? t("master.ops.leads.badgeContractQuote")
-                          : t("master.ops.leads.badgeDemo")}
-                      </span>
-                      <div className="text-[11px] text-slate-600 font-medium mt-1 truncate max-w-[180px]">
-                        {lead.planTier || t("master.ops.leads.noPlanSelected")}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 max-w-[220px]">
-                      {lead.notes ? (
-                        <p className="text-[11px] text-slate-700 line-clamp-2 leading-relaxed" title={lead.notes}>
-                          {lead.notes}
-                        </p>
-                      ) : lead.primaryNeed ? (
-                        <p className="text-[11px] text-slate-500 line-clamp-2" title={lead.primaryNeed}>
-                          {lead.primaryNeed}
-                        </p>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
-                      {formatDateTime(
-                        lead.createdAt,
-                        {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        },
-                        locale,
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          lead.status === "PENDING"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : lead.status === "CONTACTED"
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
-                            : lead.status === "QUOTED"
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : lead.status === "PROVISIONED"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                        }`}
-                      >
-                        {lead.status === "PENDING" && t("master.ops.leads.statusPending")}
-                        {lead.status === "CONTACTED" && t("master.ops.leads.statusContacted")}
-                        {lead.status === "QUOTED" && t("master.ops.leads.statusQuoted")}
-                        {lead.status === "PROVISIONED" && t("master.ops.leads.statusProvisioned")}
-                        {lead.status === "REJECTED" && t("master.ops.leads.statusRejected")}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenCreateContractForLead(lead)}
-                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold transition-colors flex items-center gap-1"
-                          title={t("master.ops.leads.draftContractTitle")}
-                        >
-                          <FileSignature className="w-3.5 h-3.5" />
-                          <span>{t("master.ops.leads.draftContractBtn")}</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenLeadModal(lead)}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-colors"
-                          title={t("master.ops.leads.detailTitle")}
-                        >
-                          {t("master.ops.leads.detailBtn")}
-                        </button>
-
-                        {lead.status !== "PROVISIONED" && (
-                          <button
-                            onClick={() => handleProvisionFromLead(lead)}
-                            className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-2xs"
-                            title={t("master.ops.leads.dealWizardTitle")}
-                          >
-                            <Calculator className="w-3.5 h-3.5" />
-                            <span>
-                              {lead.status === "QUOTED"
-                                ? t("master.ops.leads.closeDealBtn")
-                                : t("master.ops.leads.quoteDealBtn")}
+                  return (
+                    <tr key={lead.id} className="hover:bg-slate-50/60 transition-colors align-middle">
+                      <td className="py-3 px-3.5">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{lead.companyName}</span>
+                              <span className="block text-slate-300">
+                                {t("master.ops.leads.companySizePrefix", {
+                                  size: lead.companySize || t("master.ops.leads.unknownSize"),
+                                })}
+                              </span>
                             </span>
-                          </button>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-700 cursor-default">
+                            {lead.companyName}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">
+                                {lead.contactName}
+                                {lead.jobTitle ? ` · ${lead.jobTitle}` : ""}
+                              </span>
+                              <span className="block font-mono text-sky-300">{lead.workEmail}</span>
+                              {lead.phoneNumber && (
+                                <span className="block font-mono text-slate-300">
+                                  {t("master.ops.leads.phonePrefix", { phone: lead.phoneNumber })}
+                                </span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-medium text-slate-700 cursor-default">
+                            {lead.contactName}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">
+                                {lead.requestType === "CONTRACT_QUOTE"
+                                  ? t("master.ops.leads.badgeContractQuote")
+                                  : t("master.ops.leads.badgeDemo")}
+                              </span>
+                              <span className="block text-slate-300">
+                                {t("master.ops.leads.interestedPlanPrefix", {
+                                  plan: lead.planTier || t("master.ops.leads.noPlanSelected"),
+                                })}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold border cursor-default ${
+                              lead.requestType === "CONTRACT_QUOTE"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-sky-50 text-sky-700 border-sky-200"
+                            }`}
+                          >
+                            {lead.requestType === "CONTRACT_QUOTE"
+                              ? t("master.ops.leads.shortBadgeContractQuote")
+                              : t("master.ops.leads.shortBadgeDemo")}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5">
+                        {notePreview ? (
+                          <Tooltip
+                            className="flex w-full min-w-0"
+                            side="top"
+                            content={
+                              <span className="block space-y-1">
+                                {lead.primaryNeed && (
+                                  <span className="block text-slate-300">
+                                    <strong className="font-semibold text-white">{t("master.ops.leads.tooltipNeedLabel")}</strong>{" "}
+                                    {lead.primaryNeed}
+                                  </span>
+                                )}
+                                {lead.notes && (
+                                  <span className="block text-slate-100">
+                                    <strong className="font-semibold text-white">{t("master.ops.leads.tooltipNoteLabel")}</strong>{" "}
+                                    {lead.notes}
+                                  </span>
+                                )}
+                              </span>
+                            }
+                          >
+                            <span
+                              className={`min-w-0 flex-1 truncate cursor-default ${
+                                lead.notes ? "text-slate-700" : "text-slate-500"
+                              }`}
+                            >
+                              {notePreview}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-slate-400 italic">—</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          content={formatDateTime(
+                            createdDate,
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                            locale,
+                          )}
+                        >
+                          <span className="text-[11px] text-slate-500 cursor-default">
+                            {formatDate(
+                              createdDate,
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              },
+                              locale,
+                            )}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                            lead.status === "PENDING"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : lead.status === "CONTACTED"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : lead.status === "QUOTED"
+                              ? "bg-purple-50 text-purple-700 border border-purple-200"
+                              : lead.status === "PROVISIONED"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}
+                        >
+                          {lead.status === "PENDING" && t("master.ops.leads.statusPending")}
+                          {lead.status === "CONTACTED" && t("master.ops.leads.statusContacted")}
+                          {lead.status === "QUOTED" && t("master.ops.leads.statusQuoted")}
+                          {lead.status === "PROVISIONED" && t("master.ops.leads.statusProvisioned")}
+                          {lead.status === "REJECTED" && t("master.ops.leads.statusRejected")}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {lead.status !== "PROVISIONED" && (
+                            <Tooltip
+                              side="top"
+                              content={
+                                lead.status === "QUOTED"
+                                  ? t("master.ops.leads.closeDealTooltip")
+                                  : t("master.ops.leads.quoteDealTooltip")
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleProvisionFromLead(lead)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-colors hover:bg-blue-700"
+                              >
+                                <Calculator className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  {lead.status === "QUOTED"
+                                    ? t("master.ops.leads.closeDealBtn")
+                                    : t("master.ops.leads.quoteDealBtn")}
+                                </span>
+                              </button>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip side="top" content={t("master.ops.leads.draftContractTitle")}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCreateContractForLead(lead)}
+                              aria-label={t("master.ops.leads.draftContractAria", { company: lead.companyName })}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100"
+                            >
+                              <FileSignature className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip side="top" content={t("master.ops.leads.detailTitle")}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLeadModal(lead)}
+                              aria-label={t("master.ops.leads.detailAria", { company: lead.companyName })}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

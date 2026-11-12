@@ -29,29 +29,31 @@ export function NotificationsPage() {
     [t],
   );
 
+  const showHeader = !jobId || active === "settings";
+
   return (
-    <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="recruiter-notifications-title">
-      <header className="rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_58%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">
-          {jobId
-            ? t("recruiter.ops.notifications.eyebrowJob", { jobId })
-            : t("recruiter.ops.notifications.eyebrowAll")}
-        </p>
-        <h1 id="recruiter-notifications-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          {active === "settings"
-            ? t("recruiter.ops.notifications.titleSettings")
-            : jobId
-              ? t("recruiter.ops.notifications.titleJob", { jobId })
+    <section
+      className="space-y-6 text-[var(--color-on-surface)]"
+      aria-labelledby={showHeader ? "recruiter-notifications-title" : undefined}
+      aria-label={!showHeader ? t("recruiter.ops.notifications.eyebrowAll") : undefined}
+    >
+      {showHeader ? (
+        <header className="rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_58%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">
+            {t("recruiter.ops.notifications.eyebrowAll")}
+          </p>
+          <h1 id="recruiter-notifications-title" className="mt-2 text-3xl font-semibold tracking-tight">
+            {active === "settings"
+              ? t("recruiter.ops.notifications.titleSettings")
               : t("recruiter.ops.notifications.titleAll")}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-          {active === "settings"
-            ? t("recruiter.ops.notifications.subtitleSettings")
-            : jobId
-              ? t("recruiter.ops.notifications.subtitleJob", { jobId })
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
+            {active === "settings"
+              ? t("recruiter.ops.notifications.subtitleSettings")
               : t("recruiter.ops.notifications.subtitleAll")}
-        </p>
-      </header>
+          </p>
+        </header>
+      ) : null}
       <div className="flex items-center">
         <PillNav
           items={tabs.map((item) => ({ id: item.key, label: t(item.labelKey), icon: item.icon }))}

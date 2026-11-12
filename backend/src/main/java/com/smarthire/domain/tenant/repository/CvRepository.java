@@ -16,4 +16,14 @@ public interface CvRepository extends JpaRepository<Cv, Long> {
 
     @org.springframework.data.jpa.repository.Query("select coalesce(sum(c.fileSize), 0) from Cv c where c.fileSize is not null")
     long sumTotalFileSize();
+
+    @org.springframework.data.jpa.repository.Query("""
+            select c from Cv c
+            join fetch c.candidate cand
+            where c.applicationCopy = false
+              and cand.status = :status
+            order by c.id desc
+            """)
+    List<Cv> findNonCopyForCandidatesWithStatus(
+            @org.springframework.data.repository.query.Param("status") com.smarthire.domain.enums.UserStatus status);
 }

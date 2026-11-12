@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { contractApi } from "@/api/master/contractApi";
 import { consultationApi } from "@/api/master/consultationApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 import { formatNumber, useLocale, useT } from "@/i18n";
 
 export function CreateContractPage() {
@@ -36,7 +37,9 @@ export function CreateContractPage() {
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
-  const [contractTerms, setContractTerms] = useState(() => t("master.commerce.createContract.defaults.terms"));
+  const [contractTerms, setContractTerms] = useState(() =>
+    t("master.commerce.createContract.defaults.terms", { law: LEGAL_POLICY_META.lawLabel }),
+  );
   const [contractNotes, setContractNotes] = useState("");
   
   const [creatingContract, setCreatingContract] = useState(false);

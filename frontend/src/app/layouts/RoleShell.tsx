@@ -444,13 +444,15 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                     items={inbox.data ?? []}
                     loading={inbox.isPending}
                     unreadCount={unreadCount}
-                    targetPath="/recruiter/notifications"
+                    targetPath="/internal/admin/billing"
+                    emptyDescription={t("shell.adminSubscriptionNotificationsEmptyDesc")}
+                    footerLabel={t("shell.adminSubscriptionNotificationsViewAll")}
                     onClose={() => setIsAdminNotificationsOpen(false)}
                     onMarkAllRead={() => markAllRead.mutate()}
                     onOpen={(item) => {
                       if (!item.readAt) markRead.mutate(item.id);
                       setIsAdminNotificationsOpen(false);
-                      const target = notificationPath(item.payloadJson) ?? "/recruiter/notifications";
+                      const target = notificationPath(item.payloadJson) ?? "/internal/admin/billing";
                       navigate(target);
                     }}
                   />
@@ -759,6 +761,8 @@ function NotificationPreviewDialog({
   onClose,
   onOpen,
   onMarkAllRead,
+  emptyDescription,
+  footerLabel,
 }: {
   items: Notification[];
   loading: boolean;
@@ -767,6 +771,8 @@ function NotificationPreviewDialog({
   onClose: () => void;
   onOpen: (item: Notification) => void;
   onMarkAllRead: () => void;
+  emptyDescription?: string;
+  footerLabel?: string;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -825,7 +831,7 @@ function NotificationPreviewDialog({
           <div className="px-5 py-10 text-center">
             <Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-slate-700">{t("shell.notificationsEmptyTitle")}</p>
-            <p className="mt-1 text-xs text-slate-500">{t("shell.notificationsEmptyDesc")}</p>
+            <p className="mt-1 text-xs text-slate-500">{emptyDescription ?? t("shell.notificationsEmptyDesc")}</p>
           </div>
         )}
         {recent.map((item) => {
@@ -871,7 +877,7 @@ function NotificationPreviewDialog({
           onClick={onClose}
           className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
         >
-          {t("shell.notificationsViewAll")}
+          {footerLabel ?? t("shell.notificationsViewAll")}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </div>

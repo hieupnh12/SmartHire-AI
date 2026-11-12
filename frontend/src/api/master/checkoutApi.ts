@@ -33,6 +33,7 @@ export interface CheckoutResponseData {
   currency: string;
   status: string;
   bankName: string;
+  bankBranch?: string;
   accountNumber: string;
   accountName: string;
   transferSyntax: string;
@@ -136,6 +137,7 @@ export interface PublicOrderLookupItem {
   dueDate?: string;
   paidAt?: string;
   bankName: string;
+  bankBranch?: string;
   accountNumber: string;
   accountName: string;
   transferSyntax: string;

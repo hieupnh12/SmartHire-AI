@@ -1,13 +1,16 @@
 import React from "react";
 import { X, PhoneCall, Loader2, Check, Calculator } from "lucide-react";
 import { ConsultationResponse } from "@/api/master/consultationApi";
+import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSelect";
 import { useT, useLocale, formatDateTime } from "@/i18n";
+
+type LeadStatus = "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
 
 interface LeadDetailModalProps {
   selectedLead: ConsultationResponse | null;
   setSelectedLead: (lead: ConsultationResponse | null) => void;
-  leadStatusEdit: string;
-  setLeadStatusEdit: (val: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED") => void;
+  leadStatusEdit: LeadStatus;
+  setLeadStatusEdit: (val: LeadStatus) => void;
   leadNotesEdit: string;
   setLeadNotesEdit: (val: string) => void;
   updatingLead: boolean;
@@ -28,6 +31,16 @@ export function LeadDetailModal({
 }: LeadDetailModalProps) {
   const t = useT();
   const locale = useLocale();
+  const statusOptions = React.useMemo<CustomSelectOption<LeadStatus>[]>(
+    () => [
+      { value: "PENDING", label: t("master.ops.leads.modal.statusOptionPending"), dotClassName: "bg-amber-500" },
+      { value: "CONTACTED", label: t("master.ops.leads.modal.statusOptionContacted"), dotClassName: "bg-blue-500" },
+      { value: "QUOTED", label: t("master.ops.leads.modal.statusOptionQuoted"), dotClassName: "bg-purple-500" },
+      { value: "PROVISIONED", label: t("master.ops.leads.modal.statusOptionProvisioned"), dotClassName: "bg-emerald-500" },
+      { value: "REJECTED", label: t("master.ops.leads.modal.statusOptionRejected"), dotClassName: "bg-rose-500" },
+    ],
+    [t],
+  );
   if (!selectedLead) return null;
 
   return (
@@ -110,18 +123,15 @@ export function LeadDetailModal({
 
         <form onSubmit={handleSaveLeadModal} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">{t("master.ops.leads.modal.statusLabel")}</label>
-            <select
+            <label className="block font-semibold text-slate-700 mb-1.5">
+              {t("master.ops.leads.modal.statusLabel")}
+            </label>
+            <CustomSelect
               value={leadStatusEdit}
-              onChange={(e) => setLeadStatusEdit(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold focus:outline-none focus:border-blue-600"
-            >
-              <option value="PENDING">{t("master.ops.leads.modal.statusOptionPending")}</option>
-              <option value="CONTACTED">{t("master.ops.leads.modal.statusOptionContacted")}</option>
-              <option value="QUOTED">{t("master.ops.leads.modal.statusOptionQuoted")}</option>
-              <option value="PROVISIONED">{t("master.ops.leads.modal.statusOptionProvisioned")}</option>
-              <option value="REJECTED">{t("master.ops.leads.modal.statusOptionRejected")}</option>
-            </select>
+              onChange={setLeadStatusEdit}
+              options={statusOptions}
+              ariaLabel={t("master.ops.leads.modal.statusAria")}
+            />
           </div>
 
           <div>

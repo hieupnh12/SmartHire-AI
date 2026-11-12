@@ -41,12 +41,28 @@ import {
 import { AddAiKeyModal } from "./AddAiKeyModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { PageSkeleton } from "@/components/ux/Skeleton";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useT, useLocale, formatDateTime, type TranslateFn } from "@/i18n";
 
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
 
 const MODEL_PRESETS: Record<string, string[]> = {
   GEMINI: [
@@ -897,7 +913,7 @@ export function AiEngineConfiguration() {
           <div>
             <div className="flex items-center gap-2">
               <Key className="size-5 text-blue-600" />
-              <h2 className="text-base font-bold text-slate-950">{t("master.ops.aiConfig.keysSection.title")}</h2>
+              <h2 className="text-base font-bold text-slate-600">{t("master.ops.aiConfig.keysSection.title")}</h2>
             </div>
           </div>
 
@@ -917,15 +933,15 @@ export function AiEngineConfiguration() {
         {keys.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <ShieldCheck className="size-10 text-slate-300" />
-            <p className="mt-2 text-sm font-semibold text-slate-800">{t("master.ops.aiConfig.keysSection.emptyTitle")}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-600">{t("master.ops.aiConfig.keysSection.emptyTitle")}</p>
             <p className="mt-1 max-w-sm text-xs text-slate-500">
               {t("master.ops.aiConfig.keysSection.emptyDesc")}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-left text-sm">
-              <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <table className="w-full min-w-[800px] text-left text-sm text-slate-600">
+              <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
                 <tr>
                   <th className="px-5 py-3">{t("master.ops.aiConfig.keysSection.colProvider")}</th>
                   <th className="px-4 py-3">{t("master.ops.aiConfig.keysSection.colAlias")}</th>
@@ -941,7 +957,7 @@ export function AiEngineConfiguration() {
 
                   return (
                     <tr key={key.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-5 py-4 font-semibold text-slate-900">
+                      <td className="px-5 py-4 font-semibold text-slate-600">
                         <div className="flex items-center gap-2">
                           <span
                             className={cn(
@@ -959,9 +975,9 @@ export function AiEngineConfiguration() {
                         </div>
                       </td>
 
-                      <td className="px-4 py-4 font-medium text-slate-800">{key.keyAlias}</td>
+                      <td className="px-4 py-4 font-medium text-slate-600">{key.keyAlias}</td>
 
-                      <td className="px-4 py-4 font-mono text-xs text-slate-500">
+                      <td className="px-4 py-4 font-mono text-xs text-slate-600">
                         {key.maskedKey || "••••••••••••••••"}
                       </td>
 
@@ -1039,14 +1055,15 @@ export function AiEngineConfiguration() {
       <section className="space-y-4">
         {/* SECTION HEADER & GLOBAL EXPAND/COLLAPSE */}
         <div className={cn(surface, "flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6")}>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sliders className="size-5 text-blue-600" />
-              <h2 className="text-base font-bold text-slate-950">{t("master.ops.aiConfig.routingSection.title")}</h2>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {t("master.ops.aiConfig.routingSection.subtitle")}
-            </p>
+          <div className="flex items-center gap-2">
+            <Sliders className="size-5 text-blue-600" />
+            <h2 className="text-base font-bold text-slate-600">{t("master.ops.aiConfig.routingSection.title")}</h2>
+            <HelpTip
+              content={t("master.ops.aiConfig.routingSection.subtitle")}
+              label={t("master.ops.systemWorkspace.helpTipLabel", {
+                label: t("master.ops.aiConfig.routingSection.title"),
+              })}
+            />
           </div>
 
           <button
@@ -1095,7 +1112,7 @@ export function AiEngineConfiguration() {
                       <div className={cn("flex size-7 items-center justify-center rounded-lg border bg-white shadow-2xs", cluster.accentColor || "text-blue-600 border-blue-200/80")}>
                         <ClusterIcon className="size-4" />
                       </div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
                         {t(cluster.titleKey)}
                       </span>
                       <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200/80">
@@ -1186,32 +1203,37 @@ export function AiEngineConfiguration() {
                                 <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100/90 border border-slate-200/80 shadow-2xs">
                                   {getTaskIcon(task.taskType)}
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-bold text-slate-900 leading-snug">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-sm font-bold text-slate-600 leading-snug">
                                     {displayName}
                                   </span>
                                   {explanation && (
-                                    <div className="group/tooltip relative inline-flex items-center">
+                                    <Tooltip
+                                      side="top"
+                                      contentClassName="w-80 p-3.5"
+                                      content={
+                                        <span className="block">
+                                          <span className="font-bold text-white border-b border-slate-700/80 pb-1.5 mb-1.5 flex items-center justify-between gap-2">
+                                            <span>{displayName}</span>
+                                            <span className="font-mono text-[10px] text-blue-300 font-semibold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800">
+                                              {task.taskType}
+                                            </span>
+                                          </span>
+                                          <span className="block text-slate-300 text-[11.5px] leading-relaxed">
+                                            {explanation}
+                                          </span>
+                                        </span>
+                                      }
+                                    >
                                       <button
                                         type="button"
-                                        className="inline-flex size-4.5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 hover:bg-blue-100 hover:text-blue-700 transition-all border border-slate-200/80 shadow-2xs"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
                                         aria-label={t("master.ops.aiConfig.routingSection.viewTaskInfoAria")}
                                       >
-                                        !
+                                        <HelpCircle className="size-3.5" aria-hidden="true" />
                                       </button>
-                                      <div className="pointer-events-none invisible opacity-0 group-hover/tooltip:visible group-hover/tooltip:opacity-100 transition-all duration-150 absolute left-0 top-full mt-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl bg-slate-900 p-3.5 text-xs text-slate-200 shadow-2xl z-50 leading-relaxed font-sans font-normal border border-slate-700">
-                                        <div className="font-bold text-white border-b border-slate-700/80 pb-1.5 mb-1.5 flex items-center justify-between">
-                                          <span>{displayName}</span>
-                                          <span className="font-mono text-[10px] text-blue-300 font-semibold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800">
-                                            {task.taskType}
-                                          </span>
-                                        </div>
-                                        <p className="text-slate-300 text-[11.5px] leading-relaxed">
-                                          {explanation}
-                                        </p>
-                                        <div className="absolute bottom-full left-2 -mb-1 border-4 border-transparent border-b-slate-900" />
-                                      </div>
-                                    </div>
+                                    </Tooltip>
                                   )}
                                 </div>
                               </div>
@@ -1222,7 +1244,7 @@ export function AiEngineConfiguration() {
                                 <select
                                   value={task.provider}
                                   onChange={(e) => handleProviderChange(task.taskType, e.target.value)}
-                                  className="h-8.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all"
+                                  className="h-8.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all"
                                   title={t("master.ops.aiConfig.routingSection.selectProviderTitle")}
                                 >
                                   <option value="GEMINI">GEMINI</option>
@@ -1246,7 +1268,7 @@ export function AiEngineConfiguration() {
                                   <select
                                     value={task.modelName}
                                     onChange={(e) => handleTaskChange(task.taskType, "modelName", e.target.value)}
-                                    className="h-8.5 w-full rounded-lg border border-blue-200/90 bg-blue-50/25 px-2.5 font-mono text-xs font-bold text-blue-950 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all"
+                                    className="h-8.5 w-full rounded-lg border border-blue-200/90 bg-blue-50/25 px-2.5 font-mono text-xs font-bold text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all"
                                     title={t("master.ops.aiConfig.routingSection.selectPrimaryModelTitle")}
                                   >
                                     {!hasCurrentModel && task.modelName && (
@@ -1276,7 +1298,7 @@ export function AiEngineConfiguration() {
                                     onChange={(e) => handleTaskChange(task.taskType, "isActive", e.target.checked)}
                                     className="size-4 accent-blue-600 rounded"
                                   />
-                                  <span className="text-xs font-medium text-slate-700">
+                                  <span className="text-xs font-medium text-slate-600">
                                     {task.isActive !== false
                                       ? t("master.ops.aiConfig.routingSection.statusOn")
                                       : t("master.ops.aiConfig.routingSection.statusOff")}
@@ -1317,7 +1339,7 @@ export function AiEngineConfiguration() {
                                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-3">
                                   <div className="flex items-center gap-2">
                                     <Sliders className="size-4 text-blue-600" />
-                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
                                       {t("master.ops.aiConfig.routingSection.drawerSettingsLabel")}
                                     </span>
                                   </div>
@@ -1394,7 +1416,7 @@ export function AiEngineConfiguration() {
                                             key={stepIdx}
                                             className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white p-2.5 sm:p-3 shadow-2xs hover:border-blue-300 transition-all"
                                           >
-                                            <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700 border border-slate-200">
+                                            <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
                                               {t("master.ops.aiConfig.routingSection.tierBadge", { index: stepIdx + 1 })}
                                             </span>
                                             <select
@@ -1402,7 +1424,7 @@ export function AiEngineConfiguration() {
                                               onChange={(e) =>
                                                 handleFallbackProviderChange(task.taskType, stepIdx, e.target.value)
                                               }
-                                              className="h-8 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                              className="h-8 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
                                             >
                                               {Object.keys(MODEL_PRESETS).map((p) => (
                                                 <option key={p} value={p}>{p}</option>
@@ -1414,7 +1436,7 @@ export function AiEngineConfiguration() {
                                               onChange={(e) =>
                                                 handleUpdateFallbackStep(task.taskType, stepIdx, "model", e.target.value)
                                               }
-                                              className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 truncate"
+                                              className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs font-medium text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 truncate"
                                             >
                                               {!stepHasModel && step.model && (
                                                 <option value={step.model}>{step.model}</option>
@@ -1442,7 +1464,7 @@ export function AiEngineConfiguration() {
 
                                 {/* COMPACT OPERATIONAL PARAMETERS */}
                                 <div className="mt-3.5 pt-3 border-t border-slate-200/60 flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                                  <span className="font-semibold text-slate-700">{t("master.ops.aiConfig.routingSection.runtimeParams")}</span>
+                                  <span className="font-semibold text-slate-600">{t("master.ops.aiConfig.routingSection.runtimeParams")}</span>
                                   <label className="flex items-center gap-1.5">
                                     <span className="text-slate-500">{t("master.ops.aiConfig.routingSection.maxTokens")}</span>
                                     <input
@@ -1452,7 +1474,7 @@ export function AiEngineConfiguration() {
                                       step={256}
                                       value={task.maxTokens ?? 4096}
                                       onChange={(e) => handleTaskChange(task.taskType, "maxTokens", Number(e.target.value))}
-                                      className="h-7 w-20 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-500"
+                                      className="h-7 w-20 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                                     />
                                   </label>
                                   <label className="flex items-center gap-1.5">
@@ -1464,7 +1486,7 @@ export function AiEngineConfiguration() {
                                       step={0.1}
                                       value={task.temperature ?? 0.2}
                                       onChange={(e) => handleTaskChange(task.taskType, "temperature", Number(e.target.value))}
-                                      className="h-7 w-16 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-500"
+                                      className="h-7 w-16 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                                     />
                                   </label>
                                   <label className="flex items-center gap-1.5">
@@ -1476,7 +1498,7 @@ export function AiEngineConfiguration() {
                                       step={5}
                                       value={task.timeoutSeconds ?? 60}
                                       onChange={(e) => handleTaskChange(task.taskType, "timeoutSeconds", Number(e.target.value))}
-                                      className="h-7 w-16 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-500"
+                                      className="h-7 w-16 rounded-md border border-slate-200 bg-white px-2 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                                     />
                                   </label>
                                 </div>
@@ -1497,18 +1519,19 @@ export function AiEngineConfiguration() {
       {/* SECTION 2.5: SHORT-TERM REDIS RATE LIMITING (RPM / TPM) */}
       <section className={cn(surface, "overflow-hidden")}>
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-5 sm:p-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Gauge className="size-5 text-blue-600" />
-              <h2 className="text-base font-bold text-slate-950">
-                {t("master.ops.aiConfig.rateLimitSection.title")}
-              </h2>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {t("master.ops.aiConfig.rateLimitSection.desc")}
-            </p>
+          <div className="flex items-center gap-2">
+            <Gauge className="size-5 text-blue-600" />
+            <h2 className="text-base font-bold text-slate-600">
+              {t("master.ops.aiConfig.rateLimitSection.title")}
+            </h2>
+            <HelpTip
+              content={t("master.ops.aiConfig.rateLimitSection.desc")}
+              label={t("master.ops.systemWorkspace.helpTipLabel", {
+                label: t("master.ops.aiConfig.rateLimitSection.title"),
+              })}
+            />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-800">
+          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600">
             <input
               type="checkbox"
               checked={rateLimit.enabled}
@@ -1525,12 +1548,17 @@ export function AiEngineConfiguration() {
 
         <div className="grid gap-5 p-5 sm:p-6 md:grid-cols-3 md:items-end">
           <div>
-            <label className="block text-xs font-semibold text-slate-700">
-              {t("master.ops.aiConfig.rateLimitSection.rpmLabel")}
-            </label>
-            <p className="mt-0.5 text-[11px] text-slate-400">
-              {t("master.ops.aiConfig.rateLimitSection.rpmHelp")}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-slate-600">
+                {t("master.ops.aiConfig.rateLimitSection.rpmLabel")}
+              </label>
+              <HelpTip
+                content={t("master.ops.aiConfig.rateLimitSection.rpmHelp")}
+                label={t("master.ops.systemWorkspace.helpTipLabel", {
+                  label: t("master.ops.aiConfig.rateLimitSection.rpmLabel"),
+                })}
+              />
+            </div>
             <input
               type="number"
               min={1}
@@ -1543,17 +1571,22 @@ export function AiEngineConfiguration() {
                   defaultRpmPerTenant: Math.max(1, parseInt(e.target.value, 10) || 30),
                 }))
               }
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-600 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">
-              {t("master.ops.aiConfig.rateLimitSection.tpmLabel")}
-            </label>
-            <p className="mt-0.5 text-[11px] text-slate-400">
-              {t("master.ops.aiConfig.rateLimitSection.tpmHelp")}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-slate-600">
+                {t("master.ops.aiConfig.rateLimitSection.tpmLabel")}
+              </label>
+              <HelpTip
+                content={t("master.ops.aiConfig.rateLimitSection.tpmHelp")}
+                label={t("master.ops.systemWorkspace.helpTipLabel", {
+                  label: t("master.ops.aiConfig.rateLimitSection.tpmLabel"),
+                })}
+              />
+            </div>
             <input
               type="number"
               min={1000}
@@ -1566,7 +1599,7 @@ export function AiEngineConfiguration() {
                   defaultTpmPerTenant: Math.max(1000, parseInt(e.target.value, 10) || 100000),
                 }))
               }
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-600 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
             />
           </div>
 
@@ -1601,19 +1634,20 @@ export function AiEngineConfiguration() {
       <section className={cn(surface, "overflow-hidden")}>
         {/* SECTION HEADER */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-5 sm:p-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Coins className="size-5 text-amber-600" />
-              <h2 className="text-base font-bold text-slate-950">
-                {t("master.ops.aiConfig.pricingSection.title")}
-              </h2>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200">
-                {t("master.ops.aiConfig.pricingSection.modelsCount", { count: pricings.length })}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {t("master.ops.aiConfig.pricingSection.subtitle")}
-            </p>
+          <div className="flex items-center gap-2">
+            <Coins className="size-5 text-amber-600" />
+            <h2 className="text-base font-bold text-slate-600">
+              {t("master.ops.aiConfig.pricingSection.title")}
+            </h2>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200">
+              {t("master.ops.aiConfig.pricingSection.modelsCount", { count: pricings.length })}
+            </span>
+            <HelpTip
+              content={t("master.ops.aiConfig.pricingSection.subtitle")}
+              label={t("master.ops.systemWorkspace.helpTipLabel", {
+                label: t("master.ops.aiConfig.pricingSection.title"),
+              })}
+            />
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -1625,7 +1659,7 @@ export function AiEngineConfiguration() {
                 placeholder={t("master.ops.aiConfig.pricingSection.searchPlaceholder")}
                 value={pricingSearch}
                 onChange={(e) => setPricingSearch(e.target.value)}
-                className="h-8 w-44 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+                className="h-8 w-44 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all placeholder:text-slate-400"
               />
               {pricingSearch && (
                 <button
@@ -1663,7 +1697,7 @@ export function AiEngineConfiguration() {
         {isAddingPricing && (
           <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50/50 via-slate-50/50 to-white p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
                 {t("master.ops.aiConfig.pricingSection.formTitle")}
               </span>
               <button
@@ -1682,7 +1716,7 @@ export function AiEngineConfiguration() {
                   onChange={(e) =>
                     setNewPricing((prev) => ({ ...prev, provider: e.target.value }))
                   }
-                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500"
                 >
                   <option value="GEMINI">GEMINI</option>
                   <option value="OPENAI">OPENAI</option>
@@ -1709,7 +1743,7 @@ export function AiEngineConfiguration() {
                   onChange={(e) =>
                     setNewPricing((prev) => ({ ...prev, modelName: e.target.value }))
                   }
-                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none focus:border-blue-500"
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1722,7 +1756,7 @@ export function AiEngineConfiguration() {
                   onChange={(e) =>
                     setNewPricing((prev) => ({ ...prev, displayName: e.target.value }))
                   }
-                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-900 outline-none focus:border-blue-500"
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1739,7 +1773,7 @@ export function AiEngineConfiguration() {
                       inputPricePer1mTokens: parseFloat(e.target.value) || 0,
                     }))
                   }
-                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none focus:border-blue-500"
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1756,7 +1790,7 @@ export function AiEngineConfiguration() {
                       outputPricePer1mTokens: parseFloat(e.target.value) || 0,
                     }))
                   }
-                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none focus:border-blue-500"
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-600 outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1788,8 +1822,8 @@ export function AiEngineConfiguration() {
 
         {/* MODEL LIST TABLE */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-600">
               <tr>
                 <th className="px-5 py-3 w-[30%]">{t("master.ops.aiConfig.pricingSection.colModelProvider")}</th>
                 <th className="px-4 py-3 w-[26%]">{t("master.ops.aiConfig.pricingSection.colUnitPrice")}</th>
@@ -1833,7 +1867,7 @@ export function AiEngineConfiguration() {
                               onChange={(e) =>
                                 handlePricingChange(pricing.modelName, "displayName", e.target.value)
                               }
-                              className="h-7 w-44 rounded-md border border-transparent bg-transparent px-1.5 text-xs font-bold text-slate-900 outline-none hover:border-slate-200 focus:border-blue-500 focus:bg-white transition-all"
+                              className="h-7 w-44 rounded-md border border-transparent bg-transparent px-1.5 text-xs font-bold text-slate-600 outline-none hover:border-slate-200 focus:border-blue-500 focus:bg-white transition-all"
                               title={t("master.ops.aiConfig.pricingSection.editDisplayNameTitle")}
                             />
                             <div className="font-mono text-[11px] text-slate-400 px-1.5 truncate">
@@ -1862,7 +1896,7 @@ export function AiEngineConfiguration() {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="h-7 w-20 rounded-md border border-slate-200 bg-white pl-4 pr-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                                className="h-7 w-20 rounded-md border border-slate-200 bg-white pl-4 pr-1.5 font-mono text-xs font-semibold text-slate-600 outline-none focus:border-blue-500"
                                 title={t("master.ops.aiConfig.pricingSection.inputPriceTitle")}
                               />
                             </div>
@@ -1884,7 +1918,7 @@ export function AiEngineConfiguration() {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="h-7 w-20 rounded-md border border-slate-200 bg-white pl-4 pr-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                                className="h-7 w-20 rounded-md border border-slate-200 bg-white pl-4 pr-1.5 font-mono text-xs font-semibold text-slate-600 outline-none focus:border-blue-500"
                                 title={t("master.ops.aiConfig.pricingSection.outputPriceTitle")}
                               />
                             </div>
@@ -1956,7 +1990,7 @@ export function AiEngineConfiguration() {
                             }
                             className="size-4 accent-blue-600 rounded"
                           />
-                          <span className="text-xs font-medium text-slate-700">
+                          <span className="text-xs font-medium text-slate-600">
                             {pricing.isActive !== false
                               ? t("master.ops.aiConfig.routingSection.statusOn")
                               : t("master.ops.aiConfig.routingSection.statusOff")}
@@ -2008,39 +2042,6 @@ export function AiEngineConfiguration() {
               )}
             </tbody>
           </table>
-        </div>
-      </section>
-
-      {/* SECTION 3: RESILIENCE & ARCHITECTURE INFO */}
-      <section className="grid gap-5 md:grid-cols-3">
-        <div className={cn(surface, "p-5")}>
-          <div className="flex items-center gap-2.5 text-blue-700">
-            <Zap className="size-5" />
-            <h3 className="text-sm font-bold text-slate-950">{t("master.ops.aiConfig.archCards.hotSwapTitle")}</h3>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            {t("master.ops.aiConfig.archCards.hotSwapDesc")}
-          </p>
-        </div>
-
-        <div className={cn(surface, "p-5")}>
-          <div className="flex items-center gap-2.5 text-emerald-700">
-            <ShieldCheck className="size-5" />
-            <h3 className="text-sm font-bold text-slate-950">{t("master.ops.aiConfig.archCards.encryptionTitle")}</h3>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            {t("master.ops.aiConfig.archCards.encryptionDesc")}
-          </p>
-        </div>
-
-        <div className={cn(surface, "p-5")}>
-          <div className="flex items-center gap-2.5 text-amber-700">
-            <AlertTriangle className="size-5" />
-            <h3 className="text-sm font-bold text-slate-950">{t("master.ops.aiConfig.archCards.fallbackTitle")}</h3>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            {t("master.ops.aiConfig.archCards.fallbackDesc")}
-          </p>
         </div>
       </section>
 

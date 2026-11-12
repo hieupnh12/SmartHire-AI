@@ -18,19 +18,31 @@ import { cn } from "@/lib/utils";
 function getAdminPageTitle(pathname: string, t: TranslateFn): string {
   if (pathname.startsWith("/admin/dashboard")) return t("master.shell.titles.dashboard");
   if (pathname.startsWith("/admin/analytics")) return t("master.shell.titles.analytics");
-  if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) return t("master.shell.titles.tenantDirectory");
-  if (pathname.startsWith("/admin/tenants/create")) return t("master.shell.titles.tenantCreate");
+  if (pathname.startsWith("/admin/leads")) return t("master.shell.titles.leads");
+  if (pathname.startsWith("/admin/deals") || pathname.startsWith("/admin/tenants/create")) {
+    return t("master.shell.titles.b2bDeals");
+  }
+  if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) {
+    return t("master.shell.titles.tenantDirectory");
+  }
   if (pathname.startsWith("/admin/tenants/provisioning")) return t("master.shell.titles.tenantProvisioning");
   if (pathname.startsWith("/admin/tenants")) return t("master.shell.titles.tenants");
-  if (pathname.startsWith("/admin/subscriptions")) return t("master.shell.titles.subscriptions");
-  if (pathname.startsWith("/admin/billing/invoices")) return t("master.shell.titles.invoices");
-  if (pathname.startsWith("/admin/billing/vnpay")) return t("master.shell.titles.vnpay");
-  if (pathname.startsWith("/admin/billing")) return t("master.shell.titles.billing");
   if (pathname.startsWith("/admin/contracts/create")) return t("master.shell.titles.contractCreate");
   if (pathname.startsWith("/admin/contracts")) return t("master.shell.titles.contracts");
-  if (pathname.startsWith("/admin/leads")) return t("master.shell.titles.leads");
+  if (pathname.startsWith("/admin/invoices") || pathname.startsWith("/admin/billing/invoices")) {
+    return t("master.shell.titles.invoices");
+  }
+  if (pathname.startsWith("/admin/billing/vnpay")) return t("master.shell.titles.vnpay");
+  if (pathname.startsWith("/admin/billing")) return t("master.shell.titles.billing");
+  if (pathname.startsWith("/admin/subscriptions/create")) return t("master.shell.titles.subscriptionCreate");
+  if (pathname.startsWith("/admin/subscriptions/allocations")) return t("master.shell.titles.subscriptionAllocations");
+  if (pathname.startsWith("/admin/subscriptions")) return t("master.shell.titles.subscriptions");
+  if (pathname.startsWith("/admin/system/logs") || pathname.startsWith("/admin/system/audit-logs")) {
+    return t("master.shell.titles.auditLogs");
+  }
+  if (pathname.startsWith("/admin/system/ai-usage")) return t("master.shell.titles.aiUsage");
+  if (pathname.startsWith("/admin/system/ai-quotas")) return t("master.shell.titles.aiQuotas");
   if (pathname.startsWith("/admin/system/ai-config")) return t("master.shell.titles.aiConfig");
-  if (pathname.startsWith("/admin/system/audit-logs")) return t("master.shell.titles.auditLogs");
   if (pathname.startsWith("/admin/system")) return t("master.shell.titles.system");
   if (pathname.startsWith("/admin/account/profile")) return t("master.shell.titles.accountProfile");
   if (pathname.startsWith("/admin/account/security")) return t("master.shell.titles.accountSecurity");
@@ -160,7 +172,7 @@ export function MasterAdminLayout() {
         )}
       >
         {/* Top Header of Main Area (scrolls with page, soft elevated with blurred drop shadow) */}
-        <header className="relative z-20 flex h-16 w-full items-center justify-between bg-white pl-1.5 sm:pl-2 pr-4 sm:pr-6 lg:pr-8 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] border-b border-slate-100/80 transition-shadow">
+        <header className="relative z-20 flex h-16 w-full items-center justify-between bg-white pl-1.5 sm:pl-2 pr-3 sm:pr-4 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] border-b border-slate-100/80 transition-shadow">
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* 3-bar Menu Toggle Button (sits close to edge, larger size-7) */}
             <button
@@ -175,7 +187,7 @@ export function MasterAdminLayout() {
 
             {/* Page Title & Context */}
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900 tracking-tight sm:text-lg">
+              <h2 className="text-base font-bold text-slate-600 tracking-tight sm:text-lg">
                 {pageTitle}
               </h2>
             </div>
@@ -311,13 +323,13 @@ export function MasterAdminLayout() {
         </header>
 
         {/* Page Body */}
-        <main className="w-full min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <main className="w-full min-w-0 flex-1 px-3 py-5 sm:px-4 sm:py-6">
           <Outlet />
         </main>
 
         {/* Footer */}
         <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
-          <div className="flex w-full items-center justify-center px-4 sm:px-6 lg:px-8">
+          <div className="flex w-full items-center justify-center px-3 sm:px-4">
             <span>{t("master.shell.footer")}</span>
           </div>
         </footer>

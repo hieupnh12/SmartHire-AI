@@ -101,6 +101,8 @@ export const chromeEn = {
     adminNotificationsSubtitle: "Updates for workspace administrators",
     adminNotificationsEmptyTitle: "No new notifications",
     adminNotificationsEmptyDesc: "Administrative updates will appear here.",
+    adminSubscriptionNotificationsEmptyDesc: "Alerts for expiring plans, overdue invoices, or quota thresholds will appear here.",
+    adminSubscriptionNotificationsViewAll: "View plans & billing",
   },
   seo: {
     siteName: "SmartHire AI",

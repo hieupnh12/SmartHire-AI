@@ -1,5 +1,7 @@
 import { X, FileSignature, Send, Copy, ExternalLink, CheckCircle2, RefreshCw, Download, ShieldCheck } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { PAYMENT_BANK_INFO } from "@/config/paymentConfig";
 import { formatDate, formatDateTime, formatNumber, useLocale, useT } from "@/i18n";
 
 interface ContractDetailModalProps {
@@ -113,6 +115,7 @@ export function ContractDetailModal({
             <div className="w-24 h-0.5 bg-slate-800 mx-auto my-2" />
             <div className="text-[11px] text-slate-500 italic">
               {t("master.commerce.contractDetailModal.placeDate", {
+                city: LEGAL_POLICY_META.city,
                 date: formatDate(selectedContract.createdAt, undefined, locale),
               })}
             </div>
@@ -131,10 +134,10 @@ export function ContractDetailModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
             <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-1">
               <div className="font-bold text-indigo-900 uppercase">{t("master.commerce.contractDetailModal.partyAHeader")}</div>
-              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.companyLabel")} </span>{selectedContract.partyAName || t("master.commerce.contractDetailModal.partyAFallbackName")}</div>
-              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.taxCodeLabel")} </span><span className="font-mono font-bold">{selectedContract.partyATaxCode || "0110889988"}</span></div>
-              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.repLabel")} </span>{selectedContract.partyARepresentative || "Phan Nhật Hưng"} ({selectedContract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition")})</div>
-              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.bankAccountLabel")} </span><span className="font-mono font-bold">{selectedContract.partyABankAccount || "190388889999"}</span> - Techcombank</div>
+              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.companyLabel")} </span>{selectedContract.partyAName || LEGAL_POLICY_META.companyName}</div>
+              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.taxCodeLabel")} </span><span className="font-mono font-bold">{selectedContract.partyATaxCode || LEGAL_POLICY_META.taxCode}</span></div>
+              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.repLabel")} </span>{selectedContract.partyARepresentative || LEGAL_POLICY_META.representative} ({selectedContract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition")})</div>
+              <div><span className="font-semibold">{t("master.commerce.contractDetailModal.bankAccountLabel")} </span><span className="font-mono font-bold">{selectedContract.partyABankAccount || PAYMENT_BANK_INFO.accountNumber}</span> - {selectedContract.partyABankName || PAYMENT_BANK_INFO.shortName} ({selectedContract.partyABankBranch || t("master.commerce.publicSigning.partyADefaultBankBranch")})</div>
             </div>
 
             <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-1">

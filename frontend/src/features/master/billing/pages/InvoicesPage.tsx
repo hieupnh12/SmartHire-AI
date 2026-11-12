@@ -4,10 +4,12 @@ import { InvoiceItem, billingApi } from "@/api/master/billingApi";
 import { useTenants, useSubscriptions, useInvoices, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { CreateInvoiceModal } from "@/features/master/billing/components/modals/CreateInvoiceModal";
 import { InvoiceDetailModal } from "@/features/master/billing/components/modals/InvoiceDetailModal";
-import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
+import { formatDate, formatDateTime, formatNumber, useLocale, useT } from "@/i18n";
 
 interface InvoicesTabProps {
   invoiceTenantId: number | "";
@@ -49,6 +51,7 @@ function InvoicesContent({
   const t = useT();
   const locale = useLocale();
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
   const { data: invoices = [] } = useInvoices();
@@ -94,24 +97,28 @@ function InvoicesContent({
 
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
-  const handleMarkInvoicePaid = async (inv: InvoiceItem) => {
-    if (!window.confirm(t("master.commerce.invoicesPage.confirmApprove", { invoiceNumber: inv.invoiceNumber }))) {
-      return;
-    }
-    setApprovingId(inv.id);
-    try {
-      const updated = await billingApi.approve(inv.id);
-      setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
-      if (selectedInvoice?.id === inv.id) {
-        setSelectedInvoice(updated);
-      }
-      toast.success(t("master.commerce.invoicesPage.approvedToast", { invoiceNumber: inv.invoiceNumber }));
-    } catch (err: any) {
-      const msg = err.response?.data?.message || t("master.commerce.invoicesPage.approveError");
-      toast.error(msg);
-    } finally {
-      setApprovingId(null);
-    }
+  const handleMarkInvoicePaid = (inv: InvoiceItem) => {
+    askConfirm({
+      title: t("master.commerce.invoicesPage.approveModal.title", { invoiceNumber: inv.invoiceNumber }),
+      description: t("master.commerce.invoicesPage.approveModal.description"),
+      confirmLabel: t("master.commerce.invoicesPage.approveModal.confirmLabel"),
+      onConfirm: async () => {
+        setApprovingId(inv.id);
+        try {
+          const updated = await billingApi.approve(inv.id);
+          setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
+          if (selectedInvoice?.id === inv.id) {
+            setSelectedInvoice(updated);
+          }
+          toast.success(t("master.commerce.invoicesPage.approvedToast", { invoiceNumber: inv.invoiceNumber }));
+        } catch (err: any) {
+          const msg = err.response?.data?.message || t("master.commerce.invoicesPage.approveError");
+          toast.error(msg);
+        } finally {
+          setApprovingId(null);
+        }
+      },
+    });
   };
 
   const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
@@ -226,137 +233,273 @@ function InvoicesContent({
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
         <div className="overflow-x-auto pb-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-slate-50">
-          <table className="w-full min-w-[1000px] border-collapse text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+          <table className="w-full min-w-[1140px] table-fixed border-collapse text-left text-xs text-slate-600">
+            <colgroup>
+              <col className="w-[138px]" />
+              <col />
+              <col />
+              <col className="w-[128px]" />
+              <col className="w-[144px]" />
+              <col className="w-[122px]" />
+              <col className="w-[116px]" />
+              <col className="w-[104px]" />
+            </colgroup>
+            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
-                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colNumber")}</th>
-                <th className="p-4 min-w-[200px]">{t("master.commerce.invoicesPage.colCustomer")}</th>
-                <th className="p-4 min-w-[150px]">{t("master.commerce.invoicesPage.colPlan")}</th>
-                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colAmount")}</th>
-                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colMethod")}</th>
-                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colDueDate")}</th>
-                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colStatus")}</th>
-                <th className="p-4 text-right whitespace-nowrap">{t("master.commerce.invoicesPage.colActions")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colNumber")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colCustomer")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colPlan")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colAmount")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colMethod")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colDueDate")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.invoicesPage.colStatus")}</th>
+                <th className="px-3.5 py-3.5 text-right whitespace-nowrap">{t("master.commerce.invoicesPage.colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredInvoices.length > 0 ? (
-                paginatedInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="font-mono font-bold text-blue-600">{inv.invoiceNumber}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {formatDate(inv.createdAt, undefined, locale)}
-                      </div>
-                    </td>
+                paginatedInvoices.map((inv) => {
+                  const customerName =
+                    inv.tenantName || t("master.commerce.invoiceDetailModal.tenantFallback", { id: inv.tenantId });
+                  const planLabel = inv.planName || t("master.commerce.invoicesPage.customPlanFallback");
+                  const formattedAmount = `${formatNumber(inv.amount, undefined, locale)} ₫`;
+                  const gatewayShort =
+                    inv.paymentGateway === "BANK_TRANSFER"
+                      ? t("master.commerce.invoicesPage.gatewayBank")
+                      : inv.paymentGateway === "STRIPE"
+                      ? t("master.commerce.invoicesPage.gatewayStripe")
+                      : inv.paymentGateway === "VN_PAY"
+                      ? t("master.commerce.invoicesPage.gatewayVnPay")
+                      : inv.paymentGateway || t("master.commerce.invoicesPage.gatewayDirect");
+                  const gatewayFull =
+                    inv.paymentGateway === "BANK_TRANSFER"
+                      ? t("master.commerce.invoiceDetailModal.gatewayBank")
+                      : inv.paymentGateway === "STRIPE"
+                      ? t("master.commerce.invoiceDetailModal.gatewayStripe")
+                      : inv.paymentGateway === "VN_PAY"
+                      ? t("master.commerce.invoiceDetailModal.gatewayVnPay")
+                      : inv.paymentGateway || t("master.commerce.invoiceDetailModal.gatewayDirect");
+                  const statusFull =
+                    inv.status === "PAID"
+                      ? t("master.commerce.billingWorkspace.invoiceStatus.PAID")
+                      : inv.status === "PENDING"
+                      ? t("master.commerce.billingWorkspace.invoiceStatus.PENDING")
+                      : inv.status === "OVERDUE"
+                      ? t("master.commerce.billingWorkspace.invoiceStatus.OVERDUE")
+                      : t("master.commerce.billingWorkspace.invoiceStatus.CANCELLED");
 
-                    <td className="p-4 min-w-[200px]">
-                      <div className="font-bold text-slate-900 leading-relaxed break-words">{inv.tenantName || `Tenant #${inv.tenantId}`}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 font-mono mt-0.5 flex-wrap">
-                        <span>{inv.tenantCode || "code"}</span>
-                        {inv.tenantSubdomain && <span>· {inv.tenantSubdomain}.smarthire.top</span>}
-                      </div>
-                    </td>
-
-                    <td className="p-4 min-w-[150px]">
-                      <div className="font-semibold text-slate-800 leading-relaxed break-words">{inv.planName || t("master.commerce.invoicesPage.customPlanFallback")}</div>
-                      {inv.billingPeriodStart && inv.billingPeriodEnd && (
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {inv.billingPeriodStart.slice(0, 7)} → {inv.billingPeriodEnd.slice(0, 7)}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="p-4 whitespace-nowrap font-mono">
-                      <div className="font-bold text-slate-900 text-sm">
-                        {formatNumber(inv.amount, undefined, locale)} ₫
-                      </div>
-                    </td>
-
-                    <td className="p-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                        {inv.paymentGateway === "BANK_TRANSFER"
-                          ? t("master.commerce.invoicesPage.gatewayBank")
-                          : inv.paymentGateway === "STRIPE"
-                          ? t("master.commerce.invoicesPage.gatewayStripe")
-                          : inv.paymentGateway === "VN_PAY"
-                          ? t("master.commerce.invoicesPage.gatewayVnPay")
-                          : inv.paymentGateway || t("master.commerce.invoicesPage.gatewayDirect")}
-                      </span>
-                    </td>
-
-                    <td className="p-4 text-[11px] text-slate-600 whitespace-nowrap">
-                      {inv.dueDate ? (
-                        <span className="font-mono">{inv.dueDate}</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-
-                    <td className="p-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          inv.status === "PAID"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : inv.status === "PENDING"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : inv.status === "OVERDUE"
-                            ? "bg-rose-50 text-rose-700 border border-rose-200"
-                            : "bg-slate-100 text-slate-600 border border-slate-300"
-                        }`}
-                      >
-                        {inv.status === "PAID" ? (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        ) : inv.status === "PENDING" ? (
-                          <Clock className="w-3.5 h-3.5" />
-                        ) : (
-                          <XCircle className="w-3.5 h-3.5" />
-                        )}
-                        {inv.status === "PAID"
-                          ? t("master.commerce.invoicesPage.statusPaidShort")
-                          : inv.status === "PENDING"
-                          ? t("master.commerce.invoicesPage.statusPendingShort")
-                          : inv.status === "OVERDUE"
-                          ? t("master.commerce.invoicesPage.statusOverdueShort")
-                          : t("master.commerce.invoicesPage.statusCancelledShort")}
-                      </span>
-                    </td>
-
-                    <td className="p-4 text-right whitespace-nowrap space-x-1.5">
-                      <button
-                        onClick={() => setSelectedInvoice(inv)}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{t("master.commerce.invoicesPage.detailBtn")}</span>
-                      </button>
-
-                      {inv.status !== "PAID" && (
-                        <button
-                          disabled={approvingId === inv.id}
-                          onClick={() => handleMarkInvoicePaid(inv)}
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title={t("master.commerce.invoicesPage.approveTitle")}
+                  return (
+                    <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors group align-middle">
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-mono font-semibold text-white">{inv.invoiceNumber}</span>
+                              <span className="block text-slate-300">
+                                {formatDate(inv.createdAt, undefined, locale)}
+                              </span>
+                              {inv.transactionId && (
+                                <span className="block font-mono text-sky-300">{inv.transactionId}</span>
+                              )}
+                            </span>
+                          }
                         >
-                          {approvingId === inv.id ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>{t("master.commerce.invoicesPage.approvingBtn")}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{t("master.commerce.invoicesPage.approveBtn")}</span>
-                            </>
+                          <span className="min-w-0 flex-1 truncate font-mono font-bold text-blue-600 cursor-default">
+                            {inv.invoiceNumber}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{customerName}</span>
+                              {inv.billingLegalName && inv.billingLegalName !== customerName && (
+                                <span className="block text-slate-200">{inv.billingLegalName}</span>
+                              )}
+                              {inv.billingTaxCode && (
+                                <span className="block font-mono text-slate-300">
+                                  {t("master.commerce.invoiceDetailModal.taxCodeLabel")} {inv.billingTaxCode}
+                                </span>
+                              )}
+                              <span className="block font-mono text-slate-300">{inv.tenantCode || "code"}</span>
+                              {inv.tenantSubdomain && (
+                                <span className="block font-mono text-sky-300">{inv.tenantSubdomain}.smarthire.top</span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-600 cursor-default">
+                            {customerName}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{planLabel}</span>
+                              {inv.billingPeriodStart && inv.billingPeriodEnd && (
+                                <span className="block font-mono text-indigo-300">
+                                  {inv.billingPeriodStart} → {inv.billingPeriodEnd}
+                                </span>
+                              )}
+                              {inv.notes && <span className="block text-slate-300">{inv.notes}</span>}
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-medium text-slate-600 cursor-default">
+                            {planLabel}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-mono font-semibold text-white">{formattedAmount}</span>
+                              {inv.currency && inv.currency !== "VND" && (
+                                <span className="block font-mono text-slate-300">{inv.currency}</span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-mono font-bold text-slate-600 cursor-default">
+                            {formattedAmount}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Tooltip
+                          className="flex max-w-full"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{gatewayFull}</span>
+                              {inv.transactionId && (
+                                <span className="block font-mono text-sky-300">{inv.transactionId}</span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="inline-flex max-w-full items-center truncate px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 cursor-default">
+                            {gatewayShort}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3 text-[11px] text-slate-600 whitespace-nowrap">
+                        {inv.dueDate ? (
+                          <span className="font-mono">{inv.dueDate}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{statusFull}</span>
+                              {inv.paidAt && (
+                                <span className="block font-mono text-slate-300">
+                                  {formatDateTime(inv.paidAt, undefined, locale)}
+                                </span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-default ${
+                              inv.status === "PAID"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : inv.status === "PENDING"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : inv.status === "OVERDUE"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-300"
+                            }`}
+                          >
+                            {inv.status === "PAID" ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : inv.status === "PENDING" ? (
+                              <Clock className="w-3.5 h-3.5" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5" />
+                            )}
+                            {inv.status === "PAID"
+                              ? t("master.commerce.invoicesPage.statusPaidShort")
+                              : inv.status === "PENDING"
+                              ? t("master.commerce.invoicesPage.statusPendingShort")
+                              : inv.status === "OVERDUE"
+                              ? t("master.commerce.invoicesPage.statusOverdueShort")
+                              : t("master.commerce.invoicesPage.statusCancelledShort")}
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+                          <Tooltip side="top" content={t("master.commerce.invoicesPage.detailBtn")}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInvoice(inv)}
+                              aria-label={t("master.commerce.invoicesPage.detailBtn")}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
+
+                          {inv.status !== "PAID" && (
+                            <Tooltip
+                              side="top"
+                              content={
+                                approvingId === inv.id
+                                  ? t("master.commerce.invoicesPage.approvingBtn")
+                                  : t("master.commerce.invoicesPage.approveTitle")
+                              }
+                            >
+                              <button
+                                type="button"
+                                disabled={approvingId === inv.id}
+                                onClick={() => handleMarkInvoicePaid(inv)}
+                                aria-label={
+                                  approvingId === inv.id
+                                    ? t("master.commerce.invoicesPage.approvingBtn")
+                                    : t("master.commerce.invoicesPage.approveBtn")
+                                }
+                                className="inline-flex size-8 items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white shadow-2xs transition-colors"
+                              >
+                                {approvingId === inv.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </Tooltip>
                           )}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center text-slate-400">
+                  <td colSpan={8} className="py-14 text-center text-slate-400">
                     <Inbox className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <span>{t("master.commerce.invoicesPage.empty")}</span>
                   </td>

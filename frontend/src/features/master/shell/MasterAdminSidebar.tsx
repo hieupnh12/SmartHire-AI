@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   BrainCircuit,
   Building2,
+  Calculator,
   CreditCard,
   ReceiptText,
   FileSignature,
@@ -123,6 +124,13 @@ export function MasterAdminSidebar({
           icon: PhoneCall,
         },
         {
+          id: "b2b-deals",
+          label: t("master.shell.sidebar.b2bDeals"),
+          path: "/admin/deals",
+          activePaths: ["/admin/deals", "/admin/tenants/create"],
+          icon: Calculator,
+        },
+        {
           id: "tenant-provisioning",
           label: t("master.shell.sidebar.provisioning"),
           path: "/admin/tenants/provisioning",
@@ -141,7 +149,7 @@ export function MasterAdminSidebar({
           id: "contracts",
           label: t("master.shell.sidebar.contracts"),
           path: "/admin/contracts",
-          activePaths: ["/admin/contracts"],
+          activePaths: ["/admin/contracts", "/admin/contracts/create"],
           icon: FileSignature,
         },
         {
@@ -155,7 +163,7 @@ export function MasterAdminSidebar({
           id: "subscriptions",
           label: t("master.shell.sidebar.saasPlans"),
           path: "/admin/subscriptions/plans",
-          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview"],
+          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview", "/admin/subscriptions/create"],
           icon: CreditCard,
         },
         {
@@ -250,14 +258,14 @@ export function MasterAdminSidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out",
+        "fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col border-r border-slate-200/90 bg-gradient-to-b from-[#f8f9ff] via-[#f2f3fd] to-[#ecedf7] transition-transform duration-200 ease-in-out",
         isMobileOpen ? "translate-x-0 z-50 shadow-2xl" : "-translate-x-full",
         isOpen ? "md:translate-x-0" : "md:-translate-x-full"
       )}
       aria-label={t("master.shell.sidebar.navAria")}
     >
       {/* Brand Header at top of Sidebar (Desktop & Mobile) - seamless with sidebar */}
-      <div className="flex h-16 shrink-0 items-center justify-between px-5">
+      <div className="flex h-16 shrink-0 items-center justify-between md:justify-center px-5">
         <button
           type="button"
           onClick={() => handleNavigate("/admin/dashboard")}
@@ -268,7 +276,7 @@ export function MasterAdminSidebar({
         <button
           type="button"
           onClick={onMobileClose}
-          className="grid size-9 place-items-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden"
+          className="grid size-9 place-items-center rounded-xl text-slate-400 hover:bg-white/70 hover:text-slate-700 md:hidden"
           aria-label={t("master.shell.sidebar.closeNavAria")}
         >
           <X className="size-5" />
@@ -276,7 +284,7 @@ export function MasterAdminSidebar({
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/50 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400/60">
         {navEntries.map((entry) => {
           if (entry.type === "single") {
             const isActive =
@@ -288,10 +296,10 @@ export function MasterAdminSidebar({
                 type="button"
                 onClick={() => handleNavigate(entry.path)}
                 className={cn(
-                  "group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors text-left",
+                  "group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all text-left",
                   isActive
-                    ? "bg-blue-50 text-blue-600 font-semibold shadow-2xs"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-white text-blue-600 font-semibold shadow-[0_2px_8px_-2px_rgba(37,99,235,0.14)] ring-1 ring-blue-200/70"
+                    : "text-slate-600 hover:bg-white/65 hover:text-slate-900"
                 )}
               >
                 <Icon
@@ -320,8 +328,8 @@ export function MasterAdminSidebar({
                 className={cn(
                   "group flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors text-left",
                   isAnyChildActive
-                    ? "text-blue-900 font-bold"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    ? "text-blue-900 font-bold hover:bg-white/50"
+                    : "text-slate-600 hover:bg-white/65 hover:text-slate-900"
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -333,7 +341,7 @@ export function MasterAdminSidebar({
                   />
                   <span className="truncate">{entry.label}</span>
                   {entry.badge !== undefined && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                    <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200/80">
                       {entry.badge}
                     </span>
                   )}
@@ -359,10 +367,10 @@ export function MasterAdminSidebar({
                         type="button"
                         onClick={() => handleNavigate(child.path)}
                         className={cn(
-                          "group flex w-full items-center rounded-xl pl-11 pr-3.5 py-2 text-[13px] font-medium transition-colors text-left",
+                          "group flex w-full items-center rounded-xl pl-11 pr-3.5 py-2 text-[13px] font-medium transition-all text-left",
                           isActive
-                            ? "bg-blue-50 text-blue-600 font-semibold shadow-2xs"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                            ? "bg-white text-blue-600 font-semibold shadow-[0_2px_8px_-2px_rgba(37,99,235,0.14)] ring-1 ring-blue-200/70"
+                            : "text-slate-600 hover:bg-white/65 hover:text-slate-900"
                         )}
                       >
                         <span className="truncate flex-1">{child.label}</span>

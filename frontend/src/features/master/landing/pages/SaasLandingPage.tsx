@@ -22,6 +22,7 @@ import { useLandingModal } from "../context/LandingModalContext";
 import { PlanFeatureList } from "../components/PlanFeatureList";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 import { formatNumber, useLocale, useT } from "@/i18n";
 
 export function SaasLandingPage() {
@@ -530,7 +531,9 @@ export function SaasLandingPage() {
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    {t("master.landing.saas.security.check3")}
+                    {t("master.landing.saas.security.check3", {
+                      law: LEGAL_POLICY_META.lawLabel,
+                    })}
                   </span>
                 </div>
 

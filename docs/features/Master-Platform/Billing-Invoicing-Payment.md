@@ -41,50 +41,51 @@ Hỗ trợ **Tra cứu đơn hàng dịch vụ (Self-serve Order Lookup)** trự
    - Với đơn hàng `PAID`: Nút **"Đến Không gian tuyển dụng"** dẫn đến subdomain của doanh nghiệp.
 
 ### 3. Thanh toán Tự động qua Cổng Thanh toán (Checkout & Tenant Admin Billing Portal)
-1. **VietQR SePay (`POST /api/v1/master/payments/webhook/sepay`):**
-   - Khách hàng hoặc Tenant Admin quét mã VietQR từ Checkout hoặc `InvoicePaymentModal` (`/internal/admin/billing`) chứa nội dung tham chiếu hoá đơn.
-   - SePay gọi Webhook về hệ thống kèm chữ ký HMAC-SHA256 (`X-Sepay-Signature`) và `X-Sepay-Timestamp`.
-   - Backend xác thực chữ ký HMAC-SHA256 thời gian hằng (`MessageDigest.isEqual`), kiểm tra độ lệch timestamp ≤ 5 phút, đối chiếu số tiền khớp 100% với `invoice.amount`, lưu `payment_transactions` và kích hoạt hoá đơn.
-2. **VNPay (`POST /api/v1/public/checkout/vnpay/create-url`, `GET /api/v1/public/checkout/vnpay/verify-return`, IPN) & PayPal (`POST /api/v1/public/checkout/paypal/verify-return`):**
+1. **VietQR SePay (`POST /api/v1/public/sepay/webhook`, alias `POST /api/v1/public/checkout/sepay-webhook`):**
+   - Khách hàng hoặc Tenant Admin quét mã VietQR từ Checkout hoặc `InvoicePaymentModal` (`/internal/admin/billing`) chứa nội dung tham chiếu hoá đơn (`SH <invoiceNumber>`).
+   - SePay gọi Webhook về hệ thống kèm chữ ký HMAC-SHA256 (`X-SePay-Signature`) hoặc API Key (`Authorization: Apikey <secretKey>`) và optional `X-SePay-Timestamp`.
+   - Backend xác thực chữ ký thời gian hằng (`MessageDigest.isEqual`) đối với HMAC-SHA256 (`{timestamp}.{raw_body}` hoặc `{raw_body}`) hoặc `Apikey`, kiểm tra độ lệch timestamp ≤ 5 phút (±300 giây), đối chiếu số tiền khớp 100% với `invoice.amount`, lưu `payment_transactions` và kích hoạt hoá đơn.
+2. **VNPay (`POST /api/v1/public/checkout/vnpay/create-url`, `GET /api/v1/public/checkout/vnpay/ipn`, `GET /api/v1/public/checkout/vnpay/verify-return`) & PayPal (`POST /api/v1/public/checkout/paypal/verify-return`):**
    - Tạo URL thanh toán (hỗ trợ truyền `returnUrl` theo origin hiện tại của Tenant subdomain khi thanh toán nâng cấp/gia hạn) hoặc PayPal Order, xác thực checksum/capture khi callback, trả kèm `paymentPurpose` (`ONBOARDING` | `UPGRADE` | `RENEWAL`) và `planName` để `VnPayReturnPage` điều hướng phù hợp về `/internal/admin/billing` hoặc kích hoạt workspace mới.
 
 ### 4. Duyệt Thanh toán Thủ công (Ủy nhiệm chi B2B)
-1. Workspace Admin kiểm tra chứng từ và bấm xác nhận thanh toán (`PATCH /api/v1/master/invoices/{id}/pay` hoặc `POST /api/v1/master/invoices/{id}/approve`).
+1. Workspace Admin kiểm tra chứng từ và bấm xác nhận thanh toán (`POST /api/v1/master/invoices/{id}/approve` hoặc `PATCH /api/v1/master/invoices/{id}/status` với `status = PAID`).
 
 ### 5. Cơ chế Kích hoạt Một Điểm (`MasterBillingService.completePaidInvoice`)
-Khi một hoá đơn chuyển sang trạng thái `PAID` (dù qua SePay Webhook, VNPay, PayPal hay Admin duyệt thủ công), `MasterBillingService.completePaidInvoice` thực thi nhất quán trong giao dịch:
+Khi một hoá đơn chuyển sang trạng thái `PAID` (dù qua SePay Webhook, VNPay, PayPal hay Admin duyệt thủ công), `MasterBillingService` thực thi nhất quán trong giao dịch (`completePaidInvoice()` và nhánh `PAID` trong `updateInvoiceStatus()`):
 1. Đánh dấu `invoice.status = PAID`, `paid_at = now()`, lưu phương thức thanh toán và `payment_transactions`.
 2. Phân nhánh xử lý `tenant_subscriptions` gắn với `invoice.subscriptionId`:
-   - **Gia hạn thuê bao đang chạy (`SUBSCRIPTION_RENEWAL` và subscription không ở trạng thái `PENDING`):** Cộng dồn thêm số năm gia hạn từ `ends_at` (nếu còn hạn `endsAt > now`) hoặc từ `now` (nếu đã hết hạn/ân hạn), giữ nguyên `starts_at` khi còn hạn, đặt lại `status = ACTIVE`, xoá `grace_period_ends_at` và `canceled_at`.
-   - **Kích hoạt thuê bao mới / nâng cấp / kích hoạt Starter (`PENDING` hoặc khởi tạo):** Đóng tất cả các bản ghi thuê bao `ACTIVE`/`TRIAL` cũ (và `upgradedFromSubscriptionId` nếu có) sang `CANCELED` (`UPGRADED`), chuyển bản ghi thuê bao của hoá đơn sang `ACTIVE`, cập nhật `starts_at = now()`, `ends_at = now + years`, và xoá cache quota Redis của Tenant.
-3. Nếu Tenant đang ở trạng thái `PENDING_PAYMENT`: phát sự kiện bất đồng bộ (`TenantPaymentSuccessEvent`) để cấp phát MySQL Database riêng, chạy Flyway tenant migration, tạo lời mời kích hoạt `TENANT_ADMIN` và gửi email kích hoạt tài khoản.
+   - **Gia hạn thuê bao đang chạy (`SUBSCRIPTION_RENEWAL` và subscription không ở trạng thái `PENDING`):** Cộng dồn thêm số năm gia hạn từ `ends_at` (nếu còn hạn `endsAt > now`) hoặc từ `now` (nếu đã hết hạn/ân hạn), giữ nguyên `starts_at` khi còn hạn, đặt lại `status = ACTIVE`, xoá `grace_period_ends_at`, `canceled_at` và `cancel_reason`.
+   - **Kích hoạt thuê bao mới / nâng cấp / kích hoạt Starter (`PENDING` hoặc khởi tạo):** Đóng bản ghi gốc (`upgradedFromSubscriptionId` nếu có) và các bản ghi `ACTIVE`/`TRIAL`/`PAST_DUE`/`PENDING` khác của Tenant sang `CANCELED` (`UPGRADED_TO_<CODE>` / `SUPERSEDED_BY_SUBSCRIPTION_<ID>`), chuyển bản ghi thuê bao của hoá đơn sang `ACTIVE`, cập nhật `starts_at = now()`, `ends_at = now + years`, xoá `grace_period_ends_at` và xoá cache quota Redis của Tenant.
+3. Nếu Tenant đang ở trạng thái `PENDING_PAYMENT` hoặc `FAILED`: chuyển `tenants.status = 'PROVISIONING'` và phát sự kiện `TenantPaymentSuccessEvent` (`TenantProvisioningEventListener` chạy `@Async`, `AFTER_COMMIT`) để cấp phát MySQL Database riêng, chạy Flyway tenant migration, tạo lời mời kích hoạt `TENANT_ADMIN` và gửi email kích hoạt tài khoản.
 4. Nếu Tenant đang bị khoá do quá hạn (`SUSPENDED`), hệ thống tự động mở khoá lại `ACTIVE`.
 
 ## Business Rules
 
 - Toàn bộ giá trị hoá đơn và dòng hàng trong hệ thống chuẩn hoá theo đơn vị tiền tệ **VNĐ (`VND`)**, kiểu `DECIMAL(15,2)`.
-- Webhook SePay bắt buộc kiểm tra chữ ký HMAC-SHA256 (`sepay.webhook.require-signature=true` mặc định); header `X-Test-Simulation` không được phép bypass xác thực.
+- Webhook SePay bắt buộc kiểm tra chữ ký HMAC-SHA256 hoặc API Key (`sepay.require-signature=true` mặc định); header `X-Test-Simulation` không được phép bypass xác thực.
 - Giao dịch thanh toán có số tiền nhỏ hơn `invoice.amount` bị từ chối kích hoạt hoá đơn và ghi log cảnh báo gian lận.
 - Không cho phép xoá cứng hoá đơn đã thanh toán (`PAID`) để đảm bảo tính toàn vẹn kế toán và kiểm toán.
 - Cô lập dữ liệu Multi-Tenant: Tenant Admin chỉ được lấy thông tin checkout hoặc huỷ hoá đơn có `invoice.tenantId` khớp với Tenant đang truy cập (`FORBIDDEN` nếu truy cập hoá đơn của Tenant khác).
-- **Tự động hủy đơn hàng quá hạn 7 ngày & Giải phóng Subdomain:** Đơn hàng Self-serve Checkout ở trạng thái `PENDING` nếu không thanh toán trong vòng 7 ngày (`due_date < now()`) sẽ được hệ thống quét định kỳ hàng giờ (`@Scheduled`), tự động hủy hóa đơn (`CANCELLED`), hủy thuê bao tạm (`CANCELED`), đánh dấu tenant `CANCELLED` (chỉ áp dụng với tenant chưa kích hoạt `PENDING_PAYMENT`) và giải phóng subdomain mà vẫn giữ trọn vẹn dữ liệu kế toán và kiểm toán.
+- **Tự động hủy đơn hàng quá hạn 7 ngày & Giải phóng Subdomain:** `MasterBillingService.cleanupExpiredUnpaidOrders()` (`@Scheduled(cron = "${app.billing.unpaid-cleanup-cron:0 0 * * * *}")`) quét đơn hàng `PENDING` quá hạn (`due_date`), tự động hủy hóa đơn (`CANCELLED`), hủy thuê bao tạm (`CANCELED`, `EXPIRED_UNPAID_7_DAYS`), đánh dấu tenant `PENDING_PAYMENT`/`FAILED` thành `CANCELLED` + xoá mềm (`is_deleted = true`, `deleted_at = now()`) và đổi tên giải phóng `subdomain`, `code` (`released_<id>_...`) và `db_name` (`smarthire_tenant_released_<id>_...`) mà vẫn giữ trọn vẹn dữ liệu kế toán và kiểm toán.
 
 ## API liên quan
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| GET | `/api/v1/public/checkout/orders` | Public | Tra cứu danh sách đơn hàng theo email hoặc mã hóa đơn |
+| GET | `/api/v1/public/checkout/orders` | Public | Tra cứu danh sách đơn hàng theo email, mã hóa đơn hoặc subdomain |
 | GET | `/api/v1/public/checkout/order/{invoiceId}` | Public | Lấy thông tin chi tiết đơn hàng (VietQR, thông tin chuyển khoản) cho Checkout Step 2 |
 | GET | `/api/v1/public/checkout/order-by-number/{invoiceNumber}` | Public | Lấy chi tiết đơn hàng theo mã hóa đơn |
 | GET | `/api/v1/public/checkout/status/{invoiceId}` | Public | Kiểm tra trạng thái thanh toán hóa đơn realtime |
 | GET | `/api/v1/master/invoices` | WORKSPACE_ADMIN | Danh sách toàn bộ hoá đơn trên nền tảng |
+| GET | `/api/v1/master/invoices/{id}` | WORKSPACE_ADMIN | Chi tiết hoá đơn B2B và danh sách `lineItems` |
 | POST | `/api/v1/master/invoices` | WORKSPACE_ADMIN | Tạo hoá đơn mới kèm dòng hàng chi tiết |
-| PATCH | `/api/v1/master/invoices/{id}/pay` | WORKSPACE_ADMIN | Xác nhận thanh toán hoá đơn & kích hoạt dịch vụ |
-| POST | `/api/v1/master/invoices/{id}/approve` | WORKSPACE_ADMIN | Duyệt chứng từ chuyển khoản UNC & kích hoạt dịch vụ |
+| PATCH | `/api/v1/master/invoices/{id}/status` | WORKSPACE_ADMIN | Cập nhật trạng thái hoá đơn (`PAID` \| `PENDING` \| `OVERDUE` \| `CANCELLED`) |
+| POST | `/api/v1/master/invoices/{id}/approve` | WORKSPACE_ADMIN | Duyệt chứng từ chuyển khoản UNC (`PENDING` → `PAID`) & kích hoạt dịch vụ |
 | POST | `/api/v1/master/invoices/cleanup-expired` | WORKSPACE_ADMIN | Kích hoạt quét dọn dẹp đơn hàng quá hạn 7 ngày & giải phóng subdomain |
-| PATCH | `/api/v1/master/invoices/{id}/cancel` | WORKSPACE_ADMIN | Huỷ hoá đơn chưa thanh toán |
-| POST | `/api/v1/master/payments/webhook/sepay` | Public (HMAC) | Webhook nhận biến động số dư VietQR từ SePay |
+| POST | `/api/v1/public/sepay/webhook` | Public (HMAC/Apikey) | Webhook nhận biến động số dư VietQR từ SePay (alias: `/api/v1/public/checkout/sepay-webhook`) |
 | POST | `/api/v1/public/checkout/vnpay/create-url` | Public / Tenant | Khởi tạo URL thanh toán VNPay |
+| GET | `/api/v1/public/checkout/vnpay/ipn` | Public (HMAC) | Webhook IPN xác thực giao dịch server-to-server từ VNPay |
 | GET | `/api/v1/public/checkout/vnpay/verify-return` | Public / Tenant | Xác thực chữ ký VNPay return & hoàn tất thanh toán |
 | POST | `/api/v1/public/checkout/paypal/verify-return` | Public / Tenant | Xác thực đơn hàng PayPal đã capture & hoàn tất thanh toán |
 | GET | `/api/v1/tenant/company/subscription/invoices/{invoiceId}/checkout` | TENANT_ADMIN | Lấy chi tiết VietQR / số tiền / mã chuyển khoản để thanh toán trong Workspace |
@@ -104,4 +105,4 @@ Khi một hoá đơn chuyển sang trạng thái `PAID` (dù qua SePay Webhook, 
 - `OrderLookupModal.tsx`: Hộp thoại tra cứu đơn hàng theo email quản trị hoặc mã hóa đơn, hiển thị thẻ thông tin đơn hàng, mã VietQR và nút "Thanh toán ngay".
 - `/checkout?invoiceId={id}` (`CheckoutPage.tsx`) & `/checkout/vnpay-return` (`VnPayReturnPage.tsx`): Thanh toán đơn hàng đăng ký mới hoặc điều hướng quay lại `/internal/admin/billing` sau khi nâng cấp/gia hạn qua VNPay.
 - `/internal/admin/billing` (`SubscriptionBillingPage.tsx` & `InvoicePaymentModal.tsx`): Danh sách hoá đơn của doanh nghiệp, thanh toán tại chỗ qua VietQR SePay (polling realtime), VNPay, PayPal và huỷ hoá đơn `PENDING`.
-- `/admin/invoices` (`InvoicesPage.tsx`): Bảng quản lý hoá đơn toàn sàn cho Workspace Admin, bộ lọc theo trạng thái (`PENDING`, `PAID`, `OVERDUE`, `CANCELLED`) và duyệt thanh toán.
+- `/admin/invoices` (`InvoicesPage.tsx`, `CreateInvoiceModal.tsx`, `InvoiceDetailModal.tsx`) và tab Hóa đơn trên `BillingWorkspace.tsx`: Bảng quản lý hoá đơn toàn sàn cho Workspace Admin, bộ lọc theo trạng thái (`PENDING`, `PAID`, `OVERDUE`, `CANCELLED`), tạo hoá đơn và duyệt thanh toán.

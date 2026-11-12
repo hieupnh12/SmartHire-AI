@@ -6,6 +6,7 @@ import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
+import com.smarthire.tenant.job.service.JobAlertService;
 import com.smarthire.tenant.notification.service.StaffNotificationService;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,7 +23,8 @@ public class AiInterviewWorkService {
             ApplicationClosureService.EMAIL_PURPOSE,
             "ASSESSMENT_RESULT",
             StaffNotificationService.EMAIL_PURPOSE,
-            com.smarthire.tenant.notification.service.CandidateNotificationService.EMAIL_PURPOSE);
+            com.smarthire.tenant.notification.service.CandidateNotificationService.EMAIL_PURPOSE,
+            JobAlertService.EMAIL_PURPOSE);
     private final AiInterviewRepository interviews;
     private final EmailOutboxRepository emails;
     private final InviteMailSender mail;
@@ -48,6 +50,7 @@ public class AiInterviewWorkService {
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(StaffNotificationService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(com.smarthire.tenant.notification.service.CandidateNotificationService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
+        emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(JobAlertService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         return result;
     }
     @Transactional

@@ -26,6 +26,7 @@ public class CheckoutResponse {
     private String currency;
     private String status;
     private String bankName;
+    private String bankBranch;
     private String accountNumber;
     private String accountName;
     private String transferSyntax;

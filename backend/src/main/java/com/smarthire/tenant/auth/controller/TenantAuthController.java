@@ -86,9 +86,22 @@ public class TenantAuthController {
     }
 
     @PutMapping("/profile")
-    @Operation(summary = "Update My Account Profile", description = "Updates the signed-in user's full name, phone, headline and bio.")
+    @Operation(summary = "Update My Account Profile", description = "Updates the signed-in user's full name, phone, headline, bio and social/portfolio links.")
     public ResponseEntity<ApiResponse<AccountProfileResponse>> updateProfile(@Valid @RequestBody UpdateAccountProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Đã cập nhật hồ sơ", accountProfileService.update(request)));
+    }
+
+    @PostMapping(value = "/profile/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload My Account Avatar", description = "Uploads a JPG, PNG or WEBP avatar image (max 2MB) for the signed-in candidate.")
+    public ResponseEntity<ApiResponse<AccountProfileResponse>> uploadAvatar(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok("Đã cập nhật ảnh đại diện", accountProfileService.uploadAvatar(file)));
+    }
+
+    @DeleteMapping("/profile/avatar")
+    @Operation(summary = "Remove My Account Avatar", description = "Clears the avatar URL on the signed-in candidate account.")
+    public ResponseEntity<ApiResponse<AccountProfileResponse>> removeAvatar() {
+        return ResponseEntity.ok(ApiResponse.ok("Đã xoá ảnh đại diện", accountProfileService.removeAvatar()));
     }
 
     @DeleteMapping("/profile")
