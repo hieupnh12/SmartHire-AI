@@ -1,11 +1,15 @@
 package com.smarthire.master.notification.service;
 
 import com.smarthire.common.redis.RedisService;
+import com.smarthire.config.PlatformProperties;
+import com.smarthire.master.subscription.util.PlanQuotaFormatter;
 import com.smarthire.domain.master.entity.ConsultationRequest;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
+import com.smarthire.domain.master.repository.MasterNotificationLogRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
+import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.master.lead.dto.SendQuotationRequest;
 import com.smarthire.master.notification.dto.MasterEmailPayload;
 import com.smarthire.master.notification.messaging.MasterNotificationPublisher;
@@ -13,6 +17,7 @@ import com.smarthire.multitenancy.quota.QuotaType;
 import com.smarthire.master.billing.dto.OrderPdfData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,6 +26,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
@@ -34,6 +40,19 @@ public class MasterNotificationService {
     private final MasterNotificationPublisher publisher;
     private final TenantInfoRepository tenantRepository;
     private final RedisService redisService;
+
+    @Autowired(required = false)
+    private MasterNotificationLogRepository notificationLogRepository;
+
+    @Autowired(required = false)
+    private TenantPublicUrlService publicUrls;
+
+    @Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
+    private com.smarthire.config.PlatformProperties getPlatformProperties() {
+        return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
 
     private static final String IDEMPOTENCY_KEY = "email_sent:%s:%s:%s"; // tenantCode:type:yyyyMMdd
 
@@ -113,7 +132,13 @@ public class MasterNotificationService {
         vars.put("accountName", orderData.getAccountName());
         vars.put("transferSyntax", orderData.getTransferSyntax());
         vars.put("qrUrl", orderData.getQrUrl());
+        vars.put("bankBranch", orderData.getBankBranch());
         vars.put("checkoutUrl", "https://smarthire.top/checkout");
+        PlatformProperties.Legal legal = getPlatformProperties().getLegal();
+        vars.put("platformCompanyName", legal.getCompanyName());
+        vars.put("platformAddress", legal.getAddress());
+        vars.put("supportHotline", legal.getHotline());
+        vars.put("supportEmail", legal.getSupportEmail());
 
         String pdfFilename = "Thong tin don hang " + orderData.getInvoiceNumber() + ".pdf";
 
@@ -157,9 +182,12 @@ public class MasterNotificationService {
         vars.put("activationUrl", claimUrl);
         vars.put("adminEmail", recipientEmail);
         vars.put("planName", StringUtils.hasText(planName) ? planName : "Gói Thuê Bao SmartHire");
+        PlatformProperties.Legal legal = getPlatformProperties().getLegal();
         vars.put("activatedDate", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-        vars.put("supportEmail", "support@smarthire.top");
-        vars.put("supportHotline", "0988.888.888");
+        vars.put("platformCompanyName", legal.getCompanyName());
+        vars.put("platformAddress", legal.getAddress());
+        vars.put("supportEmail", legal.getSupportEmail());
+        vars.put("supportHotline", legal.getHotline());
 
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode(tenant.getCode())
@@ -252,12 +280,17 @@ public class MasterNotificationService {
         vars.put("discountAmount", discount.compareTo(BigDecimal.ZERO) > 0 ? formatter.format(discount) : "0");
         vars.put("formattedTotalQuote", formatter.format(totalQuote));
 
-        vars.put("maxJobs", plan != null && plan.getMaxJobs() != null ? (plan.getMaxJobs() == -1 ? "Không giới hạn" : String.valueOf(plan.getMaxJobs())) : "10");
-        vars.put("maxCvParses", plan != null && plan.getMaxCvParses() != null ? (plan.getMaxCvParses() == -1 ? "Không giới hạn" : formatter.format(plan.getMaxCvParses())) : "500");
-        vars.put("maxAiInterviewHours", plan != null && plan.getMaxAiInterviewHours() != null ? (plan.getMaxAiInterviewHours() == -1 ? "Không giới hạn" : String.valueOf(plan.getMaxAiInterviewHours())) : "10");
-        vars.put("maxStorageGb", plan != null && plan.getMaxStorageGb() != null ? (plan.getMaxStorageGb() == -1 ? "Không giới hạn" : String.valueOf(plan.getMaxStorageGb())) : "10");
+        vars.put("maxJobs", plan != null ? PlanQuotaFormatter.formatLimit(plan.getMaxJobs(), "tin", false) : "10 tin");
+        vars.put("maxCvParses", plan != null ? PlanQuotaFormatter.formatLimit(plan.getMaxCvParses(), "CV", true) : "500 CV/tháng");
+        vars.put("maxAiInterviewHours", plan != null ? PlanQuotaFormatter.formatLimit(plan.getMaxAiInterviewHours(), "giờ", true) : "10 giờ/tháng");
+        vars.put("maxStorageGb", plan != null ? PlanQuotaFormatter.formatLimit(plan.getMaxStorageGb(), "GB", false) : "10 GB");
 
         vars.put("validUntil", LocalDate.now().plusDays(15).format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        PlatformProperties.Legal legal = getPlatformProperties().getLegal();
+        vars.put("platformCompanyName", legal.getCompanyName());
+        vars.put("platformAddress", legal.getAddress());
+        vars.put("supportHotline", legal.getHotline());
+        vars.put("supportEmail", legal.getSalesEmail());
 
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode("PLATFORM")
@@ -282,7 +315,10 @@ public class MasterNotificationService {
         vars.put("companyName", request.getCompanyName());
         vars.put("requestType", request.getRequestType());
         vars.put("planTier", request.getPlanTier());
+        PlatformProperties.Legal legal = getPlatformProperties().getLegal();
         vars.put("receivedDate", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        vars.put("supportHotline", legal.getHotline());
+        vars.put("supportEmail", legal.getSalesEmail());
 
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode("PLATFORM")
@@ -295,6 +331,78 @@ public class MasterNotificationService {
 
         publisher.publishEmail(payload);
         log.info("Queued consultation acknowledgment email for lead {} to {}", request.getCompanyName(), request.getWorkEmail());
+    }
+
+    public boolean sendSubscriptionLifecycleEmail(
+            TenantInfo tenant,
+            String notificationType,
+            String dedupKey,
+            String subject,
+            Map<String, Object> templateVars) {
+        if (tenant == null || !StringUtils.hasText(tenant.getCode()) || !StringUtils.hasText(notificationType)) {
+            return false;
+        }
+        String recipient = getRecipient(tenant);
+        if (!StringUtils.hasText(recipient)) {
+            log.warn("Cannot send subscription lifecycle email ({}): no recipient email for tenant {}", notificationType, tenant.getCode());
+            return false;
+        }
+        if (notificationLogRepository != null && notificationLogRepository.existsByTenantCodeAndTypeAndStatusAndSentAtAfter(
+                tenant.getCode(), notificationType, "SUCCESS", LocalDateTime.now().minusDays(6))) {
+            return false;
+        }
+        boolean acquiredRedis = false;
+        if (StringUtils.hasText(dedupKey)) {
+            try {
+                acquiredRedis = redisService.setIfAbsent(dedupKey, "1", Duration.ofDays(16));
+                if (!acquiredRedis) {
+                    return false;
+                }
+            } catch (Exception ex) {
+                log.debug("Redis dedup unavailable for {} ({}), continuing with DB dedup: {}", tenant.getCode(), notificationType, ex.getMessage());
+            }
+        }
+
+        Map<String, Object> vars = templateVars != null ? new HashMap<>(templateVars) : new HashMap<>();
+        String billingUrl = "https://smarthire.top/internal/admin/billing";
+        if (publicUrls != null) {
+            try {
+                billingUrl = publicUrls.pathForTenant(tenant, "/internal/admin/billing");
+            } catch (Exception ex) {
+                log.debug("Fallback billingUrl used for tenant {}: {}", tenant.getCode(), ex.getMessage());
+            }
+        }
+        PlatformProperties.Legal legal = getPlatformProperties().getLegal();
+        vars.putIfAbsent("billingUrl", billingUrl);
+        vars.putIfAbsent("supportEmail", legal.getSupportEmail());
+        vars.putIfAbsent("supportHotline", legal.getHotline());
+        vars.putIfAbsent("customerName", StringUtils.hasText(tenant.getContactName()) ? tenant.getContactName() : tenant.getName());
+        vars.putIfAbsent("workspaceName", tenant.getName());
+
+        MasterEmailPayload payload = MasterEmailPayload.builder()
+                .tenantCode(tenant.getCode())
+                .toEmail(recipient)
+                .subject(subject)
+                .templateName("subscription-expiry")
+                .templateVariables(vars)
+                .notificationType(notificationType)
+                .build();
+
+        try {
+            publisher.publishEmail(payload);
+            log.info("Queued {} email for tenant {} to {}", notificationType, tenant.getCode(), recipient);
+            return true;
+        } catch (Exception ex) {
+            if (acquiredRedis && StringUtils.hasText(dedupKey)) {
+                try {
+                    redisService.delete(dedupKey);
+                } catch (Exception ignored) {
+                    // Best-effort rollback of dedup lock
+                }
+            }
+            log.warn("Failed to queue {} email for tenant {}: {}", notificationType, tenant.getCode(), ex.getMessage());
+            return false;
+        }
     }
 
     private boolean shouldSendEmail(String tenantCode, String type) {

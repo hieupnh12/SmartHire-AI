@@ -1,9 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { keepPreviousData, TableRefreshBar } from "@/components/ux/TableRefresh";
 import { AiQuestionGenerateDialog } from "../components/AiQuestionGenerateDialog";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { typeMeta, type BankQuestion } from "../constants/excelTemplateMock";
@@ -289,7 +290,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const pageRows = rows;
   const visiblePages = paginationItems(page, pageCount);
-  const isTableLoading = bankQuery.isPending || bankQuery.isFetching;
+  const isInitialLoading = bankQuery.isPending && !bankQuery.data;
+  const isTableRefreshing = bankQuery.isFetching && bankQuery.isPlaceholderData;
   const readyCount = bankQuery.data?.counts.ready ?? 0;
   const allCount = bankQuery.data?.counts.all ?? 0;
   const coverage = allCount ? Math.round((readyCount / allCount) * 100) : 0;
@@ -601,7 +603,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
             </div>
           )}
 
-          <div className="overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]" aria-busy={isTableLoading}>
+          <div className="relative overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]" aria-busy={isInitialLoading || isTableRefreshing}>
+            <TableRefreshBar active={isTableRefreshing} />
             <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
               {bankQuery.isPending ? <Skeleton className="h-4 w-52" /> : <p>
                 {t("recruiter.assessments.bank.general.showingRange")} <span className="font-semibold text-[var(--color-on-surface)]">{total === 0 ? 0 : page * pageSize + 1} - {Math.min(total, page * pageSize + pageRows.length)}</span> {t("recruiter.assessments.bank.general.ofTotalQuestions", { total })}
@@ -610,13 +613,13 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               
             </div>
 
-            {isTableLoading && (
+            {isInitialLoading && (
               <LoadingState label={t("recruiter.assessments.bank.general.loadingListLabel")} className="overflow-x-auto p-4">
                 <TableSkeleton columns={6} rows={Math.min(pageSize, 10)} />
               </LoadingState>
             )}
 
-            {!isTableLoading && bankQuery.isSuccess && total === 0 && (
+            {!isInitialLoading && bankQuery.isSuccess && total === 0 && (
               <div className="flex flex-col items-start gap-2 p-8">
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className="font-semibold">{t("recruiter.assessments.bank.general.emptyTitle")}</p>
@@ -625,8 +628,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            {!isTableLoading && view === "table" && pageRows.length > 0 && (
-              <div className="overflow-x-auto">
+            {!isInitialLoading && view === "table" && pageRows.length > 0 && (
+              <div className={cn("overflow-x-auto transition-opacity duration-200", isTableRefreshing && "opacity-60")}>
                 <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
                   <thead>
                     <tr className="bg-[var(--color-surface-container-high)]/40 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
@@ -712,8 +715,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            {!isTableLoading && view === "cards" && pageRows.length > 0 && (
-              <div className="grid gap-3 p-4 md:grid-cols-2">
+            {!isInitialLoading && view === "cards" && pageRows.length > 0 && (
+              <div className={cn("grid gap-3 p-4 md:grid-cols-2 transition-opacity duration-200", isTableRefreshing && "opacity-60")}>
                 {pageRows.map((row) => {
                   const meta = statusMeta(row.testStatus, !row.testId, t);
                   return (

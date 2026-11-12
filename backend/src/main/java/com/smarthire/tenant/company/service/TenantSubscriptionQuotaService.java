@@ -74,6 +74,9 @@ public class TenantSubscriptionQuotaService {
     @Autowired(required = false)
     private InvoiceLineItemRepository invoiceLineItemRepository;
 
+    @Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
     public TenantSubscriptionQuotaResponse getCurrentSubscriptionAndQuotas() {
         String tenantCode = requireTenantCode();
 
@@ -607,7 +610,12 @@ public class TenantSubscriptionQuotaService {
                 }
             }
         }
-        return MasterBillingService.toCheckoutResponse(invoice, tenant, plan);
+        return MasterBillingService.toCheckoutResponse(
+                invoice,
+                tenant,
+                plan,
+                platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties()
+        );
     }
 
     public TenantSubscriptionQuotaResponse cancelPendingInvoice(Long invoiceId) {

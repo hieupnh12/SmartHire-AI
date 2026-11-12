@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
@@ -48,8 +48,12 @@ export function PricingPage() {
       const plan = plans[index];
       if (!plan) return defaultValue;
       const value = plan[field];
+      if (value === null || value === undefined) {
+        return t("master.landing.plans.unlimited");
+      }
       if (typeof value === "number") {
-        if (value <= 0) return t("master.landing.plans.unlimited");
+        if (value < 0) return t("master.landing.plans.unlimited");
+        if (value === 0) return t("master.landing.plans.unsupported");
         return `${formatNumber(value, undefined, locale)}${formatSuffix}`;
       }
       return defaultValue;
@@ -339,7 +343,7 @@ export function PricingPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {featureMatrix.map((section, sIdx) => (
-                  <tr key={sIdx} className="contents">
+                  <Fragment key={sIdx}>
                     <tr className="bg-slate-100/60 font-bold text-slate-900">
                       <td colSpan={4} className="py-3 px-5 text-xs uppercase tracking-wider text-slate-700">
                         {section.category}
@@ -383,7 +387,7 @@ export function PricingPage() {
                         </td>
                       </tr>
                     ))}
-                  </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

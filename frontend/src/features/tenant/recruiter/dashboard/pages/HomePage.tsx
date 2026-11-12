@@ -1,4 +1,4 @@
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -13,6 +13,7 @@ import {
   FileSearch,
   Gauge,
   Layers3,
+  Loader2,
   MapPin,
   Plus,
   RefreshCw,
@@ -29,21 +30,38 @@ import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
-import type { JobListItem, JobStatus } from "@/api/types/job";
+import type { JobListItem, JobPage, JobStatus } from "@/api/types/job";
 import type { ApplicationSummary } from "@/api/types/applicant";
+import type { ApiResponse } from "@/types/api";
 import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
 import { mapHumanInterview } from "@/features/tenant/recruiter/schedules/utils/mapHumanInterview";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { hasRecruiterFeature } from "@/features/tenant/recruiter/permissions";
+import {
+  canViewAllJobs,
+  hasRecruiterFeature,
+  isCompanyAdminUser,
+} from "@/features/tenant/recruiter/permissions";
 import { formatDate, formatDateTime, formatNumber, toIntlLocale, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousData, TableRefreshBar } from "@/components/ux/TableRefresh";
 import {
   RecruiterFilterDropdown,
   type FilterOption,
 } from "../components/RecruiterFilterDropdown";
+import {
+  DEFAULT_JOB_PAGE_SIZE,
+  JOB_PAGE_SIZE_OPTIONS,
+  clampPageIndex,
+  computeTotalPages,
+  getPaginationItems,
+  isExpiringWithinWindow,
+  parsePageParam,
+  parsePageSizeParam,
+  slicePageItems,
+} from "../utils/jobPagination";
 
 const statusStyle: Record<JobStatus, string> = {
   DRAFT: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
@@ -70,7 +88,7 @@ function JobFeedSkeleton() {
   );
 }
 
-function JobTable({ jobs }: { jobs: JobListItem[] }) {
+function JobTable({ jobs, refreshing = false }: { jobs: JobListItem[]; refreshing?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const employmentLabel = (type?: string | null) => {
@@ -87,8 +105,10 @@ function JobTable({ jobs }: { jobs: JobListItem[] }) {
   };
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[0_12px_30px_-24px_rgba(15,23,42,0.45)]">
-      <table className="w-full min-w-[1040px] border-separate border-spacing-0 text-left text-xs">
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[0_12px_30px_-24px_rgba(15,23,42,0.45)]">
+      <TableRefreshBar active={refreshing} />
+      <div className="overflow-x-auto">
+      <table className={cn("w-full min-w-[1040px] border-separate border-spacing-0 text-left text-xs transition-opacity duration-200", refreshing && "opacity-60")}>
         <caption className="sr-only">{t("recruiter.ops.dashboard.tableCaption")}</caption>
         <thead className="text-[var(--color-on-surface-variant)]">
           <tr>
@@ -143,6 +163,7 @@ function JobTable({ jobs }: { jobs: JobListItem[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -215,42 +236,205 @@ function TaskDrawer({ open, title, description, icon: Icon, groups, loading, err
   );
 }
 
+async function fetchExpiringJobs(
+  filters: { q?: string; department?: string },
+  scope: "my" | "all",
+): Promise<ApiResponse<JobPage>> {
+  const first = await jobApi.search({
+    ...filters,
+    status: "PUBLISHED",
+    page: 0,
+    size: 50,
+    scope,
+  });
+  const total = first.data.total;
+  const pageCount = Math.ceil(total / 50);
+  const allItems =
+    pageCount <= 1
+      ? first.data.items
+      : [
+          first,
+          ...(await Promise.all(
+            Array.from({ length: pageCount - 1 }, (_, index) =>
+              jobApi.search({
+                ...filters,
+                status: "PUBLISHED",
+                page: index + 1,
+                size: 50,
+                scope,
+              }),
+            ),
+          )),
+        ].flatMap((response) => response.data.items);
+  const nowMs = Date.now();
+  const expiring = allItems.filter((job) => isExpiringWithinWindow(job, nowMs));
+  return {
+    ...first,
+    data: {
+      items: expiring,
+      total: expiring.length,
+      page: 0,
+      size: 50,
+    },
+  };
+}
+
 export function HomePage() {
   const t = useT();
   const locale = useLocale();
   const [dashboardParams, setDashboardParams] = useSearchParams();
   const requestedTask = dashboardParams.get("task");
   const requestedJobStatus = dashboardParams.get("status")?.toLowerCase();
+  const requestedScope = dashboardParams.get("scope")?.toLowerCase();
+  const rawPageParam = dashboardParams.get("page");
+  const rawSizeParam = dashboardParams.get("size") ?? dashboardParams.get("limit");
+  const urlScope = requestedScope === "my" || requestedScope === "all" ? requestedScope : null;
+  const urlPage = parsePageParam(rawPageParam);
+  const urlSize = rawSizeParam != null ? parsePageSizeParam(rawSizeParam) : null;
   const expiringOnly = requestedJobStatus === "expiring";
   const [taskDrawer, setTaskDrawer] = useState<"applicants" | "cvs" | "schedules" | null>(requestedTask === "applicants" || requestedTask === "cvs" || requestedTask === "schedules" ? requestedTask : null);
   const [jobSearch, setJobSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | JobStatus>(requestedJobStatus === "draft" ? "DRAFT" : expiringOnly ? "PUBLISHED" : "ALL");
   const [departmentFilter, setDepartmentFilter] = useState("ALL");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(5);
+  const [selectedScope, setSelectedScope] = useState<"my" | "all" | null>(urlScope);
+  const [pageByScope, setPageByScope] = useState<{ my: number; all: number }>(() => ({
+    my: urlScope === "all" ? 0 : urlPage,
+    all: urlScope === "my" ? 0 : urlPage,
+  }));
+  const [pageSize, setPageSize] = useState(() => parsePageSizeParam(rawSizeParam));
   useEffect(() => {
     if (requestedJobStatus !== "draft" && requestedJobStatus !== "expiring") return;
     setStatusFilter(requestedJobStatus === "draft" ? "DRAFT" : "PUBLISHED");
-    setPage(0);
+    setPageByScope({ my: 0, all: 0 });
   }, [requestedJobStatus]);
+  useEffect(() => {
+    if (urlScope) {
+      setSelectedScope(urlScope);
+    } else if (requestedJobStatus == null) {
+      setSelectedScope(null);
+    }
+  }, [urlScope, requestedJobStatus]);
   const token = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const isAdmin = isCompanyAdminUser(user);
+  const canViewAll = canViewAllJobs(user);
   const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
   const permissions = user?.permissions;
-  const jobsQuery = useQuery({
-    queryKey: ["recruiter-dashboard", "jobs", jobSearch, statusFilter, departmentFilter, page, pageSize],
-    queryFn: () => jobApi.search({
-      q: jobSearch.trim() || undefined,
-      status: statusFilter === "ALL" ? undefined : statusFilter,
-      department: departmentFilter === "ALL" ? undefined : departmentFilter,
-      page,
-      size: pageSize,
-    }),
+  const isLoadingUser = Boolean(token && !user);
+  const activeScope: "my" | "all" = !canViewAll ? "my" : (urlScope ?? selectedScope ?? (isAdmin ? "all" : "my"));
+  const page = pageByScope[activeScope];
+  useEffect(() => {
+    if (urlSize != null && urlSize !== pageSize) {
+      setPageSize(urlSize);
+    }
+  }, [urlSize, pageSize]);
+  useEffect(() => {
+    setPageByScope((prev) => (prev[activeScope] === urlPage ? prev : { ...prev, [activeScope]: urlPage }));
+  }, [activeScope, urlPage]);
+  const goToPage = (nextPage: number, nextSize = pageSize) => {
+    const safeNextPage = Math.max(0, nextPage);
+    if (nextSize !== pageSize) {
+      setPageSize(nextSize);
+      setPageByScope({ my: 0, all: 0 });
+    } else {
+      setPageByScope((prev) => ({ ...prev, [activeScope]: safeNextPage }));
+    }
+    setDashboardParams((params) => {
+      const next = new URLSearchParams(params);
+      if (safeNextPage > 0 && nextSize === pageSize) {
+        next.set("page", String(safeNextPage + 1));
+      } else {
+        next.delete("page");
+      }
+      if (nextSize !== DEFAULT_JOB_PAGE_SIZE) {
+        next.set("size", String(nextSize));
+      } else {
+        next.delete("size");
+      }
+      next.delete("limit");
+      return next;
+    }, { replace: true });
+  };
+  const resetPages = (options?: { clearStatus?: boolean }) => {
+    setPageByScope({ my: 0, all: 0 });
+    setDashboardParams((params) => {
+      const next = new URLSearchParams(params);
+      next.delete("page");
+      if (options?.clearStatus) {
+        next.delete("status");
+      }
+      return next;
+    }, { replace: true });
+  };
+  const selectScope = (nextScope: "my" | "all") => {
+    if (!canViewAll && nextScope === "all") return;
+    setSelectedScope(nextScope);
+    const targetPage = pageByScope[nextScope];
+    setDashboardParams((params) => {
+      const next = new URLSearchParams(params);
+      next.set("scope", nextScope);
+      if (targetPage > 0) {
+        next.set("page", String(targetPage + 1));
+      } else {
+        next.delete("page");
+      }
+      return next;
+    }, { replace: true });
+  };
+  const sharedSearchFilters = {
+    q: jobSearch.trim() || undefined,
+    status: expiringOnly ? ("PUBLISHED" as const) : statusFilter === "ALL" ? undefined : statusFilter,
+    department: departmentFilter === "ALL" ? undefined : departmentFilter,
+  };
+  const myJobsQuery = useQuery({
+    queryKey: [
+      "recruiter-dashboard",
+      "jobs",
+      "my",
+      jobSearch,
+      expiringOnly ? "EXPIRING" : statusFilter,
+      departmentFilter,
+      expiringOnly ? "expiring" : pageByScope.my,
+      expiringOnly ? "expiring" : pageSize,
+    ],
+    queryFn: () =>
+      expiringOnly
+        ? fetchExpiringJobs({ q: sharedSearchFilters.q, department: sharedSearchFilters.department }, "my")
+        : jobApi.search({
+            ...sharedSearchFilters,
+            page: pageByScope.my,
+            size: pageSize,
+            scope: "my",
+          }),
     placeholderData: keepPreviousData,
-    enabled: !!token,
+    enabled: !!token && !!user,
     refetchInterval: 15_000,
   });
+  const allJobsQuery = useQuery({
+    queryKey: [
+      "recruiter-dashboard",
+      "jobs",
+      "all",
+      jobSearch,
+      expiringOnly ? "EXPIRING" : statusFilter,
+      departmentFilter,
+      expiringOnly ? "expiring" : pageByScope.all,
+      expiringOnly ? "expiring" : pageSize,
+    ],
+    queryFn: () =>
+      expiringOnly
+        ? fetchExpiringJobs({ q: sharedSearchFilters.q, department: sharedSearchFilters.department }, "all")
+        : jobApi.search({
+            ...sharedSearchFilters,
+            page: pageByScope.all,
+            size: pageSize,
+            scope: "all",
+          }),
+    placeholderData: keepPreviousData,
+    enabled: !!token && !!user && canViewAll,
+    refetchInterval: 15_000,
+  });
+  const jobsQuery = activeScope === "all" ? allJobsQuery : myJobsQuery;
   const summaryQuery = useQuery({ queryKey: ["recruiter-dashboard", "summary"], queryFn: dashboardApi.summary, enabled: !!token, refetchInterval: 15_000 });
   const actionItemsQuery = useQuery({ queryKey: ["recruiter-dashboard", "action-items"], queryFn: dashboardApi.actionItems, enabled: !!token, refetchInterval: 15_000 });
   const newApplicantsQuery = useQuery({
@@ -316,14 +500,39 @@ export function HomePage() {
     { value: "ALL", label: t("recruiter.ops.dashboard.departmentAll"), icon: Building2 },
     ...departments.map((dept) => ({ value: dept, label: dept, icon: Building2 })),
   ], [departments, t]);
-  const visibleJobs = expiringOnly ? jobs.filter((job) => {
-    if (!job.deadline) return false;
-    const remaining = new Date(job.deadline).getTime() - Date.now();
-    return remaining >= 0 && remaining <= 7 * 24 * 60 * 60 * 1000;
-  }) : jobs;
-  const clearStatusParam = () => setDashboardParams((params) => { params.delete("status"); return params; }, { replace: true });
-  const totalJobPages = jobPage ? Math.ceil(jobPage.total / jobPage.size) : 0;
-  const pageNumbers = Array.from({ length: totalJobPages }, (_, index) => index).filter((index) => index === 0 || index === totalJobPages - 1 || Math.abs(index - page) <= 1);
+  const totalItems = jobPage?.total ?? 0;
+  const effectivePageSize = expiringOnly ? pageSize : Math.max(1, jobPage?.size ?? pageSize);
+  const totalJobPages = computeTotalPages(totalItems, effectivePageSize);
+  const safePage = clampPageIndex(page, totalJobPages);
+  const visibleJobs = useMemo(
+    () => (expiringOnly ? slicePageItems(jobs, safePage, pageSize) : jobs),
+    [expiringOnly, jobs, safePage, pageSize],
+  );
+  const pageItems = useMemo(
+    () => getPaginationItems(safePage + 1, totalJobPages),
+    [safePage, totalJobPages],
+  );
+  const from = totalItems > 0 ? safePage * effectivePageSize + 1 : 0;
+  const to = totalItems > 0 ? Math.min((safePage + 1) * effectivePageSize, totalItems) : 0;
+  const isOutOfRangePage =
+    !expiringOnly &&
+    !jobsQuery.isError &&
+    !jobsQuery.isPlaceholderData &&
+    totalJobPages > 0 &&
+    page >= totalJobPages;
+  useEffect(() => {
+    if (!jobsQuery.isFetching && !jobsQuery.isPlaceholderData && totalJobPages > 0 && page >= totalJobPages) {
+      goToPage(totalJobPages - 1);
+    }
+  }, [jobsQuery.isFetching, jobsQuery.isPlaceholderData, totalJobPages, page]);
+  const isPaginating = jobsQuery.isFetching && jobsQuery.isPlaceholderData;
+  const hasActiveFilters = Boolean(jobSearch.trim() || statusFilter !== "ALL" || departmentFilter !== "ALL" || expiringOnly);
+  const formatScopeCount = (scope: "my" | "all"): string | null => {
+    const q = scope === "all" ? allJobsQuery : myJobsQuery;
+    if (isLoadingUser || (q.isPending && !q.data)) return "—";
+    if (q.isError) return "!";
+    return formatNumber(q.data?.data.total ?? 0, {}, locale);
+  };
   const summaryUnavailable = summaryQuery.isPending || summaryQuery.isError;
   const actionItemsUnavailable = actionItemsQuery.isPending || actionItemsQuery.isError;
   const metric = (value: number | string) => summaryUnavailable ? "—" : (typeof value === "number" ? formatNumber(value, {}, locale) : value);
@@ -404,16 +613,87 @@ export function HomePage() {
           <div className="group relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none hover:border-[var(--color-on-surface)]/35 hover:shadow-md"><span className="absolute inset-x-0 top-0 h-1 bg-[var(--color-on-surface)]" aria-hidden="true" /><div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.kpiTotalCandidates")}</span><span className="grid size-8 place-items-center rounded-lg bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]"><Users className="size-4" aria-hidden="true" /></span></div><p className="mt-2 text-xl font-semibold">{metric(totalApplications)}</p><p className="mt-0.5 text-[10px] text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.kpiTotalCandidatesHint")}</p></div>
           <div className="group relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none hover:border-[var(--color-tertiary)]/45 hover:shadow-md"><span className="absolute inset-x-0 top-0 h-1 bg-[var(--color-tertiary)]" aria-hidden="true" /><div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.kpiHireConversion")}</span><span className="grid size-8 place-items-center rounded-lg bg-amber-50 text-[var(--color-tertiary)]"><TrendingUp className="size-4" aria-hidden="true" /></span></div><p className="mt-2 text-xl font-semibold">{summaryUnavailable ? "—" : summary?.hireRate != null ? `${formatNumber(summary.hireRate, {}, locale)}%` : "—"}</p><p className="mt-0.5 text-[10px] text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.kpiHireConversionHint")}</p></div>
         </div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--color-border-default)] bg-white px-3 py-2">
+          {canViewAll ? (
+            <div
+              role="tablist"
+              aria-label={t("recruiter.ops.dashboard.scopeTablistAria")}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  selectScope(activeScope === "my" ? "all" : "my");
+                }
+              }}
+              className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-[var(--color-surface-alt)] p-1"
+            >
+              {(["my", "all"] as const).map((scope) => {
+                const selected = activeScope === scope;
+                const count = formatScopeCount(scope);
+                const ScopeIcon = scope === "my" ? UserCheck : Layers3;
+                return (
+                  <button
+                    key={scope}
+                    type="button"
+                    role="tab"
+                    id={`recruiter-jobs-tab-${scope}`}
+                    aria-selected={selected}
+                    aria-controls="recruiter-jobs-panel"
+                    onClick={() => selectScope(scope)}
+                    className={cn(
+                      "inline-flex min-h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30",
+                      selected
+                        ? "bg-white text-brand-primary shadow-sm"
+                        : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
+                    )}
+                  >
+                    <ScopeIcon className="size-3.5" aria-hidden="true" />
+                    <span>{scope === "my" ? t("recruiter.ops.dashboard.scopeMy") : t("recruiter.ops.dashboard.scopeAll")}</span>
+                    {count !== null && (
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                          selected
+                            ? "bg-[var(--color-primary-soft)] text-brand-primary"
+                            : "bg-slate-200/70 text-[var(--color-on-surface-variant)]",
+                        )}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-1">
+              <span className="grid size-7 place-items-center rounded-lg bg-[var(--color-primary-soft)] text-brand-primary">
+                <UserCheck className="size-3.5" aria-hidden="true" />
+              </span>
+              <h2 className="text-xs font-semibold text-[var(--color-on-surface)]">
+                {t("recruiter.ops.dashboard.scopeMy")}
+              </h2>
+              {formatScopeCount("my") !== null && (
+                <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold tabular-nums text-brand-primary">
+                  {formatScopeCount("my")}
+                </span>
+              )}
+            </div>
+          )}
+          <p className="px-1 text-[11px] text-[var(--color-on-surface-variant)]">
+            {activeScope === "all"
+              ? t("recruiter.ops.dashboard.scopeAllDesc")
+              : t("recruiter.ops.dashboard.scopeMyDesc")}
+          </p>
+        </div>
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-white p-2">
-          <label className="relative min-w-[180px] flex-1"><span className="sr-only">{t("recruiter.ops.dashboard.searchJobsSr")}</span><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input data-search-input data-job-list-search value={jobSearch} onChange={(event) => { setJobSearch(event.target.value); setPage(0); }} placeholder={t("recruiter.ops.dashboard.searchJobsPlaceholder")} className="min-h-9 w-full rounded-lg bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20" /></label>
+          <label className="relative min-w-[180px] flex-1"><span className="sr-only">{t("recruiter.ops.dashboard.searchJobsSr")}</span><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input data-search-input data-job-list-search value={jobSearch} onChange={(event) => { setJobSearch(event.target.value); resetPages(); }} placeholder={t("recruiter.ops.dashboard.searchJobsPlaceholder")} className="min-h-9 w-full rounded-lg bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20" /></label>
           <RecruiterFilterDropdown
             label={t("recruiter.ops.dashboard.statusDropdownLabel")}
             value={statusFilter}
             options={statusFilterOptions}
             onChange={(val) => {
               setStatusFilter(val);
-              setPage(0);
-              clearStatusParam();
+              resetPages({ clearStatus: true });
             }}
             icon={Activity}
           />
@@ -425,18 +705,24 @@ export function HomePage() {
               disabled={departmentsQuery.isPending}
               onChange={(val) => {
                 setDepartmentFilter(val);
-                setPage(0);
+                resetPages();
               }}
               icon={Building2}
               align="right"
             />
           )}
           {departmentsQuery.isError && <button type="button" onClick={() => void departmentsQuery.refetch()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)]"><RefreshCw className="size-3.5" aria-hidden="true" />{t("recruiter.ops.dashboard.retryDepartmentsBtn")}</button>}
-          {expiringOnly && <button type="button" onClick={clearStatusParam} aria-label={t("recruiter.ops.dashboard.clearExpiringAria")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">{t("recruiter.ops.dashboard.expiringChip")}<X className="size-3.5" aria-hidden="true" /></button>}
-          <span className="px-2 text-[10px] font-medium text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.resultsCount", { count: expiringOnly ? visibleJobs.length : jobPage?.total ?? 0 })}</span>
+          {expiringOnly && <button type="button" onClick={() => resetPages({ clearStatus: true })} aria-label={t("recruiter.ops.dashboard.clearExpiringAria")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">{t("recruiter.ops.dashboard.expiringChip")}<X className="size-3.5" aria-hidden="true" /></button>}
+          <span className="px-2 text-[10px] font-medium text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.resultsCount", { count: formatNumber(totalItems, {}, locale) })}</span>
         </div>
         {summaryQuery.isError && <div className="mb-3"><InlineDataError message={t("recruiter.ops.dashboard.summaryUnavailable")} onRetry={() => void summaryQuery.refetch()} /></div>}
-        {jobsQuery.isPending && !jobsQuery.data ? <JobFeedSkeleton /> : jobsQuery.isError ? <InlineDataError message={getApiErrorMessage(jobsQuery.error, t("recruiter.ops.dashboard.jobsLoadError"))} onRetry={() => void jobsQuery.refetch()} /> : visibleJobs.length > 0 ? <><JobTable jobs={visibleJobs} /><div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-white p-2.5"><label className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.showLabel")}<select aria-label={t("recruiter.ops.dashboard.jobsPerPageAria")} value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} className="min-h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2 font-medium text-[var(--color-on-surface)] outline-none focus:ring-2 focus:ring-brand-primary/20"><option value={5}>5</option><option value={10}>10</option><option value={20}>20</option></select>{t("recruiter.ops.dashboard.jobsPerPageUnit")}</label><nav className="flex items-center gap-1" aria-label={t("recruiter.ops.dashboard.paginationAria")}><button type="button" aria-label={t("recruiter.ops.dashboard.prevPageAria")} disabled={page === 0} onClick={() => setPage((current) => current - 1)} className="grid size-9 place-items-center rounded-lg border border-[var(--color-border-default)] transition-colors hover:bg-[var(--color-surface-alt)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-4" aria-hidden="true" /></button>{pageNumbers.map((pageNumber, index) => <span key={pageNumber} className="contents">{index > 0 && pageNumber - pageNumbers[index - 1] > 1 && <span className="grid size-9 place-items-center text-xs text-[var(--color-outline)]">…</span>}<button type="button" aria-label={t("recruiter.ops.dashboard.pageNumAria", { page: pageNumber + 1 })} aria-current={pageNumber === page ? "page" : undefined} onClick={() => setPage(pageNumber)} className={cn("size-9 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", pageNumber === page ? "bg-brand-primary text-white" : "border border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>{pageNumber + 1}</button></span>)}<button type="button" aria-label={t("recruiter.ops.dashboard.nextPageAria")} disabled={page + 1 >= totalJobPages} onClick={() => setPage((current) => current + 1)} className="grid size-9 place-items-center rounded-lg border border-[var(--color-border-default)] transition-colors hover:bg-[var(--color-surface-alt)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-4" aria-hidden="true" /></button></nav><p className="text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.pageOfTotal", { page: page + 1, total: totalJobPages })}</p></div></> : <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary"><Search className="size-6" aria-hidden="true" /></span><h2 className="mt-4 text-lg font-semibold">{t("recruiter.ops.dashboard.emptyJobsTitle")}</h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.emptyJobsHint")}</p></div>}
+        <div
+          id="recruiter-jobs-panel"
+          role={canViewAll ? "tabpanel" : undefined}
+          aria-labelledby={canViewAll ? `recruiter-jobs-tab-${activeScope}` : undefined}
+        >
+          {(isLoadingUser || (jobsQuery.isPending && !jobsQuery.data) || isOutOfRangePage) ? <JobFeedSkeleton /> : jobsQuery.isError ? <InlineDataError message={getApiErrorMessage(jobsQuery.error, t("recruiter.ops.dashboard.jobsLoadError"))} onRetry={() => void jobsQuery.refetch()} /> : visibleJobs.length > 0 ? <><JobTable jobs={visibleJobs} refreshing={isPaginating} /><div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-white p-2.5"><label className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.ops.dashboard.showLabel")}<select aria-label={t("recruiter.ops.dashboard.jobsPerPageAria")} value={pageSize} onChange={(event) => goToPage(0, Number(event.target.value))} className="min-h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2 font-medium text-[var(--color-on-surface)] outline-none focus:ring-2 focus:ring-brand-primary/20">{JOB_PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}</select>{t("recruiter.ops.dashboard.jobsPerPageUnit")}</label><nav className="flex items-center gap-1" aria-label={t("recruiter.ops.dashboard.paginationAria")}><button type="button" aria-label={t("recruiter.ops.dashboard.prevPageAria")} disabled={safePage === 0} onClick={() => goToPage(safePage - 1)} className="grid size-9 place-items-center rounded-lg border border-[var(--color-border-default)] transition-colors hover:bg-[var(--color-surface-alt)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-4" aria-hidden="true" /></button>{pageItems.map((item) => typeof item !== "number" ? <span key={item} aria-hidden="true" className="grid size-9 place-items-center text-xs text-[var(--color-outline)]">…</span> : <button key={item} type="button" aria-label={t("recruiter.ops.dashboard.pageNumAria", { page: item })} aria-current={item - 1 === safePage ? "page" : undefined} onClick={() => goToPage(item - 1)} className={cn("size-9 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", item - 1 === safePage ? "bg-brand-primary text-white" : "border border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>{item}</button>)}<button type="button" aria-label={t("recruiter.ops.dashboard.nextPageAria")} disabled={safePage + 1 >= totalJobPages} onClick={() => goToPage(safePage + 1)} className="grid size-9 place-items-center rounded-lg border border-[var(--color-border-default)] transition-colors hover:bg-[var(--color-surface-alt)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-4" aria-hidden="true" /></button></nav><div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)] tabular-nums">{isPaginating && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary" role="status"><Loader2 className="size-3.5 animate-spin" aria-hidden="true" />{t("recruiter.ops.common.loading")}</span>}<p>{t("recruiter.ops.dashboard.showingRangePrefix")} <strong className="font-semibold text-[var(--color-on-surface)]">{formatNumber(from, {}, locale)}–{formatNumber(to, {}, locale)}</strong> {t("recruiter.ops.dashboard.showingRangeTotal", { total: formatNumber(totalItems, {}, locale) })} · {t("recruiter.ops.dashboard.pageOfTotal", { page: formatNumber(safePage + 1, {}, locale), total: formatNumber(totalJobPages, {}, locale) })}</p></div></div></> : <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary"><Search className="size-6" aria-hidden="true" /></span><h2 className="mt-4 text-lg font-semibold">{hasActiveFilters ? t("recruiter.ops.dashboard.emptyJobsTitle") : activeScope === "my" ? t("recruiter.ops.dashboard.emptyMyJobsTitle") : t("recruiter.ops.dashboard.emptyAllJobsTitle")}</h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{hasActiveFilters ? t("recruiter.ops.dashboard.emptyJobsHint") : activeScope === "my" ? t("recruiter.ops.dashboard.emptyMyJobsHint") : t("recruiter.ops.dashboard.emptyAllJobsHint")}</p>{!hasActiveFilters && ((activeScope === "my" && canViewAll) || canCreateJob) && <div className="mt-4 flex flex-wrap items-center justify-center gap-2">{activeScope === "my" && canViewAll && <button type="button" onClick={() => selectScope("all")} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--color-border-default)] bg-white px-3.5 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary/40 hover:bg-[var(--color-primary-soft)] hover:text-brand-primary">{t("recruiter.ops.dashboard.viewAllJobsBtn")}<ArrowRight className="size-3.5" aria-hidden="true" /></button>}{canCreateJob && <Link to="/recruiter/jobs/new" className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-brand-primary px-3.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"><Plus className="size-3.5" aria-hidden="true" />{t("recruiter.ops.dashboard.createJobFullBtn")}</Link>}</div>}</div>}
+        </div>
       </div>
       <TaskDrawer open={taskDrawer === "applicants"} title={t("recruiter.ops.dashboard.drawerApplicantsTitle")} description={t("recruiter.ops.dashboard.drawerApplicantsDesc")} icon={Users} groups={applicantGroups} loading={newApplicantsQuery.isPending} error={newApplicantsQuery.error} emptyTitle={t("recruiter.ops.dashboard.drawerApplicantsEmptyTitle")} emptyDescription={t("recruiter.ops.dashboard.drawerApplicantsEmptyDesc")} onClose={() => setTaskDrawer(null)} onRetry={() => void newApplicantsQuery.refetch()} />
       <TaskDrawer open={taskDrawer === "cvs"} title={t("recruiter.ops.dashboard.drawerCvsTitle")} description={t("recruiter.ops.dashboard.drawerCvsDesc")} icon={FileSearch} groups={cvGroups} loading={taskJobsQuery.isPending || cvTaskQueries.some((query) => query.isPending)} error={taskJobsQuery.error ?? cvTaskQueries.find((query) => query.error)?.error} emptyTitle={t("recruiter.ops.dashboard.drawerCvsEmptyTitle")} emptyDescription={t("recruiter.ops.dashboard.drawerCvsEmptyDesc")} onClose={() => setTaskDrawer(null)} onRetry={() => { void taskJobsQuery.refetch(); cvTaskQueries.forEach((query) => void query.refetch()); }} />

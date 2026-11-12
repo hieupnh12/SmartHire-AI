@@ -23,6 +23,23 @@ function HotkeysBridge() {
   return null;
 }
 
+function CtrlWheelZoomGuard() {
+  useEffect(() => {
+    const preventCtrlWheelZoom = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("wheel", preventCtrlWheelZoom, { capture: true, passive: false });
+    return () => {
+      window.removeEventListener("wheel", preventCtrlWheelZoom, { capture: true });
+    };
+  }, []);
+
+  return null;
+}
+
 function SkipLink() {
   const t = useT();
   return (
@@ -53,6 +70,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <LocaleBoot>
             <SkipLink />
             <HotkeysBridge />
+            <CtrlWheelZoomGuard />
             {children}
             <ToastViewport />
             <ShortcutsHelp />

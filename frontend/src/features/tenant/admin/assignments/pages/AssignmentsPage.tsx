@@ -8,6 +8,8 @@ import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { keepPreviousData, keepPreviousForScope, TableRefreshBar } from "@/components/ux/TableRefresh";
+import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
@@ -124,7 +126,9 @@ export function AssignmentsPage() {
   const jobsQuery = useQuery({
     queryKey: queryKeys.jobs.list({ q: query, size: 50, page: 0, scope: "all" }),
     queryFn: () => jobApi.search({ q: query || undefined, page: 0, size: 50, scope: "all" }),
+    placeholderData: keepPreviousData,
   });
+  const isJobsRefreshing = jobsQuery.isFetching && jobsQuery.isPlaceholderData;
   const jobs = jobsQuery.data?.data?.items ?? [];
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
 
@@ -153,6 +157,7 @@ export function AssignmentsPage() {
   const assignmentsQuery = useQuery({
     queryKey: queryKeys.jobs.assignments(selectedJobId ?? 0),
     queryFn: () => jobAssignmentsApi.list(selectedJobId as number),
+    placeholderData: keepPreviousForScope(selectedJobId, 2),
     enabled: selectedJobId != null,
   });
   const assigned = assignmentsQuery.data?.data ?? [];
@@ -230,7 +235,8 @@ export function AssignmentsPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(16rem,22rem)_1fr] lg:items-start">
         {/* Left Column: Job Selector */}
-        <Card className="space-y-3">
+        <Card className="relative overflow-hidden space-y-3">
+          <TableRefreshBar active={isJobsRefreshing} />
           <h2 className="text-base font-semibold">{t("tenantAdmin.assignments.jobsTitle")}</h2>
           <input
             className={inputClass}
@@ -238,7 +244,7 @@ export function AssignmentsPage() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("tenantAdmin.assignments.searchPlaceholder")}
           />
-          {jobsQuery.isLoading && (
+          {jobsQuery.isPending && !jobsQuery.data && (
             <div className="space-y-2 py-1" role="status" aria-busy="true">
               {Array.from({ length: 4 }, (_, i) => (
                 <Skeleton key={i} className="h-10 w-full rounded-[var(--radius-md)]" />
@@ -247,8 +253,8 @@ export function AssignmentsPage() {
             </div>
           )}
           {jobsQuery.isError && <p className="text-sm text-status-danger" role="alert">{getApiErrorMessage(jobsQuery.error, t("tenantAdmin.assignments.loadJobsError"))}</p>}
-          {jobs.length === 0 && !jobsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.assignments.emptyJobs")}</p>}
-          <ul className="space-y-1">
+          {jobs.length === 0 && !(jobsQuery.isPending && !jobsQuery.data) && <p className="text-sm text-[var(--color-text-secondary)]">{t("tenantAdmin.assignments.emptyJobs")}</p>}
+          <ul className={cn("space-y-1 transition-opacity duration-200", isJobsRefreshing && "opacity-60")}>
             {jobs.map((job) => (
               <li key={job.id}>
                 <button

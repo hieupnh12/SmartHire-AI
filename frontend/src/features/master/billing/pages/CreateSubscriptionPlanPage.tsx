@@ -171,23 +171,25 @@ export function CreateSubscriptionPlanPage() {
               <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.maxJobsLabel")}</label>
               <input
                 type="number"
-                min={0}
+                min={-1}
                 required
                 value={maxJobs}
                 onChange={(e) => setMaxJobs(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-amber-500"
               />
+              <p className="text-[11px] text-slate-500 mt-1">-1 = Không giới hạn, 0 = Không hỗ trợ</p>
             </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.maxCvLabel")}</label>
               <input
                 type="number"
-                min={0}
+                min={-1}
                 required
                 value={maxCvParses}
                 onChange={(e) => setMaxCvParses(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-amber-500"
               />
+              <p className="text-[11px] text-slate-500 mt-1">-1 = Không giới hạn, 0 = Không hỗ trợ</p>
             </div>
           </div>
         </div>

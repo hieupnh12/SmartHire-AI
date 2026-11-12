@@ -8,13 +8,15 @@ export interface BankAccountConfig {
 }
 
 export const DEFAULT_BANK_CONFIG: BankAccountConfig = {
-  bankId: "970407", // Techcombank BIN
-  shortName: "TCB",
-  bankName: "Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank)",
-  accountNumber: "190388889999",
-  accountName: "CONG TY CP CONG NGHE SMARTHIRE VIET NAM",
-  branch: "Chi nhánh Hà Nội",
+  bankId: "970423", // TPBank BIN
+  shortName: "TPBank",
+  bankName: "Ngân hàng TMCP Tiên Phong (TPBank)",
+  accountNumber: "07744348801",
+  accountName: "NGUYEN NHAT SINH",
+  branch: "Chi nhánh Đà Nẵng",
 };
+
+export const PAYMENT_BANK_INFO = DEFAULT_BANK_CONFIG;
 
 /**
  * Generate standard VietQR image URL

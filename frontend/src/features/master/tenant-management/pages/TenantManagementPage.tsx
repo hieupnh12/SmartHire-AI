@@ -4,6 +4,7 @@ import { TenantManagementHub, type TenantHubTab } from "../components/TenantMana
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useT } from "@/i18n";
 
 function currentTab(pathname: string): TenantHubTab {
@@ -18,6 +19,7 @@ export function TenantManagementPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
@@ -33,17 +35,22 @@ export function TenantManagementPage() {
     triggerNotification(t("master.ops.tenants.toasts.statusUpdated", { code: tenant.code, status }));
   };
 
-  const softDeleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(t("master.ops.tenants.toasts.confirmSoftDelete", { code: tenant.code }))) {
-      return;
-    }
-    try {
-      const updated = await masterAdminApi.softDeleteTenant(tenant.id);
-      setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(t("master.ops.tenants.toasts.softDeleteSuccess", { code: tenant.code }));
-    } catch {
-      toast.danger(t("master.ops.tenants.toasts.softDeleteError"));
-    }
+  const softDeleteTenant = (tenant: TenantInfo) => {
+    askConfirm({
+      title: t("master.ops.tenants.toasts.softDeleteConfirmTitle", { code: tenant.code }),
+      description: t("master.ops.tenants.toasts.softDeleteConfirmDesc"),
+      confirmLabel: t("master.ops.tenants.toasts.softDeleteConfirmBtn"),
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const updated = await masterAdminApi.softDeleteTenant(tenant.id);
+          setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
+          triggerNotification(t("master.ops.tenants.toasts.softDeleteSuccess", { code: tenant.code }));
+        } catch {
+          toast.danger(t("master.ops.tenants.toasts.softDeleteError"));
+        }
+      },
+    });
   };
 
   const restoreTenant = async (tenant: TenantInfo) => {

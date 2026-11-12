@@ -69,6 +69,13 @@ public class MasterContractService {
     @Value("${smarthire.invite.public-origin:http://localhost:5173}")
     private String publicOrigin;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
+    private com.smarthire.config.PlatformProperties getPlatformProperties() {
+        return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
+
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<ContractResponse> getAllContracts(String statusFilter, Long tenantId) {
         List<Contract> contracts;
@@ -125,6 +132,10 @@ public class MasterContractService {
 
         String signingToken = java.util.UUID.randomUUID().toString().replace("-", "");
 
+        com.smarthire.config.PlatformProperties props = getPlatformProperties();
+        com.smarthire.config.PlatformProperties.Legal legal = props.getLegal();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = props.getPayment().getBank();
+
         Contract contract = Contract.builder()
                 .contractNumber(contractNumber)
                 .tenantId(tenant != null ? tenant.getId() : null)
@@ -136,16 +147,16 @@ public class MasterContractService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 // Party A
-                .partyAName(StringUtils.hasText(request.getPartyAName()) ? request.getPartyAName().trim() : "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM")
-                .partyATaxCode(StringUtils.hasText(request.getPartyATaxCode()) ? request.getPartyATaxCode().trim() : "0110889988")
-                .partyAAddress(StringUtils.hasText(request.getPartyAAddress()) ? request.getPartyAAddress().trim() : "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Phường Mễ Trì, Quận Nam Từ Liêm, TP. Hà Nội")
-                .partyARepresentative(StringUtils.hasText(request.getPartyARepresentative()) ? request.getPartyARepresentative().trim() : "Phan Nhật Hưng")
-                .partyAPosition(StringUtils.hasText(request.getPartyAPosition()) ? request.getPartyAPosition().trim() : "Tổng Giám Đốc")
-                .partyAPhone(StringUtils.hasText(request.getPartyAPhone()) ? request.getPartyAPhone().trim() : "1900 6868")
-                .partyAEmail(StringUtils.hasText(request.getPartyAEmail()) ? request.getPartyAEmail().trim() : "legal@smarthire.top")
-                .partyABankName(StringUtils.hasText(request.getPartyABankName()) ? request.getPartyABankName().trim() : "Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank)")
-                .partyABankAccount(StringUtils.hasText(request.getPartyABankAccount()) ? request.getPartyABankAccount().trim() : "190388889999")
-                .partyABankBranch(StringUtils.hasText(request.getPartyABankBranch()) ? request.getPartyABankBranch().trim() : "Chi nhánh Hà Nội")
+                .partyAName(StringUtils.hasText(request.getPartyAName()) ? request.getPartyAName().trim() : legal.getCompanyName())
+                .partyATaxCode(StringUtils.hasText(request.getPartyATaxCode()) ? request.getPartyATaxCode().trim() : legal.getTaxCode())
+                .partyAAddress(StringUtils.hasText(request.getPartyAAddress()) ? request.getPartyAAddress().trim() : legal.getAddress())
+                .partyARepresentative(StringUtils.hasText(request.getPartyARepresentative()) ? request.getPartyARepresentative().trim() : legal.getRepresentative())
+                .partyAPosition(StringUtils.hasText(request.getPartyAPosition()) ? request.getPartyAPosition().trim() : legal.getPosition())
+                .partyAPhone(StringUtils.hasText(request.getPartyAPhone()) ? request.getPartyAPhone().trim() : legal.getHotline())
+                .partyAEmail(StringUtils.hasText(request.getPartyAEmail()) ? request.getPartyAEmail().trim() : legal.getLegalEmail())
+                .partyABankName(StringUtils.hasText(request.getPartyABankName()) ? request.getPartyABankName().trim() : bank.getName())
+                .partyABankAccount(StringUtils.hasText(request.getPartyABankAccount()) ? request.getPartyABankAccount().trim() : bank.getAccountNumber())
+                .partyABankBranch(StringUtils.hasText(request.getPartyABankBranch()) ? request.getPartyABankBranch().trim() : bank.getBranch())
                 // Party B
                 .partyBName(StringUtils.hasText(request.getPartyBName()) ? request.getPartyBName().trim() : (tenant != null ? tenant.getName() : "Không xác định"))
                 .partyBTaxCode(StringUtils.hasText(request.getPartyBTaxCode()) ? request.getPartyBTaxCode().trim() : null)
@@ -892,6 +903,8 @@ public class MasterContractService {
             res.setMaxCvParses(plan.getMaxCvParses());
             res.setMaxAiInterviewHours(plan.getMaxAiInterviewHours());
             res.setMaxStorageGb(plan.getMaxStorageGb());
+            res.setMaxProctoringHours(plan.getMaxProctoringHours());
+            res.setVideoRetentionDays(plan.getVideoRetentionDays());
         }
         List<ContractSignature> signatures = signatureRepository.findByContractId(contract.getId());
         res.setSignatures(signatures.stream().map(ContractSignatureResponse::from).toList());

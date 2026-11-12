@@ -305,6 +305,30 @@ export function HomePage() {
                         status={sub.subscriptionStatus}
                         label={formatSubscriptionStatusLabel(sub.subscriptionStatus, t)}
                       />
+                      {sub.hasExplicitSubscription &&
+                        (sub.subscriptionStatus === "ACTIVE" || sub.subscriptionStatus === "TRIAL") &&
+                        sub.daysRemaining <= 7 && (
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              sub.daysRemaining <= 3
+                                ? "bg-red-100 text-red-700"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {sub.daysRemaining <= 0
+                              ? t("tenantAdmin.overview.subscriptionCard.expiresTodayBadge")
+                              : t("tenantAdmin.overview.subscriptionCard.expiringSoonBadge", {
+                                  days: sub.daysRemaining,
+                                })}
+                          </span>
+                        )}
+                      {pendingInvoiceCount > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                          {t("tenantAdmin.overview.subscriptionCard.pendingInvoicesBadge", {
+                            count: pendingInvoiceCount,
+                          })}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-[var(--color-text-secondary)]">
                       {sub.hasExplicitSubscription && sub.endsAt

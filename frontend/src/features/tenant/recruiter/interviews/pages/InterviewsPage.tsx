@@ -10,6 +10,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { SkeletonCard } from "@/components/ux/Skeleton";
+import { keepPreviousForScope } from "@/components/ux/TableRefresh";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { HumanInterviewWorkspace, type InterviewAction } from "../components/HumanInterviewWorkspace";
 import { HumanInterviewScheduleDialog } from "../components/HumanInterviewScheduleDialog";
@@ -57,14 +58,21 @@ export function InterviewsPage() {
     page: filters.page,
     size: filters.size,
   };
-  const list = useQuery({ queryKey: ["human-interviews", "list", params], queryFn: () => api.list(params), refetchInterval: 15_000 });
-  const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(Number(job.id)), refetchInterval: 15_000 });
-  const options = useQuery({ queryKey: ["human-interviews", "options", job.id], queryFn: () => api.options(Number(job.id)) });
+  const numericJobId = Number(job.id);
+  const list = useQuery({
+    queryKey: ["human-interviews", "list", numericJobId, params],
+    queryFn: () => api.list(params),
+    placeholderData: keepPreviousForScope(numericJobId, 2),
+    refetchInterval: 15_000,
+  });
+  const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(numericJobId), refetchInterval: 15_000 });
+  const options = useQuery({ queryKey: ["human-interviews", "options", job.id], queryFn: () => api.options(numericJobId) });
   const end = new Date(week);
   end.setDate(end.getDate() + 7);
   const calendar = useQuery({
-    queryKey: ["human-interviews", "calendar", params, week.toISOString()],
+    queryKey: ["human-interviews", "calendar", numericJobId, params, week.toISOString()],
     queryFn: () => allRows({ ...params, from: week.toISOString(), to: end.toISOString() }),
+    placeholderData: keepPreviousForScope(numericJobId, 2),
     enabled: view === "calendar",
     refetchInterval: 15_000,
   });
@@ -167,7 +175,8 @@ export function InterviewsPage() {
         {...filters}
         selected={selected}
         pending={mutation.isPending}
-        loading={list.isLoading || (view === "calendar" && calendar.isLoading)}
+        loading={(view === "list" && list.isPending && !list.data) || (view === "calendar" && calendar.isPending && !calendar.data)}
+        refreshing={(view === "list" && list.isFetching && list.isPlaceholderData) || (view === "calendar" && calendar.isFetching && calendar.isPlaceholderData)}
         onFilter={(name, value) => {
           setFilters((f) => ({ ...f, [name]: value, page: 0 }));
           setSelected([]);

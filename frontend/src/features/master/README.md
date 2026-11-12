@@ -6,46 +6,53 @@
 
 ```text
 master/
-├── shell/                 # Layout, sidebar, provider dùng chung cho /admin
+├── shell/                 # Layout, sidebar, header actions dùng chung cho /admin
 ├── auth/
 │   └── pages/
 ├── dashboard/
-│   └── pages/
+│   ├── pages/
+│   └── components/
 ├── analytics/
-│   └── pages/
+│   ├── pages/
+│   └── components/
 ├── leads/
-│   └── pages/
+│   ├── pages/
+│   └── components/
 ├── tenant-management/
 │   ├── pages/
 │   └── components/
 ├── billing/
 │   ├── pages/
-│   └── components/
+│   └── components/        # Workspace, Checkout, LegalPolicyModal, Invoice modals
 ├── contract/
 │   ├── pages/
 │   └── components/
 ├── system/
 │   ├── pages/
-│   └── components/
+│   └── components/        # AI Engine config, usage/quota workspace, log modals
 ├── account/
 │   ├── pages/
 │   └── components/
 ├── landing/
-│   └── pages/
+│   ├── pages/
+│   ├── components/
+│   └── context/
 ├── onboarding/
-│   └── pages/
+│   ├── pages/             # TenantOnboardPage, B2bDealWizardPage
+│   └── utils/             # cpqPricingEngine
 ├── README.md
 └── AGENTS.md
 ```
 
 ## Feature Meaning
 
-- `auth/`: platform admin authentication pages.
-- `dashboard/`: platform admin dashboard and landlord analytics entry points.
-- `shell/`: layout, navigation và shared state của khu vực Platform Admin.
-- `analytics/`, `leads/`, `tenant-management/`, `billing/`, `contract/`, `system/`, `account/`: các chức năng quản trị nền tảng độc lập.
-- `landing/`: SaaS public/marketing landing pages.
-- `onboarding/`: tenant onboarding and registration flow.
+- `auth/`: platform admin authentication pages (`MasterLoginPage`).
+- `dashboard/`: platform admin dashboard (`DashboardPage`, `PlatformHomeDashboard`).
+- `analytics/`: platform financial, tenant health & AI analytics (`AnalyticsPage`, `PlatformAnalyticsDashboard`).
+- `shell/`: layout (`MasterAdminLayout`), navigation (`MasterAdminSidebar`) và header actions của khu vực Platform Admin.
+- `leads/`, `tenant-management/`, `billing/`, `contract/`, `system/`, `account/`: các chức năng quản trị nền tảng độc lập.
+- `landing/`: SaaS public/marketing landing pages, modals (`WorkspaceModal`, `OrderLookupModal`) và trang pháp lý (`/terms`, `/privacy`).
+- `onboarding/`: direct tenant onboarding (`TenantOnboardPage`) và B2B Deal Wizard 3 bước (`B2bDealWizardPage`).
 
 ## Rule
 
@@ -72,15 +79,24 @@ feature-name/
 - Page files stay thin; repeated UI moves to that feature's `components/`.
 - Master/landlord UI does not import tenant actor internals.
 
-## Platform Admin Routes
+## Routes
+
+### Public, Self-Serve Checkout & Onboarding Routes
+
+- Marketing & Legal: `/`, `/solutions`, `/preview`, `/roi` (`/value` redirect), `/security`, `/pricing` (`/packages` redirect), `/demo`, `/terms`, `/privacy`.
+- Checkout & Payment Return: `/checkout`, `/checkout/:planCode`, `/checkout/success`, `/checkout/vnpay-return`.
+- E-Contract Signing Portal: `/contracts/sign/:token`, `/contracts/view/:token`.
+- Auth & Direct Onboarding: `/admin/login`, `/onboard` (protected by `MasterRoute`).
+
+### Platform Admin Routes (`/admin`, protected by `MasterRoute`)
 
 Các chức năng quản trị nền tảng dùng URL riêng để hỗ trợ tải lại trang, bookmark và điều hướng Back/Forward:
 
-- `/admin/dashboard`, `/admin/analytics`, `/admin/leads`
-- `/admin/tenants/{overview|directory|create|verification|provisioning}`
-- `/admin/contracts`, `/admin/invoices`
-- `/admin/subscriptions/{overview|plans|allocations|invoices}`
-- `/admin/system/{logs|ai-usage|ai-quotas}`
+- `/admin/dashboard`, `/admin/analytics`, `/admin/leads`, `/admin/deals`
+- `/admin/tenants/{overview|directory|create|provisioning}` (`/admin/tenants` chuyển về `directory`; `/admin/tenants/create` trỏ tới `B2bDealWizardPage`)
+- `/admin/contracts`, `/admin/contracts/create`, `/admin/invoices`
+- `/admin/subscriptions/{overview|plans|allocations|create}` (`/admin/subscriptions` chuyển về `plans`)
+- `/admin/system/{logs|ai-usage|ai-quotas|ai-config}`
 - `/admin/account/{profile|security|accessibility|notifications}`
 
-`/admin` chuyển hướng về `/admin/dashboard`. Sidebar phải điều hướng bằng React Router; không dùng state cục bộ làm nguồn sự thật cho trang hiện tại.
+`/admin` chuyển hướng về `/admin/dashboard`. Sidebar (`MasterAdminSidebar.tsx`) điều hướng bằng React Router; không dùng state cục bộ làm nguồn sự thật cho trang hiện tại.

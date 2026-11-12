@@ -8,10 +8,14 @@ import {
   CircleDollarSign,
   CreditCard,
   FileClock,
+  HelpCircle,
   Plus,
   ShieldCheck,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
 import { useT, useLocale, formatNumber, formatDateTime } from "@/i18n";
@@ -28,8 +32,76 @@ type Props = {
 
 const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
-function QuickMetric({ label, value, helper, icon: Icon }: { label: string; value: string; helper: string; icon: typeof Activity }) {
-  return <div className={cn(cardClass, "p-4")}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-medium text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{value}</p></div><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon className="size-5" aria-hidden="true" /></span></div><p className="mt-3 text-xs text-slate-500">{helper}</p></div>;
+type MetricBadge = {
+  text: string;
+  tone: "emerald" | "rose" | "amber" | "blue";
+  trend?: "up" | "down";
+};
+
+const badgeToneClass: Record<MetricBadge["tone"], string> = {
+  emerald: "bg-emerald-50 text-emerald-600",
+  rose: "bg-rose-50 text-rose-500",
+  amber: "bg-amber-50 text-amber-600",
+  blue: "bg-blue-50 text-blue-600",
+};
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+function QuickMetric({
+  label,
+  value,
+  tooltip,
+  badge,
+  icon: Icon,
+  explainLabel,
+}: {
+  label: string;
+  value: string;
+  tooltip: string;
+  badge?: MetricBadge;
+  icon: typeof Activity;
+  explainLabel: string;
+}) {
+  return (
+    <div className="flex flex-col justify-between rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_-3px_rgba(15,23,42,0.06)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-600">
+            <span>{label}</span>
+            <span className="ml-1.5 inline-flex align-middle">
+              <HelpTip content={tooltip} label={explainLabel} />
+            </span>
+          </p>
+          <p className="mt-2.5 text-2xl font-semibold tracking-tight text-slate-600">{value}</p>
+        </div>
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-blue-100/75 text-blue-600">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+      </div>
+      {badge && (
+        <div className="mt-4 flex items-center">
+          <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold", badgeToneClass[badge.tone])}>
+            {badge.trend === "up" && <TrendingUp className="size-3" aria-hidden="true" />}
+            {badge.trend === "down" && <TrendingDown className="size-3" aria-hidden="true" />}
+            <span>{badge.text}</span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavigate, onCreateTenant }: Props) {
@@ -88,6 +160,8 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
   ];
 
   const isHealthy = (aiQuota?.systemHealth ?? "HEALTHY") === "HEALTHY";
+  const growthRate = revenue?.growthRate ?? "0.0%";
+  const isNegativeGrowth = growthRate.trim().startsWith("-");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -106,10 +180,16 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
         <QuickMetric
           label={t("master.ops.dashboard.metrics.activeTenantsLabel")}
           value={`${revenue?.activeTenants ?? activeTenantsList.length}`}
-          helper={t("master.ops.dashboard.metrics.activeTenantsHelper", {
-            attention: attentionTenants.length,
+          badge={{
+            text: t("master.ops.dashboard.metrics.attentionBadge", { count: attentionTenants.length }),
+            tone: attentionTenants.length > 0 ? "amber" : "emerald",
+          }}
+          tooltip={t("master.ops.dashboard.metrics.activeTenantsTooltip", {
+            active: revenue?.activeTenants ?? activeTenantsList.length,
             total: revenue?.totalTenants ?? tenants.length,
+            attention: attentionTenants.length,
           })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.activeTenantsLabel") })}
           icon={Building2}
         />
         <QuickMetric
@@ -117,27 +197,42 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           value={t("master.ops.dashboard.metrics.mrrValue", {
             amount: formatNumber(revenue?.mrr ?? 0, undefined, locale),
           })}
-          helper={t("master.ops.dashboard.metrics.mrrHelper", {
-            rate: revenue?.growthRate ?? "0.0%",
-          })}
+          badge={{
+            text: growthRate,
+            tone: isNegativeGrowth ? "rose" : "emerald",
+            trend: isNegativeGrowth ? "down" : "up",
+          }}
+          tooltip={t("master.ops.dashboard.metrics.mrrTooltip", { rate: growthRate })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.mrrLabel") })}
           icon={CircleDollarSign}
         />
         <QuickMetric
           label={t("master.ops.dashboard.metrics.aiQuotaLabel")}
           value={`${cvUsage}%`}
-          helper={t("master.ops.dashboard.metrics.aiQuotaHelper", {
+          badge={{
+            text: cvUsage >= 80 ? t("master.ops.dashboard.metrics.quotaWarnBadge") : t("master.ops.dashboard.metrics.quotaSafeBadge"),
+            tone: cvUsage >= 80 ? "amber" : "emerald",
+          }}
+          tooltip={t("master.ops.dashboard.metrics.aiQuotaTooltip", {
             used: formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale),
             limit: formatNumber(cvLimit, undefined, locale),
           })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.aiQuotaLabel") })}
           icon={Bot}
         />
         <QuickMetric
           label={t("master.ops.dashboard.metrics.systemHealthLabel")}
-          value={isHealthy ? "HEALTHY" : "DEGRADED"}
-          helper={t("master.ops.dashboard.metrics.systemHealthHelper", {
+          value={isHealthy ? t("master.ops.dashboard.metrics.healthOk") : t("master.ops.dashboard.metrics.healthWarn")}
+          badge={{
+            text: `${aiQuota?.apiSuccessRate ?? 100}%`,
+            tone: isHealthy ? "emerald" : "rose",
+            trend: isHealthy ? "up" : "down",
+          }}
+          tooltip={t("master.ops.dashboard.metrics.systemHealthTooltip", {
             rate: aiQuota?.apiSuccessRate ?? 100,
             models: aiQuota?.activeModels?.length ?? 0,
           })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.systemHealthLabel") })}
           icon={Activity}
         />
       </div>
@@ -145,9 +240,12 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <section className={cn(cardClass, "overflow-hidden")}>
           <div className="flex items-center justify-between border-b border-slate-100 p-5">
-            <div>
-              <h2 className="font-semibold text-slate-950">{t("master.ops.dashboard.recentEvents.title")}</h2>
-              <p className="mt-1 text-xs text-slate-500">{t("master.ops.dashboard.recentEvents.subtitle")}</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-semibold text-slate-600">{t("master.ops.dashboard.recentEvents.title")}</h2>
+              <HelpTip
+                content={t("master.ops.dashboard.recentEvents.subtitle")}
+                label={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.recentEvents.title") })}
+              />
             </div>
             <button type="button" onClick={() => onNavigate("logs")} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
               {t("master.ops.dashboard.recentEvents.viewLogs")} <ArrowRight className="size-3.5" />
@@ -161,7 +259,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-900">{log.action}</h3>
+                    <h3 className="text-sm font-semibold text-slate-800">{log.action}</h3>
                     <time className="text-[11px] text-slate-400">{formatDateTime(log.timestamp, undefined, locale)}</time>
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{log.tenantCode} · {log.description}</p>
@@ -174,9 +272,12 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
 
         <section className={cn(cardClass, "p-5")}>
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-slate-950">{t("master.ops.dashboard.actionRequired.title")}</h2>
-              <p className="mt-1 text-xs text-slate-500">{t("master.ops.dashboard.actionRequired.subtitle")}</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-semibold text-slate-600">{t("master.ops.dashboard.actionRequired.title")}</h2>
+              <HelpTip
+                content={t("master.ops.dashboard.actionRequired.subtitle")}
+                label={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.actionRequired.title") })}
+              />
             </div>
             <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", totalActionItems > 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>
               {totalActionItems}
@@ -186,21 +287,30 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
             {tasks.map((item) => {
               const Icon = item.icon;
               return (
-                <button
+                <div
                   key={item.title}
-                  type="button"
-                  onClick={() => onNavigate(item.destination)}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-slate-200 p-3 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/50"
+                  className="relative flex min-h-14 items-center gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
                 >
-                  <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", item.tone === "rose" ? "bg-rose-50 text-rose-700" : item.tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700")}>
-                    <Icon className="size-4" />
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(item.destination)}
+                    aria-label={item.title}
+                    className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                  />
+                  <span className={cn("pointer-events-none relative z-10 grid size-9 shrink-0 place-items-center rounded-lg", item.tone === "rose" ? "bg-rose-50 text-rose-700" : item.tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700")}>
+                    <Icon className="size-4" aria-hidden="true" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{item.detail}</span>
-                  </span>
-                  <ArrowRight className="size-4 shrink-0 text-slate-400" />
-                </button>
+                  <div className="pointer-events-none relative z-10 min-w-0 flex-1">
+                    <span className="text-sm font-semibold text-slate-800">{item.title}</span>
+                    <span className="pointer-events-auto ml-1.5 inline-flex align-middle">
+                      <HelpTip
+                        content={item.detail}
+                        label={t("master.ops.dashboard.explainLabel", { item: item.title })}
+                      />
+                    </span>
+                  </div>
+                  <ArrowRight className="pointer-events-none relative z-10 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </div>
               );
             })}
           </div>
@@ -212,6 +322,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           icon={Activity}
           title={t("master.ops.dashboard.summary.infraTitle")}
           subtitle={t("master.ops.dashboard.summary.infraSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.infraTitle") })}
           rows={[
             [t("master.ops.dashboard.summary.avgLatency"), aiQuota?.averageLatencyMs ? `${aiQuota.averageLatencyMs} ms` : "< 150 ms"],
             [t("master.ops.dashboard.summary.aiSuccessRate"), `${aiQuota?.apiSuccessRate ?? 100}%`],
@@ -225,6 +336,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           icon={FileClock}
           title={t("master.ops.dashboard.summary.usageTitle")}
           subtitle={t("master.ops.dashboard.summary.usageSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.usageTitle") })}
           rows={[
             [t("master.ops.dashboard.summary.newTenants"), `${revenue?.newTenantsThisMonth ?? 0}`],
             [t("master.ops.dashboard.summary.cvProcessed"), formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale)],
@@ -237,6 +349,7 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           icon={CreditCard}
           title={t("master.ops.dashboard.summary.financeTitle")}
           subtitle={t("master.ops.dashboard.summary.financeSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.financeTitle") })}
           rows={[
             [t("master.ops.dashboard.summary.arrLabel"), t("master.ops.dashboard.summary.arrValue", {
               amount: formatNumber(revenue?.arr ?? 0, undefined, locale),
@@ -256,6 +369,38 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
   );
 }
 
-function SummaryCard({ icon: Icon, title, subtitle, rows }: { icon: typeof Activity; title: string; subtitle: string; rows: string[][] }) {
-  return <section className={cn(cardClass, "p-5")}><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-600"><Icon className="size-5" /></span><div><h2 className="text-sm font-semibold">{title}</h2><p className="text-xs text-slate-500">{subtitle}</p></div></div><dl className="mt-4 space-y-3 text-sm">{rows.map(([label,value]) => <div key={label} className="flex justify-between"><dt className="text-slate-500">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl></section>;
+function SummaryCard({
+  icon: Icon,
+  title,
+  subtitle,
+  explainLabel,
+  rows,
+}: {
+  icon: typeof Activity;
+  title: string;
+  subtitle: string;
+  explainLabel: string;
+  rows: string[][];
+}) {
+  return (
+    <section className={cn(cardClass, "p-5")}>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h2 className="text-sm font-semibold text-slate-600">{title}</h2>
+          <HelpTip content={subtitle} label={explainLabel} />
+        </div>
+      </div>
+      <dl className="mt-4 space-y-3 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="font-semibold text-slate-800">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }

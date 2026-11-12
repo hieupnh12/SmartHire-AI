@@ -65,7 +65,7 @@ public class JobController {
     }
 
     @GetMapping
-    @Operation(summary = "Search recruiter jobs")
+    @Operation(summary = "Search recruiter jobs (scope=my for assigned/created jobs, scope=all for all tenant jobs)")
     public ApiResponse<JobPage> search(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) JobStatus status,

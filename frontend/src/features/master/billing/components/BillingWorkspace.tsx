@@ -9,6 +9,8 @@ import type {
 import type { InvoiceItem } from "@/api/master/billingApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
 import { formatDate, formatNumber, useLocale, useT, type Locale } from "@/i18n";
 import {
@@ -22,6 +24,7 @@ import {
   CreditCard,
   Download,
   FileText,
+  HelpCircle,
   Plus,
   Search,
   SlidersHorizontal,
@@ -62,6 +65,29 @@ function formatVndCurrency(value: number, locale: Locale): string {
 }
 
 const surface = "rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]";
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+const TENANT_STATUS_CLS: Record<string, string> = {
+  ACTIVE: "bg-emerald-50 text-emerald-700",
+  PENDING_PAYMENT: "bg-amber-50 text-amber-700",
+  PROVISIONING: "bg-blue-50 text-blue-700",
+  SUSPENDED: "bg-amber-50 text-amber-700",
+  FAILED: "bg-rose-50 text-rose-700",
+};
 
 export function BillingWorkspace({
   plans,
@@ -141,6 +167,12 @@ export function BillingWorkspace({
 
   const totalBilled = paidTotal + pendingTotal + overdueTotal;
   const collectionPercent = totalBilled > 0 ? Math.round((paidTotal * 100) / totalBilled) : 100;
+  const paidPct = totalBilled > 0 ? (paidTotal / totalBilled) * 100 : 100;
+  const paidPlusPendingPct = totalBilled > 0 ? ((paidTotal + pendingTotal) / totalBilled) * 100 : 100;
+  const collectionConicGradient =
+    totalBilled > 0
+      ? `conic-gradient(#2563eb 0 ${paidPct}%, #f59e0b ${paidPct}% ${paidPlusPendingPct}%, #ef4444 ${paidPlusPendingPct}% 100%)`
+      : "conic-gradient(#2563eb 0 100%)";
 
   const downloadInvoices = () => {
     const header = t("master.commerce.billingWorkspace.csvHeader");
@@ -221,7 +253,7 @@ export function BillingWorkspace({
                 <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CreditCard className="size-5" aria-hidden="true" /></span>
               </div>
               <div className="mt-6 flex items-center gap-5">
-                <div className="grid size-28 shrink-0 place-items-center rounded-full bg-[conic-gradient(#2563eb_0_82%,#f59e0b_82%_94%,#ef4444_94%)] p-3">
+                <div className="grid size-28 shrink-0 place-items-center rounded-full p-3" style={{ background: collectionConicGradient }}>
                   <div className="grid size-full place-items-center rounded-full bg-white text-center"><span><strong className="block text-2xl text-slate-950">{collectionPercent}%</strong><small className="text-[10px] font-medium text-slate-500">{t("master.commerce.billingWorkspace.collectedLabel")}</small></span></div>
                 </div>
                 <dl className="min-w-0 flex-1 space-y-3 text-xs">
@@ -258,26 +290,204 @@ export function BillingWorkspace({
       {view === "allocations" && (
         <section className={cn(surface, "overflow-hidden")}>
           <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">{t("master.commerce.billingWorkspace.allocations.title")}</h2>
-              <p className="mt-1 text-xs text-slate-500">{t("master.commerce.billingWorkspace.allocations.subtitle")}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-600">
+                {t("master.commerce.billingWorkspace.allocations.title")}
+              </h2>
+              <HelpTip
+                content={t("master.commerce.billingWorkspace.allocations.titleTooltip")}
+                label={t("master.commerce.billingWorkspace.allocations.titleHelpLabel")}
+              />
             </div>
-            <label className="relative block w-full sm:max-w-xs"><span className="sr-only">{t("master.commerce.billingWorkspace.allocations.searchSrOnly")}</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={allocationQuery} onChange={(event) => setAllocationQuery(event.target.value)} placeholder={t("master.commerce.billingWorkspace.allocations.searchPlaceholder")} className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="relative block w-full sm:max-w-xs">
+              <span className="sr-only">{t("master.commerce.billingWorkspace.allocations.searchSrOnly")}</span>
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={allocationQuery}
+                onChange={(event) => setAllocationQuery(event.target.value)}
+                placeholder={t("master.commerce.billingWorkspace.allocations.searchPlaceholder")}
+                className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100"
+              />
+            </label>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colCompany")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colStatus")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colCurrentPlan")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colCyclePrice")}</th><th className="px-6 py-3 text-right">{t("master.commerce.billingWorkspace.allocations.colActions")}</th></tr></thead>
-              <tbody>{filteredTenants.map((tenant) => {
-                const subInstance = subscriptionByTenantId.get(tenant.id);
-                const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
-                const currentPlanCode = subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
-                const selectedCode = assignments[tenant.id] ?? currentPlanCode;
-                const contractedPrice = subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
-                return <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 className="size-4" /></span><span><strong className="block font-semibold text-slate-900">{tenant.name}</strong><small className="text-xs text-slate-500">{tenant.code} · {tenant.subdomain}</small></span></div></td><td className="px-6 py-4"><div className="flex flex-wrap items-center gap-1.5"><span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", tenant.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{tenant.status}</span>{subInstance?.status && <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">{t("master.commerce.billingWorkspace.allocations.subPrefix", { status: subInstance.status })}</span>}</div></td><td className="px-6 py-4"><select aria-label={t("master.commerce.billingWorkspace.allocations.selectAria", { name: tenant.name })} value={selectedCode} onChange={(event) => { setAssignments((current) => ({ ...current, [tenant.id]: event.target.value })); setSavedTenantId(null); }} className="min-h-10 min-w-48 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100">{plans.filter((plan) => (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode).map((plan) => <option key={plan.id ?? plan.code} value={plan.code}>{plan.name} (v{plan.version ?? 1}{plan.custom ? t("master.commerce.billingWorkspace.allocations.customSuffix") : ""})</option>)}</select></td><td className="px-6 py-4 text-xs text-slate-600"><strong className="block text-slate-900">{formatVndCurrency(contractedPrice, locale)} / {t("master.commerce.common.yearUnit")}</strong><span>{t("master.commerce.billingWorkspace.allocations.yearlySnapshot")}</span></td><td className="px-6 py-4 text-right"><button type="button" onClick={async () => { try { const { masterAdminApi } = await import("@/api/master/masterAdminApi"); await masterAdminApi.assignTenantSubscription(tenant.id, { planCode: selectedCode, status: "ACTIVE" }); setSavedTenantId(tenant.id); await onSubscriptionAssigned?.(); toast.success(t("master.commerce.billingWorkspace.allocations.assignedToast", { code: selectedCode, name: tenant.name })); } catch { toast.danger(t("master.commerce.billingWorkspace.allocations.assignFailedToast")); } }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">{savedTenantId === tenant.id ? <><UserRoundCheck className="size-3.5" />{t("master.commerce.billingWorkspace.allocations.savedSnapshot")}</> : t("master.commerce.billingWorkspace.allocations.saveChanges")}</button></td></tr>;
-              })}</tbody>
+              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colCompany")}</th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colStatus")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colStatusTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colStatusHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colCurrentPlan")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colCurrentPlanTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colCurrentPlanHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colCyclePrice")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colCyclePriceTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colCyclePriceHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3 text-right">{t("master.commerce.billingWorkspace.allocations.colActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTenants.map((tenant) => {
+                  const subInstance = subscriptionByTenantId.get(tenant.id);
+                  const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
+                  const currentPlanCode =
+                    subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
+                  const selectedCode = assignments[tenant.id] ?? currentPlanCode;
+                  const contractedPrice =
+                    subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
+                  const tenantCls = TENANT_STATUS_CLS[tenant.status] ?? "bg-slate-100 text-slate-600";
+                  const tenantLabel =
+                    tenant.status in TENANT_STATUS_CLS
+                      ? t(`master.commerce.billingWorkspace.allocations.tenantStatuses.${tenant.status}`)
+                      : tenant.status;
+                  const subKnown =
+                    subInstance?.status === "ACTIVE" ||
+                    subInstance?.status === "GRACE_PERIOD" ||
+                    subInstance?.status === "PAST_DUE" ||
+                    subInstance?.status === "EXPIRED" ||
+                    subInstance?.status === "CANCELLED";
+                  const availablePlans = plans
+                    .filter(
+                      (plan) =>
+                        (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode,
+                    )
+                    .map((plan) => ({
+                      value: plan.code,
+                      label: `${plan.name} (v${plan.version ?? 1}${
+                        plan.custom ? t("master.commerce.billingWorkspace.allocations.customSuffix") : ""
+                      })`,
+                    }));
+
+                  return (
+                    <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                            <Building2 className="size-4" />
+                          </span>
+                          <span>
+                            <strong className="block font-semibold text-slate-600">
+                              {tenant.name}
+                            </strong>
+                            <small className="text-xs text-slate-500">
+                              {tenant.code} · {tenant.subdomain}
+                            </small>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                              tenantCls,
+                            )}
+                          >
+                            {tenantLabel}
+                          </span>
+                          {subInstance?.status && (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                              {subKnown
+                                ? t(`master.commerce.billingWorkspace.allocations.subStatuses.${subInstance.status}`)
+                                : t("master.commerce.billingWorkspace.allocations.subPrefix", {
+                                    status: subInstance.status,
+                                  })}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="min-w-52 max-w-64">
+                          <CustomSelect
+                            ariaLabel={t("master.commerce.billingWorkspace.allocations.selectAria", {
+                              name: tenant.name,
+                            })}
+                            value={selectedCode}
+                            onChange={(val) => {
+                              setAssignments((current) => ({
+                                ...current,
+                                [tenant.id]: val,
+                              }));
+                              setSavedTenantId(null);
+                            }}
+                            options={availablePlans}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-600">
+                        <strong className="block font-semibold text-slate-600">
+                          {formatVndCurrency(contractedPrice, locale)} / {t("master.commerce.common.yearUnit")}
+                        </strong>
+                        <span className="text-slate-500">
+                          {t("master.commerce.billingWorkspace.allocations.yearlySnapshot")}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const { masterAdminApi } = await import("@/api/master/masterAdminApi");
+                              await masterAdminApi.assignTenantSubscription(tenant.id, {
+                                planCode: selectedCode,
+                                status: "ACTIVE",
+                              });
+                              setSavedTenantId(tenant.id);
+                              await onSubscriptionAssigned?.();
+                              toast.success(
+                                t("master.commerce.billingWorkspace.allocations.assignedToast", {
+                                  code: selectedCode,
+                                  name: tenant.name,
+                                }),
+                              );
+                            } catch {
+                              toast.danger(
+                                t("master.commerce.billingWorkspace.allocations.assignFailedToast"),
+                              );
+                            }
+                          }}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                        >
+                          {savedTenantId === tenant.id ? (
+                            <>
+                              <UserRoundCheck className="size-3.5" />
+                              {t("master.commerce.billingWorkspace.allocations.savedSnapshot")}
+                            </>
+                          ) : (
+                            t("master.commerce.billingWorkspace.allocations.saveChanges")
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
-          {filteredTenants.length === 0 && <p className="p-10 text-center text-sm text-slate-500">{t("master.commerce.billingWorkspace.allocations.empty")}</p>}
+          {filteredTenants.length === 0 && (
+            <p className="p-10 text-center text-sm text-slate-500">
+              {t("master.commerce.billingWorkspace.allocations.empty")}
+            </p>
+          )}
         </section>
       )}
 
@@ -435,10 +645,10 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
         </p>
       </div>
       <div className="flex-1 space-y-3 p-6 text-sm text-slate-600">
-        <PlanFeature text={plan.maxJobs < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedJobs") : t("master.commerce.billingWorkspace.planCard.limitedJobs", { count: plan.maxJobs })} />
-        <PlanFeature text={plan.maxCvParses < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedCv") : t("master.commerce.billingWorkspace.planCard.limitedCv", { count: formatNumber(plan.maxCvParses, undefined, locale) })} />
-        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedAi") : plan.maxAiInterviewHours === 0 ? t("master.commerce.billingWorkspace.planCard.noAi") : t("master.commerce.billingWorkspace.planCard.limitedAi", { count: plan.maxAiInterviewHours })} />
-        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedStorage") : plan.maxStorageGb === 0 ? t("master.commerce.billingWorkspace.planCard.noStorage") : t("master.commerce.billingWorkspace.planCard.limitedStorage", { count: plan.maxStorageGb })} />
+        <PlanFeature text={plan.maxJobs == null || plan.maxJobs < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedJobs") : plan.maxJobs === 0 ? t("master.commerce.billingWorkspace.planCard.noJobs") : t("master.commerce.billingWorkspace.planCard.limitedJobs", { count: formatNumber(plan.maxJobs, undefined, locale) })} />
+        <PlanFeature text={plan.maxCvParses == null || plan.maxCvParses < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedCv") : plan.maxCvParses === 0 ? t("master.commerce.billingWorkspace.planCard.noCv") : t("master.commerce.billingWorkspace.planCard.limitedCv", { count: formatNumber(plan.maxCvParses, undefined, locale) })} />
+        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedAi") : plan.maxAiInterviewHours === 0 ? t("master.commerce.billingWorkspace.planCard.noAi") : t("master.commerce.billingWorkspace.planCard.limitedAi", { count: formatNumber(plan.maxAiInterviewHours, undefined, locale) })} />
+        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedStorage") : plan.maxStorageGb === 0 ? t("master.commerce.billingWorkspace.planCard.noStorage") : t("master.commerce.billingWorkspace.planCard.limitedStorage", { count: formatNumber(plan.maxStorageGb, undefined, locale) })} />
         <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
           <span className="text-slate-500">{t("master.commerce.billingWorkspace.planCard.referencingContracts")}</span>
           <strong className="text-slate-900">{subscriberCount}</strong>

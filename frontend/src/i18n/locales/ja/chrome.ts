@@ -101,6 +101,8 @@ export const chromeJa = {
     adminNotificationsSubtitle: "ワークスペース管理者向けのお知らせ",
     adminNotificationsEmptyTitle: "新しい通知はありません",
     adminNotificationsEmptyDesc: "管理に関する更新がここに表示されます。",
+    adminSubscriptionNotificationsEmptyDesc: "契約期限間近、お支払い遅延、利用枠上限に関する警告がここに表示されます。",
+    adminSubscriptionNotificationsViewAll: "契約プラン・お支払いを見る",
   },
   seo: {
     siteName: "SmartHire AI",

@@ -27,8 +27,8 @@ export function useScrollReveal() {
         });
       },
       {
-        threshold: 0.12,   // Trigger when 12% of element is visible
-        rootMargin: "0px 0px -48px 0px", // Slight bottom offset for earlier feel
+        threshold: 0.08,
+        rootMargin: "0px 0px -56px 0px",
       }
     );
 

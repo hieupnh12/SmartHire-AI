@@ -7,8 +7,9 @@ import {
   CheckCircle2, Building2, CreditCard, FileSignature, Loader2, 
   ShieldCheck, ReceiptText, Plus, X,
   Calculator, ShieldAlert, Sliders, Layers, Check,
-  Mail, Send
+  Mail, Send, HelpCircle
 } from "lucide-react";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { masterTenantApi } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
@@ -16,6 +17,7 @@ import { consultationApi } from "@/api/master/consultationApi";
 import { useSubscriptions, useCreateSubscription, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage } from "@/lib/axios";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import { formatNumber, useLocale, useT, type TranslateFn } from "@/i18n";
 import { 
   calculateTemplateAddonQuote, 
@@ -77,6 +79,24 @@ function createWizardSchema(t: TranslateFn) {
 }
 
 type FormValues = z.infer<ReturnType<typeof createWizardSchema>>;
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
 
 function CreatePlanInlineForm({ onCancel, onSuccess }: { 
   onCancel: () => void, 
@@ -235,7 +255,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
   };
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-  const labelClass = "mb-1 block text-xs font-semibold text-slate-700";
+  const labelClass = "mb-1 block text-xs font-semibold text-slate-600";
 
   return (
     <div ref={containerRef} onKeyDown={handleKeyDown} className="mt-6 rounded-2xl border-2 border-indigo-200 bg-white p-5 sm:p-6 relative animate-in fade-in slide-in-from-top-2 shadow-xl">
@@ -252,10 +272,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-slate-900 text-lg sm:text-xl">{t("master.commerce.cpq.title")}</h3>
-            <span className="text-[11px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
-              {t("master.commerce.cpq.badge")}
-            </span>
+            <h3 className="font-bold text-slate-600 text-lg sm:text-xl">{t("master.commerce.cpq.title")}</h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">{t("master.commerce.cpq.subtitle")}</p>
         </div>
@@ -356,18 +373,40 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold text-sm text-slate-900">{t(plan.nameKey)}</span>
+                      <span className="font-bold text-sm text-slate-600">{t(plan.nameKey)}</span>
                       {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
                     </div>
                     <div className="text-base font-extrabold text-indigo-700">
                       {formatNumber(plan.priceYearly, undefined, locale)} ₫<span className="text-xs font-normal text-slate-500">/{t("master.commerce.common.yearUnit")}</span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-1">
-                      {t("master.commerce.cpq.templateBaseLine", {
-                        jobs: plan.baseJobs,
-                        cv: formatNumber(plan.baseCvParsesMonthly, undefined, locale),
-                        ai: plan.baseAiHoursMonthly,
-                        storage: plan.baseStorageGb,
+                      {t("master.commerce.cpq.templateBasePrefix")}{" "}
+                      {formatQuotaLimit(plan.baseJobs, t("master.commerce.cpq.jobsUnit"), {
+                        locale,
+                        unlimitedLabel: t("master.commerce.common.unlimited"),
+                        unsupportedLabel: t("master.commerce.common.unsupported"),
+                      })}{" "}
+                      ·{" "}
+                      {formatQuotaLimit(plan.baseCvParsesMonthly, t("master.commerce.cpq.cvUnit"), {
+                        locale,
+                        monthly: true,
+                        unlimitedLabel: t("master.commerce.common.unlimited"),
+                        unsupportedLabel: t("master.commerce.common.unsupported"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}{" "}
+                      ·{" "}
+                      {formatQuotaLimit(plan.baseAiHoursMonthly, t("master.commerce.cpq.aiHoursUnit"), {
+                        locale,
+                        monthly: true,
+                        unlimitedLabel: t("master.commerce.common.unlimited"),
+                        unsupportedLabel: t("master.commerce.common.unsupported"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}{" "}
+                      ·{" "}
+                      {formatQuotaLimit(plan.baseStorageGb, t("master.commerce.cpq.storageUnit"), {
+                        locale,
+                        unlimitedLabel: t("master.commerce.common.unlimited"),
+                        unsupportedLabel: t("master.commerce.common.unsupported"),
                       })}
                     </div>
                   </div>
@@ -484,7 +523,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Discount Input */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <label className="text-xs font-bold text-slate-800">
+              <label className="text-xs font-bold text-slate-600">
                 {t("master.commerce.cpq.discountTemplateTitle")}
               </label>
               <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.discountTemplateHint")}</span>
@@ -560,6 +599,11 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
                   = {formatNumber(scratchYearlyCv * CPQ_RATES.SCRATCH.CV_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
                 </span>
+                <span className="text-[10px] text-slate-500 block">
+                  {t("master.commerce.cpq.scratchYearlyCvMonthlyHint", {
+                    count: formatNumber(Math.max(100, Math.round(scratchYearlyCv / 12)), undefined, locale),
+                  })}
+                </span>
               </div>
 
               <div>
@@ -573,6 +617,11 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                 />
                 <span className="text-[10px] text-indigo-700 mt-1 block font-semibold">
                   = {formatNumber(scratchYearlyAiHours * CPQ_RATES.SCRATCH.AI_HOUR_PRICE_YEARLY, undefined, locale)} ₫/{t("master.commerce.common.yearUnit")}
+                </span>
+                <span className="text-[10px] text-slate-500 block">
+                  {t("master.commerce.cpq.scratchYearlyAiMonthlyHint", {
+                    hours: formatNumber(Math.max(1, Math.round(scratchYearlyAiHours / 12)), undefined, locale),
+                  })}
                 </span>
               </div>
 
@@ -607,7 +656,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.ssoTitle")}</span>
+                  <span className="font-bold text-xs text-slate-600 block">{t("master.commerce.cpq.ssoTitle")}</span>
                   <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.ssoDesc")}</span>
                 </div>
               </label>
@@ -622,7 +671,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.sandboxTitle")}</span>
+                  <span className="font-bold text-xs text-slate-600 block">{t("master.commerce.cpq.sandboxTitle")}</span>
                   <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.sandboxDesc")}</span>
                 </div>
               </label>
@@ -637,7 +686,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
                 />
                 <div>
-                  <span className="font-bold text-xs text-slate-900 block">{t("master.commerce.cpq.supportTitle")}</span>
+                  <span className="font-bold text-xs text-slate-600 block">{t("master.commerce.cpq.supportTitle")}</span>
                   <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.supportDesc")}</span>
                 </div>
               </label>
@@ -647,7 +696,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           {/* Discount Input */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <label className="text-xs font-bold text-slate-800">
+              <label className="text-xs font-bold text-slate-600">
                 {t("master.commerce.cpq.discountScratchTitle")}
               </label>
               <span className="text-[11px] text-slate-500">{t("master.commerce.cpq.discountScratchHint")}</span>
@@ -728,7 +777,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
           )}
 
           <div className="border-t-2 border-indigo-100 pt-2.5 flex flex-wrap items-baseline justify-between">
-            <span className="text-sm font-bold text-slate-900">{t("master.commerce.cpq.totalQuoteLabel")}</span>
+            <span className="text-sm font-bold text-slate-600">{t("master.commerce.cpq.totalQuoteLabel")}</span>
             <div className="text-right">
               <span className="text-2xl font-black text-indigo-700">
                 {formatNumber(activeResult.totalQuoteVnd, undefined, locale)} ₫
@@ -970,7 +1019,7 @@ export function B2bDealWizardPageContent() {
   };
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-  const labelClass = "mb-1.5 block text-sm font-semibold text-slate-900";
+  const labelClass = "mb-1.5 block text-sm font-semibold text-slate-600";
 
   if (successData) {
     const isQuote = successData.closingMethod === "QUOTATION";
@@ -982,7 +1031,7 @@ export function B2bDealWizardPageContent() {
           }`}>
             {isQuote ? <Mail className="h-10 w-10" /> : <CheckCircle2 className="h-12 w-12" />}
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">
+          <h1 className="text-3xl font-bold text-slate-600 mb-3">
             {isQuote ? t("master.commerce.dealWizard.success.quoteTitle") : t("master.commerce.dealWizard.success.dealTitle")}
           </h1>
           <p className="text-slate-600 mb-8 max-w-lg mx-auto leading-relaxed">
@@ -1036,7 +1085,7 @@ export function B2bDealWizardPageContent() {
               {/* STEP 1: TENANT INFO */}
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-blue-600" />
                     {t("master.commerce.dealWizard.step1Title")}
                   </h2>
@@ -1066,8 +1115,13 @@ export function B2bDealWizardPageContent() {
 
 
                   <div className="sm:col-span-2 pt-4 border-t border-slate-100">
-                    <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> {t("master.commerce.dealWizard.adminAccountSection")}
+                    <h3 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                      <span>{t("master.commerce.dealWizard.adminAccountSection")}</span>
+                      <HelpTip
+                        content={t("master.commerce.dealWizard.adminSecurityHelpTip")}
+                        label={t("master.commerce.dealWizard.adminSecurityHelpLabel")}
+                      />
                     </h3>
                   </div>
 
@@ -1082,11 +1136,6 @@ export function B2bDealWizardPageContent() {
                     <input type="email" {...form.register("adminEmail")} className={inputClass} placeholder={t("master.commerce.dealWizard.adminEmailPlaceholder")} />
                     {form.formState.errors.adminEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminEmail.message}</p>}
                   </div>
-
-                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 leading-relaxed">
-                    <strong>{t("master.commerce.dealWizard.securityNoteTitle")}</strong>{" "}
-                    {t("master.commerce.dealWizard.securityNoteBody")}
-                  </div>
                 </div>
 
               </div>
@@ -1094,11 +1143,14 @@ export function B2bDealWizardPageContent() {
               {/* STEP 2: PLAN SELECTION */}
               <div className="space-y-6 pt-8 border-t border-slate-200">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-blue-600" />
-                    {t("master.commerce.dealWizard.step2Title")}
+                    <span>{t("master.commerce.dealWizard.step2Title")}</span>
+                    <HelpTip
+                      content={t("master.commerce.dealWizard.step2HelpTip")}
+                      label={t("master.commerce.dealWizard.step2HelpLabel")}
+                    />
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">{t("master.commerce.dealWizard.step2Subtitle")}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -1127,28 +1179,51 @@ export function B2bDealWizardPageContent() {
                           }`}
                       >
                         <div className="flex justify-between items-start mb-4">
-                          <h4 className="font-bold text-slate-900 text-lg">{plan.name}</h4>
+                          <h4 className="font-bold text-slate-600 text-lg">{plan.name}</h4>
                           {isSelected && <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />}
                         </div>
-                        <div className="text-2xl font-bold text-slate-900 mb-1">
+                        <div className="text-2xl font-bold text-slate-600 mb-1">
                           {formatNumber(price, undefined, locale)} ₫
                         </div>
                         <div className="text-xs text-slate-500 font-medium pb-4 border-b border-slate-100">
                           /{t("master.commerce.common.yearUnit")}
                         </div>
 
-                        <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                        <ul className="mt-4 space-y-2 text-sm text-slate-500">
                           <li className="flex items-center justify-between">
                             <span>{t("master.commerce.dealWizard.jobsQuotaLabel")}</span>
-                            <span className="font-semibold text-slate-900">{plan.maxJobs === -1 ? t("master.commerce.common.unlimited") : plan.maxJobs}</span>
+                            <span className="font-semibold text-slate-600">
+                              {formatQuotaLimit(plan.maxJobs, t("master.commerce.cpq.jobsUnit"), {
+                                locale,
+                                monthly: false,
+                                unlimitedLabel: t("master.commerce.common.unlimited"),
+                                unsupportedLabel: t("master.commerce.common.unsupported"),
+                              })}
+                            </span>
                           </li>
                           <li className="flex items-center justify-between">
                             <span>{t("master.commerce.dealWizard.cvQuotaLabel")}</span>
-                            <span className="font-semibold text-slate-900">{plan.maxCvParses === -1 ? t("master.commerce.common.unlimited") : formatNumber(plan.maxCvParses, undefined, locale)}</span>
+                            <span className="font-semibold text-slate-600">
+                              {formatQuotaLimit(plan.maxCvParses, t("master.commerce.cpq.cvUnit"), {
+                                locale,
+                                monthly: true,
+                                monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                                unlimitedLabel: t("master.commerce.common.unlimited"),
+                                unsupportedLabel: t("master.commerce.common.unsupported"),
+                              })}
+                            </span>
                           </li>
                           <li className="flex items-center justify-between">
                             <span>{t("master.commerce.dealWizard.aiQuotaLabel")}</span>
-                            <span className="font-semibold text-slate-900">{plan.maxAiInterviewHours === -1 ? t("master.commerce.common.unlimited") : `${plan.maxAiInterviewHours}h`}</span>
+                            <span className="font-semibold text-slate-600">
+                              {formatQuotaLimit(plan.maxAiInterviewHours, t("master.commerce.cpq.aiHoursShortUnit"), {
+                                locale,
+                                monthly: true,
+                                monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                                unlimitedLabel: t("master.commerce.common.unlimited"),
+                                unsupportedLabel: t("master.commerce.common.unsupported"),
+                              })}
+                            </span>
                           </li>
                         </ul>
                       </div>
@@ -1188,69 +1263,83 @@ export function B2bDealWizardPageContent() {
               {/* STEP 3: CLOSING METHOD */}
               <div className="space-y-6 pt-8 border-t border-slate-200">
                 <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-600 flex items-center gap-2">
                     <FileSignature className="h-5 w-5 text-blue-600" />
-                    {t("master.commerce.dealWizard.step3Title")}
+                    <span>{t("master.commerce.dealWizard.step3Title")}</span>
+                    <HelpTip
+                      content={t("master.commerce.dealWizard.step3HelpTip")}
+                      label={t("master.commerce.dealWizard.step3HelpLabel")}
+                    />
                   </h2>
-                  <p className="text-sm text-slate-500 mt-1">{t("master.commerce.dealWizard.step3Subtitle")}</p>
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-4">
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "QUOTATION" ? "border-purple-600 bg-purple-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="QUOTATION" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-purple-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <Mail className="h-4 w-4 text-purple-600" /> {t("master.commerce.dealWizard.methodQuotationTitle")}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        {t("master.commerce.dealWizard.methodQuotationDesc")}
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "QUOTATION"
+                        ? "border-purple-600 bg-purple-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="QUOTATION" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-purple-600" />
+                      <Mail className="h-4 w-4 shrink-0 text-purple-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">{t("master.commerce.dealWizard.methodQuotationTitle")}</span>
+                    </label>
+                    <HelpTip
+                      content={t("master.commerce.dealWizard.methodQuotationHelpTip")}
+                      label={t("master.commerce.dealWizard.methodQuotationHelpLabel")}
+                    />
+                  </div>
 
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "INVOICE" ? "border-amber-500 bg-amber-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="INVOICE" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-amber-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <ReceiptText className="h-4 w-4 text-amber-600" /> {t("master.commerce.dealWizard.methodInvoiceTitle")}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        {t("master.commerce.dealWizard.methodInvoiceDesc")}
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "INVOICE"
+                        ? "border-amber-500 bg-amber-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="INVOICE" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-amber-600" />
+                      <ReceiptText className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">{t("master.commerce.dealWizard.methodInvoiceTitle")}</span>
+                    </label>
+                    <HelpTip
+                      content={t("master.commerce.dealWizard.methodInvoiceHelpTip")}
+                      label={t("master.commerce.dealWizard.methodInvoiceHelpLabel")}
+                    />
+                  </div>
 
-                  <label className={`flex gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                    form.watch("closingMethod") === "CONTRACT" ? "border-indigo-600 bg-indigo-50/50 shadow-sm" : "border-slate-200 hover:bg-slate-50"
-                  }`}>
-                    <input type="radio" value="CONTRACT" {...form.register("closingMethod")} className="mt-1 w-4 h-4 text-indigo-600" />
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
-                        <FileSignature className="h-4 w-4 text-indigo-600" /> {t("master.commerce.dealWizard.methodContractTitle")}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        {t("master.commerce.dealWizard.methodContractDesc")}
-                      </p>
-                    </div>
-                  </label>
+                  <div
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 pr-3.5 transition-all ${
+                      form.watch("closingMethod") === "CONTRACT"
+                        ? "border-indigo-600 bg-indigo-50/50 shadow-sm"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2.5 py-3.5 pl-4 pr-1 min-w-0">
+                      <input type="radio" value="CONTRACT" {...form.register("closingMethod")} className="h-4 w-4 shrink-0 text-indigo-600" />
+                      <FileSignature className="h-4 w-4 shrink-0 text-indigo-600" />
+                      <span className="font-bold text-slate-600 text-sm leading-snug">{t("master.commerce.dealWizard.methodContractTitle")}</span>
+                    </label>
+                    <HelpTip
+                      content={t("master.commerce.dealWizard.methodContractHelpTip")}
+                      label={t("master.commerce.dealWizard.methodContractHelpLabel")}
+                    />
+                  </div>
                 </div>
 
                 {form.watch("closingMethod") === "QUOTATION" ? (
                   <div className="space-y-4 bg-purple-50/40 rounded-2xl p-5 border border-purple-200 animate-in fade-in">
-                    <div className="flex items-start gap-2.5">
-                      <Mail className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-bold text-purple-950 text-sm">{t("master.commerce.dealWizard.quotationBoxTitle")}</h4>
-                        <p className="text-xs text-purple-800 mt-0.5 leading-relaxed">
-                          {t("master.commerce.dealWizard.quotationBoxDescBefore")}
-                          <strong>{t("master.commerce.dealWizard.quotationBoxDescStrong")}</strong>
-                          {t("master.commerce.dealWizard.quotationBoxDescAfter")}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-purple-600 shrink-0" />
+                      <h4 className="font-bold text-slate-600 text-sm flex items-center gap-2">
+                        <span>{t("master.commerce.dealWizard.quotationBoxTitle")}</span>
+                        <HelpTip
+                          content={t("master.commerce.dealWizard.quotationBoxHelpTip")}
+                          label={t("master.commerce.dealWizard.quotationBoxHelpLabel")}
+                        />
+                      </h4>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4 pt-2">
@@ -1274,7 +1363,7 @@ export function B2bDealWizardPageContent() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-6 bg-slate-50 rounded-2xl p-5 border border-slate-200 animate-in fade-in">
                     <div className="sm:col-span-2">
-                      <h3 className="font-bold text-slate-900 text-sm mb-4">
+                      <h3 className="font-bold text-slate-600 text-sm mb-4">
                         {form.watch("closingMethod") === "INVOICE" ? t("master.commerce.dealWizard.invoiceInfoTitle") : t("master.commerce.dealWizard.contractInfoTitle")}
                       </h3>
                     </div>

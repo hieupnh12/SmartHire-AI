@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
   CheckCircle2,
   Copy,
@@ -24,10 +24,13 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { toast } from "@/stores/toastStore";
 import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 import { LegalPolicyModal, type LegalPolicyTab } from "../components/modals/LegalPolicyModal";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 
-const CURRENT_POLICY_VERSION = "v2026.10";
+const CURRENT_POLICY_VERSION = LEGAL_POLICY_META.version;
 
 export function CheckoutPage() {
+  const navigate = useNavigate();
   const t = useT();
   const locale = useLocale();
   const { planCode } = useParams<{ planCode: string }>();
@@ -177,7 +180,7 @@ export function CheckoutPage() {
   }, [plans, defaultFallbackPlans, selectedPlanCode]);
   const currentAmountVnd = useMemo(() => {
     if (!currentPlan) return 0;
-    const basePrice = currentPlan.priceYearly || 36000000;
+    const basePrice = currentPlan.priceYearly ?? 0;
     return basePrice * quantity;
   }, [currentPlan, quantity]);
   // Realtime Subdomain Check
@@ -211,7 +214,11 @@ export function CheckoutPage() {
     });
   };
   const handleDownloadQr = async () => {
-    const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
+    const qrSource = orderResult?.qrUrl;
+    if (!qrSource) {
+      toast.error(t("master.commerce.checkout.errors.qrMissing"));
+      return;
+    }
     try {
       const res = await fetch(qrSource);
       const blob = await res.blob();
@@ -457,36 +464,50 @@ export function CheckoutPage() {
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">{t("master.commerce.checkout.step1.listPriceLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {t("master.commerce.checkout.step1.pricePerYear", {
-                          price: formatNumber(currentPlan.priceYearly || 36000000, undefined, locale),
-                        })}
+                        {currentPlan.priceYearly > 0
+                          ? t("master.commerce.checkout.step1.pricePerYear", {
+                              price: formatNumber(currentPlan.priceYearly, undefined, locale),
+                            })
+                          : t("master.commerce.checkout.step1.contactQuote")}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">{t("master.commerce.checkout.step1.jobsLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxJobs > 0
-                          ? t("master.commerce.checkout.step1.jobsValue", { count: currentPlan.maxJobs })
-                          : t("master.commerce.common.unlimited")}
+                        {formatQuotaLimit(currentPlan.maxJobs, t("master.commerce.checkout.step1.jobsUnit"), {
+                          locale,
+                          monthly: false,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">{t("master.commerce.checkout.step1.cvScreeningLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxCvParses > 0
-                          ? t("master.commerce.checkout.step1.cvValue", { count: formatNumber(currentPlan.maxCvParses, undefined, locale) })
-                          : t("master.commerce.common.unlimited")}
+                        {formatQuotaLimit(currentPlan.maxCvParses, t("master.commerce.checkout.step1.cvUnit"), {
+                          locale,
+                          monthly: true,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">{t("master.commerce.checkout.step1.aiInterviewLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxAiInterviewHours && currentPlan.maxAiInterviewHours > 0
-                          ? t("master.commerce.checkout.step1.aiValue", { count: currentPlan.maxAiInterviewHours })
-                          : t("master.commerce.common.unlimited")}
+                        {formatQuotaLimit(currentPlan.maxAiInterviewHours, t("master.commerce.checkout.step1.aiUnit"), {
+                          locale,
+                          monthly: true,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
                   </div>
@@ -527,7 +548,7 @@ export function CheckoutPage() {
                         {quantity > 1
                           ? t("master.commerce.checkout.step1.calcPrefix", {
                               count: quantity,
-                              price: formatNumber(currentPlan.priceYearly || 36000000, undefined, locale),
+                              price: formatNumber(currentPlan.priceYearly ?? 0, undefined, locale),
                             })
                           : t("master.commerce.checkout.step1.subtotalLabel")}
                       </span>
@@ -714,7 +735,7 @@ export function CheckoutPage() {
                                       }
                                     },
                                     () => {
-                                      toast.error(t("master.commerce.checkout.errors.geoDenied"));
+                                      toast.warning(t("master.commerce.checkout.errors.geoDenied"));
                                     }
                                   );
                                 } else {
@@ -995,7 +1016,7 @@ export function CheckoutPage() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  setPolicyModalTab("PRIVACY_ND13");
+                                  setPolicyModalTab("PRIVACY_2025");
                                 }}
                                 className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
                               >
@@ -1054,7 +1075,7 @@ export function CheckoutPage() {
                   type="button"
                   onClick={() => {
                     if (invoiceParam) {
-                      window.location.href = "/pricing";
+                      navigate("/pricing");
                     } else {
                       setCurrentStep(1);
                     }
@@ -1159,21 +1180,35 @@ export function CheckoutPage() {
                     <div className="space-y-4 pt-4">
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
                         <div className="sm:col-span-6 flex flex-col items-center justify-center shrink-0">
-                          <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
-                            <img
-                              src={orderResult?.qrUrl || "/sepay_qr.png"}
-                              alt={t("master.commerce.checkout.step2.qrAlt")}
-                              className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleDownloadQr}
-                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
-                          </button>
+                          {orderResult?.qrUrl ? (
+                            <>
+                              <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
+                                <img
+                                  src={orderResult.qrUrl}
+                                  alt={t("master.commerce.checkout.step2.qrAlt")}
+                                  className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleDownloadQr}
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
+                              </button>
+                            </>
+                          ) : (
+                            <div className="w-52 h-52 sm:w-60 sm:h-60 rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                              <AlertCircle className="w-6 h-6 text-amber-600 mb-2" />
+                              <span className="font-semibold">
+                                {t("master.commerce.checkout.step2.qrUnavailableTitle")}
+                              </span>
+                              <span className="text-[11px] text-amber-700 mt-1">
+                                {t("master.commerce.checkout.step2.qrUnavailableDesc")}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="sm:col-span-6 space-y-2 text-xs sm:text-[13px]">
@@ -1183,21 +1218,23 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.accountNumberLabel")}
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.accountNumber || "07744348801"}
+                              {orderResult.accountNumber || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountNumber || "07744348801", "acc")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title={t("master.commerce.checkout.step2.copyAccountTitle")}
-                              aria-label={t("master.commerce.checkout.step2.copyAccountTitle")}
-                            >
-                              {copiedField === "acc" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountNumber && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountNumber, "acc")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyAccountTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyAccountTitle")}
+                              >
+                                {copiedField === "acc" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Account Holder */}
@@ -1206,21 +1243,23 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.accountNameLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.accountName || "NGUYEN NHAT SINH"}
+                              {orderResult.accountName || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountName || "NGUYEN NHAT SINH", "name")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title={t("master.commerce.checkout.step2.copyNameTitle")}
-                              aria-label={t("master.commerce.checkout.step2.copyNameTitle")}
-                            >
-                              {copiedField === "name" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountName && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountName, "name")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyNameTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyNameTitle")}
+                              >
+                                {copiedField === "name" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Bank */}
@@ -1229,7 +1268,7 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.bankLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.bankName || t("master.commerce.checkout.step2.defaultBankName")}
+                              {orderResult.bankName || "—"}
                             </span>
                           </div>
 
@@ -1239,21 +1278,23 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.branchLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {t("master.commerce.checkout.step2.defaultBranch")}
+                              {orderResult.bankBranch || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(t("master.commerce.checkout.step2.defaultBranch"), "branch")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title={t("master.commerce.checkout.step2.copyBranchTitle")}
-                              aria-label={t("master.commerce.checkout.step2.copyBranchTitle")}
-                            >
-                              {copiedField === "branch" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.bankBranch && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.bankBranch!, "branch")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyBranchTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyBranchTitle")}
+                              >
+                                {copiedField === "branch" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Amount */}
@@ -1262,23 +1303,25 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.amountLabel")}
                             </span>
                             <span className="font-bold text-slate-900 text-xs sm:text-[13px]">
-                              {formatNumber(orderResult.amountVnd || 36000000, undefined, locale)} {t("master.commerce.common.vndCode")}
+                              {orderResult.amountVnd != null
+                                ? `${formatNumber(orderResult.amountVnd, undefined, locale)} ${t("master.commerce.common.vndCode")}`
+                                : "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy((orderResult.amountVnd || 36000000).toString(), "amount")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title={t("master.commerce.checkout.step2.copyAmountTitle")}
-                              aria-label={t("master.commerce.checkout.step2.copyAmountTitle")}
-                            >
-                              {copiedField === "amount" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.amountVnd != null && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(String(orderResult.amountVnd), "amount")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyAmountTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyAmountTitle")}
+                              >
+                                {copiedField === "amount" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Reference */}
@@ -1287,23 +1330,25 @@ export function CheckoutPage() {
                               {t("master.commerce.checkout.step2.contentLabel")}
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`}
+                              {orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`, "syntax")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title={t("master.commerce.checkout.step2.copyContentTitle")}
-                              aria-label={t("master.commerce.checkout.step2.copyContentTitle")}
-                            >
-                              {copiedField === "syntax" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {(orderResult.transferSyntax || orderResult.invoiceNumber) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber}`, "syntax")
+                                }
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyContentTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyContentTitle")}
+                              >
+                                {copiedField === "syntax" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1408,19 +1453,33 @@ export function CheckoutPage() {
                   {activePaymentTab === "QR_CODE" && (
                     <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl bg-blue-50/40 border border-blue-100 pt-6">
                       <div className="flex flex-col items-center shrink-0">
-                        <img
-                          src={orderResult?.qrUrl || "/sepay_qr.png"}
-                          alt={t("master.commerce.checkout.step2.qrAlt")}
-                          className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleDownloadQr}
-                          className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
-                        </button>
+                        {orderResult?.qrUrl ? (
+                          <>
+                            <img
+                              src={orderResult.qrUrl}
+                              alt={t("master.commerce.checkout.step2.qrAlt")}
+                              className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleDownloadQr}
+                              className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="w-44 h-44 rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-3 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                            <AlertCircle className="w-5 h-5 text-amber-600 mb-1.5" />
+                            <span className="font-semibold">
+                              {t("master.commerce.checkout.step2.qrShortUnavailableTitle")}
+                            </span>
+                            <span className="text-[11px] text-amber-700 mt-1">
+                              {t("master.commerce.checkout.step2.qrShortUnavailableDesc")}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="font-bold text-slate-900 text-base">{t("master.commerce.checkout.step2.autoQrTitle")}</div>
@@ -1428,8 +1487,20 @@ export function CheckoutPage() {
                           {t("master.commerce.checkout.step2.autoQrDesc")}
                         </p>
                         <div className="pt-2 text-xs text-slate-700 space-y-1">
-                          <div>{t("master.commerce.checkout.step2.autoQrAmount")} <strong className="text-emerald-600 font-bold">{formatNumber(orderResult.amountVnd, undefined, locale)} {t("master.commerce.common.vndCode")}</strong></div>
-                          <div>{t("master.commerce.checkout.step2.autoQrContent")} <strong className="font-mono text-blue-700 font-bold">{orderResult.transferSyntax}</strong></div>
+                          <div>
+                            {t("master.commerce.checkout.step2.autoQrAmount")}{" "}
+                            <strong className="text-emerald-600 font-bold">
+                              {orderResult.amountVnd != null
+                                ? `${formatNumber(orderResult.amountVnd, undefined, locale)} ${t("master.commerce.common.vndCode")}`
+                                : "—"}
+                            </strong>
+                          </div>
+                          <div>
+                            {t("master.commerce.checkout.step2.autoQrContent")}{" "}
+                            <strong className="font-mono text-blue-700 font-bold">
+                              {orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}
+                            </strong>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1621,12 +1692,12 @@ export function CheckoutPage() {
                   <Printer className="w-4 h-4 text-slate-500" />
                   <span>{t("master.commerce.checkout.step3.printInvoiceBtn")}</span>
                 </button>
-                <a
-                  href="/"
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block"
+                <Link
+                  to="/"
+                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block text-center"
                 >
                   {t("master.commerce.checkout.step3.backHomeBtn")}
-                </a>
+                </Link>
               </div>
             </div>
           </div>
@@ -1634,7 +1705,8 @@ export function CheckoutPage() {
       </main>
       <LegalPolicyModal
         openTab={policyModalTab}
-        policyVersion="15/06/2026"
+        policyVersion={CURRENT_POLICY_VERSION}
+        effectiveDate={LEGAL_POLICY_META.effectiveDate}
         onClose={() => setPolicyModalTab(null)}
         onSwitchTab={(tab) => setPolicyModalTab(tab)}
         isAccepted={isTermsAccepted}

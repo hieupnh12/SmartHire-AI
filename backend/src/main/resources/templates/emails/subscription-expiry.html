@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${headline}">Thông báo thời hạn gói dịch vụ - SmartHire-AI</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .wrapper {
+            width: 100%;
+            background-color: #f1f5f9;
+            padding: 30px 10px;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+
+        .header {
+            padding: 24px 32px 18px;
+            text-align: center;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-accent {
+            color: #2563eb;
+        }
+
+        .content {
+            padding: 28px 32px;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            margin-bottom: 12px;
+        }
+
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+
+        .badge-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .main-title {
+            font-size: 21px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0 0 10px;
+            letter-spacing: -0.3px;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #cbd5e1;
+            margin: 20px 0 24px;
+            font-size: 13.5px;
+        }
+
+        .info-table td {
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .info-table td.label-col {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            width: 190px;
+        }
+
+        .info-table td.val-col {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        .btn-container {
+            text-align: center;
+            margin: 26px 0;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            background-color: #2563eb;
+            color: #ffffff !important;
+            font-size: 14.5px;
+            font-weight: 700;
+            padding: 13px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+
+        .note-box {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: #334155;
+            margin-top: 16px;
+        }
+
+        .footer {
+            background-color: #f8fafc;
+            padding: 20px 32px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="header">
+                <span class="logo-text">SmartHire<span class="logo-accent">.AI</span></span>
+            </div>
+
+            <div class="content">
+                <div style="text-align: center; margin-bottom: 18px;">
+                    <span th:class="${isUrgent} ? 'badge badge-danger' : 'badge badge-warning'"
+                          th:text="${badgeText}">Cảnh báo thời hạn gói</span>
+                    <h1 class="main-title" th:text="${headline}">Gói dịch vụ sắp hết hạn</h1>
+                </div>
+
+                <p style="font-size: 14.5px; color: #334155; margin-bottom: 12px;">
+                    Kính gửi <strong th:text="${customerName}">Quản trị viên</strong>,
+                </p>
+                <p style="font-size: 14px; color: #334155; margin: 0 0 16px;" th:text="${messageDetail}">
+                    Gói bản quyền hiện tại của Quý doanh nghiệp sắp kết thúc chu kỳ.
+                </p>
+
+                <table class="info-table">
+                    <tr>
+                        <td class="label-col">Doanh nghiệp (Workspace):</td>
+                        <td class="val-col" th:text="${workspaceName}">Doanh nghiệp</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Gói dịch vụ hiện tại:</td>
+                        <td class="val-col" style="color: #2563eb;" th:text="${planName}">Gói Tăng Trưởng</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Ngày hết hạn chu kỳ:</td>
+                        <td class="val-col" th:text="${expiresAt}">17/11/2026</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Trạng thái / Thời hạn:</td>
+                        <td class="val-col" th:style="${isUrgent} ? 'color: #b91c1c;' : 'color: #b45309;'"
+                            th:text="${daysRemainingLabel}">Còn 7 ngày</td>
+                    </tr>
+                    <tr th:if="${gracePeriodEndsAt != null and !#strings.isEmpty(gracePeriodEndsAt)}">
+                        <td class="label-col">Hạn cuối thời gian ân hạn:</td>
+                        <td class="val-col" style="color: #b91c1c;" th:text="${gracePeriodEndsAt}">22/11/2026</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Tự động gia hạn:</td>
+                        <td class="val-col" th:text="${autoRenewLabel}">Đang bật</td>
+                    </tr>
+                </table>
+
+                <div class="btn-container">
+                    <a th:href="${billingUrl}" class="btn-primary" target="_blank" th:text="${ctaLabel}">
+                        Kiểm tra &amp; Gia hạn gói ngay
+                    </a>
+                </div>
+
+                <div class="note-box">
+                    Khi gia hạn sớm, toàn bộ số ngày sử dụng còn lại của chu kỳ hiện tại sẽ được cộng dồn trọn vẹn vào kỳ mới.
+                    Nếu cần hỗ trợ xuất hóa đơn hoặc nâng/hạ gói doanh nghiệp, vui lòng liên hệ hotline
+                    <strong th:text="${supportHotline}">0988.888.888</strong> hoặc email
+                    <strong th:text="${supportEmail}">support@smarthire.top</strong>.
+                </div>
+            </div>
+
+            <div class="footer">
+                <div>&copy; 2026 SmartHire-AI JSC. All rights reserved.</div>
+                <div style="margin-top: 4px;">Email này được gửi tự động từ hệ thống quản trị bản quyền SmartHire-AI.</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

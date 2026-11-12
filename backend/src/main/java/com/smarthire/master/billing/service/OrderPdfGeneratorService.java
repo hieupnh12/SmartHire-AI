@@ -21,6 +21,19 @@ import java.util.Locale;
 @Service
 public class OrderPdfGeneratorService {
 
+    private final com.smarthire.config.PlatformProperties platformProperties;
+
+    public OrderPdfGeneratorService() {
+        this(new com.smarthire.config.PlatformProperties());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OrderPdfGeneratorService(com.smarthire.config.PlatformProperties platformProperties) {
+        this.platformProperties = platformProperties != null
+                ? platformProperties
+                : new com.smarthire.config.PlatformProperties();
+    }
+
     public byte[] generateOrderPdf(OrderPdfData data) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             BaseFont baseRegular = loadBaseFont(false);
@@ -78,15 +91,28 @@ public class OrderPdfGeneratorService {
             textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             textCell.setPaddingLeft(5f);
 
-            Paragraph companyName = new Paragraph("CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM", fontCompanyHeader);
+            com.smarthire.config.PlatformProperties.Legal legal = platformProperties.getLegal();
+            String legalCompanyName = StringUtils.hasText(legal.getCompanyName())
+                    ? legal.getCompanyName()
+                    : "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM";
+            String legalTaxCode = StringUtils.hasText(legal.getTaxCode())
+                    ? legal.getTaxCode()
+                    : "0110888999";
+            String legalAddress = StringUtils.hasText(legal.getAddress())
+                    ? legal.getAddress()
+                    : "Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng";
+            String upperCity = (StringUtils.hasText(legal.getCity()) ? legal.getCity().trim() : "Đà Nẵng")
+                    .toUpperCase(Locale.of("vi", "VN"));
+
+            Paragraph companyName = new Paragraph(legalCompanyName, fontCompanyHeader);
             companyName.setSpacingAfter(2f);
             textCell.addElement(companyName);
 
-            Paragraph companyTax = new Paragraph("MST: 0110888999", fontCompanyMeta);
+            Paragraph companyTax = new Paragraph("MST: " + legalTaxCode, fontCompanyMeta);
             companyTax.setSpacingAfter(1.5f);
             textCell.addElement(companyTax);
 
-            Paragraph companyAddress = new Paragraph("Địa chỉ: Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng", fontCompanyMeta);
+            Paragraph companyAddress = new Paragraph("Địa chỉ: " + legalAddress, fontCompanyMeta);
             textCell.addElement(companyAddress);
 
             headerTable.addCell(textCell);
@@ -100,13 +126,13 @@ public class OrderPdfGeneratorService {
             document.add(title);
 
             // Ngày đặt (Căn phải, in nghiêng)
-            String formattedDate = "ĐÀ NẴNG, ngày đặt hàng";
+            String formattedDate = upperCity + ", ngày đặt hàng";
             if (StringUtils.hasText(data.getOrderDate())) {
                 try {
                     java.time.LocalDate date = java.time.LocalDate.parse(data.getOrderDate(), java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                    formattedDate = String.format("ĐÀ NẴNG, ngày %02d tháng %d năm %d", date.getDayOfMonth(), date.getMonthValue(), date.getYear());
+                    formattedDate = String.format("%s, ngày %02d tháng %d năm %d", upperCity, date.getDayOfMonth(), date.getMonthValue(), date.getYear());
                 } catch (Exception e) {
-                    formattedDate = "ĐÀ NẴNG, " + data.getOrderDate();
+                    formattedDate = upperCity + ", " + data.getOrderDate();
                 }
             }
             Paragraph datePara = new Paragraph(formattedDate, fontDate);
@@ -216,6 +242,9 @@ public class OrderPdfGeneratorService {
             addBankField(bankInfoTable, "Số tài khoản:", data.getAccountNumber(), fontBody, fontBodyBold);
             addBankField(bankInfoTable, "Tên tài khoản:", data.getAccountName(), fontBody, fontBodyBold);
             addBankField(bankInfoTable, "Ngân hàng:", data.getBankName(), fontBody, fontBodyBold);
+            if (StringUtils.hasText(data.getBankBranch())) {
+                addBankField(bankInfoTable, "Chi nhánh:", data.getBankBranch(), fontBody, fontBodyBold);
+            }
             addBankField(bankInfoTable, "Nội dung chuyển khoản:", data.getTransferSyntax(), fontBody, fontHighlight);
             addBankField(bankInfoTable, "Số tiền phải nộp:", currencyFormat.format(totalPrice) + " VND", fontBody, fontHighlight);
 
@@ -258,8 +287,12 @@ public class OrderPdfGeneratorService {
             document.add(paymentBox);
 
             if (StringUtils.hasText(data.getTermsVersion())) {
+                String privacyLawLabel = StringUtils.hasText(legal.getPrivacyLawLabel())
+                        ? legal.getPrivacyLawLabel()
+                        : "Luật Bảo vệ dữ liệu cá nhân 2025 & Nghị định số 356/2025/NĐ-CP";
                 String consentLine = String.format(
-                        "Chứng thực điện tử: Khách hàng đã đọc và đồng ý với Điều khoản dịch vụ & Chính sách bảo vệ dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP) phiên bản %s%s%s.",
+                        "Chứng thực điện tử: Khách hàng đã đọc và đồng ý với Điều khoản dịch vụ & Chính sách bảo vệ dữ liệu cá nhân (%s) phiên bản %s%s%s.",
+                        privacyLawLabel,
                         data.getTermsVersion(),
                         StringUtils.hasText(data.getTermsAcceptedAt()) ? " lúc " + data.getTermsAcceptedAt() : "",
                         StringUtils.hasText(data.getClientIp()) ? " (IP: " + data.getClientIp() + ")" : ""

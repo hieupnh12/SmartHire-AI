@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { X, Check } from "lucide-react";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
 import { useT } from "@/i18n";
 
-export type LegalPolicyTab = "TOS" | "PRIVACY_ND13";
+export type LegalPolicyTab = "TOS" | "PRIVACY_2025";
 
 interface LegalPolicyModalProps {
   openTab: LegalPolicyTab | null;
   policyVersion?: string;
+  effectiveDate?: string;
   onClose: () => void;
   onSwitchTab: (tab: LegalPolicyTab) => void;
   isAccepted?: boolean;
@@ -16,7 +18,8 @@ interface LegalPolicyModalProps {
 
 export function LegalPolicyModal({
   openTab,
-  policyVersion = "15/06/2026",
+  policyVersion = LEGAL_POLICY_META.version,
+  effectiveDate = LEGAL_POLICY_META.effectiveDate,
   onClose,
   onSwitchTab,
   isAccepted = false,
@@ -56,9 +59,9 @@ export function LegalPolicyModal({
         <div className="flex items-center gap-1 sm:gap-6 overflow-x-auto">
           <button
             type="button"
-            onClick={() => onSwitchTab("PRIVACY_ND13")}
+            onClick={() => onSwitchTab("PRIVACY_2025")}
             className={`pb-3.5 pt-3 text-sm sm:text-base font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              openTab === "PRIVACY_ND13"
+              openTab === "PRIVACY_2025"
                 ? "text-blue-600 border-blue-600"
                 : "text-slate-600 hover:text-slate-900 border-transparent"
             }`}
@@ -99,10 +102,13 @@ export function LegalPolicyModal({
           style={{ fontFamily: '"Times New Roman", Times, serif' }}
           className="bg-white border border-slate-200/90 rounded-xl p-5 sm:p-8 overflow-y-auto flex-1 shadow-2xs select-text text-black text-[14.5px] sm:text-[15px] leading-[1.7] custom-scrollbar"
         >
-          {openTab === "PRIVACY_ND13" ? (
+          {openTab === "PRIVACY_2025" ? (
+            /* ======================================================== */
+            /* TAB 1: CHÍNH SÁCH BẢO VỆ DỮ LIỆU CÁ NHÂN (LUẬT 2025 & NĐ 356) */
+            /* ======================================================== */
             <div className="space-y-4">
               <div className="text-right text-xs text-slate-700 italic pb-1">
-                {t("master.commerce.legalPolicyModal.updatedVersion", { version: policyVersion })}
+                {t("master.commerce.legalPolicyModal.updatedVersion", { version: policyVersion, date: effectiveDate })}
               </div>
 
               <div className="text-center space-y-1 mb-6">
@@ -195,7 +201,7 @@ export function LegalPolicyModal({
           ) : (
             <div className="space-y-4">
               <div className="text-right text-xs text-slate-700 italic pb-1">
-                {t("master.commerce.legalPolicyModal.updatedVersion", { version: policyVersion })}
+                {t("master.commerce.legalPolicyModal.updatedVersion", { version: policyVersion, date: effectiveDate })}
               </div>
 
               <div className="text-center space-y-1 mb-6">

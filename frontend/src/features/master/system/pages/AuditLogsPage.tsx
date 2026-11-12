@@ -23,7 +23,7 @@ export function AuditLogsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-600">
             {t("master.ops.auditLogs.title")}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -48,7 +48,7 @@ export function AuditLogsPage() {
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
         <table className="w-full min-w-[820px] text-left text-xs text-slate-600">
-          <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+          <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
             <tr>
               <th className="p-4">{t("master.ops.auditLogs.colLogId")}</th>
               <th className="p-4">{t("master.ops.auditLogs.colCompany")}</th>
@@ -62,10 +62,10 @@ export function AuditLogsPage() {
           <tbody className="divide-y divide-slate-100">
             {filteredLogs.map((log) => (
               <tr key={log.id} className="hover:bg-slate-50/80 transition-colors font-mono">
-                <td className="p-4 text-slate-400">#{log.id}</td>
-                <td className="p-4 font-bold text-blue-600">{log.tenantCode}</td>
-                <td className="p-4 font-semibold text-slate-800">{log.action}</td>
-                <td className="p-4 font-sans text-xs max-w-sm truncate text-slate-700">
+                <td className="p-4 text-slate-600">#{log.id}</td>
+                <td className="p-4 font-bold text-slate-600">{log.tenantCode}</td>
+                <td className="p-4 font-semibold text-slate-600">{log.action}</td>
+                <td className="p-4 font-sans text-xs max-w-sm truncate text-slate-600">
                   {log.description}
                 </td>
                 <td className="p-4">

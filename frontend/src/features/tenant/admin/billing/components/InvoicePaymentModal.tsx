@@ -127,7 +127,11 @@ export function InvoicePaymentModal({
 
   const handleDownloadQr = async () => {
     if (!order) return;
-    const qrSource = order.qrUrl || "/sepay_qr.png";
+    const qrSource = order.qrUrl;
+    if (!qrSource) {
+      toast.error(t("tenantAdmin.billing.paymentModal.toasts.noQrManualTransfer"));
+      return;
+    }
     try {
       const res = await fetch(qrSource);
       const blob = await res.blob();
@@ -293,21 +297,34 @@ export function InvoicePaymentModal({
               {activeTab === "TRANSFER" && (
                 <div className="grid gap-6 rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-5 lg:grid-cols-[240px_1fr]">
                   <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--color-border-default)] bg-surface-muted p-4">
-                    <img
-                      src={order.qrUrl || "/sepay_qr.png"}
-                      alt={t("tenantAdmin.billing.paymentModal.transfer.qrAlt", {
-                        invoiceNumber: order.invoiceNumber,
-                      })}
-                      className="size-48 rounded-lg border border-[var(--color-border-default)] bg-white object-contain p-2"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleDownloadQr}
-                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:underline cursor-pointer"
-                    >
-                      <Download className="size-3.5" />
-                      <span>{t("tenantAdmin.billing.paymentModal.transfer.downloadQr")}</span>
-                    </button>
+                    {order.qrUrl ? (
+                      <>
+                        <img
+                          src={order.qrUrl}
+                          alt={t("tenantAdmin.billing.paymentModal.transfer.qrAlt", {
+                            invoiceNumber: order.invoiceNumber,
+                          })}
+                          className="size-48 rounded-lg border border-[var(--color-border-default)] bg-white object-contain p-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleDownloadQr}
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:underline cursor-pointer"
+                        >
+                          <Download className="size-3.5" />
+                          <span>{t("tenantAdmin.billing.paymentModal.transfer.downloadQr")}</span>
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex size-48 flex-col items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-4 text-center text-xs text-amber-900">
+                        <span className="font-semibold">
+                          {t("tenantAdmin.billing.paymentModal.transfer.noQrTitle")}
+                        </span>
+                        <span className="mt-1 text-[11px] text-amber-700">
+                          {t("tenantAdmin.billing.paymentModal.transfer.noQrDesc")}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col justify-center space-y-3 text-sm">
@@ -322,6 +339,14 @@ export function InvoicePaymentModal({
                         </span>
                         <span className="font-semibold text-[var(--color-text-primary)]">{order.bankName}</span>
                       </div>
+                      {order.bankBranch && (
+                        <div className="flex items-center justify-between gap-3 py-2.5">
+                          <span className="text-xs text-[var(--color-text-secondary)]">
+                            {t("tenantAdmin.billing.paymentModal.transfer.bankBranch")}
+                          </span>
+                          <span className="font-semibold text-[var(--color-text-primary)]">{order.bankBranch}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-3 py-2.5">
                         <span className="text-xs text-[var(--color-text-secondary)]">
                           {t("tenantAdmin.billing.paymentModal.transfer.accountNumber")}

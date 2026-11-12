@@ -17,5 +17,8 @@ public interface TenantSubscriptionRepository extends JpaRepository<TenantSubscr
     boolean existsByPlanId(Long planId);
     long countByPlanId(Long planId);
     List<TenantSubscription> findByStatusInAndEndsAtBefore(Collection<String> statuses, LocalDateTime cutoff);
+    List<TenantSubscription> findByStatusInAndEndsAtBetween(Collection<String> statuses, LocalDateTime start, LocalDateTime end);
+    List<TenantSubscription> findByStatus(String status);
+    List<TenantSubscription> findByStatusAndGracePeriodEndsAtAfter(String status, LocalDateTime cutoff);
     List<TenantSubscription> findByStatusAndGracePeriodEndsAtBefore(String status, LocalDateTime cutoff);
 }
