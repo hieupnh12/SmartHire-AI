@@ -23,6 +23,17 @@ export const authApi = {
   profile: () => api.get<ApiResponse<AccountProfile>>("/tenant/auth/profile").then((r) => r.data.data),
   updateProfile: (body: UpdateAccountProfile) =>
     api.put<ApiResponse<AccountProfile>>("/tenant/auth/profile", body).then((r) => r.data.data),
+  uploadProfileAvatar: (file: Blob | File, filename = "avatar.jpg") => {
+    const form = new FormData();
+    form.append("file", file, filename);
+    return api
+      .post<ApiResponse<AccountProfile>>("/tenant/auth/profile/avatar", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data.data);
+  },
+  removeProfileAvatar: () =>
+    api.delete<ApiResponse<AccountProfile>>("/tenant/auth/profile/avatar").then((r) => r.data.data),
   eraseProfile: () => api.delete<ApiResponse<null>>("/tenant/auth/profile").then((r) => r.data),
   health: () => api.get<ApiResponse<Record<string, string>>>("/tenant/auth/health").then((r) => r.data),
 };

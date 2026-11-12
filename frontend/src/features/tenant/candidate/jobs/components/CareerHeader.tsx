@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronDown, ChevronRight,
+  ArrowRight, Bell, Bookmark, Box, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronDown, ChevronRight,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
   FileText, Gift, Languages, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
   Sparkles, Star, Upload, UserRound, X,
@@ -50,6 +50,7 @@ function buildBaseMenus(t: TranslateFn): Omit<Menus, "company"> {
           items: [
             { label: t("candidate.core.header.menus.jobs.findJobs"), to: "/jobs", icon: Search },
             { label: t("candidate.core.header.menus.jobs.openJobs"), to: "/jobs", icon: BriefcaseBusiness },
+            { label: t("candidate.core.header.menus.jobs.savedJobs"), to: "/saved-jobs", icon: Bookmark, requiresAuth: true },
             { label: t("candidate.core.header.menus.jobs.appliedJobs"), to: "/applications", icon: ClipboardCheck, requiresAuth: true },
           ],
         },

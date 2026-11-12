@@ -36,6 +36,13 @@ export type UserProfile = {
   recruiterReadOnly?: boolean;
 };
 
+export type ProfileLinks = {
+  github?: string | null;
+  linkedin?: string | null;
+  portfolio?: string | null;
+  website?: string | null;
+};
+
 export type AccountProfile = {
   id: number;
   email: string;
@@ -46,9 +53,10 @@ export type AccountProfile = {
   bio: string | null;
   avatarUrl: string | null;
   hasPassword: boolean;
+  links?: ProfileLinks | null;
 };
 
-export type UpdateAccountProfile = Pick<AccountProfile, "fullName" | "phone" | "headline" | "bio">;
+export type UpdateAccountProfile = Pick<AccountProfile, "fullName" | "phone" | "headline" | "bio" | "links">;
 
 export type CandidateProfile = {
   id: number;

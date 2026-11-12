@@ -737,6 +737,8 @@ Entity `Recommendation`. **KhÃ´ng cÃ³ khoÃ¡ ngoáº¡i nÃ o** â€” t
 | `reason_json` | JSON | | CÃ³ | NULL | LÃ½ do gá»£i Ã½ |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 
+**Ràng buộc / index:** `idx_rec_subject_target (subject_type, subject_id, target_type, score DESC)` (V60)
+
 ---
 
 ## F. Test & Proctoring
@@ -1316,4 +1318,43 @@ Entity `CompanyEmailSetting` (`com.smarthire.domain.tenant.entity.CompanyEmailSe
 **Ràng buộc & Nghiệp vụ:**
 - Mỗi tenant cấu hình tài khoản Gmail riêng. Mật khẩu ứng dụng 16 ký tự được mã hóa AES-256 GCM bằng `TenantCredentialService` với AAD là `tenantCode`.
 - Bắt buộc phải có Gmail được cấu hình thành công thì công ty mới có thể gửi thư mời nhân viên và các email thông báo. Nếu chưa cấu hình, hệ thống sẽ chặn gửi và thông báo yêu cầu cấu hình trên giao diện Company.
+
+---
+
+## M. Candidate Saved Jobs & Job Alerts (V60)
+
+### M.1 `saved_jobs` — Việc làm đã lưu của ứng viên (V60)
+
+Entity `SavedJob`. Mỗi ứng viên có thể lưu một tin tuyển dụng tối đa một lần.
+
+| Cột | Kiểu | Khoá | Null | Mặc định | Ý nghĩa |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | AUTO_INCREMENT | Khoá chính |
+| `candidate_id` | BIGINT | FK → `candidates.id`, UQ | Không | — | Ứng viên đã lưu tin (ON DELETE CASCADE) |
+| `job_id` | BIGINT | FK → `jobs.id`, UQ, IDX | Không | — | Tin tuyển dụng được lưu (ON DELETE CASCADE) |
+| `created_at` | TIMESTAMP | IDX | Không | `CURRENT_TIMESTAMP` | Thời điểm lưu tin |
+
+**Ràng buộc / index:** `fk_saved_jobs_candidate` (ON DELETE CASCADE), `fk_saved_jobs_job` (ON DELETE CASCADE), `uk_saved_jobs_candidate_job (candidate_id, job_id)`, `idx_saved_jobs_candidate (candidate_id, created_at DESC)`, `idx_saved_jobs_job (job_id)`
+
+### M.2 `job_alerts` — Đăng ký nhận thông báo việc làm mới (V60)
+
+Entity `JobAlert`. Lưu bộ lọc tiêu chí nhận thông báo web/email khi doanh nghiệp publish tin tuyển dụng mới phù hợp.
+
+| Cột | Kiểu | Khoá | Null | Mặc định | Ý nghĩa |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | AUTO_INCREMENT | Khoá chính |
+| `candidate_id` | BIGINT | FK → `candidates.id`, IDX | Không | — | Ứng viên đăng ký nhận thông báo (ON DELETE CASCADE) |
+| `keyword` | VARCHAR(255) | | Có | NULL | Từ khoá tìm kiếm trong tiêu đề/mô tả/kỹ năng |
+| `department` | VARCHAR(128) | | Có | NULL | Phòng ban lọc |
+| `location` | VARCHAR(255) | | Có | NULL | Địa điểm lọc |
+| `work_mode` | VARCHAR(32) | | Có | NULL | Hình thức làm việc (`ONSITE` / `HYBRID` / `REMOTE`) |
+| `employment_type` | VARCHAR(32) | | Có | NULL | Loại hình công việc (`FULL_TIME`, v.v.) |
+| `web_enabled` | BOOLEAN | | Không | `TRUE` | Bật thông báo in-app (`notifications`) |
+| `email_enabled` | BOOLEAN | | Không | `TRUE` | Bật gửi email (`email_outbox`) |
+| `active` | BOOLEAN | IDX | Không | `TRUE` | Trạng thái kích hoạt đăng ký |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc / index:** `fk_job_alerts_candidate` (ON DELETE CASCADE), `idx_job_alerts_candidate (candidate_id)`, `idx_job_alerts_active (active)`
+
 
