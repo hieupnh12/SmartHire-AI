@@ -12,11 +12,12 @@ import {
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
+import { useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import type { ScreeningRoundsView } from "@/api/types/applicant";
 import type { RankingRow } from "../types/ranking";
-import { applicationStatusLabel, scoreText } from "./rankingUi";
+import { applicationStatusLabel, scoreText, stickyDetailSidebar } from "./rankingUi";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { HumanInterviewScheduleDialog } from "@/features/tenant/recruiter/interviews/components/HumanInterviewScheduleDialog";
 import "@/features/tenant/recruiter/interviews/styles/human-interview-reference.css";
@@ -62,6 +63,8 @@ export function RankingCandidateDetailView({
   onClose,
   onBack,
 }: RankingCandidateDetailViewProps) {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab") as DetailTab | null;
@@ -128,7 +131,6 @@ export function RankingCandidateDetailView({
     ? true
     : humanInterviews.data?.items?.some((i) => i.applicationId === row.applicationId);
 
-  // Resolved sources IDs (from row or fetched sources)
   const effectiveInterviewId =
     row.sources?.aiInterviewId ||
     sources.data?.data.selected?.aiInterviewId ||
@@ -141,7 +143,6 @@ export function RankingCandidateDetailView({
     sources.data?.data.submissions?.[0]?.id ||
     null;
 
-  // Scores
   const aiScore = row.result.components.find((c) => c.key === "interview")?.score ?? null;
   const assessmentScore = row.result.components.find((c) => c.key === "assessment")?.score ?? null;
   const skillsScore = row.result.components.find((c) => c.key === "skills")?.score ?? null;
@@ -149,46 +150,52 @@ export function RankingCandidateDetailView({
   const tabs = [
     {
       key: "ai_interview" as const,
-      label: "AI Interview",
+      label: t("recruiter.screening.rankingDetail.tabs.aiInterview"),
       icon: Bot,
       badge:
         aiScore != null
-          ? `${scoreText(aiScore)} đ`
+          ? t("recruiter.screening.common.pointsShort", { score: scoreText(aiScore, locale) })
           : effectiveInterviewId
-            ? "Đã làm"
-            : "Chưa làm",
+            ? t("recruiter.screening.rankingDetail.tabs.done")
+            : t("recruiter.screening.rankingDetail.tabs.notDone"),
       activeText: "text-brand-primary",
       activeBg: "bg-brand-primary/10 dark:bg-brand-primary/20",
       activeBorder: "border-brand-primary/30",
     },
     {
       key: "assessment" as const,
-      label: "Assessment",
+      label: t("recruiter.screening.rankingDetail.tabs.assessment"),
       icon: Code2,
       badge:
         assessmentScore != null
-          ? `${scoreText(assessmentScore)} đ`
+          ? t("recruiter.screening.common.pointsShort", { score: scoreText(assessmentScore, locale) })
           : effectiveSubmissionId
-            ? "Đã nộp"
-            : "Chưa làm",
+            ? t("recruiter.screening.rankingDetail.tabs.submitted")
+            : t("recruiter.screening.rankingDetail.tabs.notDone"),
       activeText: "text-indigo-600 dark:text-indigo-400",
       activeBg: "bg-indigo-50/80 dark:bg-indigo-950/50",
       activeBorder: "border-indigo-200 dark:border-indigo-800",
     },
     {
       key: "schedule" as const,
-      label: "Đặt lịch phỏng vấn",
+      label: t("recruiter.screening.rankingDetail.tabs.schedule"),
       icon: CalendarDays,
-      badge: scheduledInterview ? "Đã đặt" : eligible ? "Đủ đ/k" : "Chưa đặt",
+      badge: scheduledInterview
+        ? t("recruiter.screening.rankingDetail.tabs.scheduled")
+        : eligible
+          ? t("recruiter.screening.rankingDetail.tabs.eligible")
+          : t("recruiter.screening.rankingDetail.tabs.notScheduled"),
       activeText: "text-emerald-600 dark:text-emerald-400",
       activeBg: "bg-emerald-50/80 dark:bg-emerald-950/50",
       activeBorder: "border-emerald-200 dark:border-emerald-800",
     },
     {
       key: "overview" as const,
-      label: "Tổng quan & CV",
+      label: t("recruiter.screening.rankingDetail.tabs.overview"),
       icon: FileText,
-      badge: skillsScore != null ? `Match ${scoreText(skillsScore)}%` : "Tổng quan",
+      badge: skillsScore != null
+        ? t("recruiter.screening.rankingDetail.tabs.matchBadge", { score: scoreText(skillsScore, locale) })
+        : t("recruiter.screening.rankingDetail.tabs.overviewFallback"),
       activeText: "text-slate-900 dark:text-white",
       activeBg: "bg-slate-100 dark:bg-slate-800",
       activeBorder: "border-slate-300 dark:border-slate-700",
@@ -197,17 +204,15 @@ export function RankingCandidateDetailView({
 
   return (
     <div className="flex w-full flex-col gap-4 text-slate-900 dark:text-slate-100">
-      {/* 1. TOP HEADER BAR (Candidate Info, Total Score & Quick Actions) */}
       <header className="rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Left: Back button + Candidate Details + Score divider */}
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={handleBack}
               className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-              title="Quay lại bảng xếp hạng"
-              aria-label="Quay lại bảng xếp hạng"
+              title={t("recruiter.screening.rankingDetail.backToRanking")}
+              aria-label={t("recruiter.screening.rankingDetail.backToRanking")}
             >
               <ArrowLeft className="size-4" />
             </button>
@@ -221,37 +226,36 @@ export function RankingCandidateDetailView({
                   {row.candidateName}
                 </h1>
                 <span className="rounded-full bg-slate-100 border border-slate-200/60 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  {applicationStatusLabel(row.status)}
+                  {applicationStatusLabel(row.status, t)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                Hồ sơ #{row.applicationId} · {jobTitle}
+                {t("recruiter.screening.rankingDetail.applicationAndJob", { id: row.applicationId, jobTitle })}
               </p>
             </div>
 
-            {/* Vertical divider */}
             <div className="hidden h-8 w-px bg-slate-200 dark:bg-slate-800 sm:block mx-1" />
 
-            {/* Total Score Display */}
             <div className="flex items-center gap-3">
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  TỔNG ĐIỂM XẾP HẠNG
+                  {t("recruiter.screening.rankingDetail.totalRankScore")}
                 </span>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-lg font-black text-brand-primary tabular-nums">
-                    {row.result.score != null ? scoreText(row.result.score) : "—"}
+                    {row.result.score != null ? scoreText(row.result.score, locale) : "—"}
                   </span>
                   <span className="text-xs text-slate-400">/ 100</span>
                   <span className="ml-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    {row.result.complete ? `(Hạng #${row.rank ?? "—"})` : "(Tạm tính)"}
+                    {row.result.complete
+                      ? t("recruiter.screening.rankingDetail.rankLabel", { rank: row.rank ?? "—" })
+                      : t("recruiter.screening.rankingDetail.provisionalLabel")}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right: Actions */}
           <div className="flex items-center gap-2">
             {eligible && (
               <button
@@ -260,7 +264,7 @@ export function RankingCandidateDetailView({
                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-primary-hover transition-all cursor-pointer"
               >
                 <CalendarDays className="size-3.5" />
-                <span>Đặt lịch phỏng vấn</span>
+                <span>{t("recruiter.screening.rankingDetail.scheduleBtn")}</span>
               </button>
             )}
             <button
@@ -269,19 +273,17 @@ export function RankingCandidateDetailView({
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
             >
               <ArrowLeft className="size-3.5" />
-              <span>Quay lại</span>
+              <span>{t("recruiter.screening.common.back")}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* 2. BODY LAYOUT: LEFT SIDEBAR TABS (1/4) + RIGHT CONTENT AREA (3/4) */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        {/* Left Navigation: Vertical Category Tabs */}
-        <aside className="w-full lg:w-64 shrink-0">
-          <div className="sticky top-20 space-y-1.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+        <aside className={cn("w-full lg:w-64 shrink-0", stickyDetailSidebar)}>
+          <div className="space-y-1.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
             <span className="block px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              CÁC MỤC ĐÁNH GIÁ
+              {t("recruiter.screening.rankingDetail.sectionsHeading")}
             </span>
 
             {tabs.map((tab) => {
@@ -326,7 +328,6 @@ export function RankingCandidateDetailView({
           </div>
         </aside>
 
-        {/* Right Main Content Area: Detailed work results for the selected category */}
         <main className="flex-1 min-w-0 space-y-6">
           {activeTab === "ai_interview" && (
             <CandidateAiInterviewTab
@@ -371,7 +372,6 @@ export function RankingCandidateDetailView({
         </main>
       </div>
 
-      {/* Schedule Dialog inside Dialog container */}
       {scheduling && interviewOptions.data && (
         <HumanInterviewScheduleDialog
           jobId={jobId}
@@ -382,8 +382,8 @@ export function RankingCandidateDetailView({
             setScheduling(false);
             toast.success(
               draft
-                ? "Đã lưu bản nháp lịch phỏng vấn (chưa gửi thông báo)."
-                : "Đã lưu lịch và gửi lời mời / thông báo tới ứng viên và hội đồng."
+                ? t("recruiter.screening.rankingDetail.toastDraftSaved")
+                : t("recruiter.screening.rankingDetail.toastInviteSent")
             );
             void application.refetch();
             void humanInterviews.refetch();
@@ -419,7 +419,7 @@ export function RankingCandidateDetailView({
               className="mt-3 rounded-xl bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
               onClick={() => setScheduling(false)}
             >
-              Đóng
+              {t("recruiter.screening.common.close")}
             </button>
           </div>
         </div>
@@ -433,7 +433,6 @@ export const RankingDetailContent = RankingCandidateDetailView;
 export function RankingDetailLoading() {
   return (
     <div className="flex w-full flex-col gap-4 py-2">
-      {/* Header skeleton */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-4">
           <Skeleton className="size-9 rounded-xl" />
@@ -444,7 +443,6 @@ export function RankingDetailLoading() {
           <Skeleton className="h-9 w-28 rounded-xl" />
         </div>
       </div>
-      {/* Body skeleton */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="w-full lg:w-64 shrink-0 rounded-2xl border border-slate-200/80 bg-white p-3 space-y-2 dark:border-slate-800 dark:bg-slate-900">
           <Skeleton className="h-4 w-24 mb-3" />
@@ -471,6 +469,7 @@ export function RankingDetailError({
   onBack?: () => void;
   onRetry?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center py-12 text-center">
       <div className="w-full rounded-2xl border border-slate-200/80 bg-white p-8 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -478,10 +477,10 @@ export function RankingDetailError({
           <AlertCircle className="size-6" />
         </div>
         <h2 className="text-base font-bold text-slate-900 dark:text-white">
-          Không thể tải chi tiết xếp hạng
+          {t("recruiter.screening.rankingDetail.errorTitle")}
         </h2>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          {message || "Đã xảy ra lỗi khi tải dữ liệu chi tiết ứng viên."}
+          {message || t("recruiter.screening.rankingDetail.errorFallback")}
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">
           {onRetry && (
@@ -490,7 +489,7 @@ export function RankingDetailError({
               onClick={onRetry}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
             >
-              Thử lại
+              {t("recruiter.screening.common.retry")}
             </button>
           )}
           {onBack && (
@@ -500,7 +499,7 @@ export function RankingDetailError({
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-primary-hover transition-colors cursor-pointer"
             >
               <ArrowLeft className="size-3.5" />
-              <span>Quay lại bảng xếp hạng</span>
+              <span>{t("recruiter.screening.rankingDetail.backToRanking")}</span>
             </button>
           )}
         </div>

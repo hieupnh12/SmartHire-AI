@@ -1,3 +1,5 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
+
 export type CvStyleKey = "simple" | "impressive" | "professional";
 export type CvRoleKey = "backend" | "frontend" | "fullstack" | "qa" | "pm" | "intern" | "outsource";
 export type CvLayout = "single" | "split" | "sidebar" | "cards" | "banner" | "corporate" | "table";
@@ -43,3 +45,27 @@ export const cvRoleKeys = Object.keys(cvRoles) as CvRoleKey[];
 
 export const isCvStyle = (value: string | null): value is CvStyleKey => value !== null && value in cvStyles;
 export const isCvRole = (value: string | null): value is CvRoleKey => value !== null && value in cvRoles;
+
+export function getLocalizedCvStyle(key: CvStyleKey, translate: TranslateFn = globalT) {
+  const labelKey = `candidate.core.cvTemplates.styles.${key}.label`;
+  const descKey = `candidate.core.cvTemplates.styles.${key}.description`;
+  const label = translate(labelKey);
+  const description = translate(descKey);
+  return {
+    label: label === labelKey ? cvStyles[key].label : label,
+    description: description === descKey ? cvStyles[key].description : description,
+  };
+}
+
+export function getLocalizedCvRole(key: CvRoleKey, translate: TranslateFn = globalT) {
+  const labelKey = `candidate.core.cvTemplates.roles.${key}.label`;
+  const filterKey = `candidate.core.cvTemplates.roles.${key}.filterLabel`;
+  const label = translate(labelKey);
+  const filterLabel = translate(filterKey);
+  return {
+    label: label === labelKey ? cvRoles[key].label : label,
+    filterLabel: filterLabel === filterKey ? cvRoles[key].filterLabel : filterLabel,
+    title: cvRoles[key].title,
+    name: cvRoles[key].name,
+  };
+}

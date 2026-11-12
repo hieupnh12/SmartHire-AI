@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { TableSkeleton } from "@/components/ux/Skeleton";
+import { formatDate, useLocale, useT } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
@@ -40,6 +41,8 @@ function initials(name: string) {
 }
 
 export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
+  const t = useT();
+  const locale = useLocale();
   const client = useQueryClient();
   const { interviews, applicants, rows } = useJobAiInterviews(jobId);
 
@@ -93,10 +96,13 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
     mutationFn: (applicationId: number) => aiInterviewApi.create({ applicationId }),
     onSuccess: (created) => {
       void client.invalidateQueries({ queryKey: queryKeys.aiInterviews.byJob(jobId) });
-      toast.success("Đã giao phỏng vấn AI thành công", `Mã phiên #AI-${created.id}`);
+      toast.success(
+        t("recruiter.interviews.ai.assigner.toastSuccessTitle"),
+        t("recruiter.interviews.ai.assigner.toastSuccessDesc", { id: created.id }),
+      );
     },
     onError: (err: any) => {
-      toast.error("Không thể giao phỏng vấn AI", err?.response?.data?.message ?? err?.message);
+      toast.error(t("recruiter.interviews.ai.assigner.toastErrorTitle"), err?.response?.data?.message ?? err?.message);
     },
   });
 
@@ -123,11 +129,16 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
 
     if (successCount > 0) {
       toast.success(
-        "Giao đề phỏng vấn thành công",
-        `Đã tạo phiên phỏng vấn AI cho ${successCount} ứng viên${failCount > 0 ? ` (${failCount} lỗi)` : ""}`
+        t("recruiter.interviews.ai.assigner.batchSuccessTitle"),
+        failCount > 0
+          ? t("recruiter.interviews.ai.assigner.batchSuccessDescWithFail", { count: successCount, failCount })
+          : t("recruiter.interviews.ai.assigner.batchSuccessDesc", { count: successCount }),
       );
     } else {
-      toast.error("Giao phỏng vấn thất bại", "Vui lòng kiểm tra lại hạn mức tài khoản.");
+      toast.error(
+        t("recruiter.interviews.ai.assigner.batchErrorTitle"),
+        t("recruiter.interviews.ai.assigner.batchErrorDesc"),
+      );
     }
   };
 
@@ -161,29 +172,29 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-[18px] font-bold tracking-tight text-[#101828] dark:text-white">
-                Giao đề cho ứng viên
+                {t("recruiter.interviews.ai.assigner.title")}
               </h2>
-              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
-                AI Interview
+              <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--color-primary-hover)]">
+                {t("recruiter.interviews.ai.assigner.badge")}
               </span>
             </div>
             <p className="mt-1 text-[12px] text-[#667085] dark:text-slate-400">
-              Chỉ định và tự động tạo phiên phỏng vấn AI theo đúng cấu hình chung và bài tập đã thiết lập.
+              {t("recruiter.interviews.ai.assigner.subtitle")}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
               <Users className="size-3.5 text-slate-400" />
-              Tổng: <strong>{counts.total}</strong>
+              {t("recruiter.interviews.ai.assigner.totalLabel")} <strong>{counts.total}</strong>
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
               <UserCheck className="size-3.5 text-emerald-600" />
-              Đã giao: <strong>{counts.assigned}</strong>
+              {t("recruiter.interviews.ai.assigner.assignedLabel")} <strong>{counts.assigned}</strong>
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#0066FF] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-              <Clock3 className="size-3.5 text-[#0066FF]" />
-              Chưa giao: <strong>{counts.unassigned}</strong>
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary-hover)]">
+              <Clock3 className="size-3.5 text-[var(--color-primary)]" />
+              {t("recruiter.interviews.ai.assigner.unassignedLabel")} <strong>{counts.unassigned}</strong>
             </span>
           </div>
         </div>
@@ -198,15 +209,15 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                 aria-hidden="true"
               />
               <input
-                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
-                placeholder="Tìm theo tên ứng viên, email, mã đơn..."
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                placeholder={t("recruiter.interviews.ai.assigner.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
               {search && (
                 <button
                   type="button"
-                  aria-label="Xóa tìm kiếm"
+                  aria-label={t("recruiter.interviews.ai.assigner.clearSearchAria")}
                   onClick={() => setSearch("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
@@ -223,17 +234,17 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                 className={cn(
                   "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                   statusFilter !== "ALL"
-                    ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                    ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold"
                     : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                 )}
               >
                 <Filter className="size-3.5 text-slate-400" />
                 <span>
                   {statusFilter === "ALL"
-                    ? "Tất cả trạng thái"
+                    ? t("recruiter.interviews.ai.assigner.filterAll")
                     : statusFilter === "UNASSIGNED"
-                      ? "Chưa giao đề"
-                      : "Đã giao đề"}
+                      ? t("recruiter.interviews.ai.assigner.filterUnassigned")
+                      : t("recruiter.interviews.ai.assigner.filterAssigned")}
                 </span>
                 <ChevronDown className="size-3.5 text-slate-400" />
               </button>
@@ -241,9 +252,9 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
               {activeDropdown === "status" && (
                 <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                   {[
-                    { value: "ALL" as const, label: "Tất cả trạng thái", count: counts.total },
-                    { value: "UNASSIGNED" as const, label: "Chưa giao đề", count: counts.unassigned },
-                    { value: "ASSIGNED" as const, label: "Đã giao đề", count: counts.assigned },
+                    { value: "ALL" as const, label: t("recruiter.interviews.ai.assigner.filterAll"), count: counts.total },
+                    { value: "UNASSIGNED" as const, label: t("recruiter.interviews.ai.assigner.filterUnassigned"), count: counts.unassigned },
+                    { value: "ASSIGNED" as const, label: t("recruiter.interviews.ai.assigner.filterAssigned"), count: counts.assigned },
                   ].map((item) => (
                     <button
                       key={item.value}
@@ -255,7 +266,7 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                         statusFilter === item.value
-                          ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                          ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       )}
                     >
@@ -278,10 +289,10 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
               }}
               disabled={applicants.isFetching || interviews.isFetching}
               className="inline-flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50/60 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
-              title="Làm mới danh sách"
+              title={t("recruiter.interviews.ai.assigner.refreshTitle")}
             >
               <RefreshCw
-                className={cn("size-3.5", (applicants.isFetching || interviews.isFetching) && "animate-spin text-[#0066FF]")}
+                className={cn("size-3.5", (applicants.isFetching || interviews.isFetching) && "animate-spin text-[var(--color-primary)]")}
               />
             </button>
           </div>
@@ -292,17 +303,17 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
               type="button"
               onClick={handleBatchAssign}
               disabled={isBatchAssigning}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0066FF] px-4 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition-all cursor-pointer disabled:opacity-50"
             >
               {isBatchAssigning ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
-                  <span>Đang giao phỏng vấn...</span>
+                  <span>{t("recruiter.interviews.ai.assigner.batchAssigning")}</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="size-3.5" />
-                  <span>Giao phỏng vấn cho {selectedIds.length} ứng viên đã chọn</span>
+                  <span>{t("recruiter.interviews.ai.assigner.batchAssignBtn", { count: selectedIds.length })}</span>
                 </>
               )}
             </button>
@@ -318,14 +329,14 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400">
+            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
               <Users className="size-6" />
             </div>
             <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Không tìm thấy hồ sơ ứng viên phù hợp
+              {t("recruiter.interviews.ai.assigner.emptyTitle")}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Thử thay đổi từ khóa tìm kiếm hoặc lọc theo trạng thái khác.
+              {t("recruiter.interviews.ai.assigner.emptyHint")}
             </p>
           </div>
         ) : (
@@ -336,18 +347,18 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                   <th className="w-10 px-3 py-2 text-center">
                     <input
                       type="checkbox"
-                      className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                      className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                       checked={allUnassignedSelected}
                       onChange={toggleSelectAll}
                       disabled={unassignedFilteredIds.length === 0}
-                      aria-label="Chọn tất cả ứng viên chưa giao đề"
+                      aria-label={t("recruiter.interviews.ai.assigner.selectAllAria")}
                     />
                   </th>
-                  <th className="px-4 py-2">Ứng viên &amp; Email</th>
-                  <th className="px-4 py-2">Mã đơn</th>
-                  <th className="px-4 py-2">Ngày ứng tuyển</th>
-                  <th className="px-4 py-2">Trạng thái Phỏng vấn AI</th>
-                  <th className="px-4 py-2 text-right">Thao tác</th>
+                  <th className="px-4 py-2">{t("recruiter.interviews.ai.assigner.colCandidateEmail")}</th>
+                  <th className="px-4 py-2">{t("recruiter.interviews.ai.assigner.colApplicationId")}</th>
+                  <th className="px-4 py-2">{t("recruiter.interviews.ai.assigner.colAppliedAt")}</th>
+                  <th className="px-4 py-2">{t("recruiter.interviews.ai.assigner.colAiStatus")}</th>
+                  <th className="px-4 py-2 text-right">{t("recruiter.interviews.ai.assigner.colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -362,24 +373,24 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                       className={cn(
                         "group transition-colors",
                         isSelected
-                          ? "bg-blue-50/50 dark:bg-blue-950/30"
+                          ? "bg-[var(--color-primary-subtle)]/50"
                           : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                       )}
                     >
                       <td className="w-10 px-3 py-3 text-center">
                         <input
                           type="checkbox"
-                          className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                          className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                           checked={isSelected}
                           onChange={() => toggleSelectOne(app.id)}
                           disabled={isAssigned}
-                          aria-label={`Chọn ứng viên ${app.candidateName}`}
+                          aria-label={t("recruiter.interviews.ai.assigner.selectOneAria", { name: app.candidateName })}
                         />
                       </td>
 
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 shadow-2xs">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs">
                             {initials(app.candidateName)}
                           </div>
                           <div className="flex flex-col min-w-0">
@@ -398,7 +409,7 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                       </td>
 
                       <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                        {app.createdAt ? new Date(app.createdAt).toLocaleDateString("vi-VN") : "—"}
+                        {app.createdAt ? formatDate(app.createdAt, undefined, locale) : "—"}
                       </td>
 
                       <td className="px-4 py-3">
@@ -412,7 +423,7 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                         ) : (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                             <span className="size-1.5 rounded-full bg-slate-400" />
-                            Chưa giao
+                            {t("recruiter.interviews.ai.assigner.unassignedStatus")}
                           </span>
                         )}
                       </td>
@@ -422,9 +433,9 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                           <button
                             type="button"
                             onClick={() => onOpenDetail?.(interview.id)}
-                            className="inline-flex h-8 items-center gap-1 rounded-xl bg-blue-50 px-2.5 text-xs font-semibold text-[#0066FF] hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                            className="inline-flex h-8 items-center gap-1 rounded-xl bg-[var(--color-primary-soft)] px-2.5 text-xs font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
                           >
-                            <span>Xem phiên</span>
+                            <span>{t("recruiter.interviews.ai.assigner.viewSession")}</span>
                             <ArrowRight className="size-3.5" />
                           </button>
                         ) : (
@@ -432,14 +443,14 @@ export function AiInterviewCandidateAssigner({ jobId, onOpenDetail }: Props) {
                             type="button"
                             onClick={() => assignSingle.mutate(app.id)}
                             disabled={assignSingle.isPending}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#0066FF] px-3 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 text-xs font-semibold text-white shadow-2xs hover:bg-[var(--color-primary-hover)] transition-colors cursor-pointer disabled:opacity-50"
                           >
                             {assignSingle.isPending && assignSingle.variables === app.id ? (
                               <Loader2 className="size-3.5 animate-spin" />
                             ) : (
                               <PlusCircle className="size-3.5" />
                             )}
-                            <span>Giao phỏng vấn</span>
+                            <span>{t("recruiter.interviews.ai.assigner.assignInterview")}</span>
                           </button>
                         )}
                       </td>

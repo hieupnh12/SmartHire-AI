@@ -3,8 +3,10 @@ import { useSearchParams, useLocation, useNavigate, Link } from "react-router-do
 import { ArrowLeft } from "lucide-react";
 import { LegalPolicyModal, type LegalPolicyTab } from "@/features/master/billing/components/modals/LegalPolicyModal";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { useT } from "@/i18n";
 
 export function LegalDocumentsPage() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,11 +49,11 @@ export function LegalDocumentsPage() {
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại</span>
+            <span>{t("master.landing.legal.back")}</span>
           </button>
           <span className="text-slate-300">|</span>
           <span className="text-sm font-bold text-slate-800 hidden sm:inline">
-            Văn Bản Pháp Lý & Thỏa Thuận Dịch Vụ SmartHire-AI
+            {t("master.landing.legal.headerTitle")}
           </span>
         </div>
 
@@ -60,7 +62,7 @@ export function LegalDocumentsPage() {
             to="/checkout"
             className="text-xs font-bold px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs"
           >
-            Đến Trang Đặt Hàng &gt;
+            {t("master.landing.legal.goToCheckout")}
           </Link>
         </div>
       </header>

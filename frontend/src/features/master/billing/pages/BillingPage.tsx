@@ -12,6 +12,7 @@ import {
 } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useT } from "@/i18n";
 import { X, Copy, GitBranch } from "lucide-react";
 
 function currentView(pathname: string): BillingView {
@@ -20,6 +21,7 @@ function currentView(pathname: string): BillingView {
 }
 
 export function BillingPage() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -29,7 +31,6 @@ export function BillingPage() {
   const { data: invoices = [] } = useInvoices();
   const { data: tenantSubscriptions = [] } = useTenantSubscriptionInstances();
   const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
-  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [mode, setMode] = useState<"VERSION_UPDATE" | "CLONE_CUSTOM">("VERSION_UPDATE");
@@ -51,13 +52,13 @@ export function BillingPage() {
     try {
       const updated = await masterAdminApi.updateSubscriptionStatus(plan.id, status);
       setPlans((items: SubscriptionPlan[]) => items.map((item) => (item.id === updated.id ? updated : item)));
-      triggerNotification(
+      toast.success(
         status === "ARCHIVED"
-          ? `Đã lưu trữ gói ${plan.name} (Ngừng bán mới, bảo lưu giá cho khách cũ)`
-          : `Đã mở bán lại gói ${plan.name}`
+          ? t("master.commerce.billingPage.archivedToast", { name: plan.name })
+          : t("master.commerce.billingPage.reactivatedToast", { name: plan.name }),
       );
     } catch {
-      toast.error("Lỗi khi cập nhật trạng thái gói");
+      toast.error(t("master.commerce.billingPage.statusUpdateError"));
     }
   };
 
@@ -98,14 +99,17 @@ export function BillingPage() {
           videoRetentionDays,
         });
         await queryClient.invalidateQueries({ queryKey: masterQueryKeys.subscriptions() });
-        triggerNotification(
+        toast.success(
           (editingPlan.subscriberCount ?? 0) > 0
-            ? `Đã lưu trữ bản cũ v${editingPlan.version ?? 1} (Grandfathered) và phát hành phiên bản mới v${(editingPlan.version ?? 1) + 1}`
-            : `Đã cập nhật gói ${name}`
+            ? t("master.commerce.billingPage.versionCreatedToast", {
+                oldVersion: editingPlan.version ?? 1,
+                newVersion: (editingPlan.version ?? 1) + 1,
+              })
+            : t("master.commerce.billingPage.planUpdatedToast", { name }),
         );
       } else {
         if (!targetTenantId) {
-          toast.warning("Vui lòng chọn doanh nghiệp (Tenant) để tạo gói Custom");
+          toast.warning(t("master.commerce.billingPage.selectTenantWarning"));
           setSaving(false);
           return;
         }
@@ -123,11 +127,11 @@ export function BillingPage() {
         });
         await queryClient.invalidateQueries({ queryKey: masterQueryKeys.subscriptions() });
         await queryClient.invalidateQueries({ queryKey: masterQueryKeys.tenantSubscriptionInstances() });
-        triggerNotification("Đã nhân bản Gói Custom Enterprise riêng và kích hoạt Snapshot cho Tenant!");
+        toast.success(t("master.commerce.billingPage.clonedToast"));
       }
       setEditingPlan(null);
     } catch {
-      toast.error("Đã xảy ra lỗi khi lưu thay đổi gói dịch vụ");
+      toast.error(t("master.commerce.billingPage.saveError"));
     } finally {
       setSaving(false);
     }
@@ -161,15 +165,19 @@ export function BillingPage() {
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
-                  Quản trị Gói Dịch Vụ: {editingPlan.name} (v{editingPlan.version ?? 1})
+                  {t("master.commerce.billingPage.modalTitle", {
+                    name: editingPlan.name,
+                    version: editingPlan.version ?? 1,
+                  })}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                   Bảo vệ hợp đồng khách cũ (Grandfathering) hoặc nhân bản Gói Tùy Biến (Custom Plan) cho riêng 1 Doanh nghiệp.
+                  {t("master.commerce.billingPage.modalSubtitle")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingPlan(null)}
+                aria-label={t("master.commerce.common.close")}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="size-5" />
@@ -185,7 +193,7 @@ export function BillingPage() {
                 }`}
               >
                 <GitBranch className="size-3.5" />
-                <span>Cập nhật / Phát hành Version mới</span>
+                <span>{t("master.commerce.billingPage.modeVersionUpdate")}</span>
               </button>
               <button
                 type="button"
@@ -195,16 +203,20 @@ export function BillingPage() {
                 }`}
               >
                 <Copy className="size-3.5" />
-                <span>Clone Gói Custom riêng cho 1 Tenant</span>
+                <span>{t("master.commerce.billingPage.modeCloneCustom")}</span>
               </button>
             </div>
 
             {mode === "VERSION_UPDATE" && (editingPlan.subscriberCount ?? 0) > 0 && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                <strong>Chính sách Bảo lưu giá (Grandfathering):</strong> Gói này đang có{" "}
-                <strong>{editingPlan.subscriberCount}</strong> hợp đồng tham chiếu. Khi lưu, hệ thống sẽ giữ nguyên{" "}
-                <strong>v{editingPlan.version ?? 1} (ARCHIVED)</strong> cho khách cũ và tự động tạo{" "}
-                <strong>v{(editingPlan.version ?? 1) + 1} (ACTIVE)</strong> cho khách mua mới.
+                <strong>{t("master.commerce.billingPage.grandfatherTitle")}</strong>{" "}
+                {t("master.commerce.billingPage.grandfatherPart1")}{" "}
+                <strong>{editingPlan.subscriberCount}</strong>{" "}
+                {t("master.commerce.billingPage.grandfatherPart2")}{" "}
+                <strong>{t("master.commerce.billingPage.grandfatherOldTag", { version: editingPlan.version ?? 1 })}</strong>{" "}
+                {t("master.commerce.billingPage.grandfatherPart3")}{" "}
+                <strong>{t("master.commerce.billingPage.grandfatherNewTag", { version: (editingPlan.version ?? 1) + 1 })}</strong>{" "}
+                {t("master.commerce.billingPage.grandfatherPart4")}
               </div>
             )}
 
@@ -212,7 +224,7 @@ export function BillingPage() {
               {mode === "CLONE_CUSTOM" && (
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-700">
-                    Doanh nghiệp nhận Gói Custom (Ẩn khỏi trang Pricing công khai) *
+                    {t("master.commerce.billingPage.targetTenantLabel")}
                   </label>
                   <select
                     required
@@ -220,10 +232,10 @@ export function BillingPage() {
                     onChange={(e) => setTargetTenantId(e.target.value ? Number(e.target.value) : "")}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
                   >
-                    <option value="">-- Chọn Doanh Nghiệp (Tenant) --</option>
-                    {tenants.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.code})
+                    <option value="">{t("master.commerce.billingPage.targetTenantPlaceholder")}</option>
+                    {tenants.map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.name} ({tenant.code})
                       </option>
                     ))}
                   </select>
@@ -232,7 +244,7 @@ export function BillingPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Tên gói *</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.planNameLabel")}</label>
                   <input
                     type="text"
                     required
@@ -242,7 +254,7 @@ export function BillingPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Giá theo năm (VNĐ) *</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.priceYearlyLabel")}</label>
                   <input
                     type="number"
                     min={0}
@@ -256,7 +268,7 @@ export function BillingPage() {
 
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Max Jobs (-1 = Vô hạn)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.maxJobsLabel")}</label>
                   <input
                     type="number"
                     min={-1}
@@ -266,7 +278,7 @@ export function BillingPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Max CV Parses</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.maxCvLabel")}</label>
                   <input
                     type="number"
                     min={-1}
@@ -276,46 +288,46 @@ export function BillingPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Giờ AI Interview (Trống = Vô hạn)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.maxAiLabel")}</label>
                   <input
                     type="number"
                     min={-1}
                     value={maxAiInterviewHours ?? ""}
                     onChange={(e) => setMaxAiInterviewHours(e.target.value === "" ? null : Number(e.target.value))}
-                    placeholder="Không giới hạn"
+                    placeholder={t("master.commerce.common.unlimited")}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Lưu trữ GB (Trống = Vô hạn)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.maxStorageLabel")}</label>
                   <input
                     type="number"
                     min={-1}
                     value={maxStorageGb ?? ""}
                     onChange={(e) => setMaxStorageGb(e.target.value === "" ? null : Number(e.target.value))}
-                    placeholder="Không giới hạn"
+                    placeholder={t("master.commerce.common.unlimited")}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Giờ Proctoring (Trống = Vô hạn)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.maxProctoringLabel")}</label>
                   <input
                     type="number"
                     min={-1}
                     value={maxProctoringHours ?? ""}
                     onChange={(e) => setMaxProctoringHours(e.target.value === "" ? null : Number(e.target.value))}
-                    placeholder="Không giới hạn"
+                    placeholder={t("master.commerce.common.unlimited")}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Lưu Video (Ngày)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">{t("master.commerce.billingPage.videoRetentionLabel")}</label>
                   <input
                     type="number"
                     min={-1}
                     value={videoRetentionDays ?? ""}
                     onChange={(e) => setVideoRetentionDays(e.target.value === "" ? null : Number(e.target.value))}
-                    placeholder="Không giới hạn"
+                    placeholder={t("master.commerce.common.unlimited")}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900"
                   />
                 </div>
@@ -327,7 +339,7 @@ export function BillingPage() {
                   onClick={() => setEditingPlan(null)}
                   className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
-                  Hủy
+                  {t("master.commerce.common.cancel")}
                 </button>
                 <button
                   type="submit"
@@ -335,12 +347,12 @@ export function BillingPage() {
                   className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {saving
-                    ? "Đang xử lý..."
+                    ? t("master.commerce.common.processing")
                     : mode === "VERSION_UPDATE"
                     ? (editingPlan.subscriberCount ?? 0) > 0
-                      ? `Phát hành Version v${(editingPlan.version ?? 1) + 1}`
-                      : "Lưu cập nhật"
-                    : "Tạo & Kích hoạt Gói Custom"}
+                      ? t("master.commerce.billingPage.publishVersionBtn", { version: (editingPlan.version ?? 1) + 1 })
+                      : t("master.commerce.billingPage.saveUpdateBtn")
+                    : t("master.commerce.billingPage.createCustomBtn")}
                 </button>
               </div>
             </form>

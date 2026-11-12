@@ -1,18 +1,22 @@
+import { useCallback } from "react";
 import { create } from "zustand";
-import { en, type Locale, type Messages, locales } from "./locales/en";
-import { vi } from "./locales/vi";
+import { en } from "./locales/en";
+import { vi, type Messages } from "./locales/vi";
 import { ja } from "./locales/ja";
+import { locales, type Locale, type TranslationParams } from "./schema";
 
 const catalogs: Record<Locale, Messages> = { en, vi, ja };
 
 function detectLocale(): Locale {
-  const saved = localStorage.getItem("locale") as Locale | null;
+  if (typeof window === "undefined") return "vi";
+  const saved = window.localStorage.getItem("locale") as Locale | null;
   if (saved && locales.includes(saved)) return saved;
-  const nav = navigator.language.toLowerCase();
-  if (nav.startsWith("vi")) return "vi";
+  const nav = window.navigator.language?.toLowerCase() ?? "";
   if (nav.startsWith("ja")) return "ja";
-  return "en";
+  return "vi";
 }
+
+const initialLocale = detectLocale();
 
 type I18nState = {
   locale: Locale;
@@ -22,11 +26,13 @@ type I18nState = {
 };
 
 export const useI18nStore = create<I18nState>((set, get) => ({
-  locale: detectLocale(),
-  messages: catalogs[detectLocale()],
+  locale: initialLocale,
+  messages: catalogs[initialLocale],
   setLocale: (locale) => {
-    localStorage.setItem("locale", locale);
-    document.documentElement.lang = locale;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("locale", locale);
+      document.documentElement.lang = locale;
+    }
     set({ locale, messages: catalogs[locale] });
   },
   cycleLocale: () => {
@@ -37,25 +43,61 @@ export const useI18nStore = create<I18nState>((set, get) => ({
   },
 }));
 
-/** Dot-path lookup, e.g. t("welcome.title") */
-export function translate(messages: Messages, path: string): string {
+function lookupRaw(messages: unknown, path: string): string | undefined {
   const parts = path.split(".");
   let cur: unknown = messages;
-  for (const p of parts) {
-    if (cur && typeof cur === "object" && p in (cur as object)) {
-      cur = (cur as Record<string, unknown>)[p];
+  for (const part of parts) {
+    if (cur && typeof cur === "object" && part in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[part];
     } else {
-      return path;
+      return undefined;
     }
   }
-  return typeof cur === "string" ? cur : path;
+  return typeof cur === "string" ? cur : undefined;
 }
 
-export function useT() {
+function interpolate(template: string, params?: TranslationParams): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    params[key] !== undefined ? String(params[key]) : match,
+  );
+}
+
+/** Dot-path lookup with fallback to Vietnamese/English and `{param}` interpolation. */
+export function translate(messages: Messages, path: string, params?: TranslationParams): string {
+  const raw = lookupRaw(messages, path) ?? lookupRaw(vi, path) ?? lookupRaw(en, path);
+  if (raw === undefined) return path;
+  return interpolate(raw, params);
+}
+
+/** Standalone translation helper for non-React modules (API errors, formatters, SEO). */
+export function t(path: string, params?: TranslationParams): string {
+  return translate(useI18nStore.getState().messages, path, params);
+}
+
+export type TranslateFn = (path: string, params?: TranslationParams) => string;
+
+export function useT(): TranslateFn {
   const messages = useI18nStore((s) => s.messages);
-  return (path: string) => translate(messages, path);
+  return useCallback(
+    (path: string, params?: TranslationParams) => translate(messages, path, params),
+    [messages],
+  );
 }
 
-// re-export locale meta from en module shape
-export { locales, type Locale } from "./locales/en";
+export function useLocale(): Locale {
+  return useI18nStore((s) => s.locale);
+}
+
+export { locales, type Locale, type TranslationParams } from "./schema";
+export { type Messages } from "./locales/vi";
 export { localeLabels } from "./localeMeta";
+export {
+  toIntlLocale,
+  toOgLocale,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  formatNumber,
+  compareLocaleText,
+} from "./format";

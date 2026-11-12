@@ -29,6 +29,7 @@ import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
+import { useT, useLocale, formatNumber } from "@/i18n";
 
 export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
 
@@ -97,6 +98,7 @@ function MetricCard({
   tooltip?: string;
   tone?: "blue" | "violet" | "amber" | "emerald";
 }) {
+  const t = useT();
   const tones = {
     blue: "bg-blue-50 text-blue-700",
     violet: "bg-violet-50 text-violet-700",
@@ -109,7 +111,12 @@ function MetricCard({
         <div>
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <span>{label}</span>
-            {tooltip && <HelpTip content={tooltip} label={`Giải thích ${label}`} />}
+            {tooltip && (
+              <HelpTip
+                content={tooltip}
+                label={t("master.ops.systemWorkspace.helpTipLabel", { label })}
+              />
+            )}
           </p>
           <p className="mt-2 text-2xl font-bold tracking-tight text-slate-600">
             {value}
@@ -125,6 +132,8 @@ function MetricCard({
 }
 
 function AiUsageReportView() {
+  const t = useT();
+  const locale = useLocale();
   const [months, setMonths] = useState<number>(6);
   const [report, setReport] = useState<AiUsageReportData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -138,7 +147,7 @@ function AiUsageReportView() {
       setReport(data);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || err.message || "Không thể tải báo cáo sử dụng AI"
+        err.response?.data?.message || err.message || t("master.ops.systemWorkspace.usage.loadError")
       );
     } finally {
       setLoading(false);
@@ -190,9 +199,9 @@ function AiUsageReportView() {
   }
 
   const trend = report?.monthlyTrend || [];
-  const maxCv = Math.max(1, ...trend.map((t) => t.cvCount));
-  const maxInt = Math.max(1, ...trend.map((t) => t.interviewHours));
-  const maxReq = Math.max(1, ...trend.map((t) => t.aiRequests));
+  const maxCv = Math.max(1, ...trend.map((item) => item.cvCount));
+  const maxInt = Math.max(1, ...trend.map((item) => item.interviewHours));
+  const maxReq = Math.max(1, ...trend.map((item) => item.aiRequests));
 
   const taskColors: Record<string, string> = {
     CV_PARSING: "bg-blue-500",
@@ -213,7 +222,7 @@ function AiUsageReportView() {
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <RefreshCw className="size-3.5" />
-              Làm mới
+              {t("master.ops.systemWorkspace.usage.refreshBtn")}
             </button>
             <button
               type="button"
@@ -221,7 +230,7 @@ function AiUsageReportView() {
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <FileDown className="size-3.5" />
-              Xuất CSV
+              {t("master.ops.systemWorkspace.usage.exportCsvBtn")}
             </button>
           </div>
         }
@@ -236,33 +245,45 @@ function AiUsageReportView() {
 
       <section
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Chỉ số sử dụng AI"
+        aria-label={t("master.ops.systemWorkspace.usage.metricsAria")}
       >
         <MetricCard
           icon={BrainCircuit}
-          label="CV đã phân tích"
-          value={(report?.totalCvParses ?? 0).toLocaleString("vi-VN")}
-          tooltip={`Tổng số lượt AI đã phân tích CV trong ${months} tháng gần nhất.`}
+          label={t("master.ops.systemWorkspace.usage.kpiCvLabel")}
+          value={formatNumber(report?.totalCvParses ?? 0, undefined, locale)}
+          tooltip={t("master.ops.systemWorkspace.usage.kpiCvTooltip", { months })}
         />
         <MetricCard
           icon={Bot}
-          label="Giờ phỏng vấn AI"
-          value={`${(report?.totalInterviewHours ?? 0).toLocaleString("vi-VN")} giờ`}
-          tooltip="Tổng thời lượng hội thoại phỏng vấn AI trong kỳ báo cáo."
+          label={t("master.ops.systemWorkspace.usage.kpiInterviewLabel")}
+          value={t("master.ops.systemWorkspace.usage.kpiInterviewValue", {
+            hours: formatNumber(report?.totalInterviewHours ?? 0, undefined, locale),
+          })}
+          tooltip={t("master.ops.systemWorkspace.usage.kpiInterviewTooltip")}
           tone="violet"
         />
         <MetricCard
           icon={Sparkles}
-          label="Tổng lượt gọi AI"
-          value={(report?.totalAiRequests ?? 0).toLocaleString("vi-VN")}
-          tooltip={`${(report?.totalTokensConsumed ?? 0).toLocaleString("vi-VN")} token đã tiêu thụ · Tỷ lệ thành công ${report?.successRatePercent ?? 100}%${report?.avgLatencyMs ? ` · Độ trễ TB ${report.avgLatencyMs}ms` : ""}.`}
+          label={t("master.ops.systemWorkspace.usage.kpiRequestsLabel")}
+          value={formatNumber(report?.totalAiRequests ?? 0, undefined, locale)}
+          tooltip={t("master.ops.systemWorkspace.usage.kpiRequestsTooltip", {
+            tokens: formatNumber(report?.totalTokensConsumed ?? 0, undefined, locale),
+            rate: report?.successRatePercent ?? 100,
+            latency: report?.avgLatencyMs
+              ? t("master.ops.systemWorkspace.usage.kpiLatencyPart", { ms: report.avgLatencyMs })
+              : "",
+          })}
           tone="emerald"
         />
         <MetricCard
           icon={Cpu}
-          label="Chi phí AI ước tính"
-          value={`$${Number(report?.totalEstimatedCostUsd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
-          tooltip="Chi phí ước tính theo bảng giá dữ liệu đầu vào và đầu ra."
+          label={t("master.ops.systemWorkspace.usage.kpiCostLabel")}
+          value={`$${formatNumber(
+            Number(report?.totalEstimatedCostUsd ?? 0),
+            { minimumFractionDigits: 2, maximumFractionDigits: 4 },
+            locale,
+          )}`}
+          tooltip={t("master.ops.systemWorkspace.usage.kpiCostTooltip")}
           tone="amber"
         />
       </section>
@@ -272,21 +293,21 @@ function AiUsageReportView() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold text-slate-600">
-                Xu hướng tiêu thụ {months} tháng
+                {t("master.ops.systemWorkspace.usage.trendTitle", { months })}
               </h2>
               <HelpTip
-                content="Biểu đồ theo dõi số lượt lọc CV, giờ phỏng vấn AI và tổng lượt gọi AI theo từng tháng."
-                label="Giải thích xu hướng tiêu thụ AI"
+                content={t("master.ops.systemWorkspace.usage.trendTooltip")}
+                label={t("master.ops.systemWorkspace.usage.trendHelpLabel")}
               />
             </div>
             <div className="w-44">
               <CustomSelect
-                ariaLabel="Khoảng thời gian báo cáo"
+                ariaLabel={t("master.ops.systemWorkspace.usage.rangeAria")}
                 value={String(months)}
                 onChange={(val) => setMonths(Number(val))}
                 options={[
-                  { value: "6", label: "6 tháng gần nhất" },
-                  { value: "12", label: "12 tháng gần nhất" },
+                  { value: "6", label: t("master.ops.systemWorkspace.usage.range6m") },
+                  { value: "12", label: t("master.ops.systemWorkspace.usage.range12m") },
                 ]}
               />
             </div>
@@ -303,17 +324,24 @@ function AiUsageReportView() {
                     <span
                       className="w-2.5 rounded-t bg-blue-500 sm:w-4 transition-all"
                       style={{ height: `${cvPct}%` }}
-                      title={`Lọc CV: ${item.cvCount.toLocaleString("vi-VN")} lượt`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipCv", {
+                        count: formatNumber(item.cvCount, undefined, locale),
+                      })}
                     />
                     <span
                       className="w-2.5 rounded-t bg-violet-400 sm:w-4 transition-all"
                       style={{ height: `${intPct}%` }}
-                      title={`Phỏng vấn AI: ${item.interviewHours} giờ`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipInterview", {
+                        hours: item.interviewHours,
+                      })}
                     />
                     <span
                       className="w-2.5 rounded-t bg-cyan-400 sm:w-4 transition-all"
                       style={{ height: `${reqPct}%` }}
-                      title={`Tổng lượt gọi: ${item.aiRequests.toLocaleString("vi-VN")} · Chi phí: $${item.estimatedCostUsd}`}
+                      title={t("master.ops.systemWorkspace.usage.tooltipRequests", {
+                        count: formatNumber(item.aiRequests, undefined, locale),
+                        cost: item.estimatedCostUsd,
+                      })}
                     />
                   </div>
                   <span className="mt-2 text-center text-xs font-medium text-slate-500">
@@ -326,25 +354,27 @@ function AiUsageReportView() {
           <div className="mt-4 flex flex-wrap gap-5 text-xs text-slate-500">
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-blue-500" />
-              Lọc CV
+              {t("master.ops.systemWorkspace.usage.legendCv")}
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-violet-400" />
-              Giờ phỏng vấn AI
+              {t("master.ops.systemWorkspace.usage.legendInterview")}
             </span>
             <span className="flex items-center gap-2">
               <i className="size-2.5 rounded-full bg-cyan-400" />
-              Tổng lượt gọi AI
+              {t("master.ops.systemWorkspace.usage.legendRequests")}
             </span>
           </div>
         </section>
 
         <section className={cn(surface, "p-5 sm:p-6")}>
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-slate-600">Phân bổ chi phí theo tác vụ</h2>
+            <h2 className="font-semibold text-slate-600">
+              {t("master.ops.systemWorkspace.usage.costByTaskTitle")}
+            </h2>
             <HelpTip
-              content="Chi phí ước tính (USD) và tỷ trọng tiêu thụ theo từng nhóm tác vụ AI."
-              label="Giải thích phân bổ chi phí theo tác vụ"
+              content={t("master.ops.systemWorkspace.usage.costByTaskTooltip")}
+              label={t("master.ops.systemWorkspace.usage.costByTaskHelpLabel")}
             />
           </div>
           <div className="mt-6 space-y-5">
@@ -366,8 +396,10 @@ function AiUsageReportView() {
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  {item.requests.toLocaleString("vi-VN")} lượt ·{" "}
-                  {item.totalTokens.toLocaleString("vi-VN")} token
+                  {t("master.ops.systemWorkspace.usage.taskRequestsTokens", {
+                    requests: formatNumber(item.requests, undefined, locale),
+                    tokens: formatNumber(item.totalTokens, undefined, locale),
+                  })}
                 </p>
               </div>
             ))}
@@ -378,44 +410,44 @@ function AiUsageReportView() {
       <section className={cn(surface, "overflow-hidden")}>
         <div className="flex items-center gap-2 border-b border-slate-100 p-5">
           <h2 className="font-semibold text-slate-600">
-            Mức sử dụng & Chi phí theo doanh nghiệp
+            {t("master.ops.systemWorkspace.usage.tenantUsageTitle")}
           </h2>
           <HelpTip
-            content="Tổng hợp số lượt gọi AI, token đã dùng và chi phí ước tính theo từng doanh nghiệp."
-            label="Giải thích mức sử dụng theo doanh nghiệp"
+            content={t("master.ops.systemWorkspace.usage.tenantUsageTooltip")}
+            label={t("master.ops.systemWorkspace.usage.tenantUsageHelpLabel")}
           />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Doanh nghiệp / Gói</th>
-                <th className="px-4 py-3 text-right">Lọc CV</th>
-                <th className="px-4 py-3 text-right">Phỏng vấn AI</th>
+                <th className="px-5 py-3">{t("master.ops.systemWorkspace.usage.colTenantPlan")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colCvScreening")}</th>
+                <th className="px-4 py-3 text-right">{t("master.ops.systemWorkspace.usage.colAiInterview")}</th>
                 <th className="px-4 py-3 text-right">
                   <span className="inline-flex items-center justify-end gap-1">
-                    <span>Token tiêu thụ</span>
+                    <span>{t("master.ops.systemWorkspace.usage.colTokens")}</span>
                     <HelpTip
-                      content="Tổng lượng dữ liệu văn bản (input và output) đã xử lý."
-                      label="Giải thích Token tiêu thụ"
+                      content={t("master.ops.systemWorkspace.usage.colTokensTooltip")}
+                      label={t("master.ops.systemWorkspace.usage.colTokensHelpLabel")}
                     />
                   </span>
                 </th>
                 <th className="px-4 py-3 text-right">
                   <span className="inline-flex items-center justify-end gap-1">
-                    <span>Chi phí ước tính</span>
+                    <span>{t("master.ops.systemWorkspace.usage.colApiCost")}</span>
                     <HelpTip
-                      content="Chi phí AI ước tính quy đổi theo USD."
-                      label="Giải thích Chi phí ước tính"
+                      content={t("master.ops.systemWorkspace.usage.colApiCostTooltip")}
+                      label={t("master.ops.systemWorkspace.usage.colApiCostHelpLabel")}
                     />
                   </span>
                 </th>
                 <th className="px-5 py-3 text-right">
                   <span className="inline-flex items-center justify-end gap-1">
-                    <span>Biến động tháng</span>
+                    <span>{t("master.ops.systemWorkspace.usage.colMomChange")}</span>
                     <HelpTip
-                      content="Tỷ lệ tăng hoặc giảm mức sử dụng AI so với tháng trước."
-                      label="Giải thích Biến động tháng"
+                      content={t("master.ops.systemWorkspace.usage.colMomChangeTooltip")}
+                      label={t("master.ops.systemWorkspace.usage.colMomChangeHelpLabel")}
                     />
                   </span>
                 </th>
@@ -425,7 +457,7 @@ function AiUsageReportView() {
               {(report?.tenantUsages || []).length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate-500">
-                    Chưa có dữ liệu tiêu thụ AI của các doanh nghiệp.
+                    {t("master.ops.systemWorkspace.usage.emptyTenantUsage")}
                   </td>
                 </tr>
               ) : (
@@ -443,13 +475,17 @@ function AiUsageReportView() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.cvParses.toLocaleString("vi-VN")} lượt
+                      {t("master.ops.systemWorkspace.usage.cvParsesCount", {
+                        count: formatNumber(row.cvParses, undefined, locale),
+                      })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.interviewHours} giờ
+                      {t("master.ops.systemWorkspace.usage.interviewHoursCount", {
+                        hours: row.interviewHours,
+                      })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-600">
-                      {row.totalTokens.toLocaleString("vi-VN")}
+                      {formatNumber(row.totalTokens, undefined, locale)}
                     </td>
                     <td className="px-4 py-4 text-right font-semibold text-slate-600">
                       ${Number(row.estimatedCostUsd).toFixed(4)}
@@ -475,6 +511,8 @@ function AiUsageReportView() {
 }
 
 function AiQuotaManagementView() {
+  const t = useT();
+  const locale = useLocale();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [rows, setRows] = useState<TenantAiQuota[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -490,7 +528,7 @@ function AiQuotaManagementView() {
       setRows(data);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || err.message || "Không thể tải hạn mức AI"
+        err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.loadError")
       );
     } finally {
       setLoading(false);
@@ -528,9 +566,9 @@ function AiQuotaManagementView() {
       );
       setSavedId(row.tenantId);
       window.setTimeout(() => setSavedId(null), 2000);
-      toast.success(`Đã lưu hạn mức cho "${row.tenantName}"`);
+      toast.success(t("master.ops.systemWorkspace.quotas.saveSuccess", { name: row.tenantName }));
     } catch (err: any) {
-      toast.error(err.response?.data?.message || err.message || "Lỗi khi lưu hạn mức");
+      toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.saveError"));
     } finally {
       setSavingId(null);
     }
@@ -539,11 +577,15 @@ function AiQuotaManagementView() {
   const handleToggleKillSwitch = (row: TenantAiQuota) => {
     const enablingKill = !row.aiKillSwitch;
     askConfirm({
-      title: enablingKill ? "Khóa khẩn cấp AI" : "Mở khóa AI",
+      title: enablingKill
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockTitle")
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockTitle"),
       description: enablingKill
-        ? `Khóa khẩn cấp toàn bộ tính năng AI (lọc CV & phỏng vấn AI) của "${row.tenantName}"? Mọi tác vụ AI của doanh nghiệp này sẽ tạm dừng ngay lập tức.`
-        : `Mở khóa lại hạn mức AI theo gói mặc định cho "${row.tenantName}"?`,
-      confirmLabel: enablingKill ? "Khóa khẩn cấp" : "Mở khóa",
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockDesc", { name: row.tenantName })
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockDesc", { name: row.tenantName }),
+      confirmLabel: enablingKill
+        ? t("master.ops.systemWorkspace.quotas.killSwitchLockConfirm")
+        : t("master.ops.systemWorkspace.quotas.killSwitchUnlockConfirm"),
       danger: enablingKill,
       onConfirm: async () => {
         try {
@@ -557,11 +599,11 @@ function AiQuotaManagementView() {
           );
           toast.success(
             enablingKill
-              ? `Đã khóa AI khẩn cấp cho "${row.tenantName}"`
-              : `Đã mở khóa AI cho "${row.tenantName}"`
+              ? t("master.ops.systemWorkspace.quotas.killSwitchLockedToast", { name: row.tenantName })
+              : t("master.ops.systemWorkspace.quotas.killSwitchUnlockedToast", { name: row.tenantName })
           );
         } catch (err: any) {
-          toast.error(err.response?.data?.message || err.message || "Lỗi khi cập nhật trạng thái AI");
+          toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.killSwitchError"));
         } finally {
           setSavingId(null);
         }
@@ -571,9 +613,9 @@ function AiQuotaManagementView() {
 
   const handleResetToPlan = (row: TenantAiQuota) => {
     askConfirm({
-      title: "Khôi phục hạn mức",
-      description: `Khôi phục hạn mức AI của "${row.tenantName}" về cấu hình mặc định của gói dịch vụ?`,
-      confirmLabel: "Khôi phục",
+      title: t("master.ops.systemWorkspace.quotas.resetTitle"),
+      description: t("master.ops.systemWorkspace.quotas.resetDesc", { name: row.tenantName }),
+      confirmLabel: t("master.ops.systemWorkspace.quotas.resetConfirm"),
       onConfirm: async () => {
         try {
           setSavingId(row.tenantId);
@@ -585,9 +627,9 @@ function AiQuotaManagementView() {
           );
           setSavedId(row.tenantId);
           window.setTimeout(() => setSavedId(null), 2000);
-          toast.success(`Đã khôi phục hạn mức gốc cho "${row.tenantName}"`);
+          toast.success(t("master.ops.systemWorkspace.quotas.resetSuccess", { name: row.tenantName }));
         } catch (err: any) {
-          toast.error(err.response?.data?.message || err.message || "Lỗi khi khôi phục hạn mức gốc");
+          toast.error(err.response?.data?.message || err.message || t("master.ops.systemWorkspace.quotas.resetError"));
         } finally {
           setSavingId(null);
         }
@@ -617,7 +659,7 @@ function AiQuotaManagementView() {
             className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <RefreshCw className="size-3.5" />
-            Làm mới
+            {t("master.ops.systemWorkspace.quotas.refreshBtn")}
           </button>
         }
       />
@@ -631,33 +673,33 @@ function AiQuotaManagementView() {
 
       <section
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Tổng quan hạn mức AI"
+        aria-label={t("master.ops.systemWorkspace.quotas.metricsAria")}
       >
         <MetricCard
           icon={Gauge}
-          label="Tổng số doanh nghiệp"
+          label={t("master.ops.systemWorkspace.quotas.metricTotalTenants")}
           value={String(rows.length)}
-          tooltip="Tổng số doanh nghiệp đang áp dụng kiểm soát hạn mức AI."
+          tooltip={t("master.ops.systemWorkspace.quotas.metricTotalTenantsTooltip")}
         />
         <MetricCard
           icon={AlertTriangle}
-          label="Sắp chạm ngưỡng"
+          label={t("master.ops.systemWorkspace.quotas.metricNearLimit")}
           value={String(nearLimitCount)}
-          tooltip="Doanh nghiệp đã sử dụng từ 80% hạn mức AI trong tháng."
+          tooltip={t("master.ops.systemWorkspace.quotas.metricNearLimitTooltip")}
           tone="amber"
         />
         <MetricCard
           icon={ShieldAlert}
-          label="Đang khóa AI"
+          label={t("master.ops.systemWorkspace.quotas.metricKillSwitched")}
           value={String(killSwitchedCount)}
-          tooltip="Doanh nghiệp đang bị tạm khóa khẩn cấp tính năng AI."
+          tooltip={t("master.ops.systemWorkspace.quotas.metricKillSwitchedTooltip")}
           tone="violet"
         />
         <MetricCard
           icon={CheckCircle2}
-          label="Đang hoạt động"
+          label={t("master.ops.systemWorkspace.quotas.metricOperational")}
           value={String(Math.max(0, rows.length - killSwitchedCount))}
-          tooltip="Doanh nghiệp đang sử dụng tính năng AI bình thường."
+          tooltip={t("master.ops.systemWorkspace.quotas.metricOperationalTooltip")}
           tone="emerald"
         />
       </section>
@@ -666,11 +708,11 @@ function AiQuotaManagementView() {
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-5">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-slate-600">
-              Hạn mức AI theo doanh nghiệp
+              {t("master.ops.systemWorkspace.quotas.tableTitle")}
             </h2>
             <HelpTip
-              content="Can thiệp hạn mức AI riêng cho từng doanh nghiệp: nhập -1 để không giới hạn, 0 để khóa tính năng, hoặc số dương để đặt hạn mức riêng. Có thể lưu thay đổi, khôi phục về mặc định gói hoặc khóa khẩn cấp."
-              label="Giải thích quản lý hạn mức AI"
+              content={t("master.ops.systemWorkspace.quotas.tableTooltip")}
+              label={t("master.ops.systemWorkspace.quotas.tableHelpLabel")}
             />
           </div>
         </div>
@@ -679,46 +721,46 @@ function AiQuotaManagementView() {
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">Doanh nghiệp / Gói</th>
-                <th className="px-4 py-3">Đã dùng CV</th>
+                <th className="px-5 py-3">{t("master.ops.systemWorkspace.quotas.colTenantBase")}</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colCvUsed")}</th>
                 <th className="px-4 py-3">
                   <span className="inline-flex items-center gap-1">
-                    <span>Hạn mức CV</span>
+                    <span>{t("master.ops.systemWorkspace.quotas.colCvLimit")}</span>
                     <HelpTip
-                      content="Số lượt lọc CV tối đa mỗi tháng. Nhập -1 cho không giới hạn, 0 để tạm khóa."
-                      label="Giải thích Hạn mức CV"
+                      content={t("master.ops.systemWorkspace.quotas.colCvLimitTooltip")}
+                      label={t("master.ops.systemWorkspace.quotas.colCvLimitHelpLabel")}
                     />
                   </span>
                 </th>
-                <th className="px-4 py-3">Đã dùng Phỏng vấn</th>
+                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colInterviewUsed")}</th>
                 <th className="px-4 py-3">
                   <span className="inline-flex items-center gap-1">
-                    <span>Hạn mức Giờ</span>
+                    <span>{t("master.ops.systemWorkspace.quotas.colInterviewLimit")}</span>
                     <HelpTip
-                      content="Số giờ phỏng vấn AI tối đa mỗi tháng. Nhập -1 cho không giới hạn, 0 để tạm khóa."
-                      label="Giải thích Hạn mức Giờ"
+                      content={t("master.ops.systemWorkspace.quotas.colInterviewLimitTooltip")}
+                      label={t("master.ops.systemWorkspace.quotas.colInterviewLimitHelpLabel")}
                     />
                   </span>
                 </th>
                 <th className="px-4 py-3">
                   <span className="inline-flex items-center gap-1">
-                    <span>Giới hạn / phút</span>
+                    <span>{t("master.ops.systemWorkspace.quotas.colRpmLimit")}</span>
                     <HelpTip
-                      content="Số lượt gọi AI tối đa trong mỗi phút của doanh nghiệp."
-                      label="Giải thích Giới hạn mỗi phút"
+                      content={t("master.ops.systemWorkspace.quotas.colRpmLimitTooltip")}
+                      label={t("master.ops.systemWorkspace.quotas.colRpmLimitHelpLabel")}
                     />
                   </span>
                 </th>
                 <th className="px-4 py-3 text-right">
                   <span className="inline-flex items-center justify-end gap-1">
-                    <span>Chi phí tháng</span>
+                    <span>{t("master.ops.systemWorkspace.quotas.colMonthlyCost")}</span>
                     <HelpTip
-                      content="Chi phí AI ước tính phát sinh trong tháng hiện tại (USD)."
-                      label="Giải thích Chi phí tháng"
+                      content={t("master.ops.systemWorkspace.quotas.colMonthlyCostTooltip")}
+                      label={t("master.ops.systemWorkspace.quotas.colMonthlyCostHelpLabel")}
                     />
                   </span>
                 </th>
-                <th className="px-5 py-3 text-right">Thao tác</th>
+                <th className="px-5 py-3 text-right">{t("master.ops.systemWorkspace.quotas.colAdminAction")}</th>
               </tr>
             </thead>
             <tbody>
@@ -751,29 +793,33 @@ function AiQuotaManagementView() {
                         <strong className="text-slate-900">{row.tenantName}</strong>
                         {row.aiKillSwitch && (
                           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-700">
-                            Đã khóa AI
+                            {t("master.ops.systemWorkspace.quotas.badgeAiLocked")}
                           </span>
                         )}
                         {!row.aiKillSwitch && isOverridden && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                            Đã tùy chỉnh
+                            {t("master.ops.systemWorkspace.quotas.badgeOverridden")}
                           </span>
                         )}
                       </div>
                       <span className="mt-1 block text-xs text-slate-500">
-                        {row.tenantCode} · {row.planName} (Gốc:{" "}
-                        {row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit} CV /{" "}
-                        {row.basePlanInterviewHoursLimit < 0
-                          ? "∞"
-                          : row.basePlanInterviewHoursLimit}
-                        h)
+                        {t("master.ops.systemWorkspace.quotas.baseLimitInfo", {
+                          code: row.tenantCode,
+                          plan: row.planName,
+                          cv: row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit,
+                          hours: row.basePlanInterviewHoursLimit < 0 ? "∞" : row.basePlanInterviewHoursLimit,
+                        })}
                       </span>
                     </td>
 
                     <td className="px-4 py-4">
                       <div className="w-36">
                         <div className="mb-1.5 flex justify-between text-xs">
-                          <span>{row.cvUsed.toLocaleString("vi-VN")} lượt</span>
+                          <span>
+                            {t("master.ops.systemWorkspace.quotas.cvUsedCount", {
+                              count: formatNumber(row.cvUsed, undefined, locale),
+                            })}
+                          </span>
                           <strong
                             className={
                               row.cvLimit === 0
@@ -784,9 +830,9 @@ function AiQuotaManagementView() {
                             }
                           >
                             {row.cvLimit < 0
-                              ? "Không giới hạn"
+                              ? t("master.ops.systemWorkspace.quotas.unlimited")
                               : row.cvLimit === 0
-                              ? "Khóa (0)"
+                              ? t("master.ops.systemWorkspace.quotas.lockedZero")
                               : `${cvPercent}%`}
                           </strong>
                         </div>
@@ -822,7 +868,9 @@ function AiQuotaManagementView() {
                         onChange={(e) =>
                           updateLocalLimit(row.tenantId, "cvLimit", Number(e.target.value))
                         }
-                        aria-label={`Hạn mức CV của ${row.tenantName}`}
+                        aria-label={t("master.ops.systemWorkspace.quotas.cvLimitAria", {
+                          name: row.tenantName,
+                        })}
                         className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
@@ -841,7 +889,9 @@ function AiQuotaManagementView() {
                         {row.interviewHoursUsed} /{" "}
                         {row.interviewHoursLimit < 0
                           ? "∞"
-                          : `${row.interviewHoursLimit} giờ`}
+                          : t("master.ops.systemWorkspace.quotas.interviewHoursUnit", {
+                              hours: row.interviewHoursLimit,
+                            })}
                       </span>
                     </td>
 
@@ -857,7 +907,9 @@ function AiQuotaManagementView() {
                             Number(e.target.value)
                           )
                         }
-                        aria-label={`Hạn mức giờ phỏng vấn AI của ${row.tenantName}`}
+                        aria-label={t("master.ops.systemWorkspace.quotas.interviewLimitAria", {
+                          name: row.tenantName,
+                        })}
                         className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
@@ -875,12 +927,16 @@ function AiQuotaManagementView() {
                               Number(e.target.value)
                             )
                           }
-                          aria-label={`Giới hạn lượt gọi mỗi phút của ${row.tenantName}`}
+                          aria-label={t("master.ops.systemWorkspace.quotas.rpmLimitAria", {
+                            name: row.tenantName,
+                          })}
                           className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                         />
                         <span className="text-[10px] text-slate-400">
-                          Phút này: {row.currentMinuteRpm ?? 0} lượt ·{" "}
-                          {(row.currentMinuteTpm ?? 0).toLocaleString("vi-VN")} token
+                          {t("master.ops.systemWorkspace.quotas.currentMinuteUsage", {
+                            rpm: row.currentMinuteRpm ?? 0,
+                            tpm: formatNumber(row.currentMinuteTpm ?? 0, undefined, locale),
+                          })}
                         </span>
                       </div>
                     </td>
@@ -903,7 +959,9 @@ function AiQuotaManagementView() {
                           )}
                         >
                           <Save className="size-3.5" />
-                          {savedId === row.tenantId ? "Đã lưu" : "Lưu"}
+                          {savedId === row.tenantId
+                            ? t("master.ops.systemWorkspace.quotas.savedBtn")
+                            : t("master.ops.systemWorkspace.quotas.saveBtn")}
                         </button>
 
                         {isOverridden && (
@@ -911,7 +969,7 @@ function AiQuotaManagementView() {
                             type="button"
                             disabled={savingId === row.tenantId}
                             onClick={() => handleResetToPlan(row)}
-                            title="Khôi phục về hạn mức gốc của gói"
+                            title={t("master.ops.systemWorkspace.quotas.resetBtnTitle")}
                             className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                           >
                             <RotateCcw className="size-3.5" />
@@ -924,8 +982,8 @@ function AiQuotaManagementView() {
                           onClick={() => handleToggleKillSwitch(row)}
                           title={
                             row.aiKillSwitch
-                              ? "Mở khóa lại AI cho doanh nghiệp này"
-                              : "Khóa khẩn cấp toàn bộ tính năng AI của doanh nghiệp này"
+                              ? t("master.ops.systemWorkspace.quotas.unlockAiTitle")
+                              : t("master.ops.systemWorkspace.quotas.lockAiTitle")
                           }
                           className={cn(
                             "inline-flex min-h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-semibold transition-colors",
@@ -935,7 +993,9 @@ function AiQuotaManagementView() {
                           )}
                         >
                           <PowerOff className="size-3.5" />
-                          {row.aiKillSwitch ? "Mở AI" : "Khóa AI"}
+                          {row.aiKillSwitch
+                            ? t("master.ops.systemWorkspace.quotas.unlockAiBtn")
+                            : t("master.ops.systemWorkspace.quotas.killSwitchBtn")}
                         </button>
                       </div>
                     </td>

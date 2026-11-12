@@ -1,5 +1,6 @@
 import React from "react";
 import { X, KeyRound, XCircle } from "lucide-react";
+import { useT } from "@/i18n";
 
 interface ChangePasswordModalProps {
   showPasswordModal: boolean;
@@ -28,13 +29,16 @@ export function ChangePasswordModal({
   passwordLoading,
   handleChangePasswordSubmit,
 }: ChangePasswordModalProps) {
+  const t = useT();
   if (!showPasswordModal) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative animate-fade-in">
         <button
+          type="button"
           onClick={() => setShowPasswordModal(false)}
+          aria-label={t("master.ops.account.passwordModal.closeAria")}
           className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
         >
           <X className="w-5 h-5" />
@@ -44,8 +48,8 @@ export function ChangePasswordModal({
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Đổi Mật Khẩu Quản Trị</h3>
-            <span className="text-xs text-slate-500">Cập nhật mật khẩu bảo vệ Master Admin</span>
+            <h3 className="text-lg font-bold text-slate-900">{t("master.ops.account.passwordModal.title")}</h3>
+            <span className="text-xs text-slate-500">{t("master.ops.account.passwordModal.subtitle")}</span>
           </div>
         </div>
 
@@ -58,7 +62,7 @@ export function ChangePasswordModal({
 
         <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Mật khẩu hiện tại *</label>
+            <label className="block font-semibold text-slate-700 mb-1">{t("master.ops.account.passwordModal.currentPasswordLabel")}</label>
             <input
               type="password"
               required
@@ -70,7 +74,7 @@ export function ChangePasswordModal({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Mật khẩu mới (Tối thiểu 12 ký tự) *</label>
+            <label className="block font-semibold text-slate-700 mb-1">{t("master.ops.account.passwordModal.newPasswordLabel")}</label>
             <input
               type="password"
               required
@@ -82,7 +86,7 @@ export function ChangePasswordModal({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Xác nhận mật khẩu mới *</label>
+            <label className="block font-semibold text-slate-700 mb-1">{t("master.ops.account.passwordModal.confirmPasswordLabel")}</label>
             <input
               type="password"
               required
@@ -99,14 +103,16 @@ export function ChangePasswordModal({
               onClick={() => setShowPasswordModal(false)}
               className="w-1/2 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
             >
-              Hủy bỏ
+              {t("master.ops.account.passwordModal.cancelBtn")}
             </button>
             <button
               type="submit"
               disabled={passwordLoading}
               className="w-1/2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50"
             >
-              {passwordLoading ? "Đang cập nhật..." : "Lưu mật khẩu"}
+              {passwordLoading
+                ? t("master.ops.account.passwordModal.updatingBtn")
+                : t("master.ops.account.passwordModal.saveBtn")}
             </button>
           </div>
         </form>

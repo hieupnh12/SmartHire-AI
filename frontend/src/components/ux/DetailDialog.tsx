@@ -1,4 +1,5 @@
 import { button } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
@@ -16,6 +17,7 @@ export function DetailDialog({
   size?: "default" | "wide";
   children: ReactNode;
 }) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -50,7 +52,7 @@ export function DetailDialog({
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border-default)] px-7 pb-4 pt-6">
           <h2 id="detail-dialog-title" className="min-w-0 py-0.5 text-lg font-semibold leading-7 text-[var(--color-on-surface)]">{title}</h2>
-          <button className={button} type="button" onClick={onClose}>Đóng</button>
+          <button className={button} type="button" onClick={onClose}>{t("common.close")}</button>
         </header>
         <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", size === "wide" ? "px-7 pb-10 pt-5" : "px-6 pb-8 pt-4")}>{children}</div>
       </div>

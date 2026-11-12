@@ -38,7 +38,11 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
         TenantInfo tenant = currentTenant();
         companyProfileMapper.updateEntity(request, tenant);
         TenantInfo saved = tenantInfoRepository.save(tenant);
-        redisService.delete(RedisKeys.landingPage(saved.getCode()));
+        try {
+            redisService.delete(RedisKeys.landingPage(saved.getCode()));
+        } catch (RuntimeException ex) {
+            log.warn("Unable to invalidate landing cache for tenant '{}'; continuing without cache", saved.getCode());
+        }
         log.info("Company profile updated for tenant '{}'", saved.getCode());
         return companyProfileMapper.toCompanyProfileResponse(saved);
     }

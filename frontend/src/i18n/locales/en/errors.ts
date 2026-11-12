@@ -1,0 +1,28 @@
+export const errorsEn = {
+  requestFailed: "Unable to complete the request. Please try again.",
+  actionFailed: "Unable to complete the action. Please try again.",
+  timeout: "The server took too long to respond. The action may still be running — please wait a moment and reload.",
+  network: "Unable to connect to the server. Please check your network and try again.",
+  forbidden: "You do not have permission to perform this action.",
+  notFound: "The requested resource was not found.",
+  interviewConnectFailed: "Unable to connect to the interview conversation (HTTP {status}). Please try again.",
+  interviewInterrupted: "Connection was interrupted. Click resend to resume the same turn.",
+  interviewAiTimeout: "AI took too long to respond. Click resend to resume the same turn; your answer was preserved.",
+  aiQuestionGenFailed: "Failed to generate questions with AI",
+  subscriptionCreated: "Subscription plan created successfully!",
+  subscriptionUpdated: "Subscription plan updated successfully!",
+  subscriptionStatusUpdated: "Subscription plan status updated successfully!",
+  codes: {
+    AI_INTERVIEW_PROVIDER_OVERLOADED: "The AI interview service is currently overloaded. Please try again later.",
+    AI_INTERVIEW_PROVIDER_TIMEOUT: "The AI service took too long to respond. Please try again later.",
+    AI_INTERVIEW_PROVIDER_UNAVAILABLE: "Could not reach the AI interview service. Please try again later or contact support.",
+    AI_INTERVIEW_PROVIDER_RATE_LIMITED: "The AI service rate limit has been reached. Please try again later.",
+    AI_INTERVIEW_PROVIDER_AUTH_FAILED: "The AI service rejected authentication. Please contact support to check configuration.",
+    AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND: "The configured AI interview model is unavailable. Please contact support.",
+    AI_INTERVIEW_LOCKED: "This session is locked. Only unstarted sessions in created, ready, or error state can be deleted.",
+    INTERNAL_ERROR: "A temporary system error occurred. Please try again in a few minutes.",
+    VALIDATION_ERROR: "Some submitted information is invalid. Please review and try again.",
+    BAD_REQUEST: "Invalid request. Please check your input.",
+  },
+} as const;
+

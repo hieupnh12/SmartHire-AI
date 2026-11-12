@@ -1,3 +1,4 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
 import type { RankingBoard } from "../types/ranking";
 
 const candidates = [
@@ -10,58 +11,74 @@ const candidates = [
 
 export const PREVIEW_JOB_ID = 9001;
 
-export const rankingPreview: RankingBoard = {
-  jobId: PREVIEW_JOB_ID,
-  jobTitle: "Java Backend Developer (Mid–Senior)",
-  rankingVersion: "rank-v1:preview",
-  calculatedAt: new Date().toISOString(),
-  skillCategories: ["backend", "database", "devops"],
-  config: {
-    weights: { skills: 35, experience: 15, assessment: 30, interview: 20 },
-    groups: { backend: 50, database: 25, devops: 25 },
-    requiredExperienceMonths: 36,
-    revision: 4,
-  },
-  rows: candidates.map((candidate) => {
-    const score = Number(((candidate.skills * 35 + candidate.experience * 15 + candidate.assessment * 30 + candidate.interview * 20) / 100).toFixed(2));
-    return {
-      applicationId: candidate.id,
-      candidateName: candidate.name,
-      status: candidate.status,
-      rank: candidate.rank,
-      result: {
-        score,
-        availableWeight: 100,
-        completedComponents: 4,
-        requiredComponents: 4,
-        cohort: "skills+experience+assessment+interview",
-        complete: true,
-        components: [
-          { key: "skills", score: candidate.skills, weight: 35, contribution: candidate.skills * 0.35, state: "READY" },
-          { key: "experience", score: candidate.experience, weight: 15, contribution: candidate.experience * 0.15, state: "READY" },
-          { key: "assessment", score: candidate.assessment, weight: 30, contribution: candidate.assessment * 0.3, state: "READY" },
-          { key: "interview", score: candidate.interview, weight: 20, contribution: candidate.interview * 0.2, state: "READY" },
+export function getRankingPreview(translate: TranslateFn = globalT): RankingBoard {
+  return {
+    jobId: PREVIEW_JOB_ID,
+    jobTitle: translate("recruiter.screening.preview.ranking.jobTitle"),
+    rankingVersion: "rank-v1:preview",
+    calculatedAt: new Date().toISOString(),
+    skillCategories: ["backend", "database", "devops"],
+    config: {
+      weights: { skills: 35, experience: 15, assessment: 30, interview: 20 },
+      groups: { backend: 50, database: 25, devops: 25 },
+      requiredExperienceMonths: 36,
+      revision: 4,
+    },
+    rows: candidates.map((candidate) => {
+      const score = Number(((candidate.skills * 35 + candidate.experience * 15 + candidate.assessment * 30 + candidate.interview * 20) / 100).toFixed(2));
+      return {
+        applicationId: candidate.id,
+        candidateName: candidate.name,
+        status: candidate.status,
+        rank: candidate.rank,
+        result: {
+          score,
+          availableWeight: 100,
+          completedComponents: 4,
+          requiredComponents: 4,
+          cohort: "skills+experience+assessment+interview",
+          complete: true,
+          components: [
+            { key: "skills", score: candidate.skills, weight: 35, contribution: candidate.skills * 0.35, state: "READY" },
+            { key: "experience", score: candidate.experience, weight: 15, contribution: candidate.experience * 0.15, state: "READY" },
+            { key: "assessment", score: candidate.assessment, weight: 30, contribution: candidate.assessment * 0.3, state: "READY" },
+            { key: "interview", score: candidate.interview, weight: 20, contribution: candidate.interview * 0.2, state: "READY" },
+          ],
+        },
+        groups: [
+          {
+            category: "backend",
+            weight: 50,
+            score: candidate.skills,
+            coverage: candidate.skills,
+            matches: [
+              { requiredSkill: "Java", candidateSkill: "Java", similarity: 1, required: true, evidence: "Java, Spring Boot, REST API" },
+              {
+                requiredSkill: "Spring Boot",
+                candidateSkill: "Spring Boot",
+                similarity: 1,
+                required: true,
+                evidence: translate("recruiter.screening.preview.ranking.springEvidence"),
+              },
+            ],
+          },
         ],
-      },
-      groups: [
-        { category: "backend", weight: 50, score: candidate.skills, coverage: candidate.skills, matches: [
-          { requiredSkill: "Java", candidateSkill: "Java", similarity: 1, required: true, evidence: "Java, Spring Boot, REST API" },
-          { requiredSkill: "Spring Boot", candidateSkill: "Spring Boot", similarity: 1, required: true, evidence: "Phát triển microservices với Spring Boot" },
-        ] },
-      ],
-      missingRequired: [],
-      experienceMonths: Math.round(candidate.experience * 0.6),
-      experienceEvidence: ["Kinh nghiệm backend Java và kiến trúc microservices."],
-      notices: ["PREVIEW_DATA"],
-      sources: { cvId: candidate.id + 1000, submissionId: candidate.id + 2000, aiInterviewId: candidate.id + 3000 },
-      interviewFeedback: "Giao tiếp rõ ràng, có tư duy hệ thống và xử lý tình huống tốt.",
-      timeline: [
-        { type: "APPLICATION_RECEIVED", occurredAt: null },
-        { type: "CV_ANALYZED", occurredAt: null },
-        { type: "ASSESSMENT_GRADED", occurredAt: null },
-        { type: "INTERVIEW_SCORED", occurredAt: null },
-      ],
-      insight: { recommendation: "ADVANCE", strengths: ["STRONG_SKILLS", "STRONG_ASSESSMENT", "STRONG_INTERVIEW"], risks: [], questions: ["VERIFY_SKILL:System design"] },
-    };
-  }),
-};
+        missingRequired: [],
+        experienceMonths: Math.round(candidate.experience * 0.6),
+        experienceEvidence: [translate("recruiter.screening.preview.ranking.expEvidence")],
+        notices: ["PREVIEW_DATA"],
+        sources: { cvId: candidate.id + 1000, submissionId: candidate.id + 2000, aiInterviewId: candidate.id + 3000 },
+        interviewFeedback: translate("recruiter.screening.preview.ranking.interviewFeedback"),
+        timeline: [
+          { type: "APPLICATION_RECEIVED", occurredAt: null },
+          { type: "CV_ANALYZED", occurredAt: null },
+          { type: "ASSESSMENT_GRADED", occurredAt: null },
+          { type: "INTERVIEW_SCORED", occurredAt: null },
+        ],
+        insight: { recommendation: "ADVANCE", strengths: ["STRONG_SKILLS", "STRONG_ASSESSMENT", "STRONG_INTERVIEW"], risks: [], questions: ["VERIFY_SKILL:System design"] },
+      };
+    }),
+  };
+}
+
+export const rankingPreview: RankingBoard = getRankingPreview(globalT);

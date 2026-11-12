@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { jobAssignmentsApi, type JobAssignment } from "@/api/tenant/jobAssignmentsApi";
 import { usersApi } from "@/api/tenant/usersApi";
 import { Button } from "@/components/ux/Button";
+import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import {
@@ -30,6 +31,7 @@ export function JobPermissionsModal({
   isOpen,
   onClose,
 }: JobPermissionsModalProps) {
+  const t = useT();
   const queryClient = useQueryClient();
 
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -80,13 +82,13 @@ export function JobPermissionsModal({
         canEdit: newCanEdit,
       }),
     onSuccess: () => {
-      toast.success("Đã thêm quyền cho nhân viên");
+      toast.success(t("recruiter.ops.jobs.permissionsModal.addSuccess"));
       setSelectedUserId("");
       setNewCanView(true);
       setNewCanEdit(false);
       void queryClient.invalidateQueries({ queryKey });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không thêm được quyền")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("recruiter.ops.jobs.permissionsModal.addError"))),
   });
 
   const updateMutation = useMutation({
@@ -100,19 +102,19 @@ export function JobPermissionsModal({
       canEdit: boolean;
     }) => jobAssignmentsApi.updatePermissions(jobId, userId, { canView, canEdit }),
     onSuccess: () => {
-      toast.success("Đã cập nhật quyền");
+      toast.success(t("recruiter.ops.jobs.permissionsModal.updateSuccess"));
       void queryClient.invalidateQueries({ queryKey });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không cập nhật được quyền")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("recruiter.ops.jobs.permissionsModal.updateError"))),
   });
 
   const removeMutation = useMutation({
     mutationFn: (userId: number) => jobAssignmentsApi.remove(jobId, userId),
     onSuccess: () => {
-      toast.success("Đã thu hồi quyền");
+      toast.success(t("recruiter.ops.jobs.permissionsModal.removeSuccess"));
       void queryClient.invalidateQueries({ queryKey });
     },
-    onError: (err) => toast.danger(getApiErrorMessage(err, "Không thu hồi được quyền")),
+    onError: (err) => toast.danger(getApiErrorMessage(err, t("recruiter.ops.jobs.permissionsModal.removeError"))),
   });
 
   if (!isOpen) return null;
@@ -133,16 +135,18 @@ export function JobPermissionsModal({
             </div>
             <div>
               <h2 id="job-permissions-title" className="text-lg font-semibold text-slate-900">
-                Phân quyền tin tuyển dụng
+                {t("recruiter.ops.jobs.permissionsModal.title")}
               </h2>
               <p className="text-xs text-slate-500 truncate max-w-md">
-                Vị trí: <span className="font-medium text-slate-700">{jobTitle}</span>
+                {t("recruiter.ops.jobs.permissionsModal.jobSubtitlePrefix")}{" "}
+                <span className="font-medium text-slate-700">{jobTitle}</span>
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label={t("recruiter.ops.jobs.permissionsModal.closeAria")}
             className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <X className="size-5" />
@@ -155,7 +159,7 @@ export function JobPermissionsModal({
           <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
             <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
               <UserPlus className="size-4 text-blue-600" />
-              Thêm nhân viên được phân quyền
+              {t("recruiter.ops.jobs.permissionsModal.addMemberTitle")}
             </h3>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
               <select
@@ -166,10 +170,10 @@ export function JobPermissionsModal({
               >
                 <option value="">
                   {loadingUsers
-                    ? "Đang tải danh sách nhân viên..."
+                    ? t("recruiter.ops.jobs.permissionsModal.loadingUsers")
                     : availableStaff.length === 0
-                    ? "Không còn nhân sự khả dụng"
-                    : "-- Chọn nhân viên --"}
+                    ? t("recruiter.ops.jobs.permissionsModal.noAvailableStaff")
+                    : t("recruiter.ops.jobs.permissionsModal.selectStaffPlaceholder")}
                 </option>
                 {availableStaff.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -186,7 +190,7 @@ export function JobPermissionsModal({
                     onChange={(e) => setNewCanView(e.target.checked)}
                     className="size-4 rounded accent-blue-600"
                   />
-                  <span>Xem</span>
+                  <span>{t("recruiter.ops.jobs.permissionsModal.permView")}</span>
                 </label>
 
                 <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
@@ -200,7 +204,7 @@ export function JobPermissionsModal({
                     }}
                     className="size-4 rounded accent-blue-600"
                   />
-                  <span>Chỉnh sửa</span>
+                  <span>{t("recruiter.ops.jobs.permissionsModal.permEdit")}</span>
                 </label>
               </div>
 
@@ -214,7 +218,7 @@ export function JobPermissionsModal({
                 {addMutation.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  "Cấp quyền"
+                  t("recruiter.ops.jobs.permissionsModal.grantBtn")
                 )}
               </Button>
             </div>
@@ -225,18 +229,18 @@ export function JobPermissionsModal({
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                 <Users className="size-4 text-slate-600" />
-                Danh sách người dùng có quyền ({assignments.length})
+                {t("recruiter.ops.jobs.permissionsModal.membersCountTitle", { count: assignments.length })}
               </h3>
             </div>
 
             {loadingAssignments ? (
               <div className="py-8 text-center text-sm text-slate-400">
                 <Loader2 className="size-6 animate-spin mx-auto mb-2 text-blue-600" />
-                Đang tải danh sách phân quyền...
+                {t("recruiter.ops.jobs.permissionsModal.loadingAssignments")}
               </div>
             ) : assignments.length === 0 ? (
               <div className="py-8 text-center text-sm text-slate-500 rounded-xl border border-dashed border-slate-200">
-                Chưa có nhân viên nào được cấp quyền cụ thể trên tin này.
+                {t("recruiter.ops.jobs.permissionsModal.emptyAssignments")}
               </div>
             ) : (
               <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -259,7 +263,7 @@ export function JobPermissionsModal({
                             {isCreator && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200">
                                 <Crown className="size-3" />
-                                Người tạo
+                                {t("recruiter.ops.jobs.permissionsModal.creatorBadge")}
                               </span>
                             )}
                           </div>
@@ -270,7 +274,7 @@ export function JobPermissionsModal({
                       <div className="flex items-center gap-4 self-end sm:self-center">
                         {isCreator ? (
                           <span className="text-xs text-slate-500 font-medium px-2 py-1 bg-slate-100 rounded-lg">
-                            Toàn quyền (Xem & Sửa)
+                            {t("recruiter.ops.jobs.permissionsModal.fullAccessBadge")}
                           </span>
                         ) : (
                           <>
@@ -291,7 +295,7 @@ export function JobPermissionsModal({
                                 className="size-4 rounded accent-blue-600"
                               />
                               <Eye className="size-3.5 text-slate-500" />
-                              <span>Xem</span>
+                              <span>{t("recruiter.ops.jobs.permissionsModal.permView")}</span>
                             </label>
 
                             {/* Toggle canEdit */}
@@ -311,13 +315,14 @@ export function JobPermissionsModal({
                                 className="size-4 rounded accent-blue-600"
                               />
                               <Pencil className="size-3.5 text-slate-500" />
-                              <span>Sửa</span>
+                              <span>{t("recruiter.ops.jobs.permissionsModal.permEditShort")}</span>
                             </label>
 
                             {/* Remove button */}
                             <button
                               type="button"
-                              title="Thu hồi quyền"
+                              title={t("recruiter.ops.jobs.permissionsModal.revokeTitle")}
+                              aria-label={t("recruiter.ops.jobs.permissionsModal.revokeTitle")}
                               disabled={removeMutation.isPending}
                               onClick={() => removeMutation.mutate(member.userId)}
                               className="size-8 inline-flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
@@ -338,7 +343,7 @@ export function JobPermissionsModal({
         {/* Footer */}
         <div className="flex items-center justify-end border-t border-[var(--color-border-default)] px-6 py-3 bg-slate-50/50">
           <Button type="button" variant="secondary" size="sm" onClick={onClose}>
-            Đóng
+            {t("recruiter.ops.common.close")}
           </Button>
         </div>
       </div>

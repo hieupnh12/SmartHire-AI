@@ -1,14 +1,18 @@
+import { formatNumber, type Locale } from "@/i18n";
+
 export interface FormatQuotaOptions {
   monthly?: boolean;
   unsupportedLabel?: string;
   unlimitedLabel?: string;
+  monthlySuffix?: string;
+  locale?: Locale;
 }
 
 /**
  * Unified plan quota formatter matching backend enforcement:
  * - null / undefined / < 0 -> unlimited
  * - 0 -> unsupported
- * - > 0 -> vi-VN formatted number + unit (+ optional /tháng)
+ * - > 0 -> locale-formatted number + unit (+ optional monthly suffix)
  */
 export function formatQuotaLimit(
   value: number | null | undefined,
@@ -19,6 +23,8 @@ export function formatQuotaLimit(
     monthly = false,
     unsupportedLabel = "Không hỗ trợ",
     unlimitedLabel = "Không giới hạn",
+    monthlySuffix = "/tháng",
+    locale = "vi",
   } = options;
 
   if (value === null || value === undefined || value < 0) {
@@ -28,7 +34,7 @@ export function formatQuotaLimit(
     return unsupportedLabel;
   }
 
-  const formatted = value.toLocaleString("vi-VN");
+  const formatted = formatNumber(value, undefined, locale);
   const base = unit ? `${formatted} ${unit}` : formatted;
-  return monthly ? `${base}/tháng` : base;
+  return monthly ? `${base}${monthlySuffix}` : base;
 }

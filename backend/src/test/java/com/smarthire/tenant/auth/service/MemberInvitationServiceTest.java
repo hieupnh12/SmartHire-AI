@@ -14,11 +14,13 @@ import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
+import com.smarthire.tenant.auth.dto.PendingInvitationResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
 import com.smarthire.tenant.company.service.CompanyEmailSettingService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -217,6 +219,73 @@ class MemberInvitationServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> memberInvitationService.accept(
                 AcceptInvitationRequest.builder().token("nope").password("secret123").build()));
         assertEquals("INVITE_INVALID", ex.getCode());
+    }
+
+    @Test
+    void list_FiltersByStatusAndComputesExpired() {
+        MemberInvitation active = new MemberInvitation();
+        active.setId(1L);
+        active.setEmail("a@se36.com");
+        active.setFullName("A");
+        active.setRole("HR");
+        active.setStatus(InvitationStatus.PENDING);
+        active.setExpiresAt(Instant.now().plus(2, ChronoUnit.HOURS));
+
+        MemberInvitation expired = new MemberInvitation();
+        expired.setId(2L);
+        expired.setEmail("b@se36.com");
+        expired.setFullName("B");
+        expired.setRole("RECRUITER");
+        expired.setStatus(InvitationStatus.PENDING);
+        expired.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
+
+        when(invitationRepository.findByStatusOrderByCreatedAtDesc(InvitationStatus.PENDING))
+                .thenReturn(List.of(active, expired));
+
+        List<PendingInvitationResponse> rows = memberInvitationService.list("PENDING");
+
+        assertEquals(2, rows.size());
+        assertEquals(false, rows.get(0).isExpired());
+        assertEquals(true, rows.get(1).isExpired());
+    }
+
+    @Test
+    void resend_PendingInvitation_RotatesTokenAndSendsEmail() {
+        MemberInvitation inv = new MemberInvitation();
+        inv.setId(5L);
+        inv.setEmail("hr@se36.com");
+        inv.setFullName("HR");
+        inv.setRole("HR");
+        inv.setTokenHash("old-hash");
+        inv.setStatus(InvitationStatus.PENDING);
+        inv.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
+
+        when(invitationRepository.findById(5L)).thenReturn(Optional.of(inv));
+        when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
+        when(tenantRoleService.requireAssignable("HR")).thenReturn(role("HR", "HR", RoleWorkspace.RECRUITER));
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(false);
+        when(inviteMailSender.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        InviteMemberResponse res = memberInvitationService.resend(5L);
+
+        assertTrue(res.isEmailSent());
+        org.junit.jupiter.api.Assertions.assertNotEquals("old-hash", inv.getTokenHash());
+        assertTrue(inv.getExpiresAt().isAfter(Instant.now()));
+    }
+
+    @Test
+    void revoke_PendingInvitation_MarksRevoked() {
+        MemberInvitation inv = new MemberInvitation();
+        inv.setId(6L);
+        inv.setStatus(InvitationStatus.PENDING);
+        when(invitationRepository.findById(6L)).thenReturn(Optional.of(inv));
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+
+        memberInvitationService.revoke(6L);
+
+        assertEquals(InvitationStatus.REVOKED, inv.getStatus());
+        verify(invitationRepository).save(inv);
     }
 
     private static TenantRole role(String code, String name, RoleWorkspace workspace) {

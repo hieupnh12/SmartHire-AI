@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet } from "react-router-dom";
 import { landingApi } from "@/api/tenant/landingApi";
 import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
+import { getLandingThemeStyle, getTenantTheme } from "@/lib/tenantTheme";
 import { CareerHeader } from "./CareerHeader";
 
 export function CareerNavigationLayout() {
@@ -16,17 +16,7 @@ export function CareerNavigationLayout() {
   });
   const customLanding = landing.data?.data;
   const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
-  const primaryHover = customLanding?.theme?.primaryHover || theme.primaryHover;
-  const secondaryColor = customLanding?.theme?.secondaryColor || "#505f76";
-  const dynamicThemeStyle = {
-    ...getTenantThemeStyle(theme),
-    "--color-primary": primaryColor,
-    "--color-primary-hover": primaryHover,
-    "--color-brand-primary": primaryColor,
-    "--color-brand-primary-hover": primaryHover,
-    "--color-secondary": secondaryColor,
-    "--color-brand-secondary": secondaryColor,
-  } as React.CSSProperties;
+  const dynamicThemeStyle = getLandingThemeStyle(theme, customLanding);
 
   return (
     <div

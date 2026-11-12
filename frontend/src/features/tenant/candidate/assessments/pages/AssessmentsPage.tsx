@@ -16,6 +16,8 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { Button } from "@/components/ux/Button";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
+import { getAssessmentStatusLabel } from "@/components/ux/assessmentUi";
+import { useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { isDemoAssessmentTitle, shortAssessmentTitle } from "@/lib/assessmentTitle";
@@ -33,15 +35,8 @@ const STATUS_TONE: Record<string, string> = {
   EXPIRED: "bg-red-50 text-red-700",
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Chưa làm",
-  IN_PROGRESS: "Đang làm bài",
-  SUBMITTED: "Đã nộp",
-  GRADED: "Đã chấm",
-  EXPIRED: "Hết hạn",
-};
-
 export function AssessmentsPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const filterAppId = Number(params.get("applicationId")) || 0;
@@ -109,19 +104,19 @@ export function AssessmentsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">
-              Vòng đánh giá kỹ thuật
+              {t("candidate.assess.assessmentsList.eyebrow")}
             </p>
             <h1 id="assessments-title" className="mt-2 text-3xl font-semibold tracking-tight">
-              Bài đánh giá
+              {t("candidate.assess.assessmentsList.title")}
             </h1>
             <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Đề mẫu [Demo UI] dùng để xem giao diện và có thể làm lại nhiều lần, không tính vào kết quả hồ sơ.
+              {t("candidate.assess.assessmentsList.subtitle")}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Metric value={invitations.length} label="Lời mời" />
-            <Metric value={ready} label="Cần thực hiện" />
-            <Metric value={completed} label="Đã hoàn tất" />
+            <Metric value={invitations.length} label={t("candidate.assess.assessmentsList.metricInvitations")} />
+            <Metric value={ready} label={t("candidate.assess.assessmentsList.metricReady")} />
+            <Metric value={completed} label={t("candidate.assess.assessmentsList.metricCompleted")} />
           </div>
         </div>
       </header>
@@ -129,8 +124,8 @@ export function AssessmentsPage() {
       <div className="flex items-start gap-3 rounded-2xl border border-[var(--color-primary)]/15 bg-[var(--color-primary-subtle)] p-4 text-sm">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
         <p className="leading-6 text-[var(--color-on-surface-variant)]">
-          <strong className="text-[var(--color-on-surface)]">Trước khi bắt đầu:</strong> mở lời mời để đọc
-          quy chế và hoàn tất kiểm tra thiết bị. Đồng hồ chỉ chạy sau khi bạn vào phòng thi.
+          <strong className="text-[var(--color-on-surface)]">{t("candidate.assess.assessmentsList.beforeStartStrong")}</strong>{" "}
+          {t("candidate.assess.assessmentsList.beforeStartBody")}
         </p>
       </div>
 
@@ -151,13 +146,13 @@ export function AssessmentsPage() {
             }}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
-            Thử lại
+            {t("candidate.assess.common.retry")}
           </Button>
         </div>
       )}
 
       {(applications.isPending || testsLoading) && (
-        <LoadingState className="grid gap-4 lg:grid-cols-2" label="Đang tải lời mời bài đánh giá">
+        <LoadingState className="grid gap-4 lg:grid-cols-2" label={t("candidate.assess.assessmentsList.loadingLabel")}>
           {[0, 1, 2, 3].map((item) => (
             <SkeletonCard key={item} className="min-h-72" />
           ))}
@@ -168,9 +163,9 @@ export function AssessmentsPage() {
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
           <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
           <div>
-            <p className="font-semibold">Chưa có đề được nhà tuyển dụng giao</p>
+            <p className="font-semibold">{t("candidate.assess.assessmentsList.emptyTitle")}</p>
             <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Đề chính thức sẽ xuất hiện khi hồ sơ ứng tuyển của bạn vượt qua vòng lọc CV.
+              {t("candidate.assess.assessmentsList.emptyDesc")}
             </p>
           </div>
         </div>
@@ -198,10 +193,12 @@ function AssessmentCard({
   invitation: Invitation;
   onAction: () => void;
 }) {
+  const t = useT();
   const { application, test } = invitation;
   const status = (test.submissionStatus ?? "NOT_STARTED") as SubmissionStatus | "NOT_STARTED";
+  const statusLabel = getAssessmentStatusLabel(status, t);
   const demo = isDemoAssessmentTitle(test.title);
-  const action = actionLabel(status, demo);
+  const action = actionLabel(status, demo, t);
 
   return (
     <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]">
@@ -214,7 +211,7 @@ function AssessmentCard({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">
-                  Lời mời Assessment
+                  {t("candidate.assess.assessmentsList.cardEyebrow")}
                 </p>
                 <h2 className="mt-1 break-words text-lg font-semibold leading-6">
                   {shortAssessmentTitle(application.jobTitle, test.title)}
@@ -226,24 +223,28 @@ function AssessmentCard({
               <span
                 className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[status] ?? STATUS_TONE.NOT_STARTED}`}
               >
-                {STATUS_LABEL[status] ?? STATUS_LABEL.NOT_STARTED}
+                {statusLabel}
               </span>
             </div>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 text-sm sm:grid-cols-2">
-          <Fact icon={Clock3} label="Thời lượng" value={`${test.durationMinutes} phút`} />
+          <Fact
+            icon={Clock3}
+            label={t("candidate.assess.assessmentsList.durationLabel")}
+            value={t("candidate.assess.common.minutes", { count: test.durationMinutes })}
+          />
           <Fact
             icon={Trophy}
-            label="Ngưỡng đạt"
-            value={test.passingScore != null ? String(test.passingScore) : "Theo đề"}
+            label={t("candidate.assess.assessmentsList.passingScoreLabel")}
+            value={test.passingScore != null ? String(test.passingScore) : t("candidate.assess.assessmentsList.passingScoreByTest")}
           />
-          <Fact icon={FileSearch} label="Đơn ứng tuyển" value={`#${application.id}`} />
+          <Fact icon={FileSearch} label={t("candidate.assess.assessmentsList.applicationLabel")} value={`#${application.id}`} />
           <Fact
             icon={ClipboardCheck}
-            label="Trạng thái bài"
-            value={STATUS_LABEL[status] ?? "Chưa làm"}
+            label={t("candidate.assess.assessmentsList.statusLabel")}
+            value={statusLabel}
           />
         </div>
 
@@ -257,10 +258,10 @@ function AssessmentCard({
       <div className="flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <span className="text-xs text-[var(--color-on-surface-variant)]">
           {status === "NOT_STARTED" || !test.submissionStatus
-            ? "Xem lời mời, quy chế rồi kiểm tra thiết bị trước khi vào bài"
+            ? t("candidate.assess.assessmentsList.footerNotStarted")
             : status === "IN_PROGRESS"
-              ? "Bạn có thể tiếp tục phiên đang mở"
-              : "Xem kết quả hoặc mở lại lời mời"}
+              ? t("candidate.assess.assessmentsList.footerInProgress")
+              : t("candidate.assess.assessmentsList.footerDone")}
         </span>
         <button
           type="button"
@@ -306,10 +307,12 @@ function Fact({
   );
 }
 
-function actionLabel(status: SubmissionStatus | "NOT_STARTED", demo: boolean) {
-  if (status === "IN_PROGRESS") return "Tiếp tục làm bài";
+function actionLabel(status: SubmissionStatus | "NOT_STARTED", demo: boolean, t: TranslateFn) {
+  if (status === "IN_PROGRESS") return t("candidate.assess.assessmentsList.actionContinue");
   if (status === "SUBMITTED" || status === "GRADED" || status === "EXPIRED") {
-    return demo ? "Làm lại từ đầu" : "Xem kết quả";
+    return demo
+      ? t("candidate.assess.assessmentsList.actionRetake")
+      : t("candidate.assess.assessmentsList.actionViewResult");
   }
-  return "Xem lời mời";
+  return t("candidate.assess.assessmentsList.actionViewInvitation");
 }

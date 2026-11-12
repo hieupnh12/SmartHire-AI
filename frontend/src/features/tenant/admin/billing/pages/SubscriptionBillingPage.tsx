@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -31,16 +32,17 @@ import {
   formatSubscriptionStatusLabel,
   translatePlanFeatureLabel,
 } from "@/features/tenant/admin/billing/utils/billingLabels";
+import { formatDate, formatNumber, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 
-function formatDateVi(value?: string | null) {
+function formatDateSafe(value: string | null | undefined, locale: Locale) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("vi-VN");
+  return formatDate(d, undefined, locale);
 }
 
 function formatQuotaBytes(bytes: number): string {
@@ -50,17 +52,27 @@ function formatQuotaBytes(bytes: number): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
-function formatSecondsToHoursLabel(seconds: number): string {
+function formatSecondsToHoursLabel(seconds: number, t: TranslateFn): string {
   const hours = seconds / 3600;
-  if (hours > 0 && hours < 0.1) return `${Math.ceil(seconds / 60)} phút`;
-  return `${hours.toFixed(1)} giờ`;
+  if (hours > 0 && hours < 0.1) {
+    return t("tenantAdmin.billing.page.minutesShort", { minutes: Math.ceil(seconds / 60) });
+  }
+  return t("tenantAdmin.billing.page.hoursShort", { hours: hours.toFixed(1) });
 }
 
-function formatLimitLabel(value: number | undefined, unit: string): string {
+function formatLimitLabel(
+  value: number | undefined,
+  unit: string,
+  t: TranslateFn,
+  locale: Locale,
+): string {
   if (value == null) return "—";
-  if (value < 0) return "Không giới hạn";
-  if (value === 0) return `Không hỗ trợ (0 ${unit})`;
-  return `${value.toLocaleString("vi-VN")} ${unit}`;
+  if (value < 0) return t("tenantAdmin.billing.page.unlimited");
+  if (value === 0) return t("tenantAdmin.billing.page.unsupportedLimit", { unit });
+  return t("tenantAdmin.billing.page.limitValue", {
+    value: formatNumber(value, undefined, locale),
+    unit,
+  });
 }
 
 function parseFeaturesJson(raw?: string): string[] {
@@ -108,6 +120,8 @@ function SectionHelpTip({ content, label }: { content: string; label: string }) 
 }
 
 export function SubscriptionBillingPage() {
+  const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
 
@@ -125,6 +139,9 @@ export function SubscriptionBillingPage() {
     id: number;
     type?: string | null;
   } | null>(null);
+  const [searchParams] = useSearchParams();
+  const highlightedInvoice = searchParams.get("invoice")?.trim() ?? "";
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
@@ -138,6 +155,12 @@ export function SubscriptionBillingPage() {
 
   const sub = subQuery.data?.data;
   const publicPlans = plansQuery.data ?? [];
+
+  useEffect(() => {
+    if (highlightedInvoice && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedInvoice, sub?.invoices]);
 
   const previewQuery = useQuery({
     queryKey: ["tenant-subscription-change-preview", selectedPlanCode],
@@ -162,8 +185,8 @@ export function SubscriptionBillingPage() {
         : now;
     const next = new Date(base.getTime());
     next.setFullYear(next.getFullYear() + renewYears);
-    return next.toLocaleDateString("vi-VN");
-  }, [renewYears, sub?.endsAt, sub?.hasExplicitSubscription]);
+    return formatDate(next, undefined, locale);
+  }, [renewYears, sub?.endsAt, sub?.hasExplicitSubscription, locale]);
 
   const openNewestPendingInvoice = (invoices: TenantInvoiceItem[], preferredType?: string) => {
     const pending = invoices.filter((inv) => inv.status === "PENDING");
@@ -184,13 +207,13 @@ export function SubscriptionBillingPage() {
       await queryClient.invalidateQueries({ queryKey: ["tenant-subscription-quota"] });
       const opened = openNewestPendingInvoice(res.data?.invoices ?? [], "RENEWAL");
       toast.success(
-        "Đã tạo hóa đơn gia hạn",
+        t("tenantAdmin.billing.page.toasts.renewSuccessTitle"),
         opened
-          ? `Hóa đơn gia hạn ${renewYears} năm đã sẵn sàng. Vui lòng hoàn tất thanh toán.`
-          : `Đã ghi nhận yêu cầu gia hạn ${renewYears} năm.`,
+          ? t("tenantAdmin.billing.page.toasts.renewSuccessOpened", { years: renewYears })
+          : t("tenantAdmin.billing.page.toasts.renewSuccessRecorded", { years: renewYears }),
       );
     } catch (err) {
-      toast.error("Không thể tạo hóa đơn gia hạn", getApiErrorMessage(err));
+      toast.error(t("tenantAdmin.billing.page.toasts.renewErrorTitle"), getApiErrorMessage(err));
     } finally {
       setRenewing(false);
     }
@@ -200,8 +223,8 @@ export function SubscriptionBillingPage() {
     if (!sub) return;
     if (!sub.hasExplicitSubscription) {
       toast.info(
-        "Chưa có gói thuê bao trả phí",
-        "Doanh nghiệp đang sử dụng gói mặc định. Vui lòng gia hạn hoặc nâng cấp để bật tự động gia hạn.",
+        t("tenantAdmin.billing.page.toasts.noPaidSubTitle"),
+        t("tenantAdmin.billing.page.toasts.noPaidSubDesc"),
       );
       return;
     }
@@ -211,13 +234,15 @@ export function SubscriptionBillingPage() {
       const res = await companyApi.updateAutoRenew(nextValue);
       queryClient.setQueryData(["tenant-subscription-quota"], res);
       toast.success(
-        nextValue ? "Đã bật tự động gia hạn" : "Đã tắt tự động gia hạn",
         nextValue
-          ? "Hệ thống sẽ tự động chuẩn bị gia hạn khi gần hết chu kỳ."
-          : "Gói sẽ không tự động gia hạn khi kết thúc chu kỳ hiện tại.",
+          ? t("tenantAdmin.billing.page.toasts.autoRenewEnabledTitle")
+          : t("tenantAdmin.billing.page.toasts.autoRenewDisabledTitle"),
+        nextValue
+          ? t("tenantAdmin.billing.page.toasts.autoRenewEnabledDesc")
+          : t("tenantAdmin.billing.page.toasts.autoRenewDisabledDesc"),
       );
     } catch (err) {
-      toast.error("Không thể cập nhật tự động gia hạn", getApiErrorMessage(err));
+      toast.error(t("tenantAdmin.billing.page.toasts.autoRenewErrorTitle"), getApiErrorMessage(err));
     } finally {
       setTogglingAutoRenew(false);
     }
@@ -240,22 +265,29 @@ export function SubscriptionBillingPage() {
       if (preview.changeType === "UPGRADE" && preview.netAmountDue > 0) {
         openNewestPendingInvoice(res.data?.invoices ?? [], "UPGRADE");
         toast.info(
-          "Đã tạo hóa đơn nâng cấp gói",
-          `Vui lòng thanh toán ${preview.netAmountDue.toLocaleString("vi-VN")} ₫ để kích hoạt gói ${formatPlanDisplayName(preview.targetPlanName)}. Gói hiện tại vẫn được giữ nguyên trong lúc chờ thanh toán.`,
+          t("tenantAdmin.billing.page.toasts.upgradeInvoiceTitle"),
+          t("tenantAdmin.billing.page.toasts.upgradeInvoiceDesc", {
+            amount: formatNumber(preview.netAmountDue, undefined, locale),
+            plan: formatPlanDisplayName(preview.targetPlanName, t),
+          }),
         );
       } else if (preview.changeType === "UPGRADE") {
         toast.success(
-          "Nâng cấp gói thành công",
-          `Gói ${formatPlanDisplayName(preview.targetPlanName)} đã được kích hoạt ngay bằng số dư bù trừ từ gói trước.`,
+          t("tenantAdmin.billing.page.toasts.upgradeImmediateTitle"),
+          t("tenantAdmin.billing.page.toasts.upgradeImmediateDesc", {
+            plan: formatPlanDisplayName(preview.targetPlanName, t),
+          }),
         );
       } else {
         toast.success(
-          "Đã lên lịch hạ cấp gói cuối chu kỳ",
-          `Hạn mức hiện tại vẫn được giữ nguyên đến ${formatDateVi(preview.effectiveDate)}.`,
+          t("tenantAdmin.billing.page.toasts.downgradeScheduledTitle"),
+          t("tenantAdmin.billing.page.toasts.downgradeScheduledDesc", {
+            date: formatDateSafe(preview.effectiveDate, locale),
+          }),
         );
       }
     } catch (err) {
-      toast.error("Không thể chuyển đổi gói dịch vụ", getApiErrorMessage(err));
+      toast.error(t("tenantAdmin.billing.page.toasts.changePlanErrorTitle"), getApiErrorMessage(err));
     } finally {
       setChangingPlan(false);
     }
@@ -266,9 +298,9 @@ export function SubscriptionBillingPage() {
     try {
       const res = await companyApi.cancelScheduledDowngrade();
       queryClient.setQueryData(["tenant-subscription-quota"], res);
-      toast.success("Đã hủy lịch hạ cấp gói cuối chu kỳ");
+      toast.success(t("tenantAdmin.billing.page.toasts.cancelDowngradeSuccess"));
     } catch (err) {
-      toast.error("Không thể hủy lịch hạ cấp", getApiErrorMessage(err));
+      toast.error(t("tenantAdmin.billing.page.toasts.cancelDowngradeError"), getApiErrorMessage(err));
     } finally {
       setCancelingDowngrade(false);
     }
@@ -276,19 +308,27 @@ export function SubscriptionBillingPage() {
 
   const handleCancelPendingInvoice = (invoice: TenantInvoiceItem) => {
     askConfirm({
-      title: `Hủy hóa đơn #${invoice.invoiceNumber}?`,
-      description:
-        "Hóa đơn và yêu cầu nâng cấp/gia hạn chưa thanh toán gắn với hóa đơn này sẽ bị hủy. Gói hiện tại đang chạy của bạn không bị ảnh hưởng.",
-      confirmLabel: "Xác nhận hủy",
+      title: t("tenantAdmin.billing.page.cancelInvoiceConfirm.title", {
+        invoiceNumber: invoice.invoiceNumber,
+      }),
+      description: t("tenantAdmin.billing.page.cancelInvoiceConfirm.description"),
+      confirmLabel: t("tenantAdmin.billing.page.cancelInvoiceConfirm.confirmLabel"),
       danger: true,
       onConfirm: async () => {
         setCancelingInvoiceId(invoice.id);
         try {
           const res = await companyApi.cancelPendingInvoice(invoice.id);
           queryClient.setQueryData(["tenant-subscription-quota"], res);
-          toast.success(`Đã hủy hóa đơn #${invoice.invoiceNumber}`);
+          toast.success(
+            t("tenantAdmin.billing.page.toasts.cancelInvoiceSuccess", {
+              invoiceNumber: invoice.invoiceNumber,
+            }),
+          );
         } catch (err) {
-          toast.error("Không thể hủy hóa đơn", getApiErrorMessage(err));
+          toast.error(
+            t("tenantAdmin.billing.page.toasts.cancelInvoiceError"),
+            getApiErrorMessage(err),
+          );
         } finally {
           setCancelingInvoiceId(null);
         }
@@ -300,9 +340,9 @@ export function SubscriptionBillingPage() {
     ? [
         {
           id: "jobs",
-          label: "Vị trí tuyển dụng đang mở",
-          usedLabel: sub.usedJobs.toLocaleString("vi-VN"),
-          maxLabel: formatLimitLabel(sub.maxJobs, "vị trí"),
+          label: t("tenantAdmin.billing.page.quotaLabels.jobs"),
+          usedLabel: formatNumber(sub.usedJobs, undefined, locale),
+          maxLabel: formatLimitLabel(sub.maxJobs, t("tenantAdmin.billing.page.units.jobs"), t, locale),
           pct: sub.jobsUsagePercent,
           enabled: sub.jobsEnabled,
           allowed: sub.jobsAllowed,
@@ -310,9 +350,14 @@ export function SubscriptionBillingPage() {
         },
         {
           id: "cv",
-          label: "Lọc & phân tích CV bằng AI (theo tháng)",
-          usedLabel: sub.usedCvParses.toLocaleString("vi-VN"),
-          maxLabel: formatLimitLabel(sub.maxCvParses, "CV/tháng"),
+          label: t("tenantAdmin.billing.page.quotaLabels.cv"),
+          usedLabel: formatNumber(sub.usedCvParses, undefined, locale),
+          maxLabel: formatLimitLabel(
+            sub.maxCvParses,
+            t("tenantAdmin.billing.page.units.cvPerMonth"),
+            t,
+            locale,
+          ),
           pct: sub.cvParsesUsagePercent,
           enabled: sub.cvParseEnabled,
           allowed: sub.cvParseAllowed,
@@ -320,9 +365,14 @@ export function SubscriptionBillingPage() {
         },
         {
           id: "ai_voice",
-          label: "Phỏng vấn AI bằng giọng nói (theo tháng)",
-          usedLabel: formatSecondsToHoursLabel(sub.usedAiInterviewSeconds),
-          maxLabel: formatLimitLabel(sub.maxAiInterviewHours, "giờ/tháng"),
+          label: t("tenantAdmin.billing.page.quotaLabels.aiVoice"),
+          usedLabel: formatSecondsToHoursLabel(sub.usedAiInterviewSeconds, t),
+          maxLabel: formatLimitLabel(
+            sub.maxAiInterviewHours,
+            t("tenantAdmin.billing.page.units.hoursPerMonth"),
+            t,
+            locale,
+          ),
           pct: sub.aiInterviewUsagePercent,
           enabled: sub.aiInterviewEnabled,
           allowed: sub.aiInterviewAllowed,
@@ -330,9 +380,14 @@ export function SubscriptionBillingPage() {
         },
         {
           id: "proctoring",
-          label: "Giám sát thi tự động (theo tháng)",
-          usedLabel: formatSecondsToHoursLabel(sub.usedProctoringSeconds),
-          maxLabel: formatLimitLabel(sub.maxProctoringHours, "giờ/tháng"),
+          label: t("tenantAdmin.billing.page.quotaLabels.proctoring"),
+          usedLabel: formatSecondsToHoursLabel(sub.usedProctoringSeconds, t),
+          maxLabel: formatLimitLabel(
+            sub.maxProctoringHours,
+            t("tenantAdmin.billing.page.units.hoursPerMonth"),
+            t,
+            locale,
+          ),
           pct: sub.proctoringUsagePercent,
           enabled: sub.proctoringEnabled,
           allowed: sub.proctoringAllowed,
@@ -340,9 +395,9 @@ export function SubscriptionBillingPage() {
         },
         {
           id: "storage",
-          label: "Dung lượng lưu trữ hồ sơ & video",
+          label: t("tenantAdmin.billing.page.quotaLabels.storage"),
           usedLabel: formatQuotaBytes(sub.usedStorageBytes),
-          maxLabel: formatLimitLabel(sub.maxStorageGb, "GB"),
+          maxLabel: formatLimitLabel(sub.maxStorageGb, t("tenantAdmin.billing.page.units.gb"), t, locale),
           pct: sub.storageUsagePercent,
           enabled: sub.storageEnabled,
           allowed: sub.storageAllowed,
@@ -369,13 +424,13 @@ export function SubscriptionBillingPage() {
       <Card className="p-8 text-center space-y-3 border-slate-300 dark:border-slate-700">
         <AlertTriangle className="mx-auto size-10 text-red-600" />
         <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-          Không thể tải thông tin gói &amp; hóa đơn
+          {t("tenantAdmin.billing.page.loadErrorTitle")}
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          {subQuery.isError ? getApiErrorMessage(subQuery.error) : "Không có dữ liệu thuê bao."}
+          {subQuery.isError ? getApiErrorMessage(subQuery.error) : t("tenantAdmin.billing.page.noSubscriptionData")}
         </p>
         <Button size="sm" onClick={() => void subQuery.refetch()}>
-          Thử lại
+          {t("tenantAdmin.billing.page.retry")}
         </Button>
       </Card>
     );
@@ -387,7 +442,7 @@ export function SubscriptionBillingPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-            Quản trị gói dịch vụ &amp; thanh toán
+            {t("tenantAdmin.billing.page.title")}
           </h1>
         </div>
         <Button
@@ -401,7 +456,7 @@ export function SubscriptionBillingPage() {
           <RefreshCw
             className={cn("size-4", (subQuery.isFetching || plansQuery.isFetching) && "animate-spin")}
           />
-          <span>Làm mới dữ liệu</span>
+          <span>{t("tenantAdmin.billing.page.refresh")}</span>
         </Button>
       </header>
 
@@ -412,14 +467,16 @@ export function SubscriptionBillingPage() {
             <Receipt className="mt-0.5 size-5 shrink-0 text-amber-700" />
             <div className="space-y-0.5 text-xs sm:text-sm text-amber-950">
               <p className="font-semibold">
-                Bạn có {pendingInvoices.length} hóa đơn đang chờ thanh toán (#
-                {pendingInvoices[0].invoiceNumber} ·{" "}
-                {Number(pendingInvoices[0].amount || 0).toLocaleString("vi-VN")} ₫)
+                {t("tenantAdmin.billing.page.pendingBanner.title", {
+                  count: pendingInvoices.length,
+                  invoiceNumber: pendingInvoices[0].invoiceNumber,
+                  amount: formatNumber(Number(pendingInvoices[0].amount || 0), undefined, locale),
+                })}
               </p>
               <p className="text-amber-800">
                 {pendingInvoices[0].invoiceType === "UPGRADE"
-                  ? "Gói nâng cấp mới sẽ được kích hoạt ngay sau khi hóa đơn này thanh toán thành công."
-                  : "Hoàn tất thanh toán trước hạn để duy trì bản quyền liên tục."}
+                  ? t("tenantAdmin.billing.page.pendingBanner.upgradeHint")
+                  : t("tenantAdmin.billing.page.pendingBanner.defaultHint")}
               </p>
             </div>
           </div>
@@ -433,7 +490,7 @@ export function SubscriptionBillingPage() {
                 })
               }
             >
-              Thanh toán ngay
+              {t("tenantAdmin.billing.page.pendingBanner.payNow")}
             </Button>
             <Button
               variant="secondary"
@@ -441,7 +498,7 @@ export function SubscriptionBillingPage() {
               disabled={cancelingInvoiceId === pendingInvoices[0].id}
               onClick={() => handleCancelPendingInvoice(pendingInvoices[0])}
             >
-              Hủy
+              {t("tenantAdmin.billing.page.pendingBanner.cancel")}
             </Button>
           </div>
         </div>
@@ -468,13 +525,19 @@ export function SubscriptionBillingPage() {
               <div>
                 <strong>
                   {sub.daysRemaining <= 0
-                    ? "Gói dịch vụ hết hạn trong hôm nay:"
-                    : `Gói dịch vụ sắp hết hạn (còn ${sub.daysRemaining} ngày):`}
+                    ? t("tenantAdmin.billing.page.expiringBanner.todayTitle")
+                    : t("tenantAdmin.billing.page.expiringBanner.soonTitle", {
+                        days: sub.daysRemaining,
+                      })}
                 </strong>{" "}
-                Chu kỳ hiện tại sẽ kết thúc vào <strong>{formatDateVi(sub.endsAt)}</strong>.{" "}
+                {t("tenantAdmin.billing.page.expiringBanner.cycleEndsPrefix")}
+                <strong>{formatDateSafe(sub.endsAt, locale)}</strong>
+                {t("tenantAdmin.billing.page.expiringBanner.cycleEndsSuffix")}
                 {sub.nextPlanName
-                  ? `Hệ thống sẽ chuyển sang gói ${formatPlanDisplayName(sub.nextPlanName)} theo lịch đã đặt.`
-                  : "Gia hạn sớm sẽ tự động cộng dồn trọn vẹn số ngày còn lại để không gián đoạn tuyển dụng."}
+                  ? t("tenantAdmin.billing.page.expiringBanner.scheduledNextPlan", {
+                      plan: formatPlanDisplayName(sub.nextPlanName, t),
+                    })
+                  : t("tenantAdmin.billing.page.expiringBanner.earlyRenewHint")}
               </div>
             </div>
             <Button
@@ -486,7 +549,7 @@ export function SubscriptionBillingPage() {
                   ?.scrollIntoView({ behavior: "smooth", block: "center" })
               }
             >
-              Gia hạn ngay
+              {t("tenantAdmin.billing.page.expiringBanner.renewNow")}
             </Button>
           </div>
         )}
@@ -495,10 +558,14 @@ export function SubscriptionBillingPage() {
         <div className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-300 bg-amber-50 p-4 text-xs sm:text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" />
           <div>
-            <strong>Thuê bao quá hạn thanh toán (Đang trong thời gian ân hạn):</strong> Quyền lợi
-            tuyển dụng vẫn được duy trì tạm thời
-            {sub.gracePeriodEndsAt ? ` đến ${formatDateVi(sub.gracePeriodEndsAt)}` : ""}. Vui lòng gia
-            hạn để tránh chuyển sang trạng thái tạm khóa.
+            <strong>{t("tenantAdmin.billing.page.pastDueTitle")}</strong>{" "}
+            {t("tenantAdmin.billing.page.pastDueBody", {
+              until: sub.gracePeriodEndsAt
+                ? t("tenantAdmin.billing.page.pastDueUntil", {
+                    date: formatDateSafe(sub.gracePeriodEndsAt, locale),
+                  })
+                : "",
+            })}
           </div>
         </div>
       )}
@@ -507,9 +574,8 @@ export function SubscriptionBillingPage() {
         <div className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-red-300 bg-red-50 p-4 text-xs sm:text-sm text-red-950">
           <XCircle className="mt-0.5 size-5 shrink-0 text-red-600" />
           <div>
-            <strong>Thuê bao đang bị tạm khóa:</strong> Thời gian ân hạn đã kết thúc.
-            Các tính năng đăng tin tuyển dụng mới, lọc CV bằng AI và phỏng vấn AI tạm thời bị khóa cho đến khi
-            thanh toán gia hạn thành công.
+            <strong>{t("tenantAdmin.billing.page.suspendedTitle")}</strong>{" "}
+            {t("tenantAdmin.billing.page.suspendedBody")}
           </div>
         </div>
       )}
@@ -518,8 +584,8 @@ export function SubscriptionBillingPage() {
         <div className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-red-300 bg-red-50 p-4 text-xs sm:text-sm text-red-950">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-red-600" />
           <div>
-            <strong>Thuê bao đã hết hạn:</strong> Hãy gia hạn hoặc chọn một gói phù hợp bên dưới để
-            tiếp tục vận hành toàn bộ tính năng tuyển dụng.
+            <strong>{t("tenantAdmin.billing.page.expiredTitle")}</strong>{" "}
+            {t("tenantAdmin.billing.page.expiredBody")}
           </div>
         </div>
       )}
@@ -527,9 +593,12 @@ export function SubscriptionBillingPage() {
       {sub.nextPlanName && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-blue-300 bg-blue-50 p-4 text-xs sm:text-sm text-blue-950">
           <span>
-            <strong>Đã lên lịch hạ cấp cuối kỳ:</strong> Gói sẽ tự động chuyển sang{" "}
-            <strong>{formatPlanDisplayName(sub.nextPlanName)}</strong>{" "}
-            sau khi kết thúc chu kỳ hiện tại ({formatDateVi(sub.endsAt)}).
+            <strong>{t("tenantAdmin.billing.page.downgradeTitle")}</strong>{" "}
+            {t("tenantAdmin.billing.page.downgradePrefix")}
+            <strong>{formatPlanDisplayName(sub.nextPlanName, t)}</strong>
+            {t("tenantAdmin.billing.page.downgradeSuffix", {
+              date: formatDateSafe(sub.endsAt, locale),
+            })}
           </span>
           <Button
             variant="secondary"
@@ -537,7 +606,9 @@ export function SubscriptionBillingPage() {
             disabled={cancelingDowngrade}
             onClick={() => void handleCancelDowngrade()}
           >
-            {cancelingDowngrade ? "Đang hủy..." : "Hủy lịch hạ cấp"}
+            {cancelingDowngrade
+              ? t("tenantAdmin.billing.page.cancelingDowngrade")
+              : t("tenantAdmin.billing.page.cancelDowngrade")}
           </Button>
         </div>
       )}
@@ -554,18 +625,20 @@ export function SubscriptionBillingPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-xl font-semibold text-[var(--color-text-primary)]">
-                    {formatPlanDisplayName(sub.planName)}
+                    {formatPlanDisplayName(sub.planName, t)}
                   </h2>
                   <span className="rounded-full border border-slate-300 bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-[var(--color-text-secondary)]">
-                    Phiên bản {sub.planVersion ?? 1}
+                    {t("tenantAdmin.billing.page.currentPlan.version", {
+                      version: sub.planVersion ?? 1,
+                    })}
                   </span>
                   <StatusPill
                     status={sub.subscriptionStatus}
-                    label={formatSubscriptionStatusLabel(sub.subscriptionStatus)}
+                    label={formatSubscriptionStatusLabel(sub.subscriptionStatus, t)}
                   />
                 </div>
                 <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                  {sub.description || "Gói dịch vụ đang áp dụng cho toàn bộ doanh nghiệp."}
+                  {sub.description || t("tenantAdmin.billing.page.currentPlan.defaultDescription")}
                 </p>
               </div>
             </div>
@@ -573,26 +646,40 @@ export function SubscriptionBillingPage() {
 
           <div className="grid gap-4 rounded-xl border border-slate-300/90 bg-surface-muted p-4 sm:grid-cols-3 dark:border-slate-700">
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)]">Giá hợp đồng bảo lưu</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {t("tenantAdmin.billing.page.currentPlan.reservedPrice")}
+              </p>
               <p className="mt-1 font-display text-lg font-bold text-[var(--color-text-primary)]">
-                {Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫
-                <span className="text-xs font-normal text-[var(--color-text-secondary)]"> / năm</span>
+                {t("tenantAdmin.billing.page.currentPlan.priceValue", {
+                  amount: formatNumber(Number(sub.priceYearly || 0), undefined, locale),
+                })}
+                <span className="text-xs font-normal text-[var(--color-text-secondary)]">
+                  {t("tenantAdmin.billing.page.currentPlan.perYear")}
+                </span>
               </p>
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)]">Chu kỳ hiện tại</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {t("tenantAdmin.billing.page.currentPlan.currentCycle")}
+              </p>
               <p className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
                 {sub.hasExplicitSubscription
-                  ? `${formatDateVi(sub.startsAt)} – ${formatDateVi(sub.endsAt)}`
-                  : "Chưa kích hoạt chu kỳ trả phí"}
+                  ? `${formatDateSafe(sub.startsAt, locale)} – ${formatDateSafe(sub.endsAt, locale)}`
+                  : t("tenantAdmin.billing.page.currentPlan.notActivatedCycle")}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)]">Thời hạn còn lại</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {t("tenantAdmin.billing.page.currentPlan.remainingTime")}
+              </p>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-brand-primary">
                 <CalendarClock className="size-4" />
                 <span>
-                  {sub.hasExplicitSubscription ? `${sub.daysRemaining} ngày` : "Gói mặc định"}
+                  {sub.hasExplicitSubscription
+                    ? t("tenantAdmin.billing.page.currentPlan.daysRemaining", {
+                        days: sub.daysRemaining,
+                      })
+                    : t("tenantAdmin.billing.page.currentPlan.defaultPlanBadge")}
                 </span>
               </p>
             </div>
@@ -600,20 +687,22 @@ export function SubscriptionBillingPage() {
 
           {sub.proratedCreditAmount != null && sub.proratedCreditAmount > 0 && (
             <p className="text-xs font-semibold text-emerald-700">
-              Đã khấu trừ số dư từ gói trước: -{Number(sub.proratedCreditAmount).toLocaleString("vi-VN")} ₫
+              {t("tenantAdmin.billing.page.currentPlan.prorationCredit", {
+                amount: formatNumber(Number(sub.proratedCreditAmount), undefined, locale),
+              })}
             </p>
           )}
 
           {sub.features && sub.features.length > 0 && (
             <div className="space-y-2 border-t border-[var(--color-border-default)] pt-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                Quyền lợi đang được bảo lưu
+                {t("tenantAdmin.billing.page.currentPlan.includedBenefits")}
               </p>
               <ul className="grid gap-2 text-xs text-[var(--color-text-primary)] sm:grid-cols-2">
                 {sub.features.map((feat, idx) => (
                   <li key={idx} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-brand-primary" />
-                    <span>{translatePlanFeatureLabel(feat)}</span>
+                    <span>{translatePlanFeatureLabel(feat, t)}</span>
                   </li>
                 ))}
               </ul>
@@ -630,18 +719,20 @@ export function SubscriptionBillingPage() {
               </span>
               <div className="flex items-center gap-1.5">
                 <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                  Gia hạn bản quyền
+                  {t("tenantAdmin.billing.page.renewCard.title")}
                 </h2>
                 <SectionHelpTip
-                  label="Thông tin gia hạn bản quyền"
-                  content="Gia hạn sớm được cộng dồn trọn vẹn số ngày còn lại hiện tại."
+                  label={t("tenantAdmin.billing.page.renewCard.helpLabel")}
+                  content={t("tenantAdmin.billing.page.renewCard.helpContent")}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <p className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                Chọn thời hạn gia hạn gói {formatPlanDisplayName(sub.planName)}
+                {t("tenantAdmin.billing.page.renewCard.selectDuration", {
+                  plan: formatPlanDisplayName(sub.planName, t),
+                })}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3].map((yr) => (
@@ -656,7 +747,7 @@ export function SubscriptionBillingPage() {
                         : "border-slate-300 bg-surface-card text-[var(--color-text-secondary)] hover:bg-surface-muted dark:border-slate-700",
                     )}
                   >
-                    {yr} năm
+                    {t("tenantAdmin.billing.page.renewCard.yearsOption", { years: yr })}
                   </button>
                 ))}
               </div>
@@ -664,27 +755,35 @@ export function SubscriptionBillingPage() {
 
             <div className="space-y-1.5 rounded-xl border border-slate-300/90 bg-surface-muted p-4 text-xs dark:border-slate-700">
               <div className="flex justify-between text-[var(--color-text-secondary)]">
-                <span>Đơn giá gói hiện tại:</span>
+                <span>{t("tenantAdmin.billing.page.renewCard.unitPriceLabel")}</span>
                 <span className="font-medium text-[var(--color-text-primary)]">
-                  {Number(sub.priceYearly || 0).toLocaleString("vi-VN")} ₫ / năm
+                  {t("tenantAdmin.billing.page.renewCard.unitPriceValue", {
+                    amount: formatNumber(Number(sub.priceYearly || 0), undefined, locale),
+                  })}
                 </span>
               </div>
               <div className="flex justify-between text-[var(--color-text-secondary)]">
-                <span>Hạn mới dự kiến sau thanh toán:</span>
+                <span>{t("tenantAdmin.billing.page.renewCard.projectedEndLabel")}</span>
                 <span className="font-semibold text-[var(--color-text-primary)]">
                   {projectedRenewEndDate}
                 </span>
               </div>
               <div className="flex justify-between border-t border-[var(--color-border-default)] pt-2 text-sm font-bold text-[var(--color-text-primary)]">
-                <span>Tổng tiền gia hạn ({renewYears} năm):</span>
+                <span>
+                  {t("tenantAdmin.billing.page.renewCard.totalLabel", { years: renewYears })}
+                </span>
                 <span className="text-brand-primary">
-                  {(Number(sub.priceYearly || 0) * renewYears).toLocaleString("vi-VN")} ₫
+                  {t("tenantAdmin.billing.page.renewCard.totalValue", {
+                    amount: formatNumber(Number(sub.priceYearly || 0) * renewYears, undefined, locale),
+                  })}
                 </span>
               </div>
             </div>
 
             <Button className="w-full" disabled={renewing} onClick={() => void handleRenewSubmit()}>
-              {renewing ? "Đang tạo hóa đơn..." : `Tạo hóa đơn gia hạn ${renewYears} năm`}
+              {renewing
+                ? t("tenantAdmin.billing.page.renewCard.creatingInvoice")
+                : t("tenantAdmin.billing.page.renewCard.createInvoiceButton", { years: renewYears })}
               <ArrowRight className="size-4" />
             </Button>
           </div>
@@ -692,20 +791,22 @@ export function SubscriptionBillingPage() {
           {/* Auto Renew Switch */}
           <div className="flex items-center justify-between gap-4 border-t border-[var(--color-border-default)] pt-4">
             <div>
-              <p className="text-sm font-semibold text-[var(--color-text-primary)]">Tự động gia hạn</p>
+              <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                {t("tenantAdmin.billing.page.renewCard.autoRenewTitle")}
+              </p>
               <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
                 {sub.hasExplicitSubscription
                   ? sub.autoRenew
-                    ? "Đang bật — nhắc nhở & chuẩn bị gia hạn khi gần hết hạn."
-                    : "Đang tắt — cần chủ động gia hạn thủ công trước ngày hết hạn."
-                  : "Cần kích hoạt gói trả phí để bật/tắt tự động gia hạn."}
+                    ? t("tenantAdmin.billing.page.renewCard.autoRenewOnDesc")
+                    : t("tenantAdmin.billing.page.renewCard.autoRenewOffDesc")
+                  : t("tenantAdmin.billing.page.renewCard.autoRenewDisabledDesc")}
               </p>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={Boolean(sub.autoRenew)}
-              aria-label="Tự động gia hạn"
+              aria-label={t("tenantAdmin.billing.page.renewCard.autoRenewAria")}
               disabled={!sub.hasExplicitSubscription || togglingAutoRenew}
               onClick={() => void handleToggleAutoRenew()}
               className={cn(
@@ -733,11 +834,11 @@ export function SubscriptionBillingPage() {
             </span>
             <div className="flex items-center gap-1.5">
               <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                Nâng cấp &amp; Điều chỉnh gói dịch vụ
+                {t("tenantAdmin.billing.page.plansSection.title")}
               </h2>
               <SectionHelpTip
-                label="Quy tắc nâng cấp và hạ cấp gói"
-                content="Khi nâng cấp, tiền của số ngày chưa sử dụng ở gói cũ sẽ được khấu trừ tự động và gói mới được kích hoạt ngay sau khi thanh toán. Khi hạ cấp, thay đổi áp dụng vào cuối chu kỳ để bảo toàn dữ liệu."
+                label={t("tenantAdmin.billing.page.plansSection.helpLabel")}
+                content={t("tenantAdmin.billing.page.plansSection.helpContent")}
               />
             </div>
           </div>
@@ -751,11 +852,13 @@ export function SubscriptionBillingPage() {
           </div>
         ) : plansQuery.isError ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            Không tải được danh sách gói dịch vụ công khai: {getApiErrorMessage(plansQuery.error)}
+            {t("tenantAdmin.billing.page.plansSection.loadError", {
+              error: getApiErrorMessage(plansQuery.error),
+            })}
           </div>
         ) : publicPlans.length === 0 ? (
           <div className="rounded-xl border border-[var(--color-border-default)] bg-surface-muted p-6 text-center text-sm text-[var(--color-text-secondary)]">
-            Hiện chưa có gói tiêu chuẩn nào được mở bán công khai.
+            {t("tenantAdmin.billing.page.plansSection.empty")}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
@@ -784,26 +887,32 @@ export function SubscriptionBillingPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                          Phiên bản {plan.version ?? 1}
+                          {t("tenantAdmin.billing.page.plansSection.version", {
+                            version: plan.version ?? 1,
+                          })}
                         </p>
                         <h3 className="mt-0.5 font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                          {formatPlanDisplayName(plan.name)}
+                          {formatPlanDisplayName(plan.name, t)}
                         </h3>
                       </div>
                       {isCurrent ? (
                         <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                          Gói hiện tại
+                          {t("tenantAdmin.billing.page.plansSection.currentBadge")}
                         </span>
                       ) : isScheduledNext ? (
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
-                          Chuyển cuối kỳ
+                          {t("tenantAdmin.billing.page.plansSection.scheduledBadge")}
                         </span>
                       ) : null}
                     </div>
 
                     <p className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
-                      {Number(plan.priceYearly || 0).toLocaleString("vi-VN")} ₫
-                      <span className="text-xs font-normal text-[var(--color-text-secondary)]"> / năm</span>
+                      {t("tenantAdmin.billing.page.plansSection.priceValue", {
+                        amount: formatNumber(Number(plan.priceYearly || 0), undefined, locale),
+                      })}
+                      <span className="text-xs font-normal text-[var(--color-text-secondary)]">
+                        {t("tenantAdmin.billing.page.plansSection.pricePerYear")}
+                      </span>
                     </p>
 
                     {plan.description && (
@@ -814,33 +923,68 @@ export function SubscriptionBillingPage() {
 
                     <dl className="space-y-1.5 border-t border-[var(--color-border-default)] pt-3 text-xs">
                       <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-secondary)]">Tin đang mở:</dt>
+                        <dt className="text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.plansSection.openJobsLabel")}
+                        </dt>
                         <dd className="font-semibold text-[var(--color-text-primary)]">
-                          {formatLimitLabel(plan.maxJobs, "vị trí")}
+                          {formatLimitLabel(
+                            plan.maxJobs,
+                            t("tenantAdmin.billing.page.units.jobs"),
+                            t,
+                            locale,
+                          )}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-secondary)]">Lọc CV bằng AI:</dt>
+                        <dt className="text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.plansSection.aiCvLabel")}
+                        </dt>
                         <dd className="font-semibold text-[var(--color-text-primary)]">
-                          {formatLimitLabel(plan.maxCvParses, "CV/tháng")}
+                          {formatLimitLabel(
+                            plan.maxCvParses,
+                            t("tenantAdmin.billing.page.units.cvPerMonth"),
+                            t,
+                            locale,
+                          )}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-secondary)]">Phỏng vấn AI giọng nói:</dt>
+                        <dt className="text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.plansSection.aiVoiceLabel")}
+                        </dt>
                         <dd className="font-semibold text-[var(--color-text-primary)]">
-                          {formatLimitLabel(plan.maxAiInterviewHours, "giờ/tháng")}
+                          {formatLimitLabel(
+                            plan.maxAiInterviewHours,
+                            t("tenantAdmin.billing.page.units.hoursPerMonth"),
+                            t,
+                            locale,
+                          )}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-secondary)]">Giám sát thi tự động:</dt>
+                        <dt className="text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.plansSection.proctoringLabel")}
+                        </dt>
                         <dd className="font-semibold text-[var(--color-text-primary)]">
-                          {formatLimitLabel(plan.maxProctoringHours, "giờ/tháng")}
+                          {formatLimitLabel(
+                            plan.maxProctoringHours,
+                            t("tenantAdmin.billing.page.units.hoursPerMonth"),
+                            t,
+                            locale,
+                          )}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-secondary)]">Lưu trữ:</dt>
+                        <dt className="text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.plansSection.storageLabel")}
+                        </dt>
                         <dd className="font-semibold text-[var(--color-text-primary)]">
-                          {formatLimitLabel(plan.maxStorageGb, "GB")}
+                          {formatLimitLabel(
+                            plan.maxStorageGb,
+                            t("tenantAdmin.billing.page.units.gb"),
+                            t,
+                            locale,
+                          )}
                         </dd>
                       </div>
                     </dl>
@@ -850,7 +994,7 @@ export function SubscriptionBillingPage() {
                         {parsedFeatures.slice(0, 4).map((feat, idx) => (
                           <li key={idx} className="flex items-start gap-1.5">
                             <Check className="mt-0.5 size-3.5 shrink-0 text-brand-primary" />
-                            <span>{translatePlanFeatureLabel(feat)}</span>
+                            <span>{translatePlanFeatureLabel(feat, t)}</span>
                           </li>
                         ))}
                       </ul>
@@ -860,7 +1004,7 @@ export function SubscriptionBillingPage() {
                   <div className="mt-5 pt-2">
                     {isCurrent ? (
                       <Button variant="secondary" size="sm" className="w-full" disabled>
-                        Đang sử dụng
+                        {t("tenantAdmin.billing.page.plansSection.inUseButton")}
                       </Button>
                     ) : (
                       <Button
@@ -872,10 +1016,10 @@ export function SubscriptionBillingPage() {
                         }
                       >
                         {isSelected
-                          ? "Đang xem dự toán"
+                          ? t("tenantAdmin.billing.page.plansSection.previewingButton")
                           : isHigher
-                            ? "Xem dự toán nâng cấp"
-                            : "Xem lịch hạ cấp cuối kỳ"}
+                            ? t("tenantAdmin.billing.page.plansSection.upgradeButton")
+                            : t("tenantAdmin.billing.page.plansSection.downgradeButton")}
                       </Button>
                     )}
                   </div>
@@ -902,16 +1046,24 @@ export function SubscriptionBillingPage() {
                     <Sparkles className="size-4 text-brand-primary" />
                     <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
                       {preview.changeType === "UPGRADE"
-                        ? `Dự toán nâng cấp: ${formatPlanDisplayName(preview.currentPlanName)} → ${formatPlanDisplayName(preview.targetPlanName)}`
-                        : `Lên lịch hạ cấp cuối chu kỳ: ${formatPlanDisplayName(preview.currentPlanName)} → ${formatPlanDisplayName(preview.targetPlanName)}`}
+                        ? t("tenantAdmin.billing.page.previewBox.upgradeTitle", {
+                            from: formatPlanDisplayName(preview.currentPlanName, t),
+                            to: formatPlanDisplayName(preview.targetPlanName, t),
+                          })
+                        : t("tenantAdmin.billing.page.previewBox.downgradeTitle", {
+                            from: formatPlanDisplayName(preview.currentPlanName, t),
+                            to: formatPlanDisplayName(preview.targetPlanName, t),
+                          })}
                     </h3>
                   </div>
                   <StatusPill
                     status={preview.changeType === "UPGRADE" ? "ACTIVE" : "IN_REVIEW"}
                     label={
                       preview.effectiveTiming === "IMMEDIATE"
-                        ? "Kích hoạt ngay sau thanh toán"
-                        : `Hiệu lực từ ${formatDateVi(preview.effectiveDate)}`
+                        ? t("tenantAdmin.billing.page.previewBox.immediateStatus")
+                        : t("tenantAdmin.billing.page.previewBox.effectiveStatus", {
+                            date: formatDateSafe(preview.effectiveDate, locale),
+                          })
                     }
                   />
                 </div>
@@ -919,40 +1071,63 @@ export function SubscriptionBillingPage() {
                 <div className="grid gap-3 rounded-xl border border-slate-300/90 bg-surface-card p-4 text-sm sm:grid-cols-3 dark:border-slate-700">
                   <div>
                     <p className="text-xs text-[var(--color-text-secondary)]">
-                      Giá gói {formatPlanDisplayName(preview.targetPlanName)}
+                      {t("tenantAdmin.billing.page.previewBox.targetPriceLabel", {
+                        plan: formatPlanDisplayName(preview.targetPlanName, t),
+                      })}
                     </p>
                     <p className="mt-1 font-semibold text-[var(--color-text-primary)]">
-                      {Number(preview.targetPriceYearly || 0).toLocaleString("vi-VN")} ₫ / năm
+                      {t("tenantAdmin.billing.page.previewBox.targetPriceValue", {
+                        amount: formatNumber(Number(preview.targetPriceYearly || 0), undefined, locale),
+                      })}
                     </p>
                   </div>
                   {preview.changeType === "UPGRADE" ? (
                     <>
                       <div>
                         <p className="text-xs text-[var(--color-text-secondary)]">
-                          Khấu trừ số ngày chưa dùng ({preview.remainingDays}/{preview.totalCycleDays} ngày còn lại)
+                          {t("tenantAdmin.billing.page.previewBox.prorationLabel", {
+                            remaining: preview.remainingDays,
+                            total: preview.totalCycleDays,
+                          })}
                         </p>
                         <p className="mt-1 font-semibold text-emerald-700">
-                          -{Number(preview.proratedCreditAmount || 0).toLocaleString("vi-VN")} ₫
+                          {t("tenantAdmin.billing.page.previewBox.prorationValue", {
+                            amount: formatNumber(
+                              Number(preview.proratedCreditAmount || 0),
+                              undefined,
+                              locale,
+                            ),
+                          })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Số tiền cần thanh toán</p>
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.previewBox.netAmountLabel")}
+                        </p>
                         <p className="mt-1 font-display text-lg font-bold text-brand-primary">
-                          {Number(preview.netAmountDue || 0).toLocaleString("vi-VN")} ₫
+                          {t("tenantAdmin.billing.page.previewBox.netAmountValue", {
+                            amount: formatNumber(Number(preview.netAmountDue || 0), undefined, locale),
+                          })}
                         </p>
                       </div>
                     </>
                   ) : (
                     <>
                       <div>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Ngày áp dụng gói mới</p>
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.previewBox.effectiveDateLabel")}
+                        </p>
                         <p className="mt-1 font-semibold text-[var(--color-text-primary)]">
-                          {formatDateVi(preview.effectiveDate)}
+                          {formatDateSafe(preview.effectiveDate, locale)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Phí thu ngay hôm nay</p>
-                        <p className="mt-1 font-display text-lg font-bold text-emerald-700">0 ₫</p>
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          {t("tenantAdmin.billing.page.previewBox.dueTodayLabel")}
+                        </p>
+                        <p className="mt-1 font-display text-lg font-bold text-emerald-700">
+                          {t("tenantAdmin.billing.page.previewBox.dueTodayZero")}
+                        </p>
                       </div>
                     </>
                   )}
@@ -972,7 +1147,7 @@ export function SubscriptionBillingPage() {
                     value={changeNotes}
                     onChange={(e) => setChangeNotes(e.target.value)}
                     maxLength={250}
-                    placeholder="Ghi chú chuyển gói (không bắt buộc)..."
+                    placeholder={t("tenantAdmin.billing.page.previewBox.notesPlaceholder")}
                     className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 py-2 text-sm text-[var(--color-text-primary)] sm:max-w-md"
                   />
                   <div className="flex items-center gap-2">
@@ -984,7 +1159,7 @@ export function SubscriptionBillingPage() {
                         setChangeNotes("");
                       }}
                     >
-                      Đóng
+                      {t("tenantAdmin.billing.page.previewBox.close")}
                     </Button>
                     {preview.allowed && (
                       <Button
@@ -993,12 +1168,12 @@ export function SubscriptionBillingPage() {
                         onClick={() => void handleConfirmPlanChange()}
                       >
                         {changingPlan
-                          ? "Đang xử lý..."
+                          ? t("tenantAdmin.billing.page.previewBox.processing")
                           : preview.changeType === "UPGRADE" && preview.netAmountDue > 0
-                            ? "Tạo hóa đơn & Thanh toán"
+                            ? t("tenantAdmin.billing.page.previewBox.createAndPay")
                             : preview.changeType === "UPGRADE"
-                              ? "Xác nhận nâng cấp ngay"
-                              : "Lên lịch hạ cấp cuối chu kỳ"}
+                              ? t("tenantAdmin.billing.page.previewBox.confirmUpgradeNow")
+                              : t("tenantAdmin.billing.page.previewBox.scheduleDowngrade")}
                       </Button>
                     )}
                   </div>
@@ -1014,16 +1189,18 @@ export function SubscriptionBillingPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-              Mức sử dụng hạn mức
+              {t("tenantAdmin.billing.page.quotaCard.title")}
             </h2>
             <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-              Lưu trữ bản ghi phỏng vấn:{" "}
+              {t("tenantAdmin.billing.page.quotaCard.retentionLabel")}
               <strong className="text-[var(--color-text-primary)]">
                 {sub.videoRetentionDays < 0
-                  ? "Vĩnh viễn"
+                  ? t("tenantAdmin.billing.page.quotaCard.retentionUnlimited")
                   : sub.videoRetentionDays === 0
-                    ? "Không lưu trữ (0 ngày)"
-                    : `${sub.videoRetentionDays} ngày`}
+                    ? t("tenantAdmin.billing.page.quotaCard.retentionNone")
+                    : t("tenantAdmin.billing.page.quotaCard.retentionDays", {
+                        days: sub.videoRetentionDays,
+                      })}
               </strong>
             </p>
           </div>
@@ -1049,15 +1226,15 @@ export function SubscriptionBillingPage() {
                   <div className="flex items-center gap-2">
                     {!item.enabled ? (
                       <span className="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                        Không hỗ trợ
+                        {t("tenantAdmin.billing.page.quotaCard.unsupported")}
                       </span>
                     ) : !item.allowed ? (
                       <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                        Đạt trần 100%
+                        {t("tenantAdmin.billing.page.quotaCard.hardCap")}
                       </span>
                     ) : item.unlimited ? (
                       <span className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                        Không giới hạn
+                        {t("tenantAdmin.billing.page.quotaCard.unlimited")}
                       </span>
                     ) : null}
                     <strong className="text-brand-primary">
@@ -1081,47 +1258,58 @@ export function SubscriptionBillingPage() {
       <Card className="p-0 overflow-hidden border-slate-300 dark:border-slate-700">
         <div className="flex items-center gap-1.5 border-b border-slate-300/90 px-6 py-4 dark:border-slate-700">
           <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-            Lịch sử hóa đơn &amp; thanh toán
+            {t("tenantAdmin.billing.page.invoicesCard.title")}
           </h2>
           <SectionHelpTip
-            label="Thông tin lịch sử hóa đơn"
-            content="Toàn bộ hóa đơn khởi tạo, nâng cấp gói và gia hạn bản quyền của doanh nghiệp."
+            label={t("tenantAdmin.billing.page.invoicesCard.helpLabel")}
+            content={t("tenantAdmin.billing.page.invoicesCard.helpContent")}
           />
         </div>
 
         {sub.invoices.length === 0 ? (
           <div className="p-8 text-center text-sm text-[var(--color-text-secondary)]">
-            Chưa có hóa đơn nào được phát hành cho doanh nghiệp này.
+            {t("tenantAdmin.billing.page.invoicesCard.empty")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-300/90 bg-surface-muted text-xs uppercase tracking-wider text-[var(--color-text-secondary)] dark:border-slate-700">
                 <tr>
-                  <th className="px-5 py-3">Mã hóa đơn</th>
-                  <th className="px-5 py-3">Loại</th>
-                  <th className="px-5 py-3">Gói dịch vụ</th>
-                  <th className="px-5 py-3">Chu kỳ</th>
-                  <th className="px-5 py-3 text-right">Số tiền</th>
-                  <th className="px-5 py-3">Cổng TT</th>
-                  <th className="px-5 py-3">Trạng thái</th>
-                  <th className="px-5 py-3">Ngày TT / Hạn</th>
-                  <th className="px-5 py-3 text-right">Hành động</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.invoiceNumber")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.type")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.plan")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.cycle")}</th>
+                  <th className="px-5 py-3 text-right">{t("tenantAdmin.billing.page.invoicesCard.columns.amount")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.gateway")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.status")}</th>
+                  <th className="px-5 py-3">{t("tenantAdmin.billing.page.invoicesCard.columns.dateDue")}</th>
+                  <th className="px-5 py-3 text-right">{t("tenantAdmin.billing.page.invoicesCard.columns.action")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
-                {sub.invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-surface-muted/40">
+                {sub.invoices.map((inv) => {
+                  const isHighlighted =
+                    Boolean(highlightedInvoice) &&
+                    inv.invoiceNumber.toLowerCase() === highlightedInvoice.toLowerCase();
+                  return (
+                  <tr
+                    key={inv.id}
+                    ref={isHighlighted ? highlightedRowRef : undefined}
+                    className={cn(
+                      "hover:bg-surface-muted/40",
+                      isHighlighted && "bg-[var(--color-primary-soft)]/55 ring-1 ring-inset ring-brand-primary/35",
+                    )}
+                  >
                     <td className="px-5 py-3.5 font-mono text-xs font-bold text-[var(--color-text-primary)]">
                       #{inv.invoiceNumber}
                     </td>
                     <td className="px-5 py-3.5 text-xs font-medium text-[var(--color-text-primary)]">
-                      {formatInvoiceTypeLabel(inv.invoiceType)}
+                      {formatInvoiceTypeLabel(inv.invoiceType, t)}
                     </td>
                     <td className="px-5 py-3.5 text-xs text-[var(--color-text-secondary)]">
                       {inv.planName ? (
                         <span className="font-medium text-[var(--color-text-primary)]">
-                          {formatPlanDisplayName(inv.planName)}
+                          {formatPlanDisplayName(inv.planName, t)}
                         </span>
                       ) : (
                         "—"
@@ -1129,26 +1317,32 @@ export function SubscriptionBillingPage() {
                     </td>
                     <td className="px-5 py-3.5 text-xs text-[var(--color-text-secondary)] whitespace-nowrap">
                       {inv.billingPeriodStart && inv.billingPeriodEnd
-                        ? `${formatDateVi(inv.billingPeriodStart)} – ${formatDateVi(inv.billingPeriodEnd)}`
+                        ? `${formatDateSafe(inv.billingPeriodStart, locale)} – ${formatDateSafe(inv.billingPeriodEnd, locale)}`
                         : "—"}
                     </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-[var(--color-text-primary)] whitespace-nowrap">
-                      {Number(inv.amount || 0).toLocaleString("vi-VN")} ₫
+                      {t("tenantAdmin.billing.page.invoicesCard.amountValue", {
+                        amount: formatNumber(Number(inv.amount || 0), undefined, locale),
+                      })}
                     </td>
                     <td className="px-5 py-3.5 text-xs text-[var(--color-text-secondary)]">
-                      {formatPaymentGatewayLabel(inv.paymentGateway)}
+                      {formatPaymentGatewayLabel(inv.paymentGateway, t)}
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <StatusPill
                         status={inv.status}
-                        label={formatInvoiceStatusLabel(inv.status)}
+                        label={formatInvoiceStatusLabel(inv.status, t)}
                       />
                     </td>
                     <td className="px-5 py-3.5 text-xs text-[var(--color-text-secondary)] whitespace-nowrap">
                       {inv.paidAt
-                        ? `TT: ${formatDateVi(inv.paidAt)}`
+                        ? t("tenantAdmin.billing.page.invoicesCard.paidAtPrefix", {
+                            date: formatDateSafe(inv.paidAt, locale),
+                          })
                         : inv.dueDate
-                          ? `Hạn: ${formatDateVi(inv.dueDate)}`
+                          ? t("tenantAdmin.billing.page.invoicesCard.dueAtPrefix", {
+                              date: formatDateSafe(inv.dueDate, locale),
+                            })
                           : "—"}
                     </td>
                     <td className="px-5 py-3.5 text-right whitespace-nowrap">
@@ -1160,7 +1354,7 @@ export function SubscriptionBillingPage() {
                               setPayingInvoice({ id: inv.id, type: inv.invoiceType })
                             }
                           >
-                            Thanh toán
+                            {t("tenantAdmin.billing.page.invoicesCard.payButton")}
                           </Button>
                           <Button
                             variant="ghost"
@@ -1168,7 +1362,7 @@ export function SubscriptionBillingPage() {
                             disabled={cancelingInvoiceId === inv.id}
                             onClick={() => handleCancelPendingInvoice(inv)}
                           >
-                            Hủy
+                            {t("tenantAdmin.billing.page.invoicesCard.cancelButton")}
                           </Button>
                         </div>
                       ) : (
@@ -1176,7 +1370,8 @@ export function SubscriptionBillingPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

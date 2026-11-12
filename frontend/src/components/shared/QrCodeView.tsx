@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { QrCode, RefreshCw } from "lucide-react";
+import { useT } from "@/i18n";
 
 interface QrCodeViewProps {
   value: string;
@@ -15,11 +16,15 @@ export function QrCodeView({
   size = 160,
   logoUrl,
   logoText,
-  label = "Mã QR",
+  label,
   className = "",
 }: QrCodeViewProps) {
+  const t = useT();
+  const resolvedLabel = label ?? t("ux.qr.defaultLabel");
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const showCenterLogo = Boolean(logoUrl && failedLogoUrl !== logoUrl);
 
   // Use reliable public QR service with fallback
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size * 2}x${size * 2}&margin=8&data=${encodeURIComponent(
@@ -50,7 +55,7 @@ export function QrCodeView({
       {!hasError ? (
         <img
           src={qrUrl}
-          alt={label}
+          alt={resolvedLabel}
           width={size}
           height={size}
           className={`rounded-xl object-contain transition-opacity duration-300 ${
@@ -106,10 +111,10 @@ export function QrCodeView({
             type="button"
             onClick={handleReload}
             className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl text-xs text-white opacity-0 hover:opacity-100 transition-opacity"
-            title="Thử tải lại"
+            title={t("ux.qr.reloadTitle")}
           >
             <RefreshCw className="size-4 mb-1 animate-spin" />
-            <span>Tải lại</span>
+            <span>{t("ux.qr.reload")}</span>
           </button>
         </div>
       )}
@@ -120,8 +125,8 @@ export function QrCodeView({
           className="absolute inset-0 m-auto flex items-center justify-center rounded-lg bg-white p-1 shadow-md border border-slate-200"
           style={{ width: Math.max(28, size * 0.22), height: Math.max(28, size * 0.22) }}
         >
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="size-full object-contain rounded" />
+          {showCenterLogo ? (
+            <img src={logoUrl!} alt="" className="size-full object-contain rounded" onError={() => setFailedLogoUrl(logoUrl ?? null)} />
           ) : (
             <span className="text-[11px] font-bold text-slate-800 uppercase">
               {logoText?.slice(0, 2) || "SH"}

@@ -23,12 +23,11 @@ import { AssessmentError, assessmentInput } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
+import { t as globalT, useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 
 const SKILLS = SKILL_CATALOG.flatMap((group) => group.skills);
-const HELP =
-  "AI chỉ tạo nháp cho ngân hàng câu hỏi. Bạn có thể duyệt, chỉnh sửa từng câu, sinh thêm nhiều đợt và chọn lọc các câu chất lượng nhất trước khi lưu.";
 
 type QuestionKind = "MCQ" | "MULTIPLE_CHOICE" | "ESSAY" | "CODING";
 type CodingLanguage = "java" | "python" | "javascript" | "sql";
@@ -73,13 +72,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function pollCodingDrafts(body: {
-  skill: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  count: number;
-  language: CodingLanguage;
-  instructions: string;
-}): Promise<BankQuestionRequest[]> {
+async function pollCodingDrafts(
+  body: {
+    skill: string;
+    difficulty: "Easy" | "Medium" | "Hard";
+    count: number;
+    language: CodingLanguage;
+    instructions: string;
+  },
+  translate: TranslateFn = globalT,
+): Promise<BankQuestionRequest[]> {
   const started = await questionBankApi.generate({
     skill: body.skill,
     questionType: "CODING",
@@ -97,68 +99,74 @@ async function pollCodingDrafts(body: {
       }));
     }
     if (status.status === "FAILED") {
-      throw new Error(status.error || "AI chưa tạo được câu code hợp lệ.");
+      throw new Error(status.error || translate("recruiter.assessments.aiStudio.codingGenerateFailed"));
     }
     await sleep(2000);
   }
-  throw new Error("Hết thời gian chờ AI tạo câu code. Thử lại với ít câu hơn.");
+  throw new Error(translate("recruiter.assessments.aiStudio.codingGenerateTimeout"));
 }
 
-function codingSummary(coding: CodingContent | null | undefined) {
+function codingSummary(coding: CodingContent | null | undefined, translate: TranslateFn = globalT) {
   if (!coding) return null;
   const langs = Object.keys(coding.starterCode ?? {});
   const sample = (coding.testCases ?? []).filter((item) => item.sample).length;
   const hidden = (coding.testCases ?? []).filter((item) => !item.sample).length;
   return {
-    title: coding.title || "Bài code",
+    title: coding.title || translate("recruiter.assessments.aiStudio.codingFallbackTitle"),
     category: coding.category,
-    langs: langs.join(", ") || "—",
+    langs: langs.join(", ") || translate("recruiter.assessments.common.dash"),
     sample,
     hidden,
   };
 }
 
-const QUESTION_TYPES = [
-  {
-    id: "MCQ" as const,
-    label: "Trắc nghiệm",
-    badge: "1 đáp án",
-    icon: ListChecks,
-  },
-  {
-    id: "MULTIPLE_CHOICE" as const,
-    label: "Nhiều đáp án",
-    badge: "Multi-select",
-    icon: CheckCheck,
-  },
-  {
-    id: "ESSAY" as const,
-    label: "Tự luận",
-    badge: "Rubric AI",
-    icon: FileText,
-  },
-  {
-    id: "CODING" as const,
-    label: "Lập trình",
-    badge: "Code & Tests",
-    icon: Code2,
-  },
-] as const;
+function getQuestionTypes(t: TranslateFn) {
+  return [
+    {
+      id: "MCQ" as const,
+      label: t("recruiter.assessments.aiStudio.questionTypes.mcqLabel"),
+      badge: t("recruiter.assessments.aiStudio.questionTypes.mcqBadge"),
+      icon: ListChecks,
+    },
+    {
+      id: "MULTIPLE_CHOICE" as const,
+      label: t("recruiter.assessments.aiStudio.questionTypes.multiLabel"),
+      badge: t("recruiter.assessments.aiStudio.questionTypes.multiBadge"),
+      icon: CheckCheck,
+    },
+    {
+      id: "ESSAY" as const,
+      label: t("recruiter.assessments.aiStudio.questionTypes.essayLabel"),
+      badge: t("recruiter.assessments.aiStudio.questionTypes.essayBadge"),
+      icon: FileText,
+    },
+    {
+      id: "CODING" as const,
+      label: t("recruiter.assessments.aiStudio.questionTypes.codingLabel"),
+      badge: t("recruiter.assessments.aiStudio.questionTypes.codingBadge"),
+      icon: Code2,
+    },
+  ] as const;
+}
 
-const DIFFICULTIES = [
-  { id: "Easy" as const, label: "Dễ" },
-  { id: "Medium" as const, label: "Trung bình" },
-  { id: "Hard" as const, label: "Khó" },
-] as const;
+function getDifficulties(t: TranslateFn) {
+  return [
+    { id: "Easy" as const, label: t("recruiter.assessments.common.difficulty.easyShort") },
+    { id: "Medium" as const, label: t("recruiter.assessments.common.difficulty.mediumShort") },
+    { id: "Hard" as const, label: t("recruiter.assessments.common.difficulty.hardShort") },
+  ] as const;
+}
 
-const QUICK_PROMPTS = [
-  "Kiến trúc & Design Patterns",
-  "Tối ưu hóa hiệu năng",
-  "Xử lý concurrency & đa luồng",
-  "Bảo mật & Authentication",
-  "Clean Code & SOLID",
-  "Xử lý Transaction & Database",
-];
+function getQuickPrompts(t: TranslateFn) {
+  return [
+    t("recruiter.assessments.aiStudio.quickPrompts.architecture"),
+    t("recruiter.assessments.aiStudio.quickPrompts.performance"),
+    t("recruiter.assessments.aiStudio.quickPrompts.concurrency"),
+    t("recruiter.assessments.aiStudio.quickPrompts.security"),
+    t("recruiter.assessments.aiStudio.quickPrompts.cleanCode"),
+    t("recruiter.assessments.aiStudio.quickPrompts.transactions"),
+  ];
+}
 
 export function AiQuestionGenerateDialog({
   open,
@@ -170,6 +178,11 @@ export function AiQuestionGenerateDialog({
   defaultTopic = "",
   jobContext = "",
 }: Props) {
+  const t = useT();
+  const helpText = t("recruiter.assessments.aiStudio.dialogHelp");
+  const questionTypes = getQuestionTypes(t);
+  const difficulties = getDifficulties(t);
+  const quickPrompts = getQuickPrompts(t);
   const skills = skillOptions?.length ? skillOptions : SKILLS;
   const [skill, setSkill] = useState(defaultSkill || skills[0] || "Java");
   const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
@@ -233,7 +246,7 @@ export function AiQuestionGenerateDialog({
       next.delete(id);
       return next;
     });
-    toast.info("Đã xóa câu hỏi khỏi danh sách nháp");
+    toast.info(t("recruiter.assessments.aiStudio.removedDraftToast"));
   };
 
   const generate = useMutation({
@@ -247,7 +260,7 @@ export function AiQuestionGenerateDialog({
           count,
           language: codingLanguage,
           instructions,
-        });
+        }, t);
       }
       return questionBankApi.generateStream(
         {
@@ -281,30 +294,30 @@ export function AiQuestionGenerateDialog({
           return next;
         });
         toast.success(
-          `Đã sinh thêm ${items.length} câu nháp (Đợt ${nextBatch})`,
-          "Các câu mới đã được cộng dồn vào danh sách kiểm duyệt bên phải.",
+          t("recruiter.assessments.aiStudio.batchAppendTitle", { count: items.length, batch: nextBatch }),
+          t("recruiter.assessments.aiStudio.batchAppendDesc"),
         );
       } else {
         setDrafts(newDraftItems);
         setSelected(new Set(newDraftItems.map((d) => d.id)));
         setGenerationMode("APPEND"); // Mặc định sau đợt đầu chuyển sang APPEND để tiện sinh đợt 2
         toast.success(
-          `AI đã soạn thảo xong ${items.length} câu hỏi`,
-          "Vui lòng xem lại đáp án và chỉnh sửa trước khi lưu vào ngân hàng.",
+          t("recruiter.assessments.aiStudio.batchCreatedTitle", { count: items.length }),
+          t("recruiter.assessments.aiStudio.batchCreatedDesc"),
         );
       }
 
       const dupes = items.filter((item) => similarIds(item.authoringMetadata).length > 0).length;
       if (dupes > 0) {
         toast.warning(
-          "Cảnh báo trùng lặp",
-          `Có ${dupes} câu tương đồng với câu hỏi đã có sẵn trong ngân hàng. Hãy kiểm tra kỹ!`,
+          t("recruiter.assessments.aiStudio.duplicateWarningTitle"),
+          t("recruiter.assessments.aiStudio.duplicateWarningDesc", { count: dupes }),
         );
       }
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Có lỗi xảy ra khi gọi AI sinh câu hỏi.";
-      toast.error("Sinh câu hỏi thất bại", msg);
+      const msg = err instanceof Error ? err.message : t("recruiter.assessments.aiStudio.generateErrorFallback");
+      toast.error(t("recruiter.assessments.aiStudio.generateErrorTitle"), msg);
     },
   });
 
@@ -316,13 +329,13 @@ export function AiQuestionGenerateDialog({
           question: item.question,
           authoringMetadata: item.authoringMetadata,
         }));
-      if (!picked.length) throw new Error("Chọn ít nhất một câu để lưu.");
+      if (!picked.length) throw new Error(t("recruiter.assessments.aiStudio.pickAtLeastOneError"));
       return questionBankApi.create(picked);
     },
     onSuccess: (saved) => {
       toast.success(
-        `Đã lưu thành công ${saved.length} câu hỏi`,
-        "Các câu hỏi AI đã được nhập vào Ngân hàng câu hỏi.",
+        t("recruiter.assessments.aiStudio.saveSuccessTitle", { count: saved.length }),
+        t("recruiter.assessments.aiStudio.saveSuccessDesc"),
       );
       setDrafts([]);
       setSelected(new Set());
@@ -331,8 +344,8 @@ export function AiQuestionGenerateDialog({
       onSaved();
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể lưu câu hỏi vào ngân hàng.";
-      toast.error("Lưu thất bại", msg);
+      const msg = err instanceof Error ? err.message : t("recruiter.assessments.aiStudio.saveErrorFallback");
+      toast.error(t("recruiter.assessments.aiStudio.saveErrorTitle"), msg);
     },
   });
 
@@ -365,25 +378,25 @@ export function AiQuestionGenerateDialog({
         {/* Top Header */}
         <header className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-900/60 shadow-2xs">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25 shadow-2xs">
               <Sparkles className="size-5" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 id="ai-gen-title" className="text-base font-bold text-[#101828] dark:text-white">
-                  Studio Sinh câu hỏi bằng AI
+                  {t("recruiter.assessments.aiStudio.title")}
                 </h2>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
-                  SmartHire AI Engine
+                <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)]">
+                  {t("recruiter.assessments.aiStudio.engineBadge")}
                 </span>
-                <Tooltip content={HELP} side="right">
+                <Tooltip content={helpText} side="right">
                   <span className="cursor-help text-slate-400 hover:text-slate-600 transition-colors">
                     <CircleHelp className="size-4" aria-hidden="true" />
                   </span>
                 </Tooltip>
               </div>
               <p className="text-xs text-[#667085] dark:text-slate-400">
-                Tự động tạo câu hỏi trắc nghiệm, tự luận và bài tập code chuyên sâu theo ngữ cảnh vị trí tuyển dụng.
+                {t("recruiter.assessments.aiStudio.dialogSubtitle")}
               </p>
             </div>
           </div>
@@ -394,7 +407,7 @@ export function AiQuestionGenerateDialog({
               className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
               onClick={onClose}
               disabled={busy}
-              aria-label="Đóng"
+              aria-label={t("recruiter.assessments.common.actions.close")}
             >
               <X className="size-5" aria-hidden="true" />
             </button>
@@ -407,11 +420,11 @@ export function AiQuestionGenerateDialog({
           <aside className="w-full md:w-[380px] lg:w-[420px] shrink-0 border-r border-slate-200/80 bg-slate-50/70 p-5 overflow-y-auto space-y-4 dark:border-slate-800 dark:bg-slate-900/50">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Sliders className="size-3.5 text-[#0066FF]" /> Cấu hình tham số sinh
+                <Sliders className="size-3.5 text-[var(--color-primary)]" /> {t("recruiter.assessments.aiStudio.configHeading")}
               </span>
               {batchCount > 0 && (
                 <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
-                  Đã sinh {batchCount} đợt
+                  {t("recruiter.assessments.aiStudio.batchesGenerated", { count: batchCount })}
                 </span>
               )}
             </div>
@@ -420,7 +433,7 @@ export function AiQuestionGenerateDialog({
             <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <label className="block space-y-1">
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  Kỹ năng chuyên môn
+                  {t("recruiter.assessments.aiStudio.skillLabel")}
                 </span>
                 <select
                   disabled={busy}
@@ -439,7 +452,7 @@ export function AiQuestionGenerateDialog({
               {coding ? (
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Ngôn ngữ lập trình
+                    {t("recruiter.assessments.aiStudio.codingLangLabel")}
                   </span>
                   <select
                     disabled={busy}
@@ -447,16 +460,16 @@ export function AiQuestionGenerateDialog({
                     value={codingLanguage}
                     onChange={(e) => setCodingLanguage(e.target.value as CodingLanguage)}
                   >
-                    <option value="java">Java (JDK 21)</option>
-                    <option value="python">Python 3.x</option>
-                    <option value="javascript">JavaScript / TypeScript</option>
-                    <option value="sql">SQL (PostgreSQL / MySQL)</option>
+                    <option value="java">{t("recruiter.assessments.aiStudio.codingLangOptions.java")}</option>
+                    <option value="python">{t("recruiter.assessments.aiStudio.codingLangOptions.python")}</option>
+                    <option value="javascript">{t("recruiter.assessments.aiStudio.codingLangOptions.javascript")}</option>
+                    <option value="sql">{t("recruiter.assessments.aiStudio.codingLangOptions.sql")}</option>
                   </select>
                 </label>
               ) : (
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Ngôn ngữ hiển thị đề
+                    {t("recruiter.assessments.aiStudio.promptLangLabel")}
                   </span>
                   <select
                     disabled={busy}
@@ -464,8 +477,8 @@ export function AiQuestionGenerateDialog({
                     value={language}
                     onChange={(e) => setLanguage(e.target.value as "vi" | "en")}
                   >
-                    <option value="vi">Tiếng Việt</option>
-                    <option value="en">English</option>
+                    <option value="vi">{t("recruiter.assessments.aiStudio.langVi")}</option>
+                    <option value="en">{t("recruiter.assessments.aiStudio.langEn")}</option>
                   </select>
                 </label>
               )}
@@ -474,10 +487,10 @@ export function AiQuestionGenerateDialog({
             {/* 2. Loại câu hỏi (4 Cards) */}
             <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Định dạng câu hỏi
+                {t("recruiter.assessments.aiStudio.questionFormatLabel")}
               </span>
               <div className="grid grid-cols-2 gap-2">
-                {QUESTION_TYPES.map((qt) => {
+                {questionTypes.map((qt) => {
                   const Icon = qt.icon;
                   const isSelected = questionType === qt.id;
                   return (
@@ -492,7 +505,7 @@ export function AiQuestionGenerateDialog({
                       className={cn(
                         "flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition-all cursor-pointer",
                         isSelected
-                          ? "border-[#0066FF] bg-blue-50/80 text-[#0066FF] ring-2 ring-[#0066FF]/20 dark:bg-blue-950/40 dark:text-blue-300"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] ring-2 ring-[var(--color-primary)]/20"
                           : "border-slate-200/80 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300",
                       )}
                     >
@@ -511,10 +524,10 @@ export function AiQuestionGenerateDialog({
             <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="space-y-1.5">
                 <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  Mức độ khó
+                  {t("recruiter.assessments.aiStudio.difficultyLabel")}
                 </span>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {DIFFICULTIES.map((d) => (
+                  {difficulties.map((d) => (
                     <button
                       key={d.id}
                       type="button"
@@ -523,7 +536,7 @@ export function AiQuestionGenerateDialog({
                       className={cn(
                         "rounded-lg py-1.5 text-xs font-semibold transition-all border",
                         difficulty === d.id
-                          ? "border-[#0066FF] bg-blue-50 text-[#0066FF] shadow-2xs dark:bg-blue-950 dark:text-blue-300"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] shadow-2xs"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800",
                       )}
                     >
@@ -536,9 +549,9 @@ export function AiQuestionGenerateDialog({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Số lượng câu muốn sinh
+                    {t("recruiter.assessments.aiStudio.countLabel")}
                   </span>
-                  <span className="text-xs font-bold text-[#0066FF]">{count} câu</span>
+                  <span className="text-xs font-bold text-[var(--color-primary)]">{t("recruiter.assessments.aiStudio.countBadge", { count })}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -548,7 +561,7 @@ export function AiQuestionGenerateDialog({
                     value={count}
                     disabled={busy}
                     onChange={(e) => setCount(Number(e.target.value))}
-                    className="flex-1 accent-[#0066FF] cursor-pointer"
+                    className="flex-1 accent-[var(--color-primary)] cursor-pointer"
                   />
                   <input
                     type="number"
@@ -569,7 +582,7 @@ export function AiQuestionGenerateDialog({
             <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <label className="block space-y-1">
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  Chủ đề / Yêu cầu bổ sung
+                  {t("recruiter.assessments.aiStudio.topicLabel")}
                 </span>
                 <textarea
                   rows={2}
@@ -580,15 +593,15 @@ export function AiQuestionGenerateDialog({
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder={
                     coding
-                      ? "VD: Thuật toán quy hoạch động, thao tác mảng 2 chiều, tối ưu thời gian O(N)..."
-                      : "VD: Cấu trúc bộ nhớ JVM, tối ưu câu lệnh SQL JOIN, kiến trúc Microservices..."
+                      ? t("recruiter.assessments.aiStudio.topicCodingPlaceholder")
+                      : t("recruiter.assessments.aiStudio.topicGeneralPlaceholder")
                   }
                 />
               </label>
 
               {/* Gợi ý chủ đề nhanh */}
               <div className="flex flex-wrap gap-1 pt-1">
-                {QUICK_PROMPTS.map((qp) => (
+                {quickPrompts.map((qp) => (
                   <button
                     key={qp}
                     type="button"
@@ -608,10 +621,10 @@ export function AiQuestionGenerateDialog({
                     checked={includeJd}
                     disabled={busy}
                     onChange={(e) => setIncludeJd(e.target.checked)}
-                    className="size-3.5 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                    className="size-3.5 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                   />
                   <span className="text-xs text-slate-600 dark:text-slate-300">
-                    Áp dụng ngữ cảnh JD công việc
+                    {t("recruiter.assessments.aiStudio.includeJdLabel")}
                   </span>
                 </label>
               )}
@@ -619,9 +632,9 @@ export function AiQuestionGenerateDialog({
 
             {/* 5. Chế độ sinh (Khi đã có câu hỏi nháp) */}
             {drafts.length > 0 && (
-              <div className="space-y-2 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/20">
-                <span className="block text-xs font-bold text-blue-900 dark:text-blue-300">
-                  Chế độ sinh câu hỏi tiếp theo
+              <div className="space-y-2 rounded-xl border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)]/50 p-3.5">
+                <span className="block text-xs font-bold text-[var(--color-primary-hover)]">
+                  {t("recruiter.assessments.aiStudio.nextGenModeLabel")}
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -631,12 +644,12 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                       generationMode === "APPEND"
-                        ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                        : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-2xs"
+                        : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] dark:border-slate-700 dark:bg-slate-900 dark:text-[var(--color-primary)]",
                     )}
                   >
                     <Plus className="size-3.5" />
-                    <span>Cộng dồn (Đợt {batchCount + 1})</span>
+                    <span>{t("recruiter.assessments.aiStudio.appendBtn", { batch: batchCount + 1 })}</span>
                   </button>
                   <button
                     type="button"
@@ -645,18 +658,18 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all border",
                       generationMode === "REPLACE"
-                        ? "border-[#0066FF] bg-[#0066FF] text-white shadow-2xs"
-                        : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300",
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-2xs"
+                        : "border-[var(--color-primary)]/25 bg-white text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] dark:border-slate-700 dark:bg-slate-900 dark:text-[var(--color-primary)]",
                     )}
                   >
                     <RotateCcw className="size-3.5" />
-                    <span>Làm mới (Ghi đè)</span>
+                    <span>{t("recruiter.assessments.aiStudio.replaceBtn")}</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                <p className="text-[11px] text-[var(--color-primary-hover)]/90">
                   {generationMode === "APPEND"
-                    ? "Giữ nguyên các câu hiện có và nối tiếp đợt sinh mới vào danh sách nháp."
-                    : "Xóa toàn bộ câu nháp cũ và thay thế bằng đợt sinh mới."}
+                    ? t("recruiter.assessments.aiStudio.appendHint")
+                    : t("recruiter.assessments.aiStudio.replaceHint")}
                 </p>
               </div>
             )}
@@ -674,8 +687,8 @@ export function AiQuestionGenerateDialog({
                   <RefreshCw className="size-4 animate-spin" />
                   <span>
                     {coding
-                      ? "AI đang thiết kế bài code & test cases..."
-                      : `AI đang biên soạn ${count} câu hỏi...`}
+                      ? t("recruiter.assessments.aiStudio.generatingCodingBtn")
+                      : t("recruiter.assessments.aiStudio.generatingBtn", { count })}
                   </span>
                 </>
               ) : (
@@ -683,10 +696,10 @@ export function AiQuestionGenerateDialog({
                   <Sparkles className="size-4" />
                   <span>
                     {drafts.length === 0
-                      ? `Sinh nháp bằng AI (${count} câu)`
+                      ? t("recruiter.assessments.aiStudio.generateFirstBtn", { count })
                       : generationMode === "APPEND"
-                        ? `+ Sinh thêm đợt ${batchCount + 1} (${count} câu)`
-                        : `Sinh mới danh sách (${count} câu)`}
+                        ? t("recruiter.assessments.aiStudio.generateMoreBtn", { batch: batchCount + 1, count })
+                        : t("recruiter.assessments.aiStudio.generateReplaceBtn", { count })}
                   </span>
                 </>
               )}
@@ -706,16 +719,16 @@ export function AiQuestionGenerateDialog({
                     }
                     onChange={toggleSelectAll}
                     disabled={filteredDrafts.length === 0 || busy}
-                    className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                    className="size-4 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                   />
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Chọn tất cả ({filteredDrafts.length})
+                    {t("recruiter.assessments.aiStudio.selectAllCount", { count: filteredDrafts.length })}
                   </span>
                 </label>
 
                 {drafts.length > 0 && (
-                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
-                    Đã chọn {selectedCount} / {drafts.length} câu
+                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
+                    {t("recruiter.assessments.aiStudio.selectedRatio", { selected: selectedCount, total: drafts.length })}
                   </span>
                 )}
               </div>
@@ -734,9 +747,9 @@ export function AiQuestionGenerateDialog({
                           : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
                       )}
                     >
-                      Tất cả ({drafts.length})
+                      {t("recruiter.assessments.aiStudio.filterAllCount", { count: drafts.length })}
                     </button>
-                    {["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"].map((type) => {
+                    {(["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"] as const).map((type) => {
                       const c = drafts.filter((d) => d.question.questionType === type).length;
                       if (!c) return null;
                       return (
@@ -751,14 +764,7 @@ export function AiQuestionGenerateDialog({
                               : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
                           )}
                         >
-                          {type === "MCQ"
-                            ? "Trắc nghiệm"
-                            : type === "MULTIPLE_CHOICE"
-                              ? "Nhiều ĐA"
-                              : type === "ESSAY"
-                                ? "Tự luận"
-                                : "Code"}{" "}
-                          ({c})
+                          {t(`recruiter.assessments.aiStudio.filterShort.${type}`)} ({c})
                         </button>
                       );
                     })}
@@ -768,7 +774,7 @@ export function AiQuestionGenerateDialog({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      if (window.confirm("Bạn có chắc chắn muốn xóa tất cả câu hỏi nháp hiện tại?")) {
+                      if (window.confirm(t("recruiter.assessments.aiStudio.clearAllConfirm"))) {
                         setDrafts([]);
                         setSelected(new Set());
                         setBatchCount(0);
@@ -778,7 +784,7 @@ export function AiQuestionGenerateDialog({
                     className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                   >
                     <Trash2 className="size-3.5" />
-                    <span>Xóa nháp</span>
+                    <span>{t("recruiter.assessments.aiStudio.clearDraftsBtn")}</span>
                   </button>
                 </div>
               )}
@@ -791,25 +797,25 @@ export function AiQuestionGenerateDialog({
               {/* State 1: Chưa có câu hỏi nào */}
               {drafts.length === 0 && !generate.isPending && (
                 <div className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
-                  <div className="flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-900 mb-4 shadow-sm">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] border border-[var(--color-primary)]/25 mb-4 shadow-sm">
                     <Sparkles className="size-7" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Chưa có câu hỏi nháp nào được sinh
+                    {t("recruiter.assessments.aiStudio.emptyTitle")}
                   </h3>
                   <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Chọn các thông số kỹ năng, loại câu hỏi và chủ đề ở bảng điều khiển bên trái, sau đó bấm nút{" "}
-                    <strong>Sinh nháp bằng AI</strong>.
+                    {t("recruiter.assessments.aiStudio.emptyDescPrefix")}
+                    <strong>{t("recruiter.assessments.aiStudio.emptyDescBtnName")}</strong>.
                   </p>
                   <div className="mt-6 flex flex-wrap justify-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">1.</span> Thiết lập Kỹ năng & Loại câu
+                      <span className="font-bold text-[var(--color-primary)]">1.</span> {t("recruiter.assessments.aiStudio.emptyStep1")}
                     </span>
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">2.</span> Nhập chủ đề hoặc dùng JD
+                      <span className="font-bold text-[var(--color-primary)]">2.</span> {t("recruiter.assessments.aiStudio.emptyStep2")}
                     </span>
                     <span className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
-                      <span className="font-bold text-[#0066FF]">3.</span> Bấm Sinh & Chỉnh sửa trực quan
+                      <span className="font-bold text-[var(--color-primary)]">3.</span> {t("recruiter.assessments.aiStudio.emptyStep3")}
                     </span>
                   </div>
                 </div>
@@ -817,15 +823,15 @@ export function AiQuestionGenerateDialog({
 
               {/* State 2: Đang sinh câu hỏi */}
               {generate.isPending && (
-                <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/40 p-8 text-center dark:border-blue-900/60 dark:bg-blue-950/20 animate-pulse">
-                  <RefreshCw className="size-8 text-[#0066FF] animate-spin mb-3" />
-                  <h3 className="text-sm font-bold text-[#0066FF] dark:text-blue-300">
-                    SmartHire AI đang phân tích và biên soạn câu hỏi...
+                <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-soft)]/40 p-8 text-center animate-pulse">
+                  <RefreshCw className="size-8 text-[var(--color-primary)] animate-spin mb-3" />
+                  <h3 className="text-sm font-bold text-[var(--color-primary-hover)]">
+                    {t("recruiter.assessments.aiStudio.pendingCardTitle")}
                   </h3>
-                  <p className="mt-1 max-w-sm text-xs text-blue-800/80 dark:text-blue-400/80">
+                  <p className="mt-1 max-w-sm text-xs text-[var(--color-primary-hover)]/80">
                     {coding
-                      ? "Đang khởi tạo thuật toán bài code, giải pháp mẫu và hệ thống test cases tự động."
-                      : "Đang tạo các câu hỏi bám sát kiến thức thực tế và kiểm tra độ trùng lặp với ngân hàng."}
+                      ? t("recruiter.assessments.aiStudio.pendingCardCodingDesc")
+                      : t("recruiter.assessments.aiStudio.pendingCardGeneralDesc")}
                   </p>
                 </div>
               )}
@@ -836,7 +842,7 @@ export function AiQuestionGenerateDialog({
                 const checked = selected.has(item.id);
                 const dups = similarIds(item.authoringMetadata);
                 const rubric = asRubric(q.rubricJson);
-                const code = codingSummary(q.coding);
+                const code = codingSummary(q.coding, t);
 
                 return (
                   <div
@@ -844,7 +850,7 @@ export function AiQuestionGenerateDialog({
                     className={cn(
                       "rounded-2xl border transition-all p-5 shadow-2xs space-y-4",
                       checked
-                        ? "border-[#0066FF]/60 bg-blue-50/15 ring-1 ring-[#0066FF]/20 dark:border-blue-900/80 dark:bg-blue-950/10"
+                        ? "border-[var(--color-primary)]/60 bg-[var(--color-primary-soft)]/25 ring-1 ring-[var(--color-primary)]/20"
                         : "border-slate-200/90 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900",
                     )}
                   >
@@ -864,10 +870,10 @@ export function AiQuestionGenerateDialog({
                                 return next;
                               });
                             }}
-                            className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                            className="size-4 rounded border-slate-300 text-[var(--color-primary)] accent-[var(--color-primary)]"
                           />
                           <span className="font-bold text-sm text-slate-900 dark:text-white">
-                            Câu #{index + 1}
+                            {t("recruiter.assessments.common.questionHashNumber", { index: index + 1 })}
                           </span>
                         </label>
 
@@ -875,17 +881,17 @@ export function AiQuestionGenerateDialog({
                         <div className="flex flex-wrap items-center gap-1.5">
                           {batchCount > 1 && (
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                              Đợt {item.batch}
+                              {t("recruiter.assessments.common.batchLabel", { batch: item.batch })}
                             </span>
                           )}
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
+                          <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                             {q.questionType === "MCQ"
-                              ? "Trắc nghiệm 1 ĐA"
+                              ? t("recruiter.assessments.common.questionTypes.badgeSingle")
                               : q.questionType === "MULTIPLE_CHOICE"
-                                ? "Nhiều ĐA đúng"
+                                ? t("recruiter.assessments.common.questionTypes.badgeMulti")
                                 : q.questionType === "ESSAY"
-                                  ? "Tự luận Rubric"
-                                  : "Bài code"}
+                                  ? t("recruiter.assessments.common.questionTypes.badgeEssay")
+                                  : t("recruiter.assessments.common.questionTypes.badgeCode")}
                           </span>
                           <span
                             className={cn(
@@ -897,7 +903,11 @@ export function AiQuestionGenerateDialog({
                                   : "bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-950 dark:text-amber-300",
                             )}
                           >
-                            {q.difficulty}
+                            {q.difficulty === "Easy"
+                              ? t("recruiter.assessments.common.difficulty.easyShort")
+                              : q.difficulty === "Hard"
+                                ? t("recruiter.assessments.common.difficulty.hardShort")
+                                : t("recruiter.assessments.common.difficulty.mediumShort")}
                           </span>
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                             {q.skill}
@@ -907,7 +917,7 @@ export function AiQuestionGenerateDialog({
 
                       <div className="flex items-center gap-3">
                         <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          <span>Điểm:</span>
+                          <span>{t("recruiter.assessments.aiStudio.pointsLabel")}</span>
                           <input
                             type="number"
                             min={1}
@@ -927,7 +937,7 @@ export function AiQuestionGenerateDialog({
                           type="button"
                           onClick={() => removeDraft(item.id)}
                           disabled={busy}
-                          title="Loại bỏ câu này khỏi danh sách"
+                          title={t("recruiter.assessments.aiStudio.removeCardTooltip")}
                           className="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="size-4" />
@@ -940,11 +950,11 @@ export function AiQuestionGenerateDialog({
                       <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60">
                         <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <span>
-                          AI phát hiện nội dung có thể trùng với câu hỏi đã có:{" "}
+                          {t("recruiter.assessments.aiStudio.duplicateBannerPrefix")}
                           <strong>
                             {dups.map((id) => `#QB-${String(id).padStart(3, "0")}`).join(", ")}
                           </strong>
-                          . Vui lòng chỉnh sửa nội dung hoặc đáp án để tránh lặp lại.
+                          {t("recruiter.assessments.aiStudio.duplicateBannerSuffix")}
                         </span>
                       </div>
                     )}
@@ -952,7 +962,7 @@ export function AiQuestionGenerateDialog({
                     {/* Nội dung câu hỏi (Editable Textarea) */}
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        Nội dung đề bài
+                        {t("recruiter.assessments.aiStudio.questionBodyLabel")}
                       </label>
                       <textarea
                         rows={3}
@@ -971,12 +981,12 @@ export function AiQuestionGenerateDialog({
                       <div className="space-y-2 pt-1">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                            Các lựa chọn đáp án ({q.options?.length ?? 0})
+                            {t("recruiter.assessments.aiStudio.optionsHeading", { count: q.options?.length ?? 0 })}
                           </span>
                           <span className="text-[11px] text-slate-400">
                             {q.questionType === "MCQ"
-                              ? "Tích chọn 1 đáp án đúng (Radio)"
-                              : "Tích chọn các đáp án đúng (Checkbox)"}
+                              ? t("recruiter.assessments.aiStudio.radioHint")
+                              : t("recruiter.assessments.aiStudio.checkboxHint")}
                           </span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1017,7 +1027,7 @@ export function AiQuestionGenerateDialog({
                                 />
                                 {isCorrect && (
                                   <span className="shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
-                                    Đáp án đúng
+                                    {t("recruiter.assessments.aiStudio.correctOptionTag")}
                                   </span>
                                 )}
                               </div>
@@ -1031,7 +1041,7 @@ export function AiQuestionGenerateDialog({
                     {q.questionType === "ESSAY" && rubric && (
                       <div className="space-y-1.5 rounded-xl border border-amber-200/60 bg-amber-50/30 p-3.5 dark:border-amber-900/60 dark:bg-amber-950/20">
                         <span className="text-xs font-bold text-amber-900 dark:text-amber-300">
-                          Đáp án chuẩn tham khảo (Reference Answer cho AI chấm)
+                          {t("recruiter.assessments.aiStudio.referenceAnswerHeading")}
                         </span>
                         <textarea
                           rows={2}
@@ -1059,11 +1069,11 @@ export function AiQuestionGenerateDialog({
                             {code.title}
                           </span>
                           <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                            {code.sample} test mẫu · {code.hidden} test ẩn
+                            {t("recruiter.assessments.aiStudio.codingTestsSummary", { sample: code.sample, hidden: code.hidden })}
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Ngôn ngữ hỗ trợ: <strong className="text-slate-900 dark:text-white">{code.langs}</strong>
+                          {t("recruiter.assessments.aiStudio.supportedLanguagesPrefix")}<strong className="text-slate-900 dark:text-white">{code.langs}</strong>
                         </p>
                       </div>
                     )}
@@ -1071,7 +1081,7 @@ export function AiQuestionGenerateDialog({
                     {/* Lời giải thích chi tiết */}
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Giải thích đáp án & Kiến thức cần nhớ
+                        {t("recruiter.assessments.aiStudio.explanationHeading")}
                       </label>
                       <textarea
                         rows={2}
@@ -1081,7 +1091,7 @@ export function AiQuestionGenerateDialog({
                           "text-xs leading-relaxed bg-slate-50/50 focus:bg-white resize-y",
                         )}
                         value={q.explanation ?? ""}
-                        placeholder="Thêm giải thích để ứng viên hoặc hội đồng phỏng vấn đối chiếu..."
+                        placeholder={t("recruiter.assessments.aiStudio.explanationPlaceholder")}
                         onChange={(e) => patchDraft(item.id, { explanation: e.target.value })}
                       />
                     </div>
@@ -1095,18 +1105,18 @@ export function AiQuestionGenerateDialog({
               <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                 {selectedCount > 0 ? (
                   <span>
-                    Sẵn sàng lưu <strong className="text-[#0066FF]">{selectedCount}</strong> câu hỏi đã chọn vào Ngân hàng.
+                    {t("recruiter.assessments.aiStudio.readyToSavePrefix")}<strong className="text-[var(--color-primary)]">{selectedCount}</strong>{t("recruiter.assessments.aiStudio.readyToSaveSuffix")}
                   </span>
                 ) : drafts.length > 0 ? (
-                  <span className="text-amber-600">Vui lòng tích chọn ít nhất 1 câu để lưu.</span>
+                  <span className="text-amber-600">{t("recruiter.assessments.aiStudio.pickOneToSaveWarning")}</span>
                 ) : (
-                  <span>Chọn tham số và bấm Sinh nháp để bắt đầu.</span>
+                  <span>{t("recruiter.assessments.aiStudio.pickParamsPrompt")}</span>
                 )}
               </div>
 
               <div className="flex items-center gap-2.5">
                 <Button variant="ghost" disabled={busy} onClick={onClose} size="sm">
-                  Đóng
+                  {t("recruiter.assessments.common.actions.close")}
                 </Button>
                 <Button
                   type="button"
@@ -1119,12 +1129,16 @@ export function AiQuestionGenerateDialog({
                   {save.isPending ? (
                     <>
                       <RefreshCw className="size-4 animate-spin" />
-                      <span>Đang lưu...</span>
+                      <span>{t("recruiter.assessments.common.actions.saving")}</span>
                     </>
                   ) : (
                     <>
                       <Save className="size-4" />
-                      <span>Lưu {selectedCount || ""} câu vào Ngân hàng</span>
+                      <span>
+                        {selectedCount > 0
+                          ? t("recruiter.assessments.aiStudio.saveCountIntoBankBtn", { count: selectedCount })
+                          : t("recruiter.assessments.aiStudio.saveIntoBankBtn")}
+                      </span>
                     </>
                   )}
                 </Button>

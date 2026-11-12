@@ -5,12 +5,13 @@ import { masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { masterAdminApi, type SubscriptionPlan } from "@/api/master/masterAdminApi";
+import { useT } from "@/i18n";
 
 export function CreateSubscriptionPlanPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
-  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [planCode, setPlanCode] = useState("");
   const [planName, setPlanName] = useState("");
@@ -52,11 +53,11 @@ export function CreateSubscriptionPlanPage() {
 
       const res = await masterAdminApi.createSubscription(payload);
       setPlans((prev: SubscriptionPlan[]) => [res, ...prev]);
-      triggerNotification("Đã lưu gói dịch vụ mới.");
+      toast.success(t("master.commerce.createPlan.savedToast"));
       navigate("/admin/subscriptions/plans");
     } catch (error) {
       console.error(error);
-      toast.error("Đã xảy ra lỗi khi lưu gói cước.");
+      toast.error(t("master.commerce.createPlan.saveErrorToast"));
     } finally {
       setSaving(false);
     }
@@ -68,6 +69,7 @@ export function CreateSubscriptionPlanPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/admin/subscriptions/plans")}
+            aria-label={t("master.commerce.createPlan.backAria")}
             className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -75,9 +77,9 @@ export function CreateSubscriptionPlanPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <CreditCard className="w-6 h-6 text-indigo-600" />
-              Tạo Gói Dịch Vụ Mới
+              {t("master.commerce.createPlan.title")}
             </h1>
-            <p className="text-xs text-slate-500 mt-1">Cấu hình thông tin, giá cước và giới hạn tài nguyên (Quotas).</p>
+            <p className="text-xs text-slate-500 mt-1">{t("master.commerce.createPlan.subtitle")}</p>
           </div>
         </div>
         <button
@@ -88,12 +90,12 @@ export function CreateSubscriptionPlanPage() {
           {saving ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Đang lưu...</span>
+              <span>{t("master.commerce.createPlan.savingBtn")}</span>
             </>
           ) : (
             <>
               <Save className="w-4 h-4" />
-              <span>Lưu Gói Cước</span>
+              <span>{t("master.commerce.createPlan.saveBtn")}</span>
             </>
           )}
         </button>
@@ -104,46 +106,46 @@ export function CreateSubscriptionPlanPage() {
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
           <div className="font-bold text-indigo-900 text-sm uppercase flex items-center gap-2">
             <Box className="w-5 h-5 text-indigo-600" />
-            <span>1. Thông Tin Cơ Bản</span>
+            <span>{t("master.commerce.createPlan.section1Title")}</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Mã Gói (Code) *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.codeLabel")}</label>
               <input
                 type="text"
                 required
                 value={planCode}
                 onChange={(e) => setPlanCode(e.target.value.toUpperCase())}
-                placeholder="ENTERPRISE_PLUS"
+                placeholder={t("master.commerce.createPlan.codePlaceholder")}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-indigo-600"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Tên Gói Hiển Thị *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.nameLabel")}</label>
               <input
                 type="text"
                 required
                 value={planName}
                 onChange={(e) => setPlanName(e.target.value)}
-                placeholder="Gói Doanh Nghiệp Không Giới Hạn"
+                placeholder={t("master.commerce.createPlan.namePlaceholder")}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600"
               />
             </div>
           </div>
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">Mô Tả Gói</label>
+            <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.descLabel")}</label>
             <input
               type="text"
               value={planDesc}
               onChange={(e) => setPlanDesc(e.target.value)}
-              placeholder="Gói cao cấp dành cho tổ chức quy mô lớn..."
+              placeholder={t("master.commerce.createPlan.descPlaceholder")}
               className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600"
             />
           </div>
           <div>
             <label className="block font-semibold text-slate-700 mb-1.5">
-              Giá Bản Quyền / Năm (VNĐ) *
+              {t("master.commerce.createPlan.priceLabel")}
             </label>
             <input
               type="number"
@@ -154,7 +156,7 @@ export function CreateSubscriptionPlanPage() {
               placeholder="36000000"
               className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-indigo-600"
             />
-            <p className="text-[11px] text-slate-500 mt-1">Đơn giá niêm yết tính theo chu kỳ năm (VNĐ)</p>
+            <p className="text-[11px] text-slate-500 mt-1">{t("master.commerce.createPlan.priceHint")}</p>
           </div>
         </div>
 
@@ -162,11 +164,11 @@ export function CreateSubscriptionPlanPage() {
         <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
           <div className="font-bold text-indigo-900 text-sm uppercase flex items-center gap-2">
             <Zap className="w-5 h-5 text-amber-500" />
-            <span>2. Giới Hạn Cốt Lõi (Core Quotas)</span>
+            <span>{t("master.commerce.createPlan.section2Title")}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Số Lượng Tin Tuyển Dụng Tối Đa (Max Jobs) *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.maxJobsLabel")}</label>
               <input
                 type="number"
                 min={-1}
@@ -178,7 +180,7 @@ export function CreateSubscriptionPlanPage() {
               <p className="text-[11px] text-slate-500 mt-1">-1 = Không giới hạn, 0 = Không hỗ trợ</p>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Số Lượng Lọc CV Bằng AI / Tháng (Max CVs) *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createPlan.maxCvLabel")}</label>
               <input
                 type="number"
                 min={-1}
@@ -196,7 +198,7 @@ export function CreateSubscriptionPlanPage() {
         <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-200 space-y-5">
           <div className="font-bold text-slate-900 text-sm uppercase flex items-center gap-2">
             <Settings className="w-5 h-5 text-slate-600" />
-            <span>3. Tùy Chọn Tính Năng Nâng Cao</span>
+            <span>{t("master.commerce.createPlan.section3Title")}</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -212,7 +214,7 @@ export function CreateSubscriptionPlanPage() {
                 />
                 <div className="flex items-center gap-2 font-bold text-slate-800">
                   <HardDrive className="w-4 h-4 text-slate-500" />
-                  Dung Lượng Lưu Trữ (GB)
+                  {t("master.commerce.createPlan.storageTitle")}
                 </div>
               </label>
               {enableStorage && (
@@ -227,11 +229,11 @@ export function CreateSubscriptionPlanPage() {
                     <option value={50}>50 GB</option>
                     <option value={100}>100 GB</option>
                     <option value={500}>500 GB</option>
-                    <option value="">Không giới hạn (Unlimited)</option>
+                    <option value="">{t("master.commerce.createPlan.unlimitedOption")}</option>
                   </select>
                 </div>
               )}
-              {!enableStorage && <p className="text-xs text-slate-500 pl-8">Không cấp phát lưu trữ.</p>}
+              {!enableStorage && <p className="text-xs text-slate-500 pl-8">{t("master.commerce.createPlan.storageDisabled")}</p>}
             </div>
 
             {/* AI Interview */}
@@ -245,7 +247,7 @@ export function CreateSubscriptionPlanPage() {
                 />
                 <div className="flex items-center gap-2 font-bold text-slate-800">
                   <Zap className="w-4 h-4 text-slate-500" />
-                  Giờ Phỏng Vấn AI (Hours)
+                  {t("master.commerce.createPlan.aiTitle")}
                 </div>
               </label>
               {enableAi && (
@@ -255,16 +257,16 @@ export function CreateSubscriptionPlanPage() {
                     onChange={(e) => setMaxAiHours(e.target.value === "" ? "" : Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-indigo-600"
                   >
-                    <option value={5}>5 Giờ</option>
-                    <option value={10}>10 Giờ</option>
-                    <option value={20}>20 Giờ</option>
-                    <option value={50}>50 Giờ</option>
-                    <option value={100}>100 Giờ</option>
-                    <option value="">Không giới hạn (Unlimited)</option>
+                    <option value={5}>{t("master.commerce.createPlan.hoursOption", { count: 5 })}</option>
+                    <option value={10}>{t("master.commerce.createPlan.hoursOption", { count: 10 })}</option>
+                    <option value={20}>{t("master.commerce.createPlan.hoursOption", { count: 20 })}</option>
+                    <option value={50}>{t("master.commerce.createPlan.hoursOption", { count: 50 })}</option>
+                    <option value={100}>{t("master.commerce.createPlan.hoursOption", { count: 100 })}</option>
+                    <option value="">{t("master.commerce.createPlan.unlimitedOption")}</option>
                   </select>
                 </div>
               )}
-              {!enableAi && <p className="text-xs text-slate-500 pl-8">Không hỗ trợ AI Interview.</p>}
+              {!enableAi && <p className="text-xs text-slate-500 pl-8">{t("master.commerce.createPlan.aiDisabled")}</p>}
             </div>
 
             {/* Proctoring */}
@@ -278,7 +280,7 @@ export function CreateSubscriptionPlanPage() {
                 />
                 <div className="flex items-center gap-2 font-bold text-slate-800">
                   <Shield className="w-4 h-4 text-slate-500" />
-                  Giờ Giám Sát Thi (Proctoring)
+                  {t("master.commerce.createPlan.proctoringTitle")}
                 </div>
               </label>
               {enableProctoring && (
@@ -288,16 +290,16 @@ export function CreateSubscriptionPlanPage() {
                     onChange={(e) => setMaxProctoringHours(e.target.value === "" ? "" : Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-indigo-600"
                   >
-                    <option value={5}>5 Giờ</option>
-                    <option value={10}>10 Giờ</option>
-                    <option value={20}>20 Giờ</option>
-                    <option value={50}>50 Giờ</option>
-                    <option value={100}>100 Giờ</option>
-                    <option value="">Không giới hạn (Unlimited)</option>
+                    <option value={5}>{t("master.commerce.createPlan.hoursOption", { count: 5 })}</option>
+                    <option value={10}>{t("master.commerce.createPlan.hoursOption", { count: 10 })}</option>
+                    <option value={20}>{t("master.commerce.createPlan.hoursOption", { count: 20 })}</option>
+                    <option value={50}>{t("master.commerce.createPlan.hoursOption", { count: 50 })}</option>
+                    <option value={100}>{t("master.commerce.createPlan.hoursOption", { count: 100 })}</option>
+                    <option value="">{t("master.commerce.createPlan.unlimitedOption")}</option>
                   </select>
                 </div>
               )}
-              {!enableProctoring && <p className="text-xs text-slate-500 pl-8">Không hỗ trợ Proctoring.</p>}
+              {!enableProctoring && <p className="text-xs text-slate-500 pl-8">{t("master.commerce.createPlan.proctoringDisabled")}</p>}
             </div>
 
             {/* Video Retention */}
@@ -311,7 +313,7 @@ export function CreateSubscriptionPlanPage() {
                 />
                 <div className="flex items-center gap-2 font-bold text-slate-800">
                   <Video className="w-4 h-4 text-slate-500" />
-                  Lưu Trữ Video (Ngày)
+                  {t("master.commerce.createPlan.videoTitle")}
                 </div>
               </label>
               {enableVideoRetention && (
@@ -321,16 +323,16 @@ export function CreateSubscriptionPlanPage() {
                     onChange={(e) => setVideoRetentionDays(e.target.value === "" ? "" : Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-indigo-600"
                   >
-                    <option value={7}>7 Ngày</option>
-                    <option value={14}>14 Ngày</option>
-                    <option value={30}>30 Ngày</option>
-                    <option value={90}>90 Ngày</option>
-                    <option value={365}>1 Năm (365 Ngày)</option>
-                    <option value="">Lưu vĩnh viễn (Unlimited)</option>
+                    <option value={7}>{t("master.commerce.createPlan.daysOption", { count: 7 })}</option>
+                    <option value={14}>{t("master.commerce.createPlan.daysOption", { count: 14 })}</option>
+                    <option value={30}>{t("master.commerce.createPlan.daysOption", { count: 30 })}</option>
+                    <option value={90}>{t("master.commerce.createPlan.daysOption", { count: 90 })}</option>
+                    <option value={365}>{t("master.commerce.createPlan.oneYearOption")}</option>
+                    <option value="">{t("master.commerce.createPlan.foreverOption")}</option>
                   </select>
                 </div>
               )}
-              {!enableVideoRetention && <p className="text-xs text-slate-500 pl-8">Không lưu trữ Video.</p>}
+              {!enableVideoRetention && <p className="text-xs text-slate-500 pl-8">{t("master.commerce.createPlan.videoDisabled")}</p>}
             </div>
 
           </div>

@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Mail } from "lucide-react";
 import type { NotificationPreference } from "@/api/types/notification";
 import { notificationApi } from "@/api/tenant/notificationApi";
 import { Button } from "@/components/ux/Button";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
@@ -17,7 +19,18 @@ type Props = {
   noteText?: string;
 };
 
-export function NotificationSettings({ categories = notificationCategories, noteText }: Props) {
+export function NotificationSettings({ categories, noteText }: Props) {
+  const t = useT();
+  const resolvedCategories = useMemo(
+    () =>
+      categories ??
+      notificationCategories.map((category) => ({
+        ...category,
+        label: t(`candidate.core.notifications.categories.candidate.${category.key}.label`),
+        description: t(`candidate.core.notifications.categories.candidate.${category.key}.description`),
+      })),
+    [categories, t],
+  );
   const client = useQueryClient();
   const preferences = useQuery({ queryKey, queryFn: notificationApi.preferences });
   const save = useMutation({
@@ -34,7 +47,7 @@ export function NotificationSettings({ categories = notificationCategories, note
     },
     onSuccess: (data) => {
       client.setQueryData(queryKey, data);
-      toast.success("Đã lưu cài đặt thông báo");
+      toast.success(t("candidate.core.notifications.settings.savedToast"));
     },
   });
 
@@ -43,17 +56,20 @@ export function NotificationSettings({ categories = notificationCategories, note
     save.mutate(rows.map((item) => item.category === row.category ? { ...item, [channel]: !item[channel] } : item));
   };
 
-  if (preferences.isPending) return <LoadingState className="space-y-3" label="Đang tải cài đặt thông báo">{[0, 1, 2].map((item) => <SkeletonCard key={item} className="min-h-24" />)}</LoadingState>;
-  if (preferences.isError) return <div role="alert" className="space-y-3 rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]"><p>{getApiErrorMessage(preferences.error)}</p><Button variant="secondary" onClick={() => void preferences.refetch()}>Thử lại</Button></div>;
+  if (preferences.isPending) return <LoadingState className="space-y-3" label={t("candidate.core.notifications.settings.loading")}>{[0, 1, 2].map((item) => <SkeletonCard key={item} className="min-h-24" />)}</LoadingState>;
+  if (preferences.isError) return <div role="alert" className="space-y-3 rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]"><p>{getApiErrorMessage(preferences.error)}</p><Button variant="secondary" onClick={() => void preferences.refetch()}>{t("common.retry")}</Button></div>;
+
+  const webLabel = t("candidate.core.notifications.settings.webChannel");
+  const emailLabel = t("candidate.core.notifications.settings.emailChannel");
 
   return <div className="space-y-4">
     <div className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)]">
       <div className="hidden grid-cols-[1fr_120px_120px] items-center gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)] sm:grid">
-        <span>Loại thông báo</span>
-        <span className="flex items-center justify-center gap-1.5"><Bell className="size-4" aria-hidden="true" />Trên web</span>
-        <span className="flex items-center justify-center gap-1.5"><Mail className="size-4" aria-hidden="true" />Qua Gmail</span>
+        <span>{t("candidate.core.notifications.settings.categoryColumn")}</span>
+        <span className="flex items-center justify-center gap-1.5"><Bell className="size-4" aria-hidden="true" />{webLabel}</span>
+        <span className="flex items-center justify-center gap-1.5"><Mail className="size-4" aria-hidden="true" />{emailLabel}</span>
       </div>
-      {categories.map((category) => {
+      {resolvedCategories.map((category) => {
         const row = preferences.data.find((item) => item.category === category.key) ?? { category: category.key, webEnabled: true, emailEnabled: true };
         const Icon = category.icon;
         return <div key={category.key} className="grid gap-4 border-b border-[var(--color-border-default)] px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_120px_120px] sm:items-center">
@@ -61,13 +77,13 @@ export function NotificationSettings({ categories = notificationCategories, note
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Icon className="size-5" aria-hidden="true" /></span>
             <div><h3 className="font-semibold">{category.label}</h3><p className="mt-0.5 text-sm text-[var(--color-on-surface-variant)]">{category.description}</p></div>
           </div>
-          <ChannelSwitch label={`${category.label} — thông báo trên web`} shortLabel="Trên web" checked={row.webEnabled} disabled={save.isPending} onChange={() => toggle(row, "webEnabled")} />
-          <ChannelSwitch label={`${category.label} — thông báo qua Gmail`} shortLabel="Qua Gmail" checked={row.emailEnabled} disabled={save.isPending} onChange={() => toggle(row, "emailEnabled")} />
+          <ChannelSwitch label={t("candidate.core.notifications.settings.webSwitchAria", { label: category.label })} shortLabel={webLabel} checked={row.webEnabled} disabled={save.isPending} onChange={() => toggle(row, "webEnabled")} />
+          <ChannelSwitch label={t("candidate.core.notifications.settings.emailSwitchAria", { label: category.label })} shortLabel={emailLabel} checked={row.emailEnabled} disabled={save.isPending} onChange={() => toggle(row, "emailEnabled")} />
         </div>;
       })}
     </div>
     <p className="text-xs text-[var(--color-on-surface-variant)]">
-      {noteText || "Thay đổi được lưu ngay. Tắt cả hai kênh, bạn vẫn xem được tiến trình trong mục Đơn đã ứng tuyển và Lịch của tôi."}
+      {noteText || t("candidate.core.notifications.settings.defaultNote")}
     </p>
   </div>;
 }

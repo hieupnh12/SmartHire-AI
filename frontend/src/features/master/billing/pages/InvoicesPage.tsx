@@ -8,6 +8,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { CreateInvoiceModal } from "@/features/master/billing/components/modals/CreateInvoiceModal";
 import { InvoiceDetailModal } from "@/features/master/billing/components/modals/InvoiceDetailModal";
+import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 
 interface InvoicesTabProps {
   invoiceTenantId: number | "";
@@ -46,13 +47,14 @@ function InvoicesContent({
   selectedInvoice,
   setSelectedInvoice,
 }: InvoicesTabProps) {
+  const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
   const { data: invoices = [] } = useInvoices();
   const setInvoices = (updater: any) => queryClient.setQueryData(masterQueryKeys.invoices(), updater);
-  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
@@ -96,10 +98,9 @@ function InvoicesContent({
 
   const handleMarkInvoicePaid = (inv: InvoiceItem) => {
     askConfirm({
-      title: `Duyệt thanh toán hóa đơn ${inv.invoiceNumber}?`,
-      description:
-        "Nếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.",
-      confirmLabel: "Duyệt thanh toán",
+      title: t("master.commerce.invoicesPage.approveModal.title", { invoiceNumber: inv.invoiceNumber }),
+      description: t("master.commerce.invoicesPage.approveModal.description"),
+      confirmLabel: t("master.commerce.invoicesPage.approveModal.confirmLabel"),
       onConfirm: async () => {
         setApprovingId(inv.id);
         try {
@@ -108,9 +109,9 @@ function InvoicesContent({
           if (selectedInvoice?.id === inv.id) {
             setSelectedInvoice(updated);
           }
-          triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
+          toast.success(t("master.commerce.invoicesPage.approvedToast", { invoiceNumber: inv.invoiceNumber }));
         } catch (err: any) {
-          const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
+          const msg = err.response?.data?.message || t("master.commerce.invoicesPage.approveError");
           toast.error(msg);
         } finally {
           setApprovingId(null);
@@ -122,7 +123,7 @@ function InvoicesContent({
   const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceTenantId) {
-      toast.danger("Vui lòng chọn doanh nghiệp nhận hóa đơn");
+      toast.danger(t("master.commerce.invoicesPage.selectTenantDanger"));
       return;
     }
     setCreatingInvoice(true);
@@ -137,9 +138,9 @@ function InvoicesContent({
       });
       setInvoices((prev: InvoiceItem[]) => [created, ...(prev || [])]);
       setShowCreateInvoiceModal(false);
-      triggerNotification(`Đã phát hành hóa đơn ${created.invoiceNumber}`);
+      toast.success(t("master.commerce.invoicesPage.createdToast", { invoiceNumber: created.invoiceNumber }));
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Không thể phát hành hóa đơn mới.";
+      const msg = err.response?.data?.message || t("master.commerce.invoicesPage.createError");
       toast.danger(msg);
     } finally {
       setCreatingInvoice(false);
@@ -163,41 +164,41 @@ function InvoicesContent({
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
           <Plus className="size-3.5" />
-          <span>Lập Hóa Đơn Mới</span>
+          <span>{t("master.commerce.invoicesPage.createBtn")}</span>
         </button>
       </HeaderActions>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Tổng Doanh Thu Đã Thu</span>
+          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">{t("master.commerce.invoicesPage.kpiPaidTitle")}</span>
           <span className="text-lg font-extrabold text-emerald-600">
-            {totalPaidAmount.toLocaleString("vi-VN")} <span className="text-[10px] font-medium text-slate-500">VNĐ</span>
+            {formatNumber(totalPaidAmount, undefined, locale)} <span className="text-[10px] font-medium text-slate-500">{t("master.commerce.common.vnd")}</span>
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Từ các hóa đơn đã thanh toán</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">{t("master.commerce.invoicesPage.kpiPaidSub")}</span>
         </div>
 
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Công Nợ Chờ Thu (Pending)</span>
+          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">{t("master.commerce.invoicesPage.kpiPendingAmountTitle")}</span>
           <span className="text-lg font-extrabold text-amber-600">
-            {pendingInvoiceAmount.toLocaleString("vi-VN")} <span className="text-[10px] font-medium text-slate-500">VNĐ</span>
+            {formatNumber(pendingInvoiceAmount, undefined, locale)} <span className="text-[10px] font-medium text-slate-500">{t("master.commerce.common.vnd")}</span>
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Chờ đối soát chuyển khoản ngân hàng</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">{t("master.commerce.invoicesPage.kpiPendingAmountSub")}</span>
         </div>
 
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Hóa Đơn Chờ Thanh Toán</span>
+          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">{t("master.commerce.invoicesPage.kpiPendingCountTitle")}</span>
           <span className="text-lg font-extrabold text-blue-600">
-            {invoices.filter((i) => i.status === "PENDING").length} <span className="text-[10px] font-medium text-slate-500">Hóa đơn</span>
+            {invoices.filter((i) => i.status === "PENDING").length} <span className="text-[10px] font-medium text-slate-500">{t("master.commerce.invoicesPage.invoiceUnit")}</span>
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Đang trong hạn thanh toán</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">{t("master.commerce.invoicesPage.kpiPendingCountSub")}</span>
         </div>
 
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Hóa Đơn Quá Hạn (Overdue)</span>
+          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">{t("master.commerce.invoicesPage.kpiOverdueTitle")}</span>
           <span className="text-lg font-extrabold text-rose-600">
-            {overdueInvoiceCount} <span className="text-[10px] font-medium text-slate-500">Hóa đơn</span>
+            {overdueInvoiceCount} <span className="text-[10px] font-medium text-slate-500">{t("master.commerce.invoicesPage.invoiceUnit")}</span>
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Cần nhắc thanh toán hoặc tạm khóa</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">{t("master.commerce.invoicesPage.kpiOverdueSub")}</span>
         </div>
       </div>
 
@@ -206,7 +207,7 @@ function InvoicesContent({
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo Mã hóa đơn (INV-...), Tên doanh nghiệp, Gói cước, Mã giao dịch..."
+            placeholder={t("master.commerce.invoicesPage.searchPlaceholder")}
             value={invoiceSearch}
             onChange={(e) => setInvoiceSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 shadow-2xs"
@@ -220,11 +221,11 @@ function InvoicesContent({
             onChange={(e) => setInvoiceStatusFilter(e.target.value)}
             className="px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 font-semibold text-slate-700 shadow-2xs"
           >
-            <option value="ALL">Tất cả trạng thái ({invoices.length})</option>
-            <option value="PAID">Đã thanh toán ({invoices.filter((i) => i.status === "PAID").length})</option>
-            <option value="PENDING">Chờ thanh toán ({invoices.filter((i) => i.status === "PENDING").length})</option>
-            <option value="OVERDUE">Quá hạn ({invoices.filter((i) => i.status === "OVERDUE").length})</option>
-            <option value="CANCELLED">Đã hủy ({invoices.filter((i) => i.status === "CANCELLED").length})</option>
+            <option value="ALL">{t("master.commerce.invoicesPage.filterAll", { count: invoices.length })}</option>
+            <option value="PAID">{t("master.commerce.invoicesPage.filterPaid", { count: invoices.filter((i) => i.status === "PAID").length })}</option>
+            <option value="PENDING">{t("master.commerce.invoicesPage.filterPending", { count: invoices.filter((i) => i.status === "PENDING").length })}</option>
+            <option value="OVERDUE">{t("master.commerce.invoicesPage.filterOverdue", { count: invoices.filter((i) => i.status === "OVERDUE").length })}</option>
+            <option value="CANCELLED">{t("master.commerce.invoicesPage.filterCancelled", { count: invoices.filter((i) => i.status === "CANCELLED").length })}</option>
           </select>
         </div>
       </div>
@@ -234,14 +235,14 @@ function InvoicesContent({
           <table className="w-full min-w-[1000px] border-collapse text-left text-xs text-slate-600">
             <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
               <tr>
-                <th className="p-4 whitespace-nowrap">Số Hóa Đơn</th>
-                <th className="p-4 min-w-[200px]">Khách Hàng Doanh Nghiệp</th>
-                <th className="p-4 min-w-[150px]">Gói Dịch Vụ</th>
-                <th className="p-4 whitespace-nowrap">Số Tiền (VNĐ)</th>
-                <th className="p-4 whitespace-nowrap">Phương Thức</th>
-                <th className="p-4 whitespace-nowrap">Hạn Thanh Toán</th>
-                <th className="p-4 whitespace-nowrap">Trạng Thái</th>
-                <th className="p-4 text-right whitespace-nowrap">Thao Tác</th>
+                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colNumber")}</th>
+                <th className="p-4 min-w-[200px]">{t("master.commerce.invoicesPage.colCustomer")}</th>
+                <th className="p-4 min-w-[150px]">{t("master.commerce.invoicesPage.colPlan")}</th>
+                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colAmount")}</th>
+                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colMethod")}</th>
+                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colDueDate")}</th>
+                <th className="p-4 whitespace-nowrap">{t("master.commerce.invoicesPage.colStatus")}</th>
+                <th className="p-4 text-right whitespace-nowrap">{t("master.commerce.invoicesPage.colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -251,7 +252,7 @@ function InvoicesContent({
                     <td className="p-4 whitespace-nowrap">
                       <div className="font-mono font-bold text-blue-600">{inv.invoiceNumber}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5">
-                        {new Date(inv.createdAt).toLocaleDateString("vi-VN")}
+                        {formatDate(inv.createdAt, undefined, locale)}
                       </div>
                     </td>
 
@@ -264,7 +265,7 @@ function InvoicesContent({
                     </td>
 
                     <td className="p-4 min-w-[150px]">
-                      <div className="font-semibold text-slate-800 leading-relaxed break-words">{inv.planName || "Gói Tùy Biến"}</div>
+                      <div className="font-semibold text-slate-800 leading-relaxed break-words">{inv.planName || t("master.commerce.invoicesPage.customPlanFallback")}</div>
                       {inv.billingPeriodStart && inv.billingPeriodEnd && (
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {inv.billingPeriodStart.slice(0, 7)} → {inv.billingPeriodEnd.slice(0, 7)}
@@ -274,19 +275,19 @@ function InvoicesContent({
 
                     <td className="p-4 whitespace-nowrap font-mono">
                       <div className="font-bold text-slate-900 text-sm">
-                        {inv.amount.toLocaleString("vi-VN")} ₫
+                        {formatNumber(inv.amount, undefined, locale)} ₫
                       </div>
                     </td>
 
                     <td className="p-4 whitespace-nowrap">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                         {inv.paymentGateway === "BANK_TRANSFER"
-                          ? "Chuyển khoản B2B"
+                          ? t("master.commerce.invoicesPage.gatewayBank")
                           : inv.paymentGateway === "STRIPE"
-                          ? "Thẻ tín dụng Stripe"
+                          ? t("master.commerce.invoicesPage.gatewayStripe")
                           : inv.paymentGateway === "VN_PAY"
-                          ? "Cổng VNPAY QR"
-                          : inv.paymentGateway || "Trực tiếp"}
+                          ? t("master.commerce.invoicesPage.gatewayVnPay")
+                          : inv.paymentGateway || t("master.commerce.invoicesPage.gatewayDirect")}
                       </span>
                     </td>
 
@@ -318,12 +319,12 @@ function InvoicesContent({
                           <XCircle className="w-3.5 h-3.5" />
                         )}
                         {inv.status === "PAID"
-                          ? "Đã TT"
+                          ? t("master.commerce.invoicesPage.statusPaidShort")
                           : inv.status === "PENDING"
-                          ? "Chờ TT"
+                          ? t("master.commerce.invoicesPage.statusPendingShort")
                           : inv.status === "OVERDUE"
-                          ? "Quá Hạn"
-                          : "Đã Hủy"}
+                          ? t("master.commerce.invoicesPage.statusOverdueShort")
+                          : t("master.commerce.invoicesPage.statusCancelledShort")}
                       </span>
                     </td>
 
@@ -333,7 +334,7 @@ function InvoicesContent({
                         className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1"
                       >
                         <Eye className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Chi tiết</span>
+                        <span>{t("master.commerce.invoicesPage.detailBtn")}</span>
                       </button>
 
                       {inv.status !== "PAID" && (
@@ -341,17 +342,17 @@ function InvoicesContent({
                           disabled={approvingId === inv.id}
                           onClick={() => handleMarkInvoicePaid(inv)}
                           className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Duyệt thanh toán và tự động cấp phát Workspace"
+                          title={t("master.commerce.invoicesPage.approveTitle")}
                         >
                           {approvingId === inv.id ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Đang cấp phát DB...</span>
+                              <span>{t("master.commerce.invoicesPage.approvingBtn")}</span>
                             </>
                           ) : (
                             <>
                               <Check className="w-3.5 h-3.5" />
-                              <span>Duyệt Thanh Toán</span>
+                              <span>{t("master.commerce.invoicesPage.approveBtn")}</span>
                             </>
                           )}
                         </button>
@@ -363,7 +364,7 @@ function InvoicesContent({
                 <tr>
                   <td colSpan={8} className="p-10 text-center text-slate-400">
                     <Inbox className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <span>Không tìm thấy hóa đơn nào.</span>
+                    <span>{t("master.commerce.invoicesPage.empty")}</span>
                   </td>
                 </tr>
               )}
@@ -375,7 +376,12 @@ function InvoicesContent({
         {filteredInvoices.length > 0 && (
           <div className="px-5 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
             <span className="text-[11px] text-slate-500">
-              Hiển thị <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-semibold text-slate-700">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span> trong số <span className="font-semibold text-slate-700">{filteredInvoices.length}</span> hóa đơn
+              {t("master.commerce.invoicesPage.paginationShowingBefore")}{" "}
+              <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> -{" "}
+              <span className="font-semibold text-slate-700">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span>{" "}
+              {t("master.commerce.invoicesPage.paginationShowingMiddle")}{" "}
+              <span className="font-semibold text-slate-700">{filteredInvoices.length}</span>{" "}
+              {t("master.commerce.invoicesPage.paginationShowingAfter")}
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -383,7 +389,7 @@ function InvoicesContent({
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-semibold transition-colors"
               >
-                Trước
+                {t("master.commerce.common.prevPage")}
               </button>
               <span className="px-3 py-1.5 text-[11px] font-semibold text-slate-700">
                 {currentPage} / {totalPages}
@@ -393,7 +399,7 @@ function InvoicesContent({
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-semibold transition-colors"
               >
-                Sau
+                {t("master.commerce.common.nextPage")}
               </button>
             </div>
           </div>

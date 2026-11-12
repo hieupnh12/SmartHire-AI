@@ -1,9 +1,12 @@
+import { formatNumber, t as globalT, useI18nStore, type Locale, type TranslateFn } from "@/i18n";
+
 export const panel = "rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6";
 export const input = "min-h-11 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-alt)] px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]";
 const buttonBase = "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-[background-color,border-color,color,box-shadow] duration-200 motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]";
 export const button = `${buttonBase} border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] text-[var(--color-on-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary-hover)]`;
 export const primary = `${buttonBase} border border-transparent bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)] hover:shadow-md`;
 export const detailAction = `${buttonBase} border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] text-[var(--color-on-surface)] hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary-hover)] hover:text-[var(--color-on-primary)] hover:shadow-md`;
+export const stickyDetailSidebar = "lg:sticky lg:top-[132px] lg:self-start lg:max-h-[calc(100dvh-9.5rem)] lg:overflow-y-auto";
 export const muted = "text-sm text-[var(--color-on-surface-variant)]";
 export const labels: Record<string, string> = {
   skills: "CV Screening", experience: "Kinh nghiệm", assessment: "Assessment", interview: "AI Interview",
@@ -12,6 +15,25 @@ export const labels: Record<string, string> = {
   SELECT_SOURCE: "Cần chọn nguồn", NEEDS_REVIEW: "Cần xác minh", NEW: "Đã apply", IN_REVIEW: "Sàng lọc CV",
   ASSESSMENT: "Technical test", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp", OFFER: "Đề nghị", HIRED: "Đã tuyển", REJECTED: "Đã từ chối", WITHDRAWN: "Đã rút",
 };
+
+const LABEL_KEYS = new Set(Object.keys(labels));
+
+export function getRankingLabel(key: string, translate: TranslateFn = globalT): string {
+  if (!LABEL_KEYS.has(key)) return key;
+  const path = `recruiter.screening.ranking.labels.${key}`;
+  const value = translate(path);
+  return value === path ? (labels[key] ?? key) : value;
+}
+
 /** Application status FAILED means the AI interview attempt ended below the threshold. Ranking component FAILED stays "Xử lý lỗi". */
-export const applicationStatusLabel = (status: string) => status === "FAILED" ? "Trượt phỏng vấn AI" : labels[status] ?? status;
-export const scoreText = (value: number | null) => value === null ? "—" : value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+export const applicationStatusLabel = (status: string, translate: TranslateFn = globalT) => {
+  if (status === "FAILED") {
+    const path = "recruiter.screening.ranking.labels.APP_FAILED";
+    const value = translate(path);
+    return value === path ? "Trượt phỏng vấn AI" : value;
+  }
+  return getRankingLabel(status, translate);
+};
+
+export const scoreText = (value: number | null, locale: Locale = useI18nStore.getState().locale) =>
+  value === null ? "—" : formatNumber(value, { maximumFractionDigits: 2 }, locale);

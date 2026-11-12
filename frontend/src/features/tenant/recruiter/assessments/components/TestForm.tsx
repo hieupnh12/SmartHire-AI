@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,22 +6,46 @@ import { Save } from "lucide-react";
 import type { JobTest, TestRequest } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { assessmentInput as input, FieldError } from "@/components/ux/assessmentUi";
+import { useT, type TranslateFn } from "@/i18n";
 
-const schema = z.object({
-  title: z.string().trim().min(1, "Nhập tên đề.").max(255, "Tối đa 255 ký tự."),
-  jobId: z.number().int().positive("Vị trí tuyển dụng không hợp lệ."),
-  description: z.string().max(10000, "Tối đa 10.000 ký tự."),
-  durationMinutes: z.number().int("Nhập số phút nguyên.").min(1, "Tối thiểu 1 phút.").max(2147483647),
-  objectiveDurationMinutes: z.string().refine(v => v === "" || /^\d+$/.test(v), "Nhập số phút nguyên dương."),
-  passingScore: z.string().refine(v => v === "" || /^\d{1,8}(\.\d{1,2})?$/.test(v), "Nhập điểm không âm, tối đa 2 số thập phân."),
-  codingTestWeightPercent: z.number().int().min(0, "Từ 0.").max(100, "Tối đa 100."),
-});
-type Form = z.infer<typeof schema>;
+function createTestFormSchema(t: TranslateFn) {
+  return z.object({
+    title: z
+      .string()
+      .trim()
+      .min(1, t("recruiter.assessments.detail.testForm.titleRequired"))
+      .max(255, t("recruiter.assessments.detail.testForm.max255")),
+    jobId: z.number().int().positive(t("recruiter.assessments.detail.testForm.invalidJob")),
+    description: z.string().max(10000, t("recruiter.assessments.detail.testForm.max10000")),
+    durationMinutes: z
+      .number()
+      .int(t("recruiter.assessments.detail.testForm.integerMinutes"))
+      .min(1, t("recruiter.assessments.detail.testForm.min1Minute"))
+      .max(2147483647),
+    objectiveDurationMinutes: z
+      .string()
+      .refine((v) => v === "" || /^\d+$/.test(v), t("recruiter.assessments.detail.testForm.positiveIntMinutes")),
+    passingScore: z
+      .string()
+      .refine(
+        (v) => v === "" || /^\d{1,8}(\.\d{1,2})?$/.test(v),
+        t("recruiter.assessments.detail.testForm.nonNegativeScore2Decimals"),
+      ),
+    codingTestWeightPercent: z
+      .number()
+      .int()
+      .min(0, t("recruiter.assessments.detail.testForm.min0"))
+      .max(100, t("recruiter.assessments.detail.testForm.max100")),
+  });
+}
+type Form = z.infer<ReturnType<typeof createTestFormSchema>>;
 
 export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
   test?: JobTest; jobs: { id: number; title: string }[]; lockedJobId: number; busy: boolean;
   onSave: (request: TestRequest) => Promise<void>; onDirty: (dirty: boolean) => void;
 }) {
+  const t = useT();
+  const schema = useMemo(() => createTestFormSchema(t), [t]);
   const { register, handleSubmit, reset, watch, formState: { errors, isDirty } } = useForm<Form>({
     resolver: zodResolver(schema), defaultValues: { title: test?.title ?? "", jobId: lockedJobId,
       description: test?.description ?? "", durationMinutes: test?.durationMinutes ?? 30,
@@ -38,20 +62,20 @@ export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
     } catch { /* Keep input values; the page displays the mutation error. */ }
   })} noValidate>
     <fieldset disabled={busy} className="space-y-4">
-      <label className="block space-y-1 text-sm">Tên đề <input className={input} {...register("title")} aria-invalid={!!errors.title} /><FieldError message={errors.title?.message} /></label>
-      <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 py-2 text-sm"><span className="text-[var(--color-on-surface-variant)]">Vị trí tuyển dụng: </span><strong>{jobs.find((job) => job.id === lockedJobId)?.title ?? `Job #${lockedJobId}`}</strong><input type="hidden" {...register("jobId", { valueAsNumber: true })} /></div>
-      <label className="block space-y-1 text-sm">Mô tả <textarea className={input} rows={3} {...register("description")} /><FieldError message={errors.description?.message} /></label>
+      <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.titleLabel")} <input className={input} {...register("title")} aria-invalid={!!errors.title} /><FieldError message={errors.title?.message} /></label>
+      <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 py-2 text-sm"><span className="text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.detail.testForm.jobPrefix")}</span><strong>{jobs.find((job) => job.id === lockedJobId)?.title ?? t("recruiter.assessments.detail.testForm.jobFallback", { jobId: lockedJobId })}</strong><input type="hidden" {...register("jobId", { valueAsNumber: true })} /></div>
+      <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.descriptionLabel")} <textarea className={input} rows={3} {...register("description")} /><FieldError message={errors.description?.message} /></label>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block space-y-1 text-sm">Thời lượng (phút)<input type="number" min={1} step={1} className={input} {...register("durationMinutes", { valueAsNumber: true })} /><FieldError message={errors.durationMinutes?.message} /></label>
-        <label className="block space-y-1 text-sm">Điểm đạt (không bắt buộc)<input type="number" min={0} step="0.01" className={input} {...register("passingScore")} /><FieldError message={errors.passingScore?.message} /></label>
+        <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.durationLabel")}<input type="number" min={1} step={1} className={input} {...register("durationMinutes", { valueAsNumber: true })} /><FieldError message={errors.durationMinutes?.message} /></label>
+        <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.passingScoreLabel")}<input type="number" min={0} step="0.01" className={input} {...register("passingScore")} /><FieldError message={errors.passingScore?.message} /></label>
       </div>
-      <label className="block space-y-1 text-sm">Thời lượng phần trắc nghiệm (phút, tùy chọn)<input type="number" min={1} className={input} {...register("objectiveDurationMinutes")} /><FieldError message={errors.objectiveDurationMinutes?.message} /></label>
-      <label className="block space-y-1 text-sm">Tỉ lệ điểm code từ hidden tests (%)
+      <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.objectiveDurationLabel")}<input type="number" min={1} className={input} {...register("objectiveDurationMinutes")} /><FieldError message={errors.objectiveDurationMinutes?.message} /></label>
+      <label className="block space-y-1 text-sm">{t("recruiter.assessments.detail.testForm.codingWeightLabel")}
         <input type="number" min={0} max={100} step={1} className={input} {...register("codingTestWeightPercent", { valueAsNumber: true })} />
         <FieldError message={errors.codingTestWeightPercent?.message} />
-        <span className="mt-1 block text-xs text-[var(--color-on-surface-variant)]">Mặc định 90 (AI review {100 - (Number.isFinite(codingWeight) ? codingWeight : 90)}%). Đặt 100 để chỉ chấm theo test.</span>
+        <span className="mt-1 block text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.detail.testForm.codingWeightHint", { aiPercent: 100 - (Number.isFinite(codingWeight) ? codingWeight : 90) })}</span>
       </label>
-      <Button type="submit" disabled={busy || (!!test && !isDirty)}><Save className="size-4" aria-hidden="true" />{busy ? "Đang lưu…" : test ? "Lưu thay đổi" : "Tạo đề nháp"}</Button>
+      <Button type="submit" disabled={busy || (!!test && !isDirty)}><Save className="size-4" aria-hidden="true" />{busy ? t("recruiter.assessments.common.actions.saving") : test ? t("recruiter.assessments.common.actions.saveChanges") : t("recruiter.assessments.detail.testForm.createDraftBtn")}</Button>
     </fieldset>
   </form>;
 }

@@ -4,6 +4,7 @@ import { RotateCcw } from "lucide-react";
 import type { CandidateQuestion, SavedAnswer } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 import { hasAnswer } from "../utils/hasAnswer";
 import { CandidateEssayWorkspace } from "./CandidateEssayWorkspace";
 
@@ -11,6 +12,7 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
   submissionId: number; question: CandidateQuestion; answer?: SavedAnswer; onChange: (answer: SavedAnswer) => void; locked: boolean;
   number?: number; draftSavedAt?: number; draftError?: boolean; onSave?: () => Promise<void>; saving?: boolean; isDemo?: boolean;
 }) {
+  const t = useT();
   const questionId = question.id;
   if (question.questionType === "CODING") {
     return (
@@ -23,7 +25,7 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
                 <Skeleton className="h-8 w-24 rounded-lg" />
               </div>
               <Skeleton className="h-full min-h-[320px] w-full flex-1 rounded-xl" />
-              <span className="sr-only">Đang tải trình soạn thảo code…</span>
+              <span className="sr-only">{t("candidate.assess.answerInput.loadingCodeEditor")}</span>
             </div>
           }
         >
@@ -57,14 +59,14 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
   }
 
   const multiple = question.questionType === "MULTIPLE_CHOICE";
-  if (!multiple && question.questionType !== "MCQ") return <p role="alert">Loại câu hỏi này chưa được hỗ trợ.</p>;
+  if (!multiple && question.questionType !== "MCQ") return <p role="alert">{t("candidate.assess.answerInput.unsupportedType")}</p>;
   const selected = (optionId: number) => multiple ? !!answer?.selectedOptionIds?.includes(optionId) : answer?.selectedOptionId === optionId;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-[var(--color-on-surface-variant)]">
-          {multiple ? "Chọn tất cả các đáp án đúng (có thể chọn nhiều phương án):" : "Chọn một phương án trả lời đúng nhất:"}
+          {multiple ? t("candidate.assess.answerInput.selectMultiplePrompt") : t("candidate.assess.answerInput.selectSinglePrompt")}
         </p>
         {hasAnswer(answer) && !locked && (
           <Button
@@ -73,12 +75,12 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
             className="gap-1.5 text-xs text-[var(--color-on-surface-variant)] hover:text-[var(--color-status-danger)]"
             onClick={() => onChange(multiple ? { questionId, selectedOptionIds: [] } : { questionId, selectedOptionId: null })}
           >
-            <RotateCcw className="size-3.5" aria-hidden="true" /> Bỏ chọn
+            <RotateCcw className="size-3.5" aria-hidden="true" /> {t("candidate.assess.answerInput.clearSelection")}
           </Button>
         )}
       </div>
 
-      <div className="space-y-3" role={multiple ? "group" : "radiogroup"} aria-label="Các phương án trả lời">
+      <div className="space-y-3" role={multiple ? "group" : "radiogroup"} aria-label={t("candidate.assess.answerInput.optionsAriaLabel")}>
         {question.options.map((option, i) => {
           const isSelected = selected(option.id);
           const letter = String.fromCharCode(65 + i);

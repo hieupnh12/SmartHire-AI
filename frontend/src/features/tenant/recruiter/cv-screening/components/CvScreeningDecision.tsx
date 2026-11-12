@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CheckCircle2, CircleDashed, UserCheck, XCircle } from "lucide-react";
 import { applicantApi } from "@/api/tenant/applicantApi";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -8,14 +9,15 @@ import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
 import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
-const DECISION = {
-  PASSED: { label: "Đã qua vòng CV", icon: CheckCircle2, className: "bg-emerald-50 text-emerald-700" },
-  FAILED: { label: "Không đạt vòng CV", icon: XCircle, className: "bg-red-50 text-red-700" },
-  PENDING: { label: "Chưa quyết định", icon: CircleDashed, className: "bg-amber-50 text-amber-700" },
+const DECISION_META = {
+  PASSED: { icon: CheckCircle2, className: "bg-emerald-50 text-emerald-700" },
+  FAILED: { icon: XCircle, className: "bg-red-50 text-red-700" },
+  PENDING: { icon: CircleDashed, className: "bg-amber-50 text-amber-700" },
 } as const;
 
 /** CV-round decision. MANUAL jobs: recruiter passes/fails; AUTO jobs: read-only result decided by the system. */
 export function CvScreeningDecision({ applicationId, onDecided }: { applicationId: number; onDecided?: () => void }) {
+  const t = useT();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const detail = useQuery({
@@ -27,7 +29,11 @@ export function CvScreeningDecision({ applicationId, onDecided }: { applicationI
     onSuccess: (_response, passed) => {
       void client.invalidateQueries({ queryKey: ["applicants"] });
       onDecided?.();
-      toast.success(passed ? "Đã cho ứng viên qua vòng CV" : "Đã đánh dấu CV không đạt");
+      toast.success(
+        passed
+          ? t("recruiter.screening.decision.toastPassed")
+          : t("recruiter.screening.decision.toastFailed"),
+      );
     },
   });
 
@@ -35,14 +41,15 @@ export function CvScreeningDecision({ applicationId, onDecided }: { applicationI
   if (!app) return null;
   const manual = app.screeningMode !== "AUTO";
   const inCvRound = (app.status === "NEW" || app.status === "IN_REVIEW") && !app.archived && !app.withdrawnAt;
-  const meta = DECISION[app.cvScreeningStatus ?? "PENDING"];
+  const statusKey = app.cvScreeningStatus ?? "PENDING";
+  const meta = DECISION_META[statusKey];
   const Icon = meta.icon;
 
   const confirmPass = () =>
     askConfirm({
-      title: "Cho ứng viên qua vòng CV?",
-      description: `${app.candidateName} sẽ chuyển sang vòng phỏng vấn AI và nhận email mời.`,
-      confirmLabel: "Cho qua",
+      title: t("recruiter.screening.decision.confirmTitle"),
+      description: t("recruiter.screening.decision.confirmDesc", { name: app.candidateName }),
+      confirmLabel: t("recruiter.screening.decision.confirmLabel"),
       onConfirm: async () => {
         await decide.mutateAsync(true);
       },
@@ -56,17 +63,17 @@ export function CvScreeningDecision({ applicationId, onDecided }: { applicationI
             {manual ? <UserCheck className="size-4" aria-hidden="true" /> : <Bot className="size-4" aria-hidden="true" />}
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold">Quyết định vòng CV</h3>
+            <h3 className="text-sm font-semibold">{t("recruiter.screening.decision.title")}</h3>
             <p className="text-xs text-[var(--color-on-surface-variant)]">
               {manual
-                ? "Lọc thủ công: AI chỉ chấm điểm, recruiter quyết định cho qua vòng."
-                : "Lọc tự động: hệ thống cho qua khi CV đạt ngưỡng và không thiếu kỹ năng bắt buộc."}
+                ? t("recruiter.screening.decision.manualDesc")
+                : t("recruiter.screening.decision.autoDesc")}
             </p>
           </div>
         </div>
         <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold", meta.className)}>
           <Icon className="size-3.5" aria-hidden="true" />
-          {meta.label}
+          {t(`recruiter.screening.decision.status.${statusKey}`)}
         </span>
       </div>
 
@@ -74,7 +81,7 @@ export function CvScreeningDecision({ applicationId, onDecided }: { applicationI
         <div className="flex flex-wrap gap-2">
           <button type="button" className={primary} disabled={decide.isPending} onClick={confirmPass}>
             <CheckCircle2 className="size-4" aria-hidden="true" />
-            Cho qua vòng CV
+            {t("recruiter.screening.decision.passBtn")}
           </button>
           {app.cvScreeningStatus !== "FAILED" && (
             <button
@@ -84,7 +91,7 @@ export function CvScreeningDecision({ applicationId, onDecided }: { applicationI
               onClick={() => decide.mutate(false)}
             >
               <XCircle className="size-4" aria-hidden="true" />
-              Không đạt
+              {t("recruiter.screening.decision.failBtn")}
             </button>
           )}
         </div>

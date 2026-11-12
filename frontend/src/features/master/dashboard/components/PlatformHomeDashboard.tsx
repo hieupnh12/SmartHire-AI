@@ -18,6 +18,7 @@ import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api
 import { Tooltip } from "@/components/ux/Tooltip";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
+import { useT, useLocale, formatNumber, formatDateTime } from "@/i18n";
 
 type Destination = "analytics" | "tenants" | "subscriptions" | "logs";
 type Props = {
@@ -65,12 +66,14 @@ function QuickMetric({
   tooltip,
   badge,
   icon: Icon,
+  explainLabel,
 }: {
   label: string;
   value: string;
   tooltip: string;
   badge?: MetricBadge;
   icon: typeof Activity;
+  explainLabel: string;
 }) {
   return (
     <div className="flex flex-col justify-between rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_12px_-3px_rgba(15,23,42,0.06)]">
@@ -79,7 +82,7 @@ function QuickMetric({
           <p className="text-sm font-medium text-slate-600">
             <span>{label}</span>
             <span className="ml-1.5 inline-flex align-middle">
-              <HelpTip content={tooltip} label={`Giải thích ${label}`} />
+              <HelpTip content={tooltip} label={explainLabel} />
             </span>
           </p>
           <p className="mt-2.5 text-2xl font-semibold tracking-tight text-slate-600">{value}</p>
@@ -102,6 +105,8 @@ function QuickMetric({
 }
 
 export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavigate, onCreateTenant }: Props) {
+  const t = useT();
+  const locale = useLocale();
   const activeTenantsList = tenants.filter((tenant) => !tenant.deleted && tenant.status === "ACTIVE");
   const attentionTenants = tenants.filter((tenant) => !tenant.deleted && tenant.status !== "ACTIVE");
   const warnings = logs.filter((log) => log.level !== "INFO");
@@ -115,29 +120,39 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
 
   const tasks = [
     {
-      title: `${attentionTenants.length} tenant cần kiểm tra`,
-      detail: attentionTenants.length > 0 ? "Đang khởi tạo, chờ thanh toán hoặc tạm ngưng" : "Tất cả tenant đang ở trạng thái ổn định",
+      title: t("master.ops.dashboard.tasks.attentionTitle", { count: attentionTenants.length }),
+      detail: attentionTenants.length > 0
+        ? t("master.ops.dashboard.tasks.attentionDetailActive")
+        : t("master.ops.dashboard.tasks.attentionDetailOk"),
       icon: Building2,
       tone: attentionTenants.length > 0 ? "rose" : "blue",
       destination: "tenants" as const,
     },
     {
-      title: `${overdueCount} hóa đơn đã quá hạn`,
-      detail: overdueCount > 0 ? `${overdueAmount.toLocaleString("vi-VN")} ₫ đang chờ thu hồi` : "Không có công nợ quá hạn",
+      title: t("master.ops.dashboard.tasks.overdueTitle", { count: overdueCount }),
+      detail: overdueCount > 0
+        ? t("master.ops.dashboard.tasks.overdueDetailActive", {
+            amount: formatNumber(overdueAmount, undefined, locale),
+          })
+        : t("master.ops.dashboard.tasks.overdueDetailOk"),
       icon: CreditCard,
       tone: overdueCount > 0 ? "amber" : "blue",
       destination: "subscriptions" as const,
     },
     {
-      title: `${nearQuotaCount} tenant gần chạm AI quota`,
-      detail: nearQuotaCount > 0 ? "Mức sử dụng vượt ngưỡng 80%" : "Hạn mức AI các tenant vẫn trong ngưỡng an toàn",
+      title: t("master.ops.dashboard.tasks.nearQuotaTitle", { count: nearQuotaCount }),
+      detail: nearQuotaCount > 0
+        ? t("master.ops.dashboard.tasks.nearQuotaDetailActive")
+        : t("master.ops.dashboard.tasks.nearQuotaDetailOk"),
       icon: Bot,
       tone: nearQuotaCount > 0 ? "amber" : "blue",
       destination: "analytics" as const,
     },
     {
-      title: `${warnings.length} cảnh báo hệ thống mới`,
-      detail: warnings.length > 0 ? "Kiểm tra các cảnh báo hoặc lỗi hệ thống" : "Không có cảnh báo bảo mật mới",
+      title: t("master.ops.dashboard.tasks.warningsTitle", { count: warnings.length }),
+      detail: warnings.length > 0
+        ? t("master.ops.dashboard.tasks.warningsDetailActive")
+        : t("master.ops.dashboard.tasks.warningsDetailOk"),
       icon: ShieldCheck,
       tone: warnings.length > 0 ? "rose" : "blue",
       destination: "logs" as const,
@@ -157,51 +172,67 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
           <Plus className="size-3.5" />
-          <span>Khởi tạo tenant</span>
+          <span>{t("master.ops.dashboard.createTenant")}</span>
         </button>
       </HeaderActions>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <QuickMetric
-          label="Tenant hoạt động"
+          label={t("master.ops.dashboard.metrics.activeTenantsLabel")}
           value={`${revenue?.activeTenants ?? activeTenantsList.length}`}
           badge={{
-            text: `${attentionTenants.length} cần chú ý`,
+            text: t("master.ops.dashboard.metrics.attentionBadge", { count: attentionTenants.length }),
             tone: attentionTenants.length > 0 ? "amber" : "emerald",
           }}
-          tooltip={`Số doanh nghiệp đang hoạt động: ${revenue?.activeTenants ?? activeTenantsList.length} / tổng ${revenue?.totalTenants ?? tenants.length} tenant (${attentionTenants.length} tenant cần chú ý).`}
+          tooltip={t("master.ops.dashboard.metrics.activeTenantsTooltip", {
+            active: revenue?.activeTenants ?? activeTenantsList.length,
+            total: revenue?.totalTenants ?? tenants.length,
+            attention: attentionTenants.length,
+          })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.activeTenantsLabel") })}
           icon={Building2}
         />
         <QuickMetric
-          label="MRR hiện tại"
-          value={`${(revenue?.mrr ?? 0).toLocaleString("vi-VN")} ₫`}
+          label={t("master.ops.dashboard.metrics.mrrLabel")}
+          value={t("master.ops.dashboard.metrics.mrrValue", {
+            amount: formatNumber(revenue?.mrr ?? 0, undefined, locale),
+          })}
           badge={{
             text: growthRate,
             tone: isNegativeGrowth ? "rose" : "emerald",
             trend: isNegativeGrowth ? "down" : "up",
           }}
-          tooltip={`Quy đổi năm: doanh thu định kỳ hàng tháng tính từ các hợp đồng gói năm đang hoạt động (${growthRate} doanh thu thu về so với tháng trước).`}
+          tooltip={t("master.ops.dashboard.metrics.mrrTooltip", { rate: growthRate })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.mrrLabel") })}
           icon={CircleDollarSign}
         />
         <QuickMetric
-          label="AI quota toàn nền tảng"
+          label={t("master.ops.dashboard.metrics.aiQuotaLabel")}
           value={`${cvUsage}%`}
           badge={{
-            text: cvUsage >= 80 ? "Gần chạm ngưỡng" : "An toàn",
+            text: cvUsage >= 80 ? t("master.ops.dashboard.metrics.quotaWarnBadge") : t("master.ops.dashboard.metrics.quotaSafeBadge"),
             tone: cvUsage >= 80 ? "amber" : "emerald",
           }}
-          tooltip={`Mức tiêu thụ AI toàn sàn hiện tại: ${(aiQuota?.totalCvParsesUsed ?? 0).toLocaleString("vi-VN")} / ${cvLimit.toLocaleString("vi-VN")} lượt CV AI.`}
+          tooltip={t("master.ops.dashboard.metrics.aiQuotaTooltip", {
+            used: formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale),
+            limit: formatNumber(cvLimit, undefined, locale),
+          })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.aiQuotaLabel") })}
           icon={Bot}
         />
         <QuickMetric
-          label="Tình trạng hệ thống"
-          value={isHealthy ? "Ổn định" : "Cảnh báo"}
+          label={t("master.ops.dashboard.metrics.systemHealthLabel")}
+          value={isHealthy ? t("master.ops.dashboard.metrics.healthOk") : t("master.ops.dashboard.metrics.healthWarn")}
           badge={{
             text: `${aiQuota?.apiSuccessRate ?? 100}%`,
             tone: isHealthy ? "emerald" : "rose",
             trend: isHealthy ? "up" : "down",
           }}
-          tooltip={`Tỷ lệ xử lý AI thành công đạt ${aiQuota?.apiSuccessRate ?? 100}% · ${aiQuota?.activeModels?.length ?? 0} mô hình AI đang hoạt động.`}
+          tooltip={t("master.ops.dashboard.metrics.systemHealthTooltip", {
+            rate: aiQuota?.apiSuccessRate ?? 100,
+            models: aiQuota?.activeModels?.length ?? 0,
+          })}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.metrics.systemHealthLabel") })}
           icon={Activity}
         />
       </div>
@@ -210,14 +241,14 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
         <section className={cn(cardClass, "overflow-hidden")}>
           <div className="flex items-center justify-between border-b border-slate-100 p-5">
             <div className="flex items-center gap-1.5">
-              <h2 className="font-semibold text-slate-600">Dòng sự kiện gần đây</h2>
+              <h2 className="font-semibold text-slate-600">{t("master.ops.dashboard.recentEvents.title")}</h2>
               <HelpTip
-                content="Hoạt động hệ thống, hạn mức sử dụng và thao tác quản trị gần đây"
-                label="Giải thích Dòng sự kiện gần đây"
+                content={t("master.ops.dashboard.recentEvents.subtitle")}
+                label={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.recentEvents.title") })}
               />
             </div>
             <button type="button" onClick={() => onNavigate("logs")} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-              Xem nhật ký <ArrowRight className="size-3.5" />
+              {t("master.ops.dashboard.recentEvents.viewLogs")} <ArrowRight className="size-3.5" />
             </button>
           </div>
           <div className="divide-y divide-slate-100">
@@ -229,23 +260,23 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <h3 className="text-sm font-semibold text-slate-800">{log.action}</h3>
-                    <time className="text-[11px] text-slate-400">{new Date(log.timestamp).toLocaleString("vi-VN")}</time>
+                    <time className="text-[11px] text-slate-400">{formatDateTime(log.timestamp, undefined, locale)}</time>
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{log.tenantCode} · {log.description}</p>
                 </div>
               </article>
             ))}
-            {logs.length === 0 && <p className="px-5 py-10 text-center text-sm text-slate-500">Chưa có sự kiện mới.</p>}
+            {logs.length === 0 && <p className="px-5 py-10 text-center text-sm text-slate-500">{t("master.ops.dashboard.recentEvents.empty")}</p>}
           </div>
         </section>
 
         <section className={cn(cardClass, "p-5")}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <h2 className="font-semibold text-slate-600">Cần xử lý</h2>
+              <h2 className="font-semibold text-slate-600">{t("master.ops.dashboard.actionRequired.title")}</h2>
               <HelpTip
-                content="Danh sách hạng mục ưu tiên theo mức độ cần can thiệp thực tế"
-                label="Giải thích Cần xử lý"
+                content={t("master.ops.dashboard.actionRequired.subtitle")}
+                label={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.actionRequired.title") })}
               />
             </div>
             <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", totalActionItems > 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>
@@ -272,7 +303,10 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
                   <div className="pointer-events-none relative z-10 min-w-0 flex-1">
                     <span className="text-sm font-semibold text-slate-800">{item.title}</span>
                     <span className="pointer-events-auto ml-1.5 inline-flex align-middle">
-                      <HelpTip content={item.detail} label={`Giải thích: ${item.title}`} />
+                      <HelpTip
+                        content={item.detail}
+                        label={t("master.ops.dashboard.explainLabel", { item: item.title })}
+                      />
                     </span>
                   </div>
                   <ArrowRight className="pointer-events-none relative z-10 size-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -286,32 +320,48 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
       <div className="grid gap-5 lg:grid-cols-3">
         <SummaryCard
           icon={Activity}
-          title="Hạ tầng & AI Engine"
-          subtitle="Số liệu đo lường thời gian thực"
+          title={t("master.ops.dashboard.summary.infraTitle")}
+          subtitle={t("master.ops.dashboard.summary.infraSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.infraTitle") })}
           rows={[
-            ["Độ trễ AI trung bình", aiQuota?.averageLatencyMs ? `${aiQuota.averageLatencyMs} ms` : "< 150 ms"],
-            ["Tỷ lệ gọi AI thành công", `${aiQuota?.apiSuccessRate ?? 100}%`],
-            ["Kết nối dữ liệu hoạt động", `${revenue?.activeTenants ?? activeTenantsList.length} / ${revenue?.totalTenants ?? tenants.length} cụm`],
+            [t("master.ops.dashboard.summary.avgLatency"), aiQuota?.averageLatencyMs ? `${aiQuota.averageLatencyMs} ms` : "< 150 ms"],
+            [t("master.ops.dashboard.summary.aiSuccessRate"), `${aiQuota?.apiSuccessRate ?? 100}%`],
+            [t("master.ops.dashboard.summary.activeDbPools"), t("master.ops.dashboard.summary.poolsCount", {
+              active: revenue?.activeTenants ?? activeTenantsList.length,
+              total: revenue?.totalTenants ?? tenants.length,
+            })],
           ]}
         />
         <SummaryCard
           icon={FileClock}
-          title="Tiêu thụ tài nguyên kỳ này"
-          subtitle="Tóm tắt toàn nền tảng (30 ngày)"
+          title={t("master.ops.dashboard.summary.usageTitle")}
+          subtitle={t("master.ops.dashboard.summary.usageSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.usageTitle") })}
           rows={[
-            ["Tenant mới tháng này", `${revenue?.newTenantsThisMonth ?? 0}`],
-            ["CV đã xử lý bằng AI", `${(aiQuota?.totalCvParsesUsed ?? 0).toLocaleString("vi-VN")}`],
-            ["Giờ phỏng vấn AI", `${aiQuota?.totalVoiceHoursUsed ?? 0} giờ`],
+            [t("master.ops.dashboard.summary.newTenants"), `${revenue?.newTenantsThisMonth ?? 0}`],
+            [t("master.ops.dashboard.summary.cvProcessed"), formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale)],
+            [t("master.ops.dashboard.summary.interviewHours"), t("master.ops.dashboard.summary.hoursUnit", {
+              hours: aiQuota?.totalVoiceHoursUsed ?? 0,
+            })],
           ]}
         />
         <SummaryCard
           icon={CreditCard}
-          title="Tài chính & Thương mại"
-          subtitle="Tổng hợp hóa đơn & hợp đồng"
+          title={t("master.ops.dashboard.summary.financeTitle")}
+          subtitle={t("master.ops.dashboard.summary.financeSubtitle")}
+          explainLabel={t("master.ops.dashboard.explainLabel", { item: t("master.ops.dashboard.summary.financeTitle") })}
           rows={[
-            ["Doanh thu định kỳ năm", `${(revenue?.arr ?? 0).toLocaleString("vi-VN")} ₫`],
-            ["Hóa đơn chờ thanh toán", `${revenue?.pendingInvoicesCount ?? 0} (${(revenue?.pendingInvoicesAmount ?? 0).toLocaleString("vi-VN")} ₫)`],
-            ["Yêu cầu tư vấn / Hợp đồng chờ xử lý", `${revenue?.openLeadsCount ?? 0} yêu cầu · ${revenue?.pendingContractsCount ?? 0} HĐ`],
+            [t("master.ops.dashboard.summary.arrLabel"), t("master.ops.dashboard.summary.arrValue", {
+              amount: formatNumber(revenue?.arr ?? 0, undefined, locale),
+            })],
+            [t("master.ops.dashboard.summary.pendingInvoices"), t("master.ops.dashboard.summary.pendingInvoicesValue", {
+              count: revenue?.pendingInvoicesCount ?? 0,
+              amount: formatNumber(revenue?.pendingInvoicesAmount ?? 0, undefined, locale),
+            })],
+            [t("master.ops.dashboard.summary.leadsContracts"), t("master.ops.dashboard.summary.leadsContractsValue", {
+              leads: revenue?.openLeadsCount ?? 0,
+              contracts: revenue?.pendingContractsCount ?? 0,
+            })],
           ]}
         />
       </div>
@@ -319,7 +369,19 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
   );
 }
 
-function SummaryCard({ icon: Icon, title, subtitle, rows }: { icon: typeof Activity; title: string; subtitle: string; rows: string[][] }) {
+function SummaryCard({
+  icon: Icon,
+  title,
+  subtitle,
+  explainLabel,
+  rows,
+}: {
+  icon: typeof Activity;
+  title: string;
+  subtitle: string;
+  explainLabel: string;
+  rows: string[][];
+}) {
   return (
     <section className={cn(cardClass, "p-5")}>
       <div className="flex items-center gap-3">
@@ -328,7 +390,7 @@ function SummaryCard({ icon: Icon, title, subtitle, rows }: { icon: typeof Activ
         </span>
         <div className="flex min-w-0 items-center gap-1.5">
           <h2 className="text-sm font-semibold text-slate-600">{title}</h2>
-          <HelpTip content={subtitle} label={`Giải thích ${title}`} />
+          <HelpTip content={subtitle} label={explainLabel} />
         </div>
       </div>
       <dl className="mt-4 space-y-3 text-sm">

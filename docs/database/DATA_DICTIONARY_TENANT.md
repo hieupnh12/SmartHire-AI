@@ -276,7 +276,7 @@ Entity `MemberInvitation` (káº¿ thá»«a `BaseEntity`). KhÃ´ng cÃ³ khoÃ
 | `full_name` | VARCHAR(255) | | KhÃ´ng | â€” | Há» tÃªn ngÆ°á»i Ä‘Æ°á»£c má»i |
 | `role` | VARCHAR(32) | | KhÃ´ng | â€” | Vai trÃ² sáº½ Ä‘Æ°á»£c cáº¥p khi cháº¥p nháº­n |
 | `token_hash` | VARCHAR(64) | UQ | KhÃ´ng | â€” | **Hash** cá»§a token má»i; token gá»‘c khÃ´ng bao giá» Ä‘Æ°á»£c lÆ°u hay log |
-| `status` | VARCHAR(32) | | KhÃ´ng | `'PENDING'` | `InvitationStatus`: PENDING, ACCEPTED |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'PENDING'` | `InvitationStatus`: PENDING, ACCEPTED, REVOKED |
 | `expires_at` | TIMESTAMP | | KhÃ´ng | â€” | Háº¡n dÃ¹ng cá»§a lá»i má»i |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |

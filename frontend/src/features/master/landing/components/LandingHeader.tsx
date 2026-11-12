@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { BrainCircuit, Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
 
 export function LandingHeader() {
+  const t = useT();
   const { openWorkspaceModal, openDemoModal, openOrderLookupModal } = useLandingModal();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
@@ -11,11 +15,11 @@ export function LandingHeader() {
   const isPricingPage = location.pathname === "/pricing" || location.pathname === "/packages";
 
   const navLinks = [
-    { label: "Giải pháp AI", to: "/solutions" },
-    { label: "Trải nghiệm thực tế", to: "/preview" },
-    { label: "Hiệu quả & ROI", to: "/roi" },
-    { label: "Bảo mật dữ liệu", to: "/security" },
-    { label: "Gói giải pháp", to: "/pricing" },
+    { label: t("master.landingChrome.nav.solutions"), to: "/solutions" },
+    { label: t("master.landingChrome.nav.preview"), to: "/preview" },
+    { label: t("master.landingChrome.nav.roi"), to: "/roi" },
+    { label: t("master.landingChrome.nav.security"), to: "/security" },
+    { label: t("master.landingChrome.nav.pricing"), to: "/pricing" },
   ];
 
   const handleLogoClick = () => {
@@ -31,23 +35,16 @@ export function LandingHeader() {
         <Link
           to="/"
           onClick={handleLogoClick}
-          className="flex items-center gap-3.5 select-none shrink-0 group"
-          aria-label="Về trang chủ SmartHire.AI"
+          className="flex items-center select-none shrink-0 group"
+          aria-label={t("master.landingChrome.header.homeAria")}
         >
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/25 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
-            <BrainCircuit className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
-          </div>
+          <SmartHireLogo className="h-10 sm:h-11" />
         </Link>
 
         {/* Navigation Links - Desktop */}
         <nav
           className="hidden items-center justify-center gap-1.5 text-sm font-medium text-slate-600 xl:flex"
-          aria-label="Điều hướng chính"
+          aria-label={t("master.landingChrome.header.mainNavAria")}
         >
           {navLinks.map((item) => (
             <NavLink
@@ -66,37 +63,39 @@ export function LandingHeader() {
         </nav>
 
         {/* Action CTAs & Mobile Hamburger */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           {/* Order Lookup button - prominently visible when viewing Pricing */}
           {isPricingPage && (
             <button
               type="button"
               onClick={openOrderLookupModal}
               className="group flex min-h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/80 px-3 sm:px-4 text-sm font-semibold text-blue-700 shadow-2xs transition-all hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300 active:scale-95"
-              title="Tra cứu đơn hàng đã đặt nhưng chưa thanh toán"
-              aria-label="Tra cứu đơn hàng"
+              title={t("master.landingChrome.header.lookupOrderTitle")}
+              aria-label={t("master.landingChrome.header.lookupOrderAria")}
             >
               <PackageSearch className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">Tra cứu đơn hàng</span>
-              <span className="sm:hidden">Tra cứu</span>
+              <span className="hidden sm:inline">{t("master.landingChrome.header.lookupOrder")}</span>
+              <span className="sm:hidden">{t("master.landingChrome.header.lookupShort")}</span>
             </button>
           )}
+
+          <LanguageSwitcher variant="icon" />
 
           <button
             onClick={openWorkspaceModal}
             className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 sm:px-4"
-            aria-label="Vào Workspace"
+            aria-label={t("master.landingChrome.header.enterWorkspace")}
           >
             <Building2 className="w-4 h-4 text-slate-500" />
-            <span className="hidden lg:inline">Vào Workspace</span>
+            <span className="hidden lg:inline">{t("master.landingChrome.header.enterWorkspace")}</span>
           </button>
 
           <button
-            onClick={() => openDemoModal("Tư Vấn Giải Pháp Doanh Nghiệp")}
+            onClick={() => openDemoModal(t("master.landingChrome.header.demoConsultTier"))}
             className="group flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-95 active:bg-blue-800 sm:px-5"
           >
-            <span className="sm:hidden">Demo</span>
-            <span className="hidden sm:inline">Yêu cầu Demo</span>
+            <span className="sm:hidden">{t("master.landingChrome.header.demoShort")}</span>
+            <span className="hidden sm:inline">{t("master.landingChrome.header.requestDemo")}</span>
             <ArrowRight className="hidden w-4 h-4 group-hover:translate-x-1 transition-transform min-[360px]:block" />
           </button>
 
@@ -104,7 +103,7 @@ export function LandingHeader() {
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 xl:hidden"
-            aria-label="Toggle menu"
+            aria-label={t("master.landingChrome.header.toggleMenuAria")}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -143,7 +142,7 @@ export function LandingHeader() {
                 className="w-full py-2.5 px-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-100"
               >
                 <PackageSearch className="w-4 h-4 text-blue-600" />
-                <span>Tra cứu đơn hàng đã đặt</span>
+                <span>{t("master.landingChrome.header.lookupMobile")}</span>
               </button>
             )}
 
@@ -155,7 +154,7 @@ export function LandingHeader() {
               className="w-full py-2.5 px-4 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-sm font-medium flex items-center justify-center gap-2"
             >
               <Building2 className="w-4 h-4 text-slate-500" />
-              <span>Vào Workspace Tuyển Dụng</span>
+              <span>{t("master.landingChrome.header.enterRecruitmentWorkspace")}</span>
             </button>
           </div>
         </div>

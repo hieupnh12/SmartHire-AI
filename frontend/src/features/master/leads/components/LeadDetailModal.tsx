@@ -2,16 +2,9 @@ import React from "react";
 import { X, PhoneCall, Loader2, Check, Calculator } from "lucide-react";
 import { ConsultationResponse } from "@/api/master/consultationApi";
 import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSelect";
+import { useT, useLocale, formatDateTime } from "@/i18n";
 
 type LeadStatus = "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
-
-const LEAD_STATUS_OPTIONS: CustomSelectOption<LeadStatus>[] = [
-  { value: "PENDING", label: "Chờ liên hệ", dotClassName: "bg-amber-500" },
-  { value: "CONTACTED", label: "Đang trao đổi", dotClassName: "bg-blue-500" },
-  { value: "QUOTED", label: "Đã gửi báo giá", dotClassName: "bg-purple-500" },
-  { value: "PROVISIONED", label: "Đã cấp Workspace", dotClassName: "bg-emerald-500" },
-  { value: "REJECTED", label: "Từ chối", dotClassName: "bg-rose-500" },
-];
 
 interface LeadDetailModalProps {
   selectedLead: ConsultationResponse | null;
@@ -36,13 +29,27 @@ export function LeadDetailModal({
   handleSaveLeadModal,
   handleProvisionFromLead,
 }: LeadDetailModalProps) {
+  const t = useT();
+  const locale = useLocale();
+  const statusOptions = React.useMemo<CustomSelectOption<LeadStatus>[]>(
+    () => [
+      { value: "PENDING", label: t("master.ops.leads.modal.statusOptionPending"), dotClassName: "bg-amber-500" },
+      { value: "CONTACTED", label: t("master.ops.leads.modal.statusOptionContacted"), dotClassName: "bg-blue-500" },
+      { value: "QUOTED", label: t("master.ops.leads.modal.statusOptionQuoted"), dotClassName: "bg-purple-500" },
+      { value: "PROVISIONED", label: t("master.ops.leads.modal.statusOptionProvisioned"), dotClassName: "bg-emerald-500" },
+      { value: "REJECTED", label: t("master.ops.leads.modal.statusOptionRejected"), dotClassName: "bg-rose-500" },
+    ],
+    [t],
+  );
   if (!selectedLead) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto">
         <button
+          type="button"
           onClick={() => setSelectedLead(null)}
+          aria-label={t("master.ops.leads.modal.closeAria")}
           className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
         >
           <X className="w-5 h-5" />
@@ -56,9 +63,9 @@ export function LeadDetailModal({
             <h3 className="text-lg font-bold text-slate-900">{selectedLead.companyName}</h3>
             <span className="text-xs text-slate-500">
               {selectedLead.requestType === "CONTRACT_QUOTE"
-                ? "Yêu cầu Báo giá & Hợp đồng"
-                : "Đăng ký Trải nghiệm Demo"}{" "}
-              · Lead #{selectedLead.id}
+                ? t("master.ops.leads.modal.typeContractQuote")
+                : t("master.ops.leads.modal.typeDemo")}{" "}
+              · {t("master.ops.leads.modal.leadId", { id: selectedLead.id })}
             </span>
           </div>
         </div>
@@ -66,24 +73,24 @@ export function LeadDetailModal({
         <div className="bg-slate-50 p-4 rounded-xl space-y-2.5 border border-slate-200 text-xs mb-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <span className="text-slate-500 block text-[11px]">Người liên hệ:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.contactPerson")}</span>
               <span className="font-semibold text-slate-800">{selectedLead.contactName}</span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[11px]">Chức vụ:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.jobTitle")}</span>
               <span className="text-slate-700">{selectedLead.jobTitle || "—"}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <span className="text-slate-500 block text-[11px]">Email liên hệ:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.workEmail")}</span>
               <a href={`mailto:${selectedLead.workEmail}`} className="text-blue-600 font-mono hover:underline">
                 {selectedLead.workEmail}
               </a>
             </div>
             <div>
-              <span className="text-slate-500 block text-[11px]">Số điện thoại:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.phoneNumber")}</span>
               <a href={`tel:${selectedLead.phoneNumber}`} className="text-slate-800 font-mono hover:underline">
                 {selectedLead.phoneNumber || "—"}
               </a>
@@ -92,48 +99,50 @@ export function LeadDetailModal({
 
           <div className="grid grid-cols-1 gap-2 border-t border-slate-200/60 pt-1 sm:grid-cols-2">
             <div>
-              <span className="text-slate-500 block text-[11px]">Quy mô nhân sự:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.companySize")}</span>
               <span className="text-slate-700">{selectedLead.companySize || "—"}</span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[11px]">Gói quan tâm:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.planTier")}</span>
               <span className="font-semibold text-blue-700">{selectedLead.planTier || "—"}</span>
             </div>
           </div>
 
           {selectedLead.primaryNeed && (
             <div className="pt-1 border-t border-slate-200/60">
-              <span className="text-slate-500 block text-[11px]">Nhu cầu chính:</span>
+              <span className="text-slate-500 block text-[11px]">{t("master.ops.leads.modal.primaryNeed")}</span>
               <span className="text-slate-700">{selectedLead.primaryNeed}</span>
             </div>
           )}
 
           <div className="pt-1 border-t border-slate-200/60 flex justify-between text-[11px] text-slate-500">
-            <span>Thời gian đăng ký:</span>
-            <span>{new Date(selectedLead.createdAt).toLocaleString("vi-VN")}</span>
+            <span>{t("master.ops.leads.modal.submittedAt")}</span>
+            <span>{formatDateTime(selectedLead.createdAt, undefined, locale)}</span>
           </div>
         </div>
 
         <form onSubmit={handleSaveLeadModal} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">Trạng thái xử lý *</label>
+            <label className="block font-semibold text-slate-700 mb-1.5">
+              {t("master.ops.leads.modal.statusLabel")}
+            </label>
             <CustomSelect
               value={leadStatusEdit}
               onChange={setLeadStatusEdit}
-              options={LEAD_STATUS_OPTIONS}
-              ariaLabel="Trạng thái xử lý"
+              options={statusOptions}
+              ariaLabel={t("master.ops.leads.modal.statusAria")}
             />
           </div>
 
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Ghi chú chăm sóc / Nhu cầu chi tiết
+              {t("master.ops.leads.modal.notesLabel")}
             </label>
             <textarea
               rows={3}
               value={leadNotesEdit}
               onChange={(e) => setLeadNotesEdit(e.target.value)}
-              placeholder="Nhập ghi chú sau khi gọi điện/trao đổi với khách hàng..."
+              placeholder={t("master.ops.leads.modal.notesPlaceholder")}
               className="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 resize-none"
             />
           </div>
@@ -149,10 +158,10 @@ export function LeadDetailModal({
                     handleProvisionFromLead(l);
                   }}
                   className="py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-1.5 transition-colors text-xs"
-                  title="Mở B2B Deal Wizard: Lên báo giá 3 cấu phần hoặc cấp Workspace"
+                  title={t("master.ops.leads.dealWizardTitle")}
                 >
                   <Calculator className="w-3.5 h-3.5" />
-                  <span>Deal Wizard / Báo giá</span>
+                  <span>{t("master.ops.leads.modal.dealWizardBtn")}</span>
                 </button>
               </div>
             )}
@@ -163,7 +172,7 @@ export function LeadDetailModal({
                 onClick={() => setSelectedLead(null)}
                 className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
               >
-                Đóng
+                {t("master.ops.leads.modal.closeBtn")}
               </button>
               <button
                 type="submit"
@@ -175,7 +184,7 @@ export function LeadDetailModal({
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
-                <span>Lưu Thay Đổi</span>
+                <span>{t("master.ops.leads.modal.saveChangesBtn")}</span>
               </button>
             </div>
           </div>

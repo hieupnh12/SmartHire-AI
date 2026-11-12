@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Building2, ArrowRight, KeyRound } from "lucide-react";
+import { useT } from "@/i18n";
 import { useLandingModal } from "../../context/LandingModalContext";
 
 export function WorkspaceModal() {
+  const t = useT();
   const navigate = useNavigate();
   const { showWorkspaceModal, closeWorkspaceModal } = useLandingModal();
   const [tenantCodeInput, setTenantCodeInput] = useState("");
@@ -29,7 +31,7 @@ export function WorkspaceModal() {
         <button
           onClick={closeWorkspaceModal}
           className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors"
-          aria-label="Đóng cửa sổ"
+          aria-label={t("master.landingChrome.modals.closeWindowAria")}
         >
           <X className="w-5 h-5" />
         </button>
@@ -39,22 +41,22 @@ export function WorkspaceModal() {
         </div>
 
         <h3 className="text-xl font-semibold text-slate-900 mb-1">
-          Đăng Nhập Không Gian Tuyển Dụng
+          {t("master.landingChrome.modals.workspace.title")}
         </h3>
         <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-          Nhập Tên miền phụ (Subdomain) hoặc Mã không gian làm việc của công ty bạn để truy cập vào cổng tuyển dụng riêng.
+          {t("master.landingChrome.modals.workspace.subtitle")}
         </p>
 
         <form onSubmit={handleSubdomainLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-900 mb-1.5">
-              Mã hoặc Tên Không Gian Làm Việc
+              {t("master.landingChrome.modals.workspace.fieldLabel")}
             </label>
             <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:border-blue-600 transition-colors">
               <input
                 type="text"
                 required
-                placeholder="viettel"
+                placeholder={t("master.landingChrome.modals.workspace.placeholder")}
                 value={tenantCodeInput}
                 onChange={(e) => setTenantCodeInput(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 text-slate-900 font-mono text-sm focus:outline-none"
@@ -69,7 +71,7 @@ export function WorkspaceModal() {
             type="submit"
             className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-sm shadow transition-all flex items-center justify-center gap-2"
           >
-            <span>Đến Trang Đăng Nhập Riêng</span>
+            <span>{t("master.landingChrome.modals.workspace.submitBtn")}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
@@ -85,7 +87,7 @@ export function WorkspaceModal() {
             className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1.5 transition-colors"
           >
             <KeyRound className="w-3.5 h-3.5" />
-            <span>Quản trị viên nền tảng? Đăng nhập Workspace Admin</span>
+            <span>{t("master.landingChrome.modals.workspace.adminPrompt")}</span>
           </button>
         </div>
       </div>

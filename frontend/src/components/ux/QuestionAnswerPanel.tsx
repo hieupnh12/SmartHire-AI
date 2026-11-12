@@ -1,4 +1,5 @@
 import { Check, CheckCircle2 } from "lucide-react";
+import { t as globalT, useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 /** Shared question kinds for recruiter preview and candidate exam UI. */
@@ -23,6 +24,13 @@ export const QUESTION_KIND_LABEL: Record<AssessmentQuestionKind, string> = {
   TU_LUAN_CODE: "Tự luận code",
   TINH_HUONG_SYSTEM: "Tự luận lý thuyết",
 };
+
+export function getQuestionKindLabel(
+  kind: AssessmentQuestionKind,
+  translate: TranslateFn = globalT,
+) {
+  return translate(`ux.questionAnswer.kinds.${kind}`);
+}
 
 export function isChoiceKind(kind: AssessmentQuestionKind) {
   return kind === "TRAC_NGHIEM_DON" || kind === "NHIEU_DAP_AN";
@@ -91,6 +99,7 @@ export function QuestionAnswerPanel({
   placeholder,
   disabled = false,
 }: Props) {
+  const t = useT();
   const interactive = mode === "candidate" && !disabled && Boolean(onChange);
   const correctKeys = parseMultiAnswer(correctAnswer);
 
@@ -102,7 +111,7 @@ export function QuestionAnswerPanel({
           <div className="overflow-hidden rounded-xl bg-[var(--color-inverse-surface,#213145)] text-[var(--color-inverse-on-surface,#eaf1ff)]">
             <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2">
               <span className="font-mono text-[11px] font-semibold text-[var(--color-tertiary-fixed,#c9e6ff)]">
-                {kind === "TU_LUAN_CODE" ? "Đoạn mã tham chiếu" : "Ngữ cảnh tình huống"}
+                {kind === "TU_LUAN_CODE" ? t("ux.questionAnswer.codeSnippet") : t("ux.questionAnswer.scenarioContext")}
               </span>
               {language.trim() && <span className="font-mono text-[11px] opacity-70">{language}</span>}
             </div>
@@ -113,15 +122,15 @@ export function QuestionAnswerPanel({
         )}
         {mode === "audit" ? (
           <div className="space-y-3 rounded-xl bg-[var(--color-surface-container-low)] p-4">
-            <h4 className="text-sm font-semibold">Đáp án mẫu / gợi ý chấm</h4>
+            <h4 className="text-sm font-semibold">{t("ux.questionAnswer.sampleAnswerHeading")}</h4>
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              {sampleAnswer.trim() || correctAnswer.trim() || "Chưa có đáp án mẫu cho câu tự luận này."}
+              {sampleAnswer.trim() || correctAnswer.trim() || t("ux.questionAnswer.noSampleAnswer")}
             </p>
           </div>
         ) : (
           <label className="block space-y-2">
             <span className="text-xs font-medium text-[var(--color-on-surface-variant)]">
-              {kind === "TU_LUAN_CODE" ? "Viết câu trả lời / mã của bạn" : "Viết câu trả lời tự luận"}
+              {kind === "TU_LUAN_CODE" ? t("ux.questionAnswer.writeCodeAnswer") : t("ux.questionAnswer.writeEssayAnswer")}
             </span>
             <textarea
               name={`answer-${questionKey}`}
@@ -131,14 +140,14 @@ export function QuestionAnswerPanel({
               placeholder={
                 placeholder ??
                 (kind === "TU_LUAN_CODE"
-                  ? "Nhập mã hoặc giải thích lời giải…"
-                  : "Nhập câu trả lời của bạn…")
+                  ? t("ux.questionAnswer.codePlaceholder")
+                  : t("ux.questionAnswer.essayPlaceholder"))
               }
               onChange={(event) => onChange?.(event.target.value)}
               className="w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-70"
             />
             <span className="block text-[11px] text-[var(--color-on-surface-variant)]">
-              {text.trim() ? `${text.trim().length} ký tự` : "Chưa nhập câu trả lời"}
+              {text.trim() ? t("ux.questionAnswer.charCount", { count: text.trim().length }) : t("ux.questionAnswer.noAnswerEntered")}
             </span>
           </label>
         )}
@@ -159,10 +168,10 @@ export function QuestionAnswerPanel({
   return (
     <fieldset className="space-y-3" disabled={disabled}>
       <legend className="sr-only">
-        {multi ? "Chọn một hoặc nhiều đáp án" : "Chọn một đáp án"}
+        {multi ? t("ux.questionAnswer.selectMultipleLegend") : t("ux.questionAnswer.selectSingleLegend")}
       </legend>
       {multi && mode === "candidate" && (
-        <p className="text-xs text-[var(--color-on-surface-variant)]">Có thể chọn nhiều đáp án đúng.</p>
+        <p className="text-xs text-[var(--color-on-surface-variant)]">{t("ux.questionAnswer.multipleChoiceHint")}</p>
       )}
       {options.map((option) => {
         const active = selected.includes(option.id.toUpperCase());
@@ -204,7 +213,7 @@ export function QuestionAnswerPanel({
               {correct && (
                 <span className="mt-2 flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)]">
                   <CheckCircle2 className="size-4" aria-hidden="true" />
-                  Đáp án chính xác
+                  {t("ux.questionAnswer.correctAnswer")}
                 </span>
               )}
             </span>
@@ -212,7 +221,7 @@ export function QuestionAnswerPanel({
               <input
                 type={multi ? "checkbox" : "radio"}
                 name={`preview-${questionKey}`}
-                aria-label={`Đáp án ${option.label}`}
+                aria-label={t("ux.questionAnswer.optionAriaLabel", { label: option.label })}
                 checked={active}
                 onChange={() => {
                   if (multi) toggleMulti(option.id);
@@ -226,7 +235,7 @@ export function QuestionAnswerPanel({
       })}
       {!options.length && (
         <p className="rounded-xl bg-[var(--color-surface-container-low)] p-4 text-sm text-[var(--color-on-surface-variant)]">
-          Câu hỏi chưa có phương án A–D.
+          {t("ux.questionAnswer.noOptions")}
         </p>
       )}
     </fieldset>

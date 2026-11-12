@@ -298,7 +298,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` (`CANDIDATE` chỉ dùng cho JWT claim / authority, không lưu trong bảng `users` từ V51) |
 | `UserStatus` | `users.status`, `candidates.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
-| `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
+| `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED`, `REVOKED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
 | `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `HUMAN_INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
 | `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |

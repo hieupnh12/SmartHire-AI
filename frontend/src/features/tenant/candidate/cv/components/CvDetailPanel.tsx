@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, BriefcaseBusiness, FileText, GraduationCap, Loader2, Mail, PencilLine, RefreshCw, Sparkles, Trash2, UserRound } from "lucide-react";
 import type { CvDetail } from "@/api/types/cv";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
+import { formatDateTime, useLocale, useT } from "@/i18n";
 import { cvStatusMeta } from "../constants/cvStatus";
 import { CvStatusBadge } from "./CvStatusBadge";
 
-export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse, onDelete, editHref, editLabel = "Chỉnh sửa" }: {
+export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse, onDelete, editHref, editLabel }: {
   cv: CvDetail;
   parsePending: boolean;
   deletePending: boolean;
@@ -16,9 +17,15 @@ export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse,
   editHref?: string;
   editLabel?: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const tone = cvStatusMeta[cv.status].tone;
   const canParse = cv.status === "UPLOADED" || cv.status === "FAILED" || cv.status === "ANALYZED";
-  const parseLabel = parsePending ? "Đang phân tích…" : cv.status === "ANALYZED" ? "Phân tích lại" : "Phân tích CV";
+  const parseLabel = parsePending
+    ? t("candidate.cv.detail.parsing")
+    : cv.status === "ANALYZED"
+      ? t("candidate.cv.detail.reparse")
+      : t("candidate.cv.detail.parse");
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -29,7 +36,7 @@ export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse,
             <h2 className="truncate text-lg font-semibold text-slate-900" title={cv.originalFilename}>{cv.originalFilename}</h2>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <CvStatusBadge status={cv.status} />
-              <span>Tải lên {new Date(cv.createdAt).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })}</span>
+              <span>{t("candidate.cv.detail.uploadedAt", { time: formatDateTime(cv.createdAt, { dateStyle: "short", timeStyle: "short" }, locale) })}</span>
               {cv.fileSize != null && <span>· {formatSize(cv.fileSize)}</span>}
             </p>
           </div>
@@ -42,34 +49,34 @@ export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse,
           )}
           {editHref && (
             <Link to={editHref} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]">
-              <PencilLine className="size-4" aria-hidden="true" />{editLabel}
+              <PencilLine className="size-4" aria-hidden="true" />{editLabel ?? t("candidate.cv.detail.edit")}
             </Link>
           )}
           <button type="button" onClick={onDelete} disabled={deletePending} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
-            <Trash2 className="size-4" aria-hidden="true" />{deletePending ? "Đang xóa…" : "Xóa CV"}
+            <Trash2 className="size-4" aria-hidden="true" />{deletePending ? t("candidate.cv.detail.deleting") : t("candidate.cv.detail.delete")}
           </button>
         </div>
       </header>
 
-      {tone === "processing" && <Banner icon={Loader2} spin className="bg-amber-50 text-amber-800">Hệ thống đang xử lý CV. Thông tin sẽ tự cập nhật khi hoàn tất.</Banner>}
-      {tone === "danger" && <Banner icon={AlertTriangle} className="bg-red-50 text-red-700">{cv.errorMessage || "Không phân tích được CV. Hãy thử phân tích lại hoặc tải file khác."}</Banner>}
+      {tone === "processing" && <Banner icon={Loader2} spin className="bg-amber-50 text-amber-800">{t("candidate.cv.detail.processingBanner")}</Banner>}
+      {tone === "danger" && <Banner icon={AlertTriangle} className="bg-red-50 text-red-700">{cv.errorMessage || t("candidate.cv.detail.parseFailedFallback")}</Banner>}
       {error && <Banner icon={AlertTriangle} className="bg-red-50 text-red-700" role="alert">{error}</Banner>}
 
       <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section aria-label="Xem trước file CV">
+        <section aria-label={t("candidate.cv.detail.previewAria")}>
           <CvFilePreview cvId={cv.id} mimeType={cv.mimeType} filename={cv.originalFilename} />
         </section>
         <aside className="space-y-4">
           <ExtractionCard cv={cv} />
           {cv.analysis?.summary && (
             <section className="rounded-xl border border-slate-200 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Tóm tắt từ AI</h3>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />{t("candidate.cv.detail.aiSummary")}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{cv.analysis.summary}</p>
             </section>
           )}
           {cv.skills.length > 0 && (
             <section className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Kỹ năng nhận diện <span className="font-normal text-slate-500">({cv.skills.length})</span></h3>
+              <h3 className="text-sm font-semibold text-slate-900">{t("candidate.cv.detail.detectedSkills")} <span className="font-normal text-slate-500">({cv.skills.length})</span></h3>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {cv.skills.map((skill) => <span key={skill.canonicalName} className="rounded-full bg-[color-mix(in_srgb,var(--color-primary)_10%,white)] px-2.5 py-1 text-xs font-medium text-[var(--color-primary)]">{skill.skillName}</span>)}
               </div>
@@ -82,19 +89,20 @@ export function CvDetailPanel({ cv, parsePending, deletePending, error, onParse,
 }
 
 function ExtractionCard({ cv }: { cv: CvDetail }) {
+  const t = useT();
   const extraction = cv.extraction;
   const facts: Array<{ icon: ElementType; label: string; value: string | null }> = [
-    { icon: UserRound, label: "Họ tên", value: text(extraction?.fullName ?? extraction?.name) },
-    { icon: Mail, label: "Email", value: text(extraction?.email) },
-    { icon: GraduationCap, label: "Học vấn", value: text(extraction?.education ?? extraction?.educationLevel) },
-    { icon: BriefcaseBusiness, label: "Kinh nghiệm", value: cv.analysis?.yearsExperience != null ? `${cv.analysis.yearsExperience} năm` : null },
+    { icon: UserRound, label: t("candidate.cv.detail.fields.fullName"), value: text(extraction?.fullName ?? extraction?.name) },
+    { icon: Mail, label: t("candidate.cv.detail.fields.email"), value: text(extraction?.email) },
+    { icon: GraduationCap, label: t("candidate.cv.detail.fields.education"), value: text(extraction?.education ?? extraction?.educationLevel) },
+    { icon: BriefcaseBusiness, label: t("candidate.cv.detail.fields.experience"), value: cv.analysis?.yearsExperience != null ? t("candidate.cv.detail.yearsExp", { years: cv.analysis.yearsExperience }) : null },
   ];
   const known = facts.filter((fact) => fact.value);
   return (
     <section className="rounded-xl border border-slate-200 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Thông tin trích xuất</h3>
+      <h3 className="text-sm font-semibold text-slate-900">{t("candidate.cv.detail.extractedInfo")}</h3>
       {known.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">Chưa có thông tin. Bấm “Phân tích CV” để hệ thống đọc nội dung file.</p>
+        <p className="mt-2 text-sm text-slate-500">{t("candidate.cv.detail.noExtractedInfo")}</p>
       ) : (
         <dl className="mt-3 space-y-3">
           {known.map(({ icon: Icon, label, value }) => (

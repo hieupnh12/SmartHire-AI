@@ -111,6 +111,22 @@ class RecruiterFeatureFilterTest {
         verifyNoInteractions(rolePermissionService);
     }
 
+    @Test
+    void recruiterWithJobsAllCanViewJobsList() throws Exception {
+        authenticate("ROLE_RECRUITER");
+        when(rolePermissionService.hasAction("RECRUITER", RecruiterFeature.JOBS, "VIEW")).thenReturn(false);
+        when(rolePermissionService.hasFeature("RECRUITER", RecruiterFeature.JOBS_ALL)).thenReturn(true);
+        RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/jobs");
+        request.setServletPath("/api/v1/jobs");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(200, response.getStatus());
+        verify(filterChain).doFilter(request, response);
+    }
+
     private static void authenticate(String... roles) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(

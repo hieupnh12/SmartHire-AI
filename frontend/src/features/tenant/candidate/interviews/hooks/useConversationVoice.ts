@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { interviewConversationApi, voiceSocketUrl } from "@/api/tenant/interviewConversationApi";
+import { t as globalT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 
 // TypeScript declarations for Web Speech API
@@ -140,17 +141,17 @@ export function useConversationVoice(
       const ws = new WebSocket(voiceSocketUrl(ticket));
       socket.current = ws;
       timer.current = setTimeout(() => {
-        setError("Kết nối micro quá hạn. Vui lòng thử lại.");
+        setError(globalT("candidate.assess.interviews.voiceErrors.micTimeout"));
         cleanup();
       }, 15000);
 
       ws.onerror = () => {
-        setError("Không thể kết nối dịch vụ giọng nói. Bạn vẫn có thể nhập văn bản.");
+        setError(globalT("candidate.assess.interviews.voiceErrors.connectFailed"));
         cleanup();
       };
       ws.onclose = () => {
         if (socket.current === ws) {
-          setError("Kết nối giọng nói bị ngắt. Vui lòng thử lại.");
+          setError(globalT("candidate.assess.interviews.voiceErrors.disconnected"));
           cleanup();
         }
       };
@@ -159,7 +160,7 @@ export function useConversationVoice(
         try {
           value = JSON.parse(String(event.data)) as typeof value;
         } catch {
-          setError("Phản hồi giọng nói không hợp lệ. Vui lòng thử lại.");
+          setError(globalT("candidate.assess.interviews.voiceErrors.invalidResponse"));
           cleanup();
           return;
         }
@@ -172,7 +173,7 @@ export function useConversationVoice(
           const recording = new MediaRecorder(audioStream, { mimeType: mime });
           recorder.current = recording;
           recording.onerror = () => {
-            setError("Ghi âm bị gián đoạn. Hãy thu lại hoặc nhập câu trả lời.");
+            setError(globalT("candidate.assess.interviews.voiceErrors.recordingInterrupted"));
             cleanup();
           };
           recording.ondataavailable = ev => {
@@ -180,7 +181,7 @@ export function useConversationVoice(
             chunks.push(ev.data);
             size += ev.data.size;
             if (size > 9 * 1024 * 1024) {
-              setError("Bản ghi vượt 9 MB. Hãy thu lại câu trả lời ngắn hơn.");
+              setError(globalT("candidate.assess.interviews.voiceErrors.recordingTooLarge"));
               cleanup();
               return;
             }
@@ -202,7 +203,7 @@ export function useConversationVoice(
               if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "end" }));
             });
             timer.current = setTimeout(() => {
-              setError("Chuyển ngữ quá hạn. Vui lòng thử lại hoặc nhập câu trả lời.");
+              setError(globalT("candidate.assess.interviews.voiceErrors.transcribeTimeout"));
               cleanup();
             }, 60000);
           };
@@ -212,11 +213,11 @@ export function useConversationVoice(
         }
         if (value.type === "transcript") {
           if (value.text?.trim()) callback.current(value.text.trim());
-          else setError("Không nhận được lời nói. Hãy thu lại hoặc nhập câu trả lời.");
+          else setError(globalT("candidate.assess.interviews.voiceErrors.noSpeechRecognized"));
           cleanup();
         }
         if (value.type === "error") {
-          setError(value.message ?? "Chuyển ngữ thất bại. Vui lòng thử lại.");
+          setError(value.message ?? globalT("candidate.assess.interviews.voiceErrors.transcribeFailed"));
           cleanup();
         }
       };
@@ -239,12 +240,12 @@ export function useConversationVoice(
     try {
       window.speechSynthesis?.cancel();
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-        throw new Error("Trình duyệt chưa hỗ trợ ghi âm. Hãy nhập câu trả lời.");
+        throw new Error(globalT("candidate.assess.interviews.voiceErrors.browserUnsupported"));
       }
       const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"].find(value =>
         MediaRecorder.isTypeSupported(value)
       );
-      if (!mime) throw new Error("Không có định dạng audio được hỗ trợ.");
+      if (!mime) throw new Error(globalT("candidate.assess.interviews.voiceErrors.formatUnsupported"));
 
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       media.current = audioStream;
@@ -404,7 +405,7 @@ export function useConversationVoice(
         setError(null);
         callback.current(full);
       } else {
-        setError("Không nhận được lời nói. Hãy thu lại hoặc nhập câu trả lời.");
+        setError(globalT("candidate.assess.interviews.voiceErrors.noSpeechRecognized"));
       }
 
       setStatus("idle");

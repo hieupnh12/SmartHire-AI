@@ -1,4 +1,5 @@
 import { api } from "@/lib/axios";
+import { t } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import type { ApiResponse } from "@/types/api";
 
@@ -57,17 +58,17 @@ export const interviewConversationApi = {
       const tenant = getTenantIdFromWindow(); if (tenant) headers["X-Tenant-ID"] = tenant;
       const base = (api.defaults.baseURL ?? "/api/v1").replace(/\/$/, "");
       const response = await fetch(`${base}${path(id)}/turns`, { method: "POST", headers, body: JSON.stringify({ requestId, content }), signal: controller.signal });
-      if (!response.ok || !response.body) throw new Error(`Không thể kết nối hội thoại (HTTP ${response.status}). Vui lòng thử lại.`);
+      if (!response.ok || !response.body) throw new Error(t("errors.interviewConnectFailed", { status: response.status }));
       let completed: Conversation | undefined;
       await readConversationStream(response.body.getReader(), message => {
         if (message.event === "delta") onDelta((JSON.parse(message.data) as { text: string }).text);
         if (message.event === "done") { completed = JSON.parse(message.data) as Conversation; return true; }
         if (message.event === "error") throw new Error((JSON.parse(message.data) as { message: string }).message);
       });
-      if (!completed) throw new Error("Kết nối bị gián đoạn. Bấm gửi lại để khôi phục cùng lượt trả lời.");
+      if (!completed) throw new Error(t("errors.interviewInterrupted"));
       return completed;
     } catch (error) {
-      if (timedOut) throw new Error("AI phản hồi quá lâu. Bấm gửi lại để khôi phục cùng lượt trả lời; nội dung của bạn được giữ lại.");
+      if (timedOut) throw new Error(t("errors.interviewAiTimeout"));
       throw error;
     } finally {
       clearTimeout(timer); signal.removeEventListener("abort", cancel);

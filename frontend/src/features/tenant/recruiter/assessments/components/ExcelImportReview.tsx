@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { isChoiceKind, typeMeta, type BankQuestion } from "../constants/excelTemplateMock";
 import {
@@ -32,25 +33,25 @@ const panel = "rounded-2xl border border-[var(--color-border-default)] bg-[var(-
 const muted = "text-[var(--color-on-surface-variant)]";
 type Filter = "all" | "valid" | "invalid" | "warning";
 
-function statusMeta(status: ImportStatus) {
+function statusMeta(status: ImportStatus, t: TranslateFn) {
   if (status === "VALID") {
     return {
       label: "VALID",
       className: "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]",
-      title: "Hợp lệ",
+      title: t("recruiter.assessments.importReview.statusValidTitle"),
     };
   }
   if (status === "WARNING") {
     return {
       label: "WARNING",
       className: "bg-amber-50 text-amber-800",
-      title: "Cảnh báo",
+      title: t("recruiter.assessments.importReview.statusWarningTitle"),
     };
   }
   return {
     label: "INVALID",
     className: "bg-[var(--color-error-container)] text-[var(--color-error)]",
-    title: "Không hợp lệ",
+    title: t("recruiter.assessments.importReview.statusInvalidTitle"),
   };
 }
 
@@ -60,16 +61,17 @@ function StatusDetail({ item, defaultScore, confirmed, onEdit }: {
   confirmed: boolean;
   onEdit: (index: number) => void;
 }) {
-  const meta = statusMeta(item.status);
+  const t = useT();
+  const meta = statusMeta(item.status, t);
   return (
     <div className="space-y-2">
-      <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide", meta.className)}>
+      <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide", meta.className)} title={meta.title}>
         {meta.label}
       </span>
 
       {item.status === "INVALID" && (
         <div className="text-[var(--color-error)]">
-          <p className="font-semibold">❌ Dòng {item.line} không hợp lệ</p>
+          <p className="font-semibold">{t("recruiter.assessments.importReview.rowInvalidHeading", { line: item.line })}</p>
           <ul className="mt-1.5 space-y-1">
             {item.errors.map((error) => (
               <li key={error} className="flex gap-1.5">
@@ -83,7 +85,7 @@ function StatusDetail({ item, defaultScore, confirmed, onEdit }: {
 
       {item.status === "WARNING" && (
         <div className="text-amber-800">
-          <p className="font-semibold">⚠ Dòng {item.line} có cảnh báo</p>
+          <p className="font-semibold">{t("recruiter.assessments.importReview.rowWarningHeading", { line: item.line })}</p>
           <ul className="mt-1.5 space-y-1">
             {item.warnings.map((warning) => (
               <li key={warning} className="flex gap-1.5">
@@ -98,13 +100,13 @@ function StatusDetail({ item, defaultScore, confirmed, onEdit }: {
       {item.status === "VALID" && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-1 font-medium text-[var(--color-primary)]">
           <CheckCircle2 className="size-3.5" aria-hidden="true" />
-          Hợp lệ · {item.row.score.trim() || defaultScore} điểm
+          {t("recruiter.assessments.importReview.rowValidBadge", { score: item.row.score.trim() || defaultScore })}
         </span>
       )}
 
       {item.status === "WARNING" && (
         <p className={cn(muted, "text-[11px]")}>
-          Vẫn có thể tiếp tục nhập; nên bổ sung các trường cảnh báo trước khi xuất bản.
+          {t("recruiter.assessments.importReview.rowWarningHint")}
         </p>
       )}
 
@@ -114,7 +116,7 @@ function StatusDetail({ item, defaultScore, confirmed, onEdit }: {
           onClick={() => onEdit(item.line - 2)}
           className="mt-1 block min-h-8 font-semibold text-[var(--color-primary)] underline underline-offset-4"
         >
-          Sửa dòng {item.line}
+          {t("recruiter.assessments.importReview.editRowBtn", { line: item.line })}
         </button>
       )}
     </div>
@@ -136,6 +138,7 @@ export function ExcelImportReview({
   onEdit: (index: number) => void;
   generalBank?: BankSaveActions;
 }) {
+  const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
@@ -150,7 +153,7 @@ export function ExcelImportReview({
     heading.current?.focus();
   }, [step, confirmed]);
 
-  const rows = useMemo(() => validateExcelQuestions(questions, defaultScore), [questions, defaultScore]);
+  const rows = useMemo(() => validateExcelQuestions(questions, defaultScore, t), [questions, defaultScore, t]);
   const blank = rows.filter((item) => item.skipped);
   const active = rows.filter((item) => !item.skipped);
   const valid = active.filter((item) => item.status === "VALID" || item.status === "WARNING");
@@ -186,10 +189,10 @@ export function ExcelImportReview({
   };
 
   function downloadErrors() {
-    const url = URL.createObjectURL(new Blob([importErrorCsv(rows)], { type: "text/csv;charset=utf-8;" }));
+    const url = URL.createObjectURL(new Blob([importErrorCsv(rows, t)], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "bao-cao-kiem-tra-excel.csv";
+    link.download = t("recruiter.assessments.importReview.csvFilename");
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -221,12 +224,12 @@ export function ExcelImportReview({
                   tabIndex={-1}
                   className="text-xl font-semibold tracking-tight outline-none sm:text-2xl"
                 >
-                  {confirmed ? "Đã xác nhận dữ liệu nhập" : "Kiểm tra dữ liệu import Excel"}
+                  {confirmed ? t("recruiter.assessments.importReview.confirmedHeading") : t("recruiter.assessments.importReview.defaultHeading")}
                 </h1>
                 <p className={cn(muted, "mt-1 text-sm leading-6")}>
-                  {generalBank ? "Đối soát câu hỏi từ bảng Excel trước khi lưu vào ngân hàng chung." : "Đối soát câu hỏi từ bảng Excel trước khi đưa vào cấu trúc bài đánh giá."}
+                  {generalBank ? t("recruiter.assessments.importReview.generalBankSubtitle") : t("recruiter.assessments.importReview.assessmentSubtitle")}
                 </p>
-                <p className="mt-1 text-xs font-medium text-[var(--color-primary)]">Vị trí: {jobTitle}</p>
+                <p className="mt-1 text-xs font-medium text-[var(--color-primary)]">{t("recruiter.assessments.importReview.positionLabel", { jobTitle })}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -238,15 +241,20 @@ export function ExcelImportReview({
                 onClick={() => setShowGuide(!showGuide)}
               >
                 <BookOpen className="size-4" aria-hidden="true" />
-                Hướng dẫn
+                {t("recruiter.assessments.importReview.guideBtn")}
               </Button>
-              <Button variant="ghost" size="sm" aria-label="Đóng kiểm tra, quay lại bảng Excel" onClick={onBack}>
+              <Button variant="ghost" size="sm" aria-label={t("recruiter.assessments.importReview.closeReviewAria")} onClick={onBack}>
                 <X className="size-5" aria-hidden="true" />
               </Button>
             </div>
           </div>
-          <ol aria-label="Các bước nhập bài đánh giá" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {["Soạn bảng Excel", "Kiểm tra & báo lỗi", "Xem trước dữ liệu", "Xác nhận nhập đề"].map((label, index) => (
+          <ol aria-label={t("recruiter.assessments.importReview.stepsAria")} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              t("recruiter.assessments.importReview.steps.author"),
+              t("recruiter.assessments.importReview.steps.validate"),
+              t("recruiter.assessments.importReview.steps.preview"),
+              t("recruiter.assessments.importReview.steps.confirm"),
+            ].map((label, index) => (
               <li
                 key={label}
                 aria-current={index === step ? "step" : undefined}
@@ -267,7 +275,7 @@ export function ExcelImportReview({
                 </span>
                 <div>
                   <p className={cn(muted, "text-[10px] font-semibold uppercase tracking-wider")}>
-                    Bước {String.fromCharCode(65 + index)}
+                    {t("recruiter.assessments.importReview.stepLetterLabel", { letter: String.fromCharCode(65 + index) })}
                   </p>
                   <p className="text-sm font-semibold">{label}</p>
                 </div>
@@ -280,30 +288,30 @@ export function ExcelImportReview({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               {
-                label: "Tổng số dòng kiểm tra",
+                label: t("recruiter.assessments.importReview.stats.totalTitle"),
                 count: active.length,
-                hint: blank.length ? `Bỏ qua ${blank.length} hàng trống` : "Nguồn: bảng Excel đang soạn",
+                hint: blank.length ? t("recruiter.assessments.importReview.stats.skippedHint", { count: blank.length }) : t("recruiter.assessments.importReview.stats.sourceHint"),
                 icon: FileSpreadsheet,
                 tone: "text-[var(--color-on-surface)]",
               },
               {
-                label: "VALID (hợp lệ)",
+                label: t("recruiter.assessments.importReview.stats.validTitle"),
                 count: active.filter((item) => item.status === "VALID").length,
-                hint: "Đủ rule theo type",
+                hint: t("recruiter.assessments.importReview.stats.validHint"),
                 icon: CheckCircle2,
                 tone: "text-[var(--color-primary)]",
               },
               {
-                label: "INVALID (lỗi)",
+                label: t("recruiter.assessments.importReview.stats.invalidTitle"),
                 count: invalid.length,
-                hint: "Một dòng có thể có nhiều lỗi",
+                hint: t("recruiter.assessments.importReview.stats.invalidHint"),
                 icon: AlertTriangle,
                 tone: "text-[var(--color-error)]",
               },
               {
-                label: "WARNING (cảnh báo)",
+                label: t("recruiter.assessments.importReview.stats.warningTitle"),
                 count: warningOnly.length,
-                hint: "Vẫn tiếp tục được, nên bổ sung",
+                hint: t("recruiter.assessments.importReview.stats.warningHint"),
                 icon: ShieldAlert,
                 tone: "text-amber-700",
               },
@@ -315,7 +323,7 @@ export function ExcelImportReview({
                 </div>
                 <p className={cn("mt-3 text-3xl font-semibold", tone)}>
                   {count}
-                  <span className={cn(muted, "ml-2 text-xs font-normal")}>dòng</span>
+                  <span className={cn(muted, "ml-2 text-xs font-normal")}>{t("recruiter.assessments.common.rowsUnit")}</span>
                 </p>
                 <p className={cn(muted, "mt-2 text-xs")}>{hint}</p>
               </div>
@@ -327,10 +335,10 @@ export function ExcelImportReview({
               <CheckCircle2 className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
               <div>
                 <p className="font-semibold">
-                  Đã xác nhận {valid.length} câu hỏi · {totalPoints} điểm
+                  {t("recruiter.assessments.importReview.confirmedStatusTitle", { count: valid.length, points: totalPoints })}
                 </p>
                 <p className={cn(muted, "mt-1")}>
-                  {generalBank ? "Tiếp tục xem trước để lưu câu hỏi vào ngân hàng chung." : "Tiếp tục bước xem trước để lưu bài đánh giá dưới dạng bản nháp (DRAFT)."}
+                  {generalBank ? t("recruiter.assessments.importReview.confirmedGeneralBankHint") : t("recruiter.assessments.importReview.confirmedAssessmentHint")}
                 </p>
               </div>
             </div>
@@ -339,10 +347,10 @@ export function ExcelImportReview({
           <div className={cn(panel, "overflow-hidden")}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] p-4">
               {step === 1 ? (
-                <div className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-surface-container-low)] p-1" aria-label="Lọc kết quả kiểm tra">
+                <div className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-surface-container-low)] p-1" aria-label={t("recruiter.assessments.importReview.filterAria")}>
                   {(
                     [
-                      { id: "all", label: "Tất cả", count: active.length },
+                      { id: "all", label: t("recruiter.assessments.common.all"), count: active.length },
                       { id: "valid", label: "VALID", count: active.filter((item) => item.status === "VALID").length },
                       { id: "invalid", label: "INVALID", count: invalid.length },
                       { id: "warning", label: "WARNING", count: warningOnly.length },
@@ -368,11 +376,11 @@ export function ExcelImportReview({
                   ))}
                 </div>
               ) : (
-                <h2 className="font-semibold">{step === 2 ? "Xem trước câu hỏi hợp lệ" : "Cấu trúc đề sau khi nhập"}</h2>
+                <h2 className="font-semibold">{step === 2 ? t("recruiter.assessments.importReview.step2PreviewHeading") : t("recruiter.assessments.importReview.step3StructureHeading")}</h2>
               )}
               <Button variant="secondary" size="sm" disabled={!invalid.length && !warningOnly.length} onClick={downloadErrors}>
                 <Download className="size-4" aria-hidden="true" />
-                Tải báo cáo lỗi (.csv)
+                {t("recruiter.assessments.importReview.downloadErrorsBtn")}
               </Button>
             </div>
 
@@ -380,13 +388,13 @@ export function ExcelImportReview({
               <label className="relative block max-w-md">
                 <Search className="absolute left-3 top-3 size-4 text-[var(--color-outline)]" aria-hidden="true" />
                 <input
-                  aria-label="Tìm trong dữ liệu import"
+                  aria-label={t("recruiter.assessments.importReview.searchAria")}
                   value={search}
                   onChange={(event) => {
                     setSearch(event.target.value);
                     setPage(0);
                   }}
-                  placeholder="Tìm nội dung, kỹ năng, mã hoặc số dòng…"
+                  placeholder={t("recruiter.assessments.importReview.searchPlaceholder")}
                   className="h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 />
               </label>
@@ -396,7 +404,15 @@ export function ExcelImportReview({
               <table className="w-full min-w-[960px] text-left text-sm">
                 <thead className="bg-[var(--color-surface-container-low)] text-xs text-[var(--color-on-surface-variant)]">
                   <tr>
-                    {["Dòng #", "Kỹ năng", "Nội dung câu hỏi", "Loại câu", "Độ khó", "Đáp án", "Trạng thái & chi tiết"].map(
+                    {[
+                      t("recruiter.assessments.importReview.tableHeaders.line"),
+                      t("recruiter.assessments.importReview.tableHeaders.skill"),
+                      t("recruiter.assessments.importReview.tableHeaders.content"),
+                      t("recruiter.assessments.importReview.tableHeaders.kind"),
+                      t("recruiter.assessments.importReview.tableHeaders.difficulty"),
+                      t("recruiter.assessments.importReview.tableHeaders.answer"),
+                      t("recruiter.assessments.importReview.tableHeaders.status"),
+                    ].map(
                       (label) => (
                         <th key={label} scope="col" className="px-4 py-3 font-semibold">
                           {label}
@@ -416,10 +432,10 @@ export function ExcelImportReview({
                       )}
                     >
                       <td className="px-4 py-4 font-mono text-xs">#{item.line}</td>
-                      <td className={cn(muted, "max-w-36 break-words px-4 py-4 text-xs")}>{item.row.skill || "—"}</td>
+                      <td className={cn(muted, "max-w-36 break-words px-4 py-4 text-xs")}>{item.row.skill || t("recruiter.assessments.common.dash")}</td>
                       <td className="min-w-64 max-w-sm px-4 py-4">
                         <p className={cn("whitespace-pre-wrap break-words", !item.row.content.trim() && "italic text-[var(--color-error)]")}>
-                          {item.row.content.trim() || "[Ô dữ liệu để trống]"}
+                          {item.row.content.trim() || t("recruiter.assessments.importReview.emptyCellLabel")}
                         </p>
                         {step > 1 && isChoiceKind(item.row.kind) && (
                           <ul className="mt-3 space-y-1 text-xs">
@@ -444,8 +460,8 @@ export function ExcelImportReview({
                           </ul>
                         )}
                       </td>
-                      <td className={cn(muted, "px-4 py-4 text-xs")}>{typeMeta(item.row.kind).label}</td>
-                      <td className="px-4 py-4 text-xs">{item.row.difficulty || "—"}</td>
+                      <td className={cn(muted, "px-4 py-4 text-xs")}>{typeMeta(item.row.kind, t).label}</td>
+                      <td className="px-4 py-4 text-xs">{item.row.difficulty || t("recruiter.assessments.common.dash")}</td>
                       <td className="max-w-56 px-4 py-4 font-mono text-xs">
                         <p className="whitespace-pre-wrap break-words">{answerDisplay(item.row)}</p>
                       </td>
@@ -457,7 +473,7 @@ export function ExcelImportReview({
                   {!shown.length && (
                     <tr>
                       <td colSpan={7} className={cn(muted, "p-10 text-center")}>
-                        Không có dòng dữ liệu phù hợp.
+                        {t("recruiter.assessments.importReview.emptyTable")}
                       </td>
                     </tr>
                   )}
@@ -467,12 +483,15 @@ export function ExcelImportReview({
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] p-4">
               <p className={cn(muted, "text-xs")}>
-                {filtered.length ? safePage * 10 + 1 : 0}–{Math.min((safePage + 1) * 10, filtered.length)} / {filtered.length}{" "}
-                dòng
+                {t("recruiter.assessments.importReview.showingRowsRange", {
+                  start: filtered.length ? safePage * 10 + 1 : 0,
+                  end: Math.min((safePage + 1) * 10, filtered.length),
+                  total: filtered.length,
+                })}
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="secondary" size="sm" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>
-                  Trước
+                  {t("recruiter.assessments.importReview.prevBtn")}
                 </Button>
                 <span className="text-xs">
                   {safePage + 1} / {pageCount}
@@ -483,7 +502,7 @@ export function ExcelImportReview({
                   disabled={safePage + 1 >= pageCount}
                   onClick={() => setPage(safePage + 1)}
                 >
-                  Sau
+                  {t("recruiter.assessments.importReview.nextBtn")}
                 </Button>
               </div>
             </div>
@@ -493,29 +512,29 @@ export function ExcelImportReview({
             <div className="space-y-4">
               <h2 className="flex items-center gap-2 font-semibold">
                 <ListChecks className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-                Quy tắc nhập dữ liệu
+                {t("recruiter.assessments.importReview.rulesHeading")}
               </h2>
               <ol className={cn(muted, "list-decimal space-y-1.5 pl-5 text-xs leading-6")}>
-                <li>Kiểm tra dòng trống → bỏ qua, không ghi DB</li>
-                <li>Kiểm tra content, type, score, difficulty, skill</li>
-                <li>Validate field theo type (đơn / nhiều đáp án / tự luận)</li>
-                <li>Kiểm tra options &amp; answer (gom đủ lỗi, không dừng ở lỗi đầu)</li>
-                <li>Kiểm tra duplicate content → WARNING</li>
-                <li>Gán trạng thái VALID / INVALID / WARNING</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r1")}</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r2")}</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r3")}</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r4")}</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r5")}</li>
+                <li>{t("recruiter.assessments.importReview.rulesList.r6")}</li>
               </ol>
               <fieldset disabled={confirmed} className="space-y-3">
-                <legend className="sr-only">Cách xử lý dòng không hợp lệ</legend>
+                <legend className="sr-only">{t("recruiter.assessments.importReview.policyLegend")}</legend>
                 {(
                   [
                     {
                       value: "valid",
-                      title: "Chỉ nhập các dòng VALID / WARNING",
-                      hint: "Bỏ qua dòng INVALID; giữ nguyên bảng nguồn để sửa sau.",
+                      title: t("recruiter.assessments.importReview.policyValidTitle"),
+                      hint: t("recruiter.assessments.importReview.policyValidHint"),
                     },
                     {
                       value: "all",
-                      title: "Chỉ tiếp tục khi không còn INVALID",
-                      hint: "Yêu cầu sửa hết dòng lỗi trước khi tiếp tục.",
+                      title: t("recruiter.assessments.importReview.policyAllTitle"),
+                      hint: t("recruiter.assessments.importReview.policyAllHint"),
                     },
                   ] as const
                 ).map((option) => (
@@ -546,7 +565,7 @@ export function ExcelImportReview({
                   </label>
                 ))}
                 <label className="flex flex-wrap items-center gap-3 text-sm">
-                  Điểm mặc định khi ô điểm trống
+                  {t("recruiter.assessments.importReview.defaultScoreLabel")}
                   <input
                     type="number"
                     min={1}
@@ -564,8 +583,7 @@ export function ExcelImportReview({
               <div className="flex gap-3 rounded-xl bg-[var(--color-surface-container-low)] p-4">
                 <ShieldCheck className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className={cn(muted, "text-xs leading-6")}>
-                  Trắc nghiệm đơn / nhiều đáp án / tự luận đều được kiểm tra và có thể lưu nháp. Không bắt buộc đủ mọi
-                  thể loại. Hàng trống bị bỏ qua. {generalBank ? "Mỗi câu cần kỹ năng và độ khó trước khi lưu ngân hàng; tối đa 999 câu." : "Độ khó / kỹ năng / đáp án mẫu là khuyến nghị. Tối đa 100 câu."}
+                  {generalBank ? t("recruiter.assessments.importReview.generalBankPolicyNote") : t("recruiter.assessments.importReview.assessmentPolicyNote")}
                 </p>
               </div>
             </div>
@@ -573,20 +591,20 @@ export function ExcelImportReview({
             <aside className="flex flex-col justify-between rounded-2xl bg-[var(--color-surface-container-low)] p-5">
               <div>
                 <div className="mb-5 flex items-center justify-between gap-2">
-                  <h2 className="font-semibold">Tóm tắt chuẩn bị nhập</h2>
+                  <h2 className="font-semibold">{t("recruiter.assessments.importReview.summaryHeading")}</h2>
                   <span className="rounded-full bg-[var(--color-primary-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--color-primary)]">
-                    ĐỀ MỚI
+                    {t("recruiter.assessments.importReview.newTestBadge")}
                   </span>
                 </div>
                 <dl className="space-y-3 text-sm">
                   {[
-                    ["Vị trí tuyển dụng", jobTitle],
-                    ["Số câu hỏi sẽ lưu", valid.length + " câu"],
-                    ["Hàng trống (bỏ qua)", blank.length + " dòng"],
-                    ["INVALID", invalid.length + " dòng"],
-                    ["WARNING", warningOnly.length + " dòng"],
-                    ["Tổng điểm", totalPoints + " điểm"],
-                    ["Cấu trúc đề", valid.length + ` / ${maxQuestions} câu`],
+                    [t("recruiter.assessments.importReview.summaryLabels.job"), jobTitle],
+                    [t("recruiter.assessments.importReview.summaryLabels.toSave"), t("recruiter.assessments.importReview.summaryCountQuestions", { count: valid.length })],
+                    [t("recruiter.assessments.importReview.summaryLabels.blankSkipped"), t("recruiter.assessments.importReview.summaryCountRows", { count: blank.length })],
+                    [t("recruiter.assessments.importReview.summaryLabels.invalid"), t("recruiter.assessments.importReview.summaryCountRows", { count: invalid.length })],
+                    [t("recruiter.assessments.importReview.summaryLabels.warning"), t("recruiter.assessments.importReview.summaryCountRows", { count: warningOnly.length })],
+                    [t("recruiter.assessments.importReview.summaryLabels.totalPoints"), t("recruiter.assessments.importReview.summaryCountPoints", { points: totalPoints })],
+                    [t("recruiter.assessments.importReview.summaryLabels.structure"), t("recruiter.assessments.importReview.summaryStructure", { count: valid.length, max: maxQuestions })],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between gap-5">
                       <dt className={muted}>{label}</dt>
@@ -599,10 +617,10 @@ export function ExcelImportReview({
                 {!canContinue && (
                   <p role="alert" className="text-xs leading-5 text-[var(--color-error)]">
                     {valid.length === 0
-                      ? "Chưa có câu hỏi hợp lệ để nhập."
+                      ? t("recruiter.assessments.importReview.cannotContinueEmpty")
                       : valid.length > maxQuestions
-                        ? `Vượt giới hạn ${maxQuestions} câu. Quay lại bảng để giảm số câu.`
-                        : "Cần xử lý hết các dòng INVALID theo quy tắc đã chọn."}
+                        ? t("recruiter.assessments.importReview.cannotContinueMax", { max: maxQuestions })
+                        : t("recruiter.assessments.importReview.cannotContinueInvalid")}
                   </p>
                 )}
                 {step === 3 && !confirmed && (
@@ -614,7 +632,7 @@ export function ExcelImportReview({
                       className="mt-1 accent-[var(--color-primary)]"
                     />
                     <span>
-                      Tôi đã kiểm tra {valid.length} câu hỏi và đồng ý bỏ qua {excluded} dòng INVALID trong lượt nhập này.
+                      {t("recruiter.assessments.importReview.acknowledgeLabel", { valid: valid.length, excluded })}
                     </span>
                   </label>
                 )}
@@ -630,20 +648,20 @@ export function ExcelImportReview({
                       <ArrowRight className="size-4" aria-hidden="true" />
                     )}
                     {step === 1
-                      ? "Xem trước " + valid.length + " câu hỏi"
+                      ? t("recruiter.assessments.importReview.previewCountBtn", { count: valid.length })
                       : step === 2
-                        ? "Tiếp tục xác nhận"
-                        : "Xác nhận " + valid.length + " câu hỏi hợp lệ"}
+                        ? t("recruiter.assessments.importReview.continueConfirmBtn")
+                        : t("recruiter.assessments.importReview.confirmValidBtn", { count: valid.length })}
                   </Button>
                 )}
                 {step > 1 && !confirmed && (
                   <Button variant="secondary" className="w-full" onClick={() => changeStep((step - 1) as 1 | 2)}>
-                    Quay lại bước trước
+                    {t("recruiter.assessments.importReview.backStepBtn")}
                   </Button>
                 )}
                 <Button variant="ghost" className="w-full" onClick={onBack}>
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Quay lại bảng Excel
+                  {t("recruiter.assessments.importReview.backToExcelBtn")}
                 </Button>
               </div>
             </aside>
@@ -653,21 +671,21 @@ export function ExcelImportReview({
             <section id="excel-import-guide" className="space-y-4 rounded-xl bg-[var(--color-surface-container-low)] p-5">
               <h2 className="flex items-center gap-2 font-semibold">
                 <BookOpen className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-                Hướng dẫn kiểm tra dữ liệu
+                {t("recruiter.assessments.importReview.guideHeading")}
               </h2>
               <div className="grid gap-4 md:grid-cols-3">
                 {[
                   [
-                    "Content · type · score · difficulty · skill",
-                    "Difficulty chỉ chấp nhận Easy / Medium / Hard. Điểm 1–10.000. Hàng trống bị bỏ qua.",
+                    t("recruiter.assessments.importReview.guideCards.c1Title"),
+                    t("recruiter.assessments.importReview.guideCards.c1Body"),
                   ],
                   [
-                    "Options & answer theo type",
-                    "Đơn: một đáp án A–D. Nhiều đáp án: A,C,… Tự luận: đáp án mẫu bắt buộc; khung code/lý thuyết tuỳ chọn.",
+                    t("recruiter.assessments.importReview.guideCards.c2Title"),
+                    t("recruiter.assessments.importReview.guideCards.c2Body"),
                   ],
                   [
-                    "VALID / INVALID / WARNING",
-                    "Một dòng có thể có nhiều lỗi cùng lúc. Duplicate content → WARNING. Không dừng ở lỗi đầu tiên.",
+                    t("recruiter.assessments.importReview.guideCards.c3Title"),
+                    t("recruiter.assessments.importReview.guideCards.c3Body"),
                   ],
                 ].map(([title, text]) => (
                   <div key={title} className="rounded-xl bg-[var(--color-surface-card)] p-4">

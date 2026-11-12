@@ -10,8 +10,11 @@ import { CustomSelect, type CustomSelectOption } from "@/components/ux/CustomSel
 import { LeadDetailModal } from "../components/LeadDetailModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import React from "react";
+import { useT, useLocale, formatDate, formatDateTime } from "@/i18n";
 
 export function LeadsPage() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: leads = [] } = useLeads();
@@ -51,39 +54,39 @@ export function LeadsPage() {
 
   const statusFilterOptions = useMemo<CustomSelectOption<string>[]>(
     () => [
-      { value: "ALL", label: "Tất cả trạng thái", count: leads.length },
+      { value: "ALL", label: t("master.ops.leads.filterAll"), count: leads.length },
       {
         value: "PENDING",
-        label: "Chờ liên hệ",
+        label: t("master.ops.leads.filterPending"),
         dotClassName: "bg-amber-500",
         count: leads.filter((l) => l.status === "PENDING").length,
       },
       {
         value: "CONTACTED",
-        label: "Đang trao đổi",
+        label: t("master.ops.leads.filterContacted"),
         dotClassName: "bg-blue-500",
         count: leads.filter((l) => l.status === "CONTACTED").length,
       },
       {
         value: "QUOTED",
-        label: "Đã gửi báo giá",
+        label: t("master.ops.leads.filterQuoted"),
         dotClassName: "bg-purple-500",
         count: leads.filter((l) => l.status === "QUOTED").length,
       },
       {
         value: "PROVISIONED",
-        label: "Đã cấp Workspace",
+        label: t("master.ops.leads.filterProvisioned"),
         dotClassName: "bg-emerald-500",
         count: leads.filter((l) => l.status === "PROVISIONED").length,
       },
       {
         value: "REJECTED",
-        label: "Từ chối",
+        label: t("master.ops.leads.filterRejected"),
         dotClassName: "bg-rose-500",
         count: leads.filter((l) => l.status === "REJECTED").length,
       },
     ],
-    [leads],
+    [leads, t],
   );
 
   const handleProvisionFromLead = (lead: ConsultationResponse) => {
@@ -115,7 +118,7 @@ export function LeadsPage() {
       const updated = await consultationApi.updateStatus(selectedLead.id, { status: leadStatusEdit, notes: leadNotesEdit });
       setLeads((items: ConsultationResponse[]) => (items || []).map((item: ConsultationResponse) => item.id === updated.id ? updated : item));
       setSelectedLead(null);
-      triggerNotification(`Đã cập nhật yêu cầu của ${updated.companyName}`);
+      triggerNotification(t("master.ops.leads.updatedToast", { company: updated.companyName }));
     } finally {
       setUpdatingLead(false);
     }
@@ -127,7 +130,7 @@ export function LeadsPage() {
       <HeaderActions>
         {pendingLeadsCount > 0 && (
           <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
-            {pendingLeadsCount} yêu cầu mới
+            {t("master.ops.leads.newRequestsBadge", { count: pendingLeadsCount })}
           </span>
         )}
         <button
@@ -135,28 +138,28 @@ export function LeadsPage() {
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
           <Plus className="size-3.5" />
-          <span>Cấp phát Workspace</span>
+          <span>{t("master.ops.leads.provisionWorkspaceBtn")}</span>
         </button>
       </HeaderActions>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-xs text-slate-500 font-semibold block mb-1">Tổng Số Lead Tiếp Nhận</span>
+          <span className="text-xs text-slate-500 font-semibold block mb-1">{t("master.ops.leads.kpiTotal")}</span>
           <span className="text-2xl font-bold text-slate-900">{leads.length}</span>
         </div>
         <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 shadow-2xs">
-          <span className="text-xs text-amber-800 font-semibold block mb-1">Chờ Xử Lý & Liên Hệ</span>
+          <span className="text-xs text-amber-800 font-semibold block mb-1">{t("master.ops.leads.kpiPending")}</span>
           <span className="text-2xl font-bold text-amber-600">{pendingLeadsCount}</span>
         </div>
         <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 shadow-2xs">
-          <span className="text-xs text-blue-800 font-semibold block mb-1">Đăng Ký Trải Nghiệm Demo</span>
+          <span className="text-xs text-blue-800 font-semibold block mb-1">{t("master.ops.leads.kpiDemo")}</span>
           <span className="text-2xl font-bold text-blue-600">
             {leads.filter((l) => l.requestType === "DEMO").length}
           </span>
         </div>
         <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 shadow-2xs">
-          <span className="text-xs text-emerald-800 font-semibold block mb-1">Báo Giá & Hợp Đồng Enterprise</span>
+          <span className="text-xs text-emerald-800 font-semibold block mb-1">{t("master.ops.leads.kpiQuote")}</span>
           <span className="text-2xl font-bold text-emerald-600">
             {leads.filter((l) => l.requestType === "CONTRACT_QUOTE").length}
           </span>
@@ -169,7 +172,7 @@ export function LeadsPage() {
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo tên công ty, người liên hệ, email, số điện thoại..."
+            placeholder={t("master.ops.leads.searchPlaceholder")}
             value={leadSearch}
             onChange={(e) => setLeadSearch(e.target.value)}
             className="w-full min-h-10 pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-xl shadow-2xs focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-100 transition-all"
@@ -182,7 +185,7 @@ export function LeadsPage() {
             onChange={setLeadStatusFilter}
             options={statusFilterOptions}
             icon={<Filter className="size-3.5" />}
-            ariaLabel="Lọc theo trạng thái yêu cầu"
+            ariaLabel={t("master.ops.leads.filterAria")}
           />
         </div>
       </div>
@@ -202,13 +205,13 @@ export function LeadsPage() {
             </colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
-                <th className="py-3 px-3.5 whitespace-nowrap">Doanh Nghiệp</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Người Liên Hệ</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Loại Yêu Cầu</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Nhu Cầu / Ghi Chú</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Thời Gian</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Trạng Thái</th>
-                <th className="py-3 px-3.5 text-right whitespace-nowrap">Thao Tác</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colCompany")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colContact")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colTypePlan")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colNotes")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colTime")}</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">{t("master.ops.leads.colStatus")}</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">{t("master.ops.leads.colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -216,7 +219,7 @@ export function LeadsPage() {
                 <tr>
                   <td colSpan={7} className="text-center py-10 text-slate-400">
                     <Inbox className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <span>Không tìm thấy yêu cầu demo hoặc báo giá nào.</span>
+                    <span>{t("master.ops.leads.empty")}</span>
                   </td>
                 </tr>
               ) : (
@@ -234,7 +237,9 @@ export function LeadsPage() {
                             <span className="block space-y-0.5">
                               <span className="block font-semibold text-white">{lead.companyName}</span>
                               <span className="block text-slate-300">
-                                Quy mô: {lead.companySize || "Chưa rõ"}
+                                {t("master.ops.leads.companySizePrefix", {
+                                  size: lead.companySize || t("master.ops.leads.unknownSize"),
+                                })}
                               </span>
                             </span>
                           }
@@ -258,7 +263,7 @@ export function LeadsPage() {
                               <span className="block font-mono text-sky-300">{lead.workEmail}</span>
                               {lead.phoneNumber && (
                                 <span className="block font-mono text-slate-300">
-                                  SĐT: {lead.phoneNumber}
+                                  {t("master.ops.leads.phonePrefix", { phone: lead.phoneNumber })}
                                 </span>
                               )}
                             </span>
@@ -277,11 +282,13 @@ export function LeadsPage() {
                             <span className="block space-y-0.5">
                               <span className="block font-semibold text-white">
                                 {lead.requestType === "CONTRACT_QUOTE"
-                                  ? "Báo Giá Hợp Đồng"
-                                  : "Trải Nghiệm Demo"}
+                                  ? t("master.ops.leads.badgeContractQuote")
+                                  : t("master.ops.leads.badgeDemo")}
                               </span>
                               <span className="block text-slate-300">
-                                Gói quan tâm: {lead.planTier || "Chưa chọn gói"}
+                                {t("master.ops.leads.interestedPlanPrefix", {
+                                  plan: lead.planTier || t("master.ops.leads.noPlanSelected"),
+                                })}
                               </span>
                             </span>
                           }
@@ -293,7 +300,9 @@ export function LeadsPage() {
                                 : "bg-sky-50 text-sky-700 border-sky-200"
                             }`}
                           >
-                            {lead.requestType === "CONTRACT_QUOTE" ? "Báo giá HĐ" : "Demo"}
+                            {lead.requestType === "CONTRACT_QUOTE"
+                              ? t("master.ops.leads.shortBadgeContractQuote")
+                              : t("master.ops.leads.shortBadgeDemo")}
                           </span>
                         </Tooltip>
                       </td>
@@ -307,13 +316,13 @@ export function LeadsPage() {
                               <span className="block space-y-1">
                                 {lead.primaryNeed && (
                                   <span className="block text-slate-300">
-                                    <strong className="font-semibold text-white">Nhu cầu:</strong>{" "}
+                                    <strong className="font-semibold text-white">{t("master.ops.leads.tooltipNeedLabel")}</strong>{" "}
                                     {lead.primaryNeed}
                                   </span>
                                 )}
                                 {lead.notes && (
                                   <span className="block text-slate-100">
-                                    <strong className="font-semibold text-white">Ghi chú:</strong>{" "}
+                                    <strong className="font-semibold text-white">{t("master.ops.leads.tooltipNoteLabel")}</strong>{" "}
                                     {lead.notes}
                                   </span>
                                 )}
@@ -336,20 +345,28 @@ export function LeadsPage() {
                       <td className="py-3 px-3.5 whitespace-nowrap">
                         <Tooltip
                           side="top"
-                          content={createdDate.toLocaleString("vi-VN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        >
-                          <span className="text-[11px] text-slate-500 cursor-default">
-                            {createdDate.toLocaleDateString("vi-VN", {
+                          content={formatDateTime(
+                            createdDate,
+                            {
                               day: "2-digit",
                               month: "2-digit",
                               year: "numeric",
-                            })}
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                            locale,
+                          )}
+                        >
+                          <span className="text-[11px] text-slate-500 cursor-default">
+                            {formatDate(
+                              createdDate,
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              },
+                              locale,
+                            )}
                           </span>
                         </Tooltip>
                       </td>
@@ -368,11 +385,11 @@ export function LeadsPage() {
                               : "bg-rose-50 text-rose-700 border border-rose-200"
                           }`}
                         >
-                          {lead.status === "PENDING" && "Chờ liên hệ"}
-                          {lead.status === "CONTACTED" && "Đang trao đổi"}
-                          {lead.status === "QUOTED" && "Đã gửi báo giá"}
-                          {lead.status === "PROVISIONED" && "Đã cấp Workspace"}
-                          {lead.status === "REJECTED" && "Từ chối"}
+                          {lead.status === "PENDING" && t("master.ops.leads.statusPending")}
+                          {lead.status === "CONTACTED" && t("master.ops.leads.statusContacted")}
+                          {lead.status === "QUOTED" && t("master.ops.leads.statusQuoted")}
+                          {lead.status === "PROVISIONED" && t("master.ops.leads.statusProvisioned")}
+                          {lead.status === "REJECTED" && t("master.ops.leads.statusRejected")}
                         </span>
                       </td>
 
@@ -383,8 +400,8 @@ export function LeadsPage() {
                               side="top"
                               content={
                                 lead.status === "QUOTED"
-                                  ? "Chốt hợp đồng & cấp Workspace"
-                                  : "Lên báo giá hoặc cấp Workspace"
+                                  ? t("master.ops.leads.closeDealTooltip")
+                                  : t("master.ops.leads.quoteDealTooltip")
                               }
                             >
                               <button
@@ -393,27 +410,31 @@ export function LeadsPage() {
                                 className="inline-flex h-8 items-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-colors hover:bg-blue-700"
                               >
                                 <Calculator className="w-3.5 h-3.5 shrink-0" />
-                                <span>{lead.status === "QUOTED" ? "Chốt deal" : "Báo giá"}</span>
+                                <span>
+                                  {lead.status === "QUOTED"
+                                    ? t("master.ops.leads.closeDealBtn")
+                                    : t("master.ops.leads.quoteDealBtn")}
+                                </span>
                               </button>
                             </Tooltip>
                           )}
 
-                          <Tooltip side="top" content="Soạn hợp đồng cho khách hàng này">
+                          <Tooltip side="top" content={t("master.ops.leads.draftContractTitle")}>
                             <button
                               type="button"
                               onClick={() => handleOpenCreateContractForLead(lead)}
-                              aria-label={`Soạn hợp đồng cho ${lead.companyName}`}
+                              aria-label={t("master.ops.leads.draftContractAria", { company: lead.companyName })}
                               className="inline-flex size-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-colors hover:bg-indigo-100"
                             >
                               <FileSignature className="w-4 h-4" />
                             </button>
                           </Tooltip>
 
-                          <Tooltip side="top" content="Xem chi tiết & cập nhật">
+                          <Tooltip side="top" content={t("master.ops.leads.detailTitle")}>
                             <button
                               type="button"
                               onClick={() => handleOpenLeadModal(lead)}
-                              aria-label={`Xem chi tiết ${lead.companyName}`}
+                              aria-label={t("master.ops.leads.detailAria", { company: lead.companyName })}
                               className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
                             >
                               <Eye className="w-4 h-4" />

@@ -10,11 +10,12 @@ import { toQuestionRequest } from "../utils/assessmentQuestionRequest";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
 import {
+  getQuestionKindLabel,
   hasAnswerValue,
   QuestionAnswerPanel,
-  QUESTION_KIND_LABEL,
   type AssessmentQuestionKind,
 } from "@/components/ux/QuestionAnswerPanel";
+import { useT } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { typeMeta, isSubjectiveKind } from "../constants/excelTemplateMock";
@@ -46,6 +47,7 @@ export function AssessmentPublishReview({
   onEdit: (index: number) => void;
   generalBank?: BankSaveActions;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const client = useQueryClient();
   const listPath = `/recruiter/jobs/${jobId}/assessments`;
@@ -77,7 +79,7 @@ export function AssessmentPublishReview({
   const { register, watch } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     mode: "onChange",
-    defaultValues: { title: `${jobTitle} — Bài đánh giá`, duration: "30", passingScore: "" },
+    defaultValues: { title: t("recruiter.assessments.publishReview.defaultTitle", { jobTitle }), duration: "30", passingScore: "" },
   });
   const [title, duration, passingScore] = watch(["title", "duration", "passingScore"]);
   const validTitle = schema.shape.title.safeParse(title).success;
@@ -85,37 +87,40 @@ export function AssessmentPublishReview({
   const validPassing = schema.shape.passingScore.safeParse(passingScore).success;
 
   const kindSummary = [
-    ["đơn", saveableRows.filter((item) => item.row.kind === "TRAC_NGHIEM_DON").length],
-    ["nhiều đáp án", saveableRows.filter((item) => item.row.kind === "NHIEU_DAP_AN").length],
-    ["tự luận", saveableRows.filter((item) => isSubjectiveKind(item.row.kind)).length],
+    [t("recruiter.assessments.publishReview.kindSummary.single"), saveableRows.filter((item) => item.row.kind === "TRAC_NGHIEM_DON").length],
+    [t("recruiter.assessments.publishReview.kindSummary.multi"), saveableRows.filter((item) => item.row.kind === "NHIEU_DAP_AN").length],
+    [t("recruiter.assessments.publishReview.kindSummary.subjective"), saveableRows.filter((item) => isSubjectiveKind(item.row.kind)).length],
   ]
     .filter(([, count]) => Number(count) > 0)
     .map(([label, count]) => `${count} ${label}`)
     .join(" · ");
 
   const checks = generalBank ? [
-    { title: "Số lượng câu hỏi", value: saveableRows.length > 0 && saveableRows.length <= 999, detail: `${saveableRows.length} câu hỏi độc lập sẽ được lưu vào ngân hàng.` },
-    { title: "Nội dung & đáp án", value: saveableRows.length > 0 && saveableRows.every(item => item.status !== "INVALID" && isPersistableQuestion(item.row)), detail: "Kiểm tra nội dung, loại câu, lựa chọn và đáp án theo cùng quy tắc của assessment." },
-    { title: "Kỹ năng & độ khó", value: saveableRows.every(item => !!item.row.skill.trim() && item.row.skill.trim().length <= 128 && /^(easy|medium|hard)$/i.test(item.row.difficulty.trim())), detail: "Mỗi câu cần kỹ năng (tối đa 128 ký tự) và độ khó Easy, Medium hoặc Hard." },
-    { title: "Điểm từng câu", value: saveableRows.every(item => { const value = Number(item.row.score.trim() || defaultScore); return Number.isInteger(value) && value >= 1 && value <= 10000; }), detail: "Mỗi câu từ 1–10.000 điểm. Câu hỏi độc lập không yêu cầu tổng điểm bằng 10." },
+    { title: t("recruiter.assessments.publishReview.checks.generalQuestionCountTitle"), value: saveableRows.length > 0 && saveableRows.length <= 999, detail: t("recruiter.assessments.publishReview.checks.generalQuestionCountDetail", { count: saveableRows.length }) },
+    { title: t("recruiter.assessments.publishReview.checks.generalContentTitle"), value: saveableRows.length > 0 && saveableRows.every(item => item.status !== "INVALID" && isPersistableQuestion(item.row)), detail: t("recruiter.assessments.publishReview.checks.generalContentDetail") },
+    { title: t("recruiter.assessments.publishReview.checks.generalSkillDifficultyTitle"), value: saveableRows.every(item => !!item.row.skill.trim() && item.row.skill.trim().length <= 128 && /^(easy|medium|hard)$/i.test(item.row.difficulty.trim())), detail: t("recruiter.assessments.publishReview.checks.generalSkillDifficultyDetail") },
+    { title: t("recruiter.assessments.publishReview.checks.generalScoreTitle"), value: saveableRows.every(item => { const value = Number(item.row.score.trim() || defaultScore); return Number.isInteger(value) && value >= 1 && value <= 10000; }), detail: t("recruiter.assessments.publishReview.checks.generalScoreDetail") },
   ] : [
-    { title: "Thông tin chung", value: validTitle && validDuration, detail: "Tên đề tối đa 255 ký tự và thời lượng là số phút nguyên dương." },
+    { title: t("recruiter.assessments.publishReview.checks.infoTitle"), value: validTitle && validDuration, detail: t("recruiter.assessments.publishReview.checks.infoDetail") },
     {
-      title: "Số lượng câu hỏi",
+      title: t("recruiter.assessments.publishReview.checks.countTitle"),
       value: saveableRows.length > 0 && saveableRows.length <= 100,
       detail:
         saveableRows.length === 0
-          ? `Chưa có câu đủ nội dung để lưu / ${reviewedCount} câu đã kiểm tra.`
-          : `${saveableRows.length} câu sẽ lưu (${kindSummary || "hỗn hợp"}) / ${reviewedCount} câu đã kiểm tra. Không bắt buộc đủ mọi thể loại.`,
+          ? t("recruiter.assessments.publishReview.checks.countEmptyDetail", { reviewed: reviewedCount })
+          : t("recruiter.assessments.publishReview.checks.countDetail", {
+              saveable: saveableRows.length,
+              summary: kindSummary || t("recruiter.assessments.publishReview.kindSummary.mixed"),
+              reviewed: reviewedCount,
+            }),
     },
     {
-      title: "Nội dung & đáp án",
+      title: t("recruiter.assessments.publishReview.checks.contentTitle"),
       value: saveableRows.length > 0 && saveableRows.every((item) => isPersistableQuestion(item.row)),
-      detail:
-        "Mỗi câu cần có nội dung; trắc nghiệm cần ≥2 lựa chọn và đáp án. Độ khó / kỹ năng / đáp án mẫu là khuyến nghị, không chặn lưu nháp.",
+      detail: t("recruiter.assessments.publishReview.checks.contentDetail"),
     },
     {
-      title: "Cơ cấu điểm số",
+      title: t("recruiter.assessments.publishReview.checks.scoringTitle"),
       value:
         total > 0 &&
         saveableRows.length > 0 &&
@@ -125,41 +130,41 @@ export function AssessmentPublishReview({
         }),
       detail:
         total > 0
-          ? `Tổng ${total} điểm (${saveableRows.length} câu) — hợp lệ.`
-          : `Tổng điểm phải lớn hơn 0.`,
+          ? t("recruiter.assessments.publishReview.checks.scoringValidDetail", { total, count: saveableRows.length })
+          : t("recruiter.assessments.publishReview.checks.scoringInvalidDetail"),
     },
-    { title: "Ngưỡng điểm đạt", value: validPassing, detail: passingScore === "" ? "Không đặt ngưỡng điểm đạt." : `Điểm đạt phải từ 0 đến ${total}.` },
+    { title: t("recruiter.assessments.publishReview.checks.passingTitle"), value: validPassing, detail: passingScore === "" ? t("recruiter.assessments.publishReview.checks.passingNoneDetail") : t("recruiter.assessments.publishReview.checks.passingRangeDetail", { total }) },
   ];
   const passed = checks.filter((check) => check.value).length;
   const canSave = passed === checks.length;
   const selected = rows[Math.min(current, Math.max(rows.length - 1, 0))];
   const difficulties = [
-    { label: "Cơ bản", count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "easy").length },
-    { label: "Vận dụng", count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "medium").length },
-    { label: "Nâng cao", count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "hard").length },
-    { label: "Chưa phân loại", count: rows.filter((item) => !item.row.difficulty.trim()).length },
+    { label: t("recruiter.assessments.common.difficulty.easy"), count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "easy").length },
+    { label: t("recruiter.assessments.common.difficulty.medium"), count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "medium").length },
+    { label: t("recruiter.assessments.common.difficulty.hard"), count: rows.filter((item) => item.row.difficulty.trim() && item.row.difficultyTone === "hard").length },
+    { label: t("recruiter.assessments.common.difficulty.unclassified"), count: rows.filter((item) => !item.row.difficulty.trim()).length },
   ];
 
   const persist = useMutation({
     mutationFn: async () => {
       if (generalBank) {
-        if (!canSave) throw new Error("Cần hoàn tất kiểm tra câu hỏi trước khi lưu.");
+        if (!canSave) throw new Error(t("recruiter.assessments.publishReview.persistErrors.generalChecksIncomplete"));
         await generalBank.onSave(saveableRows.map(item => ({ ...item.row, score: item.row.score.trim() || String(defaultScore) })));
         return null;
       }
       const toSave = saveableRows;
       if (toSave.length === 0) {
-        throw new Error("Không có câu hỏi đủ nội dung để lưu vào đề (cần content; trắc nghiệm cần đáp án + ≥2 lựa chọn).");
+        throw new Error(t("recruiter.assessments.publishReview.persistErrors.noSaveableQuestions"));
       }
       if (toSave.length > 100) {
-        throw new Error("Vượt giới hạn 100 câu hỏi.");
+        throw new Error(t("recruiter.assessments.publishReview.persistErrors.max100Questions"));
       }
       const pointsTotal = toSave.reduce(
         (sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore),
         0,
       );
       if (pointsTotal <= 0) {
-        throw new Error(`Tổng điểm bài đánh giá phải lớn hơn 0 (hiện tại ${pointsTotal}).`);
+        throw new Error(t("recruiter.assessments.publishReview.persistErrors.totalPointsMustBePositive", { total: pointsTotal }));
       }
       // Always create DRAFT — publish is done later from assessment detail.
       const test = await assessmentApi.create({
@@ -170,7 +175,7 @@ export function AssessmentPublishReview({
         passingScore: passingScore === "" ? null : Number(passingScore),
       });
       for (let index = 0; index < toSave.length; index += 1) {
-        await assessmentApi.createQuestion(test.id, toQuestionRequest(toSave[index], index, defaultScore));
+        await assessmentApi.createQuestion(test.id, toQuestionRequest(toSave[index], index, defaultScore, t));
       }
       return test;
     },
@@ -190,33 +195,46 @@ export function AssessmentPublishReview({
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn(muted, "text-xs")}>{generalBank ? "Ngân hàng câu hỏi chung" : `Bài đánh giá / ${jobTitle}`}</p>
+          <p className={cn(muted, "text-xs")}>{generalBank ? t("recruiter.assessments.publishReview.breadcrumbGeneral") : t("recruiter.assessments.publishReview.breadcrumbAssessment", { jobTitle })}</p>
           <h1 ref={heading} tabIndex={-1} className="mt-2 text-2xl font-semibold tracking-tight outline-none">
-            {generalBank ? "Kiểm định & lưu câu hỏi" : "Kiểm định & lưu bản nháp"}
+            {generalBank ? t("recruiter.assessments.publishReview.headingGeneral") : t("recruiter.assessments.publishReview.headingAssessment")}
           </h1>
           <p className="mt-2 text-xs text-[var(--color-primary)]">
-            {generalBank ? "Xem trước nội dung và đáp án trước khi lưu câu hỏi dùng chung theo kỹ năng." : "Lưu bản nháp (DRAFT). Cho phép trộn loại câu — không bắt buộc đủ mọi thể loại hay đủ độ khó/kỹ năng."}
+            {generalBank ? t("recruiter.assessments.publishReview.subtitleGeneral") : t("recruiter.assessments.publishReview.subtitleAssessment")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onBack} disabled={busy || saved}>
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Quay lại kiểm tra
+            {t("recruiter.assessments.publishReview.backToCheckBtn")}
           </Button>
           <Button
             disabled={!canSave || busy || saved || !validTitle || !validDuration || !validPassing || saveableRows.length === 0}
             onClick={openSaveDialog}
           >
             <Save className="size-4" aria-hidden="true" />
-            {busy ? "Đang lưu…" : generalBank ? "Lưu vào ngân hàng" : "Lưu bản nháp"}
+            {busy ? t("recruiter.assessments.common.actions.saving") : generalBank ? t("recruiter.assessments.publishReview.saveToBankBtn") : t("recruiter.assessments.publishReview.saveDraftBtn")}
           </Button>
         </div>
       </header>
 
       <AssessmentError error={persist.error ?? generalBank?.error} />
 
-      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tiến trình tạo bài đánh giá">
-        {(generalBank ? ["Soạn câu hỏi", "Kiểm tra dữ liệu", "Kiểm định & xem trước", "Lưu vào ngân hàng"] : ["Thông tin chung", "Thiết lập câu hỏi", "Kiểm tra & xem trước", "Lưu bản nháp"]).map((label, i) => (
+      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("recruiter.assessments.publishReview.stepsAria")}>
+        {(generalBank
+          ? [
+              t("recruiter.assessments.publishReview.generalSteps.s1"),
+              t("recruiter.assessments.publishReview.generalSteps.s2"),
+              t("recruiter.assessments.publishReview.generalSteps.s3"),
+              t("recruiter.assessments.publishReview.generalSteps.s4"),
+            ]
+          : [
+              t("recruiter.assessments.publishReview.assessmentSteps.s1"),
+              t("recruiter.assessments.publishReview.assessmentSteps.s2"),
+              t("recruiter.assessments.publishReview.assessmentSteps.s3"),
+              t("recruiter.assessments.publishReview.assessmentSteps.s4"),
+            ]
+        ).map((label, i) => (
           <li
             key={label}
             aria-current={i === (showPublish || saved ? 3 : 2) ? "step" : undefined}
@@ -226,7 +244,7 @@ export function AssessmentPublishReview({
               {i < 2 || saved ? <Check className="size-4" aria-hidden="true" /> : i + 1}
             </span>
             <span>
-              <span className={cn(muted, "block text-[10px] uppercase")}>Bước {i + 1}</span>
+              <span className={cn(muted, "block text-[10px] uppercase")}>{t("recruiter.assessments.common.stepLabel", { step: i + 1 })}</span>
               <span className="text-sm font-semibold">{label}</span>
             </span>
           </li>
@@ -234,26 +252,26 @@ export function AssessmentPublishReview({
       </ol>
 
       {!generalBank && <fieldset disabled={busy || saved} className={cn(card, "grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5")}>
-        <legend className="sr-only">Thông tin bài đánh giá</legend>
+        <legend className="sr-only">{t("recruiter.assessments.publishReview.infoLegend")}</legend>
         <label className="text-xs font-medium sm:col-span-2 xl:col-span-2">
-          Tên bài kiểm tra
+          {t("recruiter.assessments.publishReview.titleFieldLabel")}
           <input {...register("title")} aria-invalid={!validTitle} maxLength={255} className={field} />
-          {!validTitle && <span className="mt-1 block text-[var(--color-error)]">Nhập tên đề từ 1 đến 255 ký tự.</span>}
+          {!validTitle && <span className="mt-1 block text-[var(--color-error)]">{t("recruiter.assessments.publishReview.titleFieldError")}</span>}
         </label>
         <label className="text-xs font-medium">
-          Thời gian (phút)
+          {t("recruiter.assessments.publishReview.durationFieldLabel")}
           <input type="number" min={1} step={1} {...register("duration")} aria-invalid={!validDuration} className={field} />
-          {!validDuration && <span className="mt-1 block text-[var(--color-error)]">Nhập số phút nguyên dương.</span>}
+          {!validDuration && <span className="mt-1 block text-[var(--color-error)]">{t("recruiter.assessments.publishReview.durationFieldError")}</span>}
         </label>
         <label className="text-xs font-medium">
-          Điểm đạt (không bắt buộc)
-          <input type="number" min={0} max={total} step="0.01" placeholder="Không đặt" {...register("passingScore")} aria-invalid={!validPassing} className={field} />
-          {!validPassing && <span className="mt-1 block text-[var(--color-error)]">Điểm đạt phải từ 0 đến {total}, tối đa 2 số thập phân.</span>}
+          {t("recruiter.assessments.publishReview.passingFieldLabel")}
+          <input type="number" min={0} max={total} step="0.01" placeholder={t("recruiter.assessments.publishReview.passingFieldPlaceholder")} {...register("passingScore")} aria-invalid={!validPassing} className={field} />
+          {!validPassing && <span className="mt-1 block text-[var(--color-error)]">{t("recruiter.assessments.publishReview.passingFieldError", { total })}</span>}
         </label>
         <div>
-          <p className={cn(muted, "text-xs")}>Cấu trúc đề</p>
+          <p className={cn(muted, "text-xs")}>{t("recruiter.assessments.publishReview.structureLabel")}</p>
           <p className="mt-2 text-lg font-semibold">
-            {rows.length} câu · {total} điểm
+            {t("recruiter.assessments.publishReview.structureSummary", { count: rows.length, points: total })}
           </p>
           <p className={cn(muted, "mt-1 text-xs")}>{jobTitle}</p>
         </div>
@@ -263,9 +281,9 @@ export function AssessmentPublishReview({
         <aside className="space-y-5">
           <section className={cn(card, "p-5")}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold">{generalBank ? "Báo cáo kiểm định câu hỏi" : "Báo cáo kiểm định đề thi"}</h2>
+              <h2 className="font-semibold">{generalBank ? t("recruiter.assessments.publishReview.auditHeadingGeneral") : t("recruiter.assessments.publishReview.auditHeadingAssessment")}</h2>
               <span className={cn("rounded-full px-2 py-1 text-xs font-medium", canSave ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "bg-[var(--color-error-container)] text-[var(--color-error)]")}>
-                {passed}/{checks.length} đạt
+                {t("recruiter.assessments.publishReview.auditPassedCount", { passed, total: checks.length })}
               </span>
             </div>
             <div className="mt-4 divide-y divide-[var(--color-border-default)]">
@@ -275,7 +293,7 @@ export function AssessmentPublishReview({
                   <div>
                     <h3 className="text-sm font-semibold">
                       {check.title}
-                      <span className={cn("ml-2 text-xs font-normal", check.value ? muted : "text-[var(--color-error)]")}>{check.value ? "Đạt" : "Cần sửa"}</span>
+                      <span className={cn("ml-2 text-xs font-normal", check.value ? muted : "text-[var(--color-error)]")}>{check.value ? t("recruiter.assessments.publishReview.checkPassLabel") : t("recruiter.assessments.publishReview.checkFixLabel")}</span>
                     </h3>
                     <p className={cn(muted, "mt-1 text-xs leading-5")}>{check.detail}</p>
                   </div>
@@ -284,8 +302,8 @@ export function AssessmentPublishReview({
             </div>
           </section>
           <section className={cn(card, "p-5")}>
-            <h2 className="font-semibold">Phân bổ độ khó</h2>
-            <p className={cn(muted, "mt-1 text-xs")}>Tính theo nhãn độ khó của các câu đã nhập.</p>
+            <h2 className="font-semibold">{t("recruiter.assessments.publishReview.difficultyDistributionHeading")}</h2>
+            <p className={cn(muted, "mt-1 text-xs")}>{t("recruiter.assessments.publishReview.difficultyDistributionHint")}</p>
             <div className="mt-4 space-y-3">
               {difficulties.map((group) => (
                 <div key={group.label}>
@@ -302,18 +320,21 @@ export function AssessmentPublishReview({
           </section>
           <section className="space-y-3 rounded-2xl bg-[var(--color-primary-subtle)] p-5">
             <LockKeyhole className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-            <h2 className="font-semibold">Lưu bản nháp</h2>
+            <h2 className="font-semibold">{t("recruiter.assessments.publishReview.saveDraftBtn")}</h2>
             <p className={cn(muted, "text-sm leading-6")}>
-              Gọi <code className="font-mono text-xs">create_draft_test</code> và{" "}
-              <code className="font-mono text-xs">create_question</code>. Đề ở trạng thái DRAFT; xuất bản sau ở trang chi tiết.
+              {t("recruiter.assessments.publishReview.draftCardDescPrefix")}
+              <code className="font-mono text-xs">create_draft_test</code>
+              {t("recruiter.assessments.publishReview.draftCardDescMid")}
+              <code className="font-mono text-xs">create_question</code>
+              {t("recruiter.assessments.publishReview.draftCardDescSuffix")}
             </p>
             <Button className="w-full" disabled={!canSave || busy || saved} onClick={openSaveDialog}>
               <Save className="size-4" aria-hidden="true" />
-              Xác nhận lưu bản nháp
+              {t("recruiter.assessments.publishReview.confirmSaveDraftBtn")}
             </Button>
             <Button variant="ghost" className="w-full" disabled={busy || saved} onClick={onBack}>
               <Pencil className="size-4" aria-hidden="true" />
-              Sửa dữ liệu import
+              {t("recruiter.assessments.publishReview.editImportBtn")}
             </Button>
           </section>
         </aside>
@@ -323,8 +344,8 @@ export function AssessmentPublishReview({
             <div className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-surface-container-low)] p-1">
               {(
                 [
-                  { id: "audit", label: "Giám khảo", icon: ShieldCheck },
-                  { id: "candidate", label: "Góc nhìn ứng viên", icon: Monitor },
+                  { id: "audit", label: t("recruiter.assessments.publishReview.tabExaminer"), icon: ShieldCheck },
+                  { id: "candidate", label: t("recruiter.assessments.publishReview.tabCandidate"), icon: Monitor },
                 ] as const
               ).map((tab) => (
                 <button
@@ -344,21 +365,25 @@ export function AssessmentPublishReview({
             </div>
             <span className={cn(muted, "flex items-center gap-1 text-xs")}>
               <Clock3 className="size-4" aria-hidden="true" />
-              {generalBank ? "Xem trước câu hỏi" : `${validDuration ? duration : "—"} phút · xem trước`}
+              {generalBank
+                ? t("recruiter.assessments.publishReview.previewLabelGeneral")
+                : t("recruiter.assessments.publishReview.previewLabelAssessment", {
+                    duration: validDuration ? duration : t("recruiter.assessments.common.dash"),
+                  })}
             </span>
           </div>
           <div className="space-y-6 p-5 sm:p-6">
             <p className="flex items-start gap-2 rounded-xl bg-[var(--color-surface-container-low)] p-3 text-xs leading-5">
               <Eye className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
               {view === "audit"
-                ? "Chế độ kiểm duyệt: hiển thị đáp án đúng / mẫu và giải thích theo loại câu hỏi."
-                : "Chế độ ứng viên: theo loại câu — trắc nghiệm đơn (1 đáp án), nhiều đáp án (chọn nhiều), tự luận (ghi đáp án)."}
+                ? t("recruiter.assessments.publishReview.auditModeBanner")
+                : t("recruiter.assessments.publishReview.candidateModeBanner")}
             </p>
             <div>
               <div className="mb-3 flex justify-between gap-2">
-                <h2 className="text-sm font-semibold">Danh mục câu hỏi</h2>
+                <h2 className="text-sm font-semibold">{t("recruiter.assessments.publishReview.questionListHeading")}</h2>
                 <span className={cn(muted, "text-xs")}>
-                  Câu {selected ? current + 1 : 0} / {rows.length}
+                  {t("recruiter.assessments.publishReview.questionRatio", { current: selected ? current + 1 : 0, total: rows.length })}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -366,7 +391,7 @@ export function AssessmentPublishReview({
                   <button
                     key={item.line}
                     type="button"
-                    aria-label={`Xem câu ${index + 1}`}
+                    aria-label={t("recruiter.assessments.publishReview.viewQuestionAria", { index: index + 1 })}
                     aria-current={index === current ? "true" : undefined}
                     onClick={() => setCurrent(index)}
                     className={cn(
@@ -386,18 +411,18 @@ export function AssessmentPublishReview({
             {selected ? (
               <article className="space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-lg font-semibold">Câu {current + 1}</h3>
+                  <h3 className="text-lg font-semibold">{t("recruiter.assessments.common.questionNumber", { index: current + 1 })}</h3>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 text-[11px] font-medium text-[var(--color-on-surface)]">
-                      {QUESTION_KIND_LABEL[selected.row.kind as AssessmentQuestionKind] ?? typeMeta(selected.row.kind).label}
+                      {getQuestionKindLabel(selected.row.kind as AssessmentQuestionKind, t) ?? typeMeta(selected.row.kind, t).label}
                     </span>
                     <span className="rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-                      {selected.row.score.trim() || defaultScore} điểm
+                      {selected.row.score.trim() || defaultScore} {t("recruiter.assessments.common.pointsUnit")}
                     </span>
                   </div>
                 </div>
                 <p className={cn(muted, "text-xs")}>
-                  {selected.row.skill || "Chưa phân loại kỹ năng"} · {selected.row.difficulty || "Chưa phân loại độ khó"}
+                  {selected.row.skill || t("recruiter.assessments.publishReview.unclassifiedSkill")} · {selected.row.difficulty || t("recruiter.assessments.publishReview.unclassifiedDifficulty")}
                 </p>
                 <p className="whitespace-pre-wrap break-words text-base font-medium leading-7">{selected.row.content}</p>
                 <QuestionAnswerPanel
@@ -420,36 +445,36 @@ export function AssessmentPublishReview({
                 />
                 {view === "audit" && (
                   <div className="rounded-xl bg-[var(--color-surface-container-low)] p-4">
-                    <h4 className="text-sm font-semibold">Giải thích dành cho giám khảo</h4>
+                    <h4 className="text-sm font-semibold">{t("recruiter.assessments.publishReview.examinerExplanationHeading")}</h4>
                     <p className={cn(muted, "mt-2 whitespace-pre-wrap break-words text-sm leading-6")}>
                       {(selected.row.kind === "NHIEU_DAP_AN"
                         ? selected.row.policyNote.trim() || selected.row.explanation.trim()
-                        : selected.row.explanation.trim()) || "Người soạn chưa thêm giải thích cho câu hỏi này."}
+                        : selected.row.explanation.trim()) || t("recruiter.assessments.publishReview.noExplanationProvided")}
                     </p>
                   </div>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-4">
                   <Button variant="secondary" disabled={current === 0} onClick={() => setCurrent(current - 1)}>
                     <ArrowLeft className="size-4" aria-hidden="true" />
-                    Câu trước
+                    {t("recruiter.assessments.publishReview.prevQuestionBtn")}
                   </Button>
                   {view === "candidate" && (
                     <span className={cn(muted, "text-xs")}>
-                      {hasAnswerValue(answers[selected.line]) ? "Đã trả lời thử nghiệm" : "Chưa trả lời"}
+                      {hasAnswerValue(answers[selected.line]) ? t("recruiter.assessments.publishReview.answeredPreviewStatus") : t("recruiter.assessments.publishReview.unansweredPreviewStatus")}
                     </span>
                   )}
                   <Button variant="secondary" disabled={current >= rows.length - 1} onClick={() => setCurrent(current + 1)}>
-                    Câu tiếp theo
+                    {t("recruiter.assessments.publishReview.nextQuestionBtn")}
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </Button>
                 </div>
                 <Button variant="ghost" disabled={busy || saved} onClick={() => onEdit(selected.line - 2)}>
                   <Pencil className="size-4" aria-hidden="true" />
-                  Chỉnh sửa câu này trong bảng Excel
+                  {t("recruiter.assessments.publishReview.editInExcelBtn")}
                 </Button>
               </article>
             ) : (
-              <p className={muted}>Chưa có câu hỏi để xem trước.</p>
+              <p className={muted}>{t("recruiter.assessments.publishReview.noQuestionsToPreview")}</p>
             )}
           </div>
         </section>
@@ -468,36 +493,36 @@ export function AssessmentPublishReview({
             <span className="grid size-12 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
               <Save className="size-6" aria-hidden="true" />
             </span>
-            <Button autoFocus variant="ghost" size="sm" aria-label="Đóng xác nhận lưu bản nháp" disabled={busy} onClick={() => setShowPublish(false)}>
+            <Button autoFocus variant="ghost" size="sm" aria-label={t("recruiter.assessments.publishReview.dialogCloseAria")} disabled={busy} onClick={() => setShowPublish(false)}>
               <X className="size-5" aria-hidden="true" />
             </Button>
           </div>
           <div>
-            <p className="text-xs font-semibold text-[var(--color-primary)]">BƯỚC 4 · LƯU BẢN NHÁP</p>
+            <p className="text-xs font-semibold text-[var(--color-primary)]">{t("recruiter.assessments.publishReview.dialogStepBadge")}</p>
             <h2 id="publish-review-title" className="mt-2 text-xl font-semibold">
-              Lưu bài đánh giá dạng bản nháp
+              {t("recruiter.assessments.publishReview.dialogTitle")}
             </h2>
             <p id="publish-review-description" className={cn(muted, "mt-2 text-sm leading-6")}>
-              Tạo đề “{title}” với {rows.length} câu hỏi ở trạng thái DRAFT. Bạn có thể xuất bản sau từ trang chi tiết đề.
+              {t("recruiter.assessments.publishReview.dialogDescription", { title, count: rows.length })}
             </p>
           </div>
           <div className="rounded-xl bg-[var(--color-primary-subtle)] p-4">
             <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-primary)]">
               <ShieldCheck className="size-5" aria-hidden="true" />
-              {passed}/{checks.length} điều kiện kiểm định đạt
+              {t("recruiter.assessments.publishReview.dialogChecksPassed", { passed, total: checks.length })}
             </p>
             <p className={cn(muted, "mt-2 text-xs")}>
-              Job: {jobTitle} · {duration} phút · {total} điểm · DRAFT
+              {t("recruiter.assessments.publishReview.dialogMetaSummary", { jobTitle, duration, total })}
             </p>
           </div>
           <AssessmentError error={persist.error} />
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={busy} onClick={() => setShowPublish(false)}>
-              Kiểm tra lại
+              {t("recruiter.assessments.publishReview.recheckBtn")}
             </Button>
             <Button disabled={!canSave || busy} onClick={() => persist.mutate()}>
               <Save className="size-4" aria-hidden="true" />
-              {busy ? "Đang lưu…" : "Xác nhận lưu bản nháp"}
+              {busy ? t("recruiter.assessments.common.actions.saving") : t("recruiter.assessments.publishReview.confirmSaveDraftBtn")}
             </Button>
           </div>
         </div>

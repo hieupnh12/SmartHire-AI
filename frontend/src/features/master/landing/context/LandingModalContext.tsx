@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { t as globalT } from "@/i18n";
 
 interface LandingModalContextType {
   showWorkspaceModal: boolean;
@@ -30,10 +31,12 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
 
   // Navigate to the dedicated /demo page instead of opening a popup modal.
   const openDemoModal = (
-    tierName: string = "Tư Vấn Giải Pháp Doanh Nghiệp",
-    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO"
+    tierName?: string,
+    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
   ) => {
-    const params = new URLSearchParams({ tier: tierName, type });
+    const resolvedTier =
+      tierName ?? globalT("master.landingChrome.modals.defaultConsultTier");
+    const params = new URLSearchParams({ tier: resolvedTier, type });
     navigate(`/demo?${params.toString()}`);
   };
 
