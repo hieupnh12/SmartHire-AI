@@ -702,7 +702,22 @@ public class MasterBillingService {
     }
 
     public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
-        return toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
+        Integer resolvedQuantity = null;
+        if (invoice != null && invoice.getId() != null) {
+            List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+            if (items != null) {
+                resolvedQuantity = items.stream()
+                        .filter(item -> item.getQuantity() != null && item.getQuantity() > 0)
+                        .map(InvoiceLineItem::getQuantity)
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+        CheckoutResponse response = toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
+        if (resolvedQuantity != null) {
+            response.setQuantity(resolvedQuantity);
+        }
+        return response;
     }
 
     public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
@@ -728,12 +743,38 @@ public class MasterBillingService {
         String planName = plan != null ? plan.getName() : "Gói dịch vụ";
         String planCode = plan != null ? plan.getCode() : "CUSTOM";
 
+        int quantity = 1;
+        if (invoice.getBillingPeriodStart() != null && invoice.getBillingPeriodEnd() != null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(invoice.getBillingPeriodStart(), invoice.getBillingPeriodEnd());
+            if (days > 0) {
+                quantity = Math.max(1, (int) Math.round(days / 365.0));
+            }
+        }
+
+        String taxCode = StringUtils.hasText(invoice.getBillingTaxCode())
+                ? invoice.getBillingTaxCode()
+                : (tenant != null ? tenant.getTaxCode() : null);
+        String companyLegalName = StringUtils.hasText(invoice.getBillingLegalName())
+                ? invoice.getBillingLegalName()
+                : (tenant != null ? tenant.getCompanyLegalName() : null);
+        String billingAddress = StringUtils.hasText(invoice.getBillingAddress())
+                ? invoice.getBillingAddress()
+                : (tenant != null ? tenant.getBillingAddress() : null);
+
         return CheckoutResponse.builder()
                 .invoiceId(invoice.getId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .tenantId(tenant != null ? tenant.getId() : null)
                 .tenantCode(tenant != null ? tenant.getCode() : null)
                 .subdomain(tenant != null ? tenant.getSubdomain() : null)
+                .workspaceName(tenant != null ? tenant.getName() : null)
+                .adminFullName(tenant != null ? tenant.getContactName() : null)
+                .adminEmail(tenant != null ? tenant.getContactEmail() : null)
+                .adminPhone(tenant != null ? tenant.getContactPhone() : null)
+                .taxCode(taxCode)
+                .companyLegalName(companyLegalName)
+                .billingAddress(billingAddress)
+                .quantity(quantity)
                 .planName(planName)
                 .planCode(planCode)
                 .billingCycle("YEARLY")

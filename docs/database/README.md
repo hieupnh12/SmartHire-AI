@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Lưu cấu hình báo giá trên Lead 2026-11-12 | Master V38 (`V38__consultation_proposed_tenant_slug.sql`) thêm `proposed_code` (`VARCHAR(64)`), `proposed_subdomain` (`VARCHAR(128)`), `quoted_plan_id` (`BIGINT`) nullable vào `consultation_requests` (entity `ConsultationRequest`) để giữ lại mã doanh nghiệp, subdomain và gói báo giá đã chỉnh sửa khi quay lại deal wizard. Không thêm bảng/entity/FK/UNIQUE/index |
 | Lưu việc làm & Thông báo việc làm mới 2026-11-12 | Tenant V60 (`V60__saved_jobs_and_job_alerts.sql`) tạo `saved_jobs` (entity `SavedJob`, 2 FK `ON DELETE CASCADE`, UNIQUE `(candidate_id, job_id)`, 2 index) và `job_alerts` (entity `JobAlert`, 1 FK `ON DELETE CASCADE`, 2 index), đồng thời bổ sung index `idx_rec_subject_target` trên `recommendations (subject_type, subject_id, target_type, score DESC)` |
 | Thống nhất pháp nhân Đà Nẵng, TPBank & Luật BVDLCN 2025 2026-11-11 | Master V37 (`V37__unify_da_nang_legal_entity_and_tpbank.sql`) cập nhật `DEFAULT` cho 7 cột Bên A trên `contracts` về cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và TPBank (`07744348801`, Chi nhánh Đà Nẵng); chuẩn hoá `policy_type` mới trên `master_consent_logs` sang `PRIVACY_POLICY_2025` (Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
@@ -52,9 +53,9 @@
 | Entity JPA tenant | 68 class `@Entity` theo checkout hiện tại; V60 bổ sung `SavedJob`, `JobAlert` |
 | Khoá ngoại tenant | 96 (93 trước V60 + `fk_saved_jobs_candidate`, `fk_saved_jobs_job`, `fk_job_alerts_candidate` đều `ON DELETE CASCADE`) |
 | Ràng buộc UNIQUE tenant | V60 thêm `uk_saved_jobs_candidate_job`. V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 89 (36 master + 53 tenant); V9 redesign nằm ngoài pipeline |
+| Số file migration trong repo | 90 (37 master + 53 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V60` (`saved_jobs`, `job_alerts`, `idx_rec_subject_target`), Master `V37` (`contracts`, `master_consent_logs`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
+| Cập nhật lần cuối | Master `V38` (`consultation_requests`), Tenant `V60` (`saved_jobs`, `job_alerts`, `idx_rec_subject_target`), Master `V37` (`contracts`, `master_consent_logs`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -1403,6 +1404,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V35 | `V35__question_gen_ai_task.sql` | Seed `ai_model_configs` cho tác vụ `QUESTION_GEN` (`gemini-2.0-flash`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
 | V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
+| V38 | `V38__consultation_proposed_tenant_slug.sql` | Thêm `proposed_code`, `proposed_subdomain`, `quoted_plan_id` (nullable) vào `consultation_requests` để lưu mã doanh nghiệp/subdomain đã chỉnh sửa khi báo giá và quay lại wizard |
 
 ### 10.3 Lịch sử migration — Tenant
 

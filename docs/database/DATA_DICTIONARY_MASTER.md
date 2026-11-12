@@ -370,6 +370,9 @@ Entity `ConsultationRequest`. Lead từ landing page, có liên kết ngược s
 | `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | ID Tenant được tạo sau khi chốt deal (V23) |
 | `request_type` | VARCHAR(64) | | Không | `'DEMO'` | Loại yêu cầu (`DEMO` hoặc `CONTRACT_QUOTE`) |
 | `plan_tier` | VARCHAR(128) | | Có | NULL | Gói đang quan tâm |
+| `quoted_plan_id` | BIGINT | | Có | NULL | ID gói cước đã chọn khi gửi báo giá (V38) |
+| `proposed_code` | VARCHAR(64) | | Có | NULL | Mã doanh nghiệp đề xuất do Sales/Admin chỉnh sửa (V38) |
+| `proposed_subdomain` | VARCHAR(128) | | Có | NULL | Tên miền riêng đề xuất do Sales/Admin chỉnh sửa (V38) |
 | `primary_need` | TEXT | | Có | NULL | Nhu cầu chính |
 | `notes` | TEXT | | Có | NULL | Ghi chú nội bộ |
 | `status` | VARCHAR(32) | IDX | Không | `'PENDING'` | Trạng thái (`PENDING`, `CONTACTED`, `PROVISIONED`, `REJECTED`) |

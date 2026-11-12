@@ -24,6 +24,9 @@ export interface ConsultationResponse {
   companySize?: string;
   requestType: "DEMO" | "CONTRACT_QUOTE";
   planTier?: string;
+  quotedPlanId?: number;
+  proposedCode?: string;
+  proposedSubdomain?: string;
   primaryNeed?: string;
   notes?: string;
   status: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
@@ -49,6 +52,8 @@ export interface SendQuotationRequest {
   totalQuote: number;
   pricingMode?: string;
   notes?: string;
+  proposedCode?: string;
+  proposedSubdomain?: string;
 }
 
 export const consultationApi = {

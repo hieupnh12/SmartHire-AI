@@ -26,6 +26,14 @@ export interface CheckoutResponseData {
   tenantId: number;
   tenantCode: string;
   subdomain: string;
+  workspaceName?: string;
+  adminFullName?: string;
+  adminEmail?: string;
+  adminPhone?: string;
+  taxCode?: string;
+  companyLegalName?: string;
+  billingAddress?: string;
+  quantity?: number;
   planName: string;
   planCode: string;
   billingCycle: "MONTHLY" | "YEARLY";

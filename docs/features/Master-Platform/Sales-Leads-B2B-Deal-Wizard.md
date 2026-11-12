@@ -25,7 +25,7 @@ Quản lý phễu khách hàng doanh nghiệp tiềm năng (**Sales Leads / Cons
 
 ### 2. Quy trình 2 Chặng trên B2B Deal Wizard (`B2bDealWizardPage.tsx`)
 
-- **Bước 1 (Thông tin khách hàng & Định danh Workspace):** Nhập `name`, `code`, `subdomain`, `environmentType` (`PRODUCTION` | `POC_SANDBOX`), `adminName`, `adminEmail` và thông tin liên hệ.
+- **Bước 1 (Thông tin khách hàng & Định danh Workspace):** Nhập `name`, `code`, `subdomain`, `environmentType` (`PRODUCTION` | `POC_SANDBOX`), `adminName`, `adminEmail` và thông tin liên hệ. Mã doanh nghiệp và subdomain tự động sinh gọn theo tên thương hiệu qua [`tenantSlug.ts`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/onboarding/utils/tenantSlug.ts) (bỏ tiền tố pháp lý như "Công ty Cổ phần", "TNHH", tối đa 20 ký tự cắt theo ranh giới từ); mọi chỉnh sửa thủ công được lưu nháp theo `leadId` và đồng bộ lên `consultation_requests` (`proposed_code`, `proposed_subdomain`, `quoted_plan_id`) khi gửi báo giá để giữ nguyên khi quay lại trang.
 - **Bước 2 (Thiết kế Gói & Bộ máy CPQ):**
   $$\mathbf{TotalQuote} = \mathbf{BasePlanPrice} + \mathbf{AddonFees} - \mathbf{Discount}$$
   1. Chọn từ gói mẫu hoặc tạo gói tùy biến (`TEMPLATE_ADDON` / `FROM_SCRATCH`) với `CreatePlanInlineForm` (`POST /api/v1/master/subscriptions`).
@@ -34,8 +34,8 @@ Quản lý phễu khách hàng doanh nghiệp tiềm năng (**Sales Leads / Cons
 
 #### Chặng 1: Gửi Báo giá Thương mại (`closingMethod = "QUOTATION"`)
 - Các trường pháp lý doanh nghiệp (`companyLegalName`, `taxCode`, `address`) là **tùy chọn** trên schema khi chọn `QUOTATION`.
-- Hệ thống gọi API `POST /api/v1/master/consultations/send-quotation`.
-- Backend cập nhật (hoặc tạo mới nếu chốt deal trực tiếp) bản ghi Lead sang trạng thái `QUOTED` kèm ghi chú cấu hình và đẩy job gửi **Email Báo giá thương mại** (hiệu lực **15 ngày**) qua `MasterNotificationService.sendQuotationProposal()`.
+- Hệ thống gọi API `POST /api/v1/master/consultations/send-quotation` (kèm `proposedCode`, `proposedSubdomain` nếu có).
+- Backend cập nhật (hoặc tạo mới nếu chốt deal trực tiếp) bản ghi Lead sang trạng thái `QUOTED`, lưu lại `proposed_code`, `proposed_subdomain`, `quoted_plan_id` kèm ghi chú cấu hình và đẩy job gửi **Email Báo giá thương mại** (hiệu lực **15 ngày**) qua `MasterNotificationService.sendQuotationProposal()`.
 - **Không** tạo Tenant, **không** tạo DB MySQL, **không** tạo Subscription mồ côi.
 
 #### Chặng 2: Xuất Hóa đơn / Hợp đồng & Cấp phát Chờ Thanh toán (`closingMethod = "INVOICE" | "CONTRACT"`)

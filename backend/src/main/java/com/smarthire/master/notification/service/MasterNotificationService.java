@@ -50,8 +50,19 @@ public class MasterNotificationService {
     @Autowired(required = false)
     private com.smarthire.config.PlatformProperties platformProperties;
 
+    @org.springframework.beans.factory.annotation.Value("${smarthire.invite.public-origin:https://smarthire.top}")
+    private String publicOrigin;
+
     private com.smarthire.config.PlatformProperties getPlatformProperties() {
         return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
+
+    private String resolvePublicOrigin() {
+        String raw = StringUtils.hasText(publicOrigin) ? publicOrigin.trim() : "https://smarthire.top";
+        while (raw.endsWith("/")) {
+            raw = raw.substring(0, raw.length() - 1);
+        }
+        return raw;
     }
 
     private static final String IDEMPOTENCY_KEY = "email_sent:%s:%s:%s"; // tenantCode:type:yyyyMMdd
@@ -118,6 +129,8 @@ public class MasterNotificationService {
 
         String formattedUnitPrice = formatter.format(orderData.getUnitPrice() != null ? orderData.getUnitPrice() : BigDecimal.ZERO);
         String formattedTotalPrice = formatter.format(orderData.getTotalPrice() != null ? orderData.getTotalPrice() : BigDecimal.ZERO);
+        String encodedInvoice = java.net.URLEncoder.encode(invoiceNumber, java.nio.charset.StandardCharsets.UTF_8);
+        String checkoutUrl = resolvePublicOrigin() + "/checkout?invoice=" + encodedInvoice;
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("customerName", StringUtils.hasText(orderData.getCustomerName()) ? orderData.getCustomerName() : "Quý khách");
@@ -133,7 +146,7 @@ public class MasterNotificationService {
         vars.put("transferSyntax", orderData.getTransferSyntax());
         vars.put("qrUrl", orderData.getQrUrl());
         vars.put("bankBranch", orderData.getBankBranch());
-        vars.put("checkoutUrl", "https://smarthire.top/checkout");
+        vars.put("checkoutUrl", checkoutUrl);
         PlatformProperties.Legal legal = getPlatformProperties().getLegal();
         vars.put("platformCompanyName", legal.getCompanyName());
         vars.put("platformAddress", legal.getAddress());
