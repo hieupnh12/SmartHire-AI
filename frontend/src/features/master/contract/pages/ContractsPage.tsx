@@ -12,6 +12,7 @@ import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 
 /* ─────────────────────────────────────────────
@@ -292,151 +293,252 @@ export function ContractsPage() {
       {/* ── Contracts table ── */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto pb-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-slate-50">
-          <table className="w-full min-w-[1000px] text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+          <table className="w-full min-w-[1100px] table-fixed border-collapse text-left text-xs text-slate-600">
+            <colgroup>
+              <col className="w-[132px]" />
+              <col />
+              <col />
+              <col className="w-[116px]" />
+              <col className="w-[104px]" />
+              <col className="w-[114px]" />
+              <col className="w-[134px]" />
+              <col className="w-[244px]" />
+            </colgroup>
+            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
-                <th className="px-5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colNumberDate")}</th>
-                <th className="px-5 py-3.5 min-w-[200px]">{t("master.commerce.contractsPage.colCustomer")}</th>
-                <th className="px-5 py-3.5 min-w-[200px]">{t("master.commerce.contractsPage.colContentPlan")}</th>
-                <th className="px-5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colValue")}</th>
-                <th className="px-5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colPeriod")}</th>
-                <th className="px-5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colSignMethod")}</th>
-                <th className="px-5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colStatus")}</th>
-                <th className="px-5 py-3.5 text-right whitespace-nowrap">{t("master.commerce.contractsPage.colActions")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colNumberDate")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colCustomer")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colContentPlan")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colValue")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colPeriod")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colSignMethod")}</th>
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.commerce.contractsPage.colStatus")}</th>
+                <th className="px-3.5 py-3.5 text-right whitespace-nowrap">{t("master.commerce.contractsPage.colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length > 0 ? (
-                paginatedContracts.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/70 transition-colors group">
+                paginatedContracts.map((c) => {
+                  const customerName = c.partyBName || c.tenantName || `Tenant #${c.tenantId}`;
+                  const planLabel = c.planName || t("master.commerce.contractsPage.customPlanFallback");
+                  const formattedAmount = `${formatNumber(c.totalAmount || c.contractValue, undefined, locale)} ₫`;
+                  const signerLabel = c.partyBRepresentative || c.signerName;
+                  const signerEmail = c.signerEmail || c.partyBEmail;
+                  const canSendOrSync = !["SIGNED", "REJECTED", "TERMINATED"].includes(c.status);
 
-                    {/* Contract number */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="font-mono font-bold text-indigo-600 text-[12px]">{c.contractNumber}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {formatDate(c.createdAt, undefined, locale)}
-                      </div>
-                    </td>
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50/70 transition-colors group align-middle">
+                      {/* Contract number */}
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-mono font-semibold text-white">{c.contractNumber}</span>
+                              <span className="block text-slate-300">
+                                {formatDate(c.createdAt, undefined, locale)}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-mono font-bold text-indigo-600 text-[12px] cursor-default">
+                            {c.contractNumber}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                    {/* Customer */}
-                    <td className="px-5 py-4 min-w-[200px]">
-                      <div className="font-semibold text-slate-900 leading-relaxed break-words">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1 flex-wrap">
-                        {c.partyBTaxCode && <span className="text-slate-600 font-semibold">{t("master.commerce.contractsPage.taxCodePrefix", { taxCode: c.partyBTaxCode })}</span>}
-                        {c.tenantSubdomain && <span>· {c.tenantSubdomain}.smarthire.top</span>}
-                      </div>
-                    </td>
+                      {/* Customer */}
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{customerName}</span>
+                              {c.partyBTaxCode && (
+                                <span className="block font-mono text-slate-300">
+                                  {t("master.commerce.contractsPage.taxCodePrefix", { taxCode: c.partyBTaxCode })}
+                                </span>
+                              )}
+                              {c.tenantSubdomain && (
+                                <span className="block font-mono text-sky-300">{c.tenantSubdomain}.smarthire.top</span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-600 cursor-default">
+                            {customerName}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                    {/* Content */}
-                    <td className="px-5 py-4 min-w-[200px]">
-                      <div className="font-medium text-slate-800 leading-relaxed break-words">{c.title}</div>
-                      <div className="text-[10px] text-indigo-500 font-medium mt-0.5 leading-relaxed break-words">{c.planName || t("master.commerce.contractsPage.customPlanFallback")}</div>
-                    </td>
+                      {/* Content */}
+                      <td className="px-3.5 py-3">
+                        <Tooltip
+                          className="flex w-full min-w-0"
+                          side="top"
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">{c.title}</span>
+                              <span className="block text-indigo-300">{planLabel}</span>
+                            </span>
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate font-medium text-slate-600 cursor-default">
+                            {c.title}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                    {/* Value */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="font-bold text-slate-900 font-mono">
-                        {formatNumber(c.totalAmount || c.contractValue, undefined, locale)} ₫
-                      </div>
-                    </td>
+                      {/* Value */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          disabled={!c.amountInWords}
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-mono font-semibold text-white">{formattedAmount}</span>
+                              {c.amountInWords && (
+                                <span className="block text-slate-300">{c.amountInWords}</span>
+                              )}
+                            </span>
+                          }
+                        >
+                          <span className="font-bold text-slate-600 font-mono cursor-default">
+                            {formattedAmount}
+                          </span>
+                        </Tooltip>
+                      </td>
 
-                    {/* Period */}
-                    <td className="px-5 py-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
-                      {c.startDate && c.endDate ? (
-                        <>
-                          <div>{c.startDate}</div>
-                          <div className="text-slate-400">{t("master.commerce.contractsPage.periodTo", { endDate: c.endDate })}</div>
-                        </>
-                      ) : (
-                        <span className="text-slate-400">{t("master.commerce.contractsPage.periodDefault")}</span>
-                      )}
-                    </td>
+                      {/* Period */}
+                      <td className="px-3.5 py-3">
+                        {c.startDate && c.endDate ? (
+                          <Tooltip
+                            className="flex w-full min-w-0"
+                            side="top"
+                            content={
+                              <span className="block space-y-0.5 font-mono">
+                                <span className="block font-semibold text-white">{c.startDate}</span>
+                                <span className="block text-slate-300">
+                                  {t("master.commerce.contractsPage.periodTo", { endDate: c.endDate })}
+                                </span>
+                              </span>
+                            }
+                          >
+                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-600 cursor-default">
+                              {c.startDate} – {c.endDate}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">{t("master.commerce.contractsPage.periodDefault")}</span>
+                        )}
+                      </td>
 
-                    {/* Sign method */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        Dropbox Sign
-                      </span>
-                      {(c.partyBRepresentative || c.signerName) && (
-                        <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[130px]">
-                          {c.partyBRepresentative || c.signerName}
+                      {/* Sign method */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Tooltip
+                          side="top"
+                          disabled={!signerLabel && !signerEmail}
+                          content={
+                            <span className="block space-y-0.5">
+                              <span className="block font-semibold text-white">Dropbox Sign</span>
+                              {signerLabel && <span className="block text-slate-200">{signerLabel}</span>}
+                              {signerEmail && <span className="block font-mono text-sky-300">{signerEmail}</span>}
+                            </span>
+                          }
+                        >
+                          <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-default">
+                            Dropbox Sign
+                          </span>
+                        </Tooltip>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <StatusBadge status={c.status} />
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+                          {canSendOrSync && (
+                            <Tooltip side="top" content={t("master.commerce.contractsPage.sendTitle")}>
+                              <button
+                                type="button"
+                                onClick={() => handleSendContract(c)}
+                                aria-label={t("master.commerce.contractsPage.sendBtn")}
+                                className="inline-flex size-8 items-center justify-center rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition-colors"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
+                          )}
+
+                          {canSendOrSync && c.externalSignatureRequestId && (
+                            <Tooltip side="top" content={t("master.commerce.contractsPage.syncTitle")}>
+                              <button
+                                type="button"
+                                onClick={() => handleSyncEsign(c)}
+                                aria-label={t("master.commerce.contractsPage.syncBtn")}
+                                className="inline-flex size-8 items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip side="top" content={t("master.commerce.contractsPage.downloadPdfTitle")}>
+                            <a
+                              href={contractApi.getPublicPdfUrl(c.signingToken || `CTR-TOKEN-${c.id}`)}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={t("master.commerce.contractsPage.downloadPdfTitle")}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+                          </Tooltip>
+
+                          <Tooltip side="top" content={t("master.commerce.contractsPage.copyLinkTitle")}>
+                            <button
+                              type="button"
+                              onClick={() => handleCopySigningLink(c)}
+                              aria-label={t("master.commerce.contractsPage.copyLinkTitle")}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-500 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip side="top" content={t("master.commerce.contractsPage.viewTitle")}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedContract(c)}
+                              aria-label={t("master.commerce.contractsPage.viewTitle")}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
+
+                          {c.status !== "SIGNED" && (
+                            <Tooltip side="top" content={t("master.commerce.contractsPage.deleteTitle")}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteContract(c)}
+                                aria-label={t("master.commerce.contractsPage.deleteTitle")}
+                                className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-rose-50 hover:text-rose-600 text-slate-400 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
+                          )}
                         </div>
-                      )}
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <StatusBadge status={c.status} />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        {!["SIGNED", "REJECTED", "TERMINATED"].includes(c.status) && (
-                          <button
-                            onClick={() => handleSendContract(c)}
-                            title={t("master.commerce.contractsPage.sendTitle")}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-[11px] transition-colors"
-                          >
-                            <Send className="w-3 h-3" />
-                            {t("master.commerce.contractsPage.sendBtn")}
-                          </button>
-                        )}
-
-                        {!["SIGNED", "REJECTED", "TERMINATED"].includes(c.status) && c.externalSignatureRequestId && (
-                          <button
-                            onClick={() => handleSyncEsign(c)}
-                            title={t("master.commerce.contractsPage.syncTitle")}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-[11px] transition-colors"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            {t("master.commerce.contractsPage.syncBtn")}
-                          </button>
-                        )}
-
-                        <a
-                          href={contractApi.getPublicPdfUrl(c.signingToken || `CTR-TOKEN-${c.id}`)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={t("master.commerce.contractsPage.downloadPdfTitle")}
-                          aria-label={t("master.commerce.contractsPage.downloadPdfTitle")}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </a>
-
-                        <button
-                          onClick={() => handleCopySigningLink(c)}
-                          title={t("master.commerce.contractsPage.copyLinkTitle")}
-                          aria-label={t("master.commerce.contractsPage.copyLinkTitle")}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          onClick={() => setSelectedContract(c)}
-                          title={t("master.commerce.contractsPage.viewTitle")}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] transition-colors"
-                        >
-                          <Eye className="w-3 h-3" />
-                          {t("master.commerce.contractsPage.viewBtn")}
-                        </button>
-
-                        {c.status !== "SIGNED" && (
-                          <button
-                            onClick={() => handleDeleteContract(c)}
-                            title={t("master.commerce.contractsPage.deleteTitle")}
-                            aria-label={t("master.commerce.contractsPage.deleteTitle")}
-                            className="p-1.5 rounded-lg hover:bg-rose-50 hover:text-rose-600 text-slate-400 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={8} className="py-14 text-center">

@@ -95,7 +95,12 @@ export function OrderLookupModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-lenis-prevent
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in"
+    >
       <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 max-w-2xl w-full text-left shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
         {/* Close Button */}
         <button

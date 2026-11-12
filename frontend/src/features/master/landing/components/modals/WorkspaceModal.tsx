@@ -26,7 +26,12 @@ export function WorkspaceModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-lenis-prevent
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in"
+    >
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full text-left shadow-2xl relative">
         <button
           onClick={closeWorkspaceModal}

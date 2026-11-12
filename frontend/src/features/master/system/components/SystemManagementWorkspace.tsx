@@ -3,11 +3,13 @@ import {
   AlertTriangle,
   Bot,
   BrainCircuit,
+  Check,
   CheckCircle2,
   Cpu,
   FileDown,
   Gauge,
   HelpCircle,
+  Power,
   PowerOff,
   RefreshCw,
   RotateCcw,
@@ -717,13 +719,23 @@ function AiQuotaManagementView() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
-            <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="overflow-x-auto pb-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-slate-50">
+          <table className="w-full min-w-[1160px] table-fixed border-collapse text-left text-xs text-slate-600">
+            <colgroup>
+              <col />
+              <col className="w-[140px]" />
+              <col className="w-[124px]" />
+              <col className="w-[140px]" />
+              <col className="w-[126px]" />
+              <col className="w-[136px]" />
+              <col className="w-[128px]" />
+              <col className="w-[128px]" />
+            </colgroup>
+            <thead className="bg-slate-50/80 text-xs font-semibold text-slate-600 border-b border-slate-200">
               <tr>
-                <th className="px-5 py-3">{t("master.ops.systemWorkspace.quotas.colTenantBase")}</th>
-                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colCvUsed")}</th>
-                <th className="px-4 py-3">
+                <th className="px-3.5 py-3.5 whitespace-nowrap">{t("master.ops.systemWorkspace.quotas.colTenantBase")}</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">{t("master.ops.systemWorkspace.quotas.colCvUsed")}</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     <span>{t("master.ops.systemWorkspace.quotas.colCvLimit")}</span>
                     <HelpTip
@@ -732,8 +744,8 @@ function AiQuotaManagementView() {
                     />
                   </span>
                 </th>
-                <th className="px-4 py-3">{t("master.ops.systemWorkspace.quotas.colInterviewUsed")}</th>
-                <th className="px-4 py-3">
+                <th className="px-3 py-3.5 whitespace-nowrap">{t("master.ops.systemWorkspace.quotas.colInterviewUsed")}</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     <span>{t("master.ops.systemWorkspace.quotas.colInterviewLimit")}</span>
                     <HelpTip
@@ -742,7 +754,7 @@ function AiQuotaManagementView() {
                     />
                   </span>
                 </th>
-                <th className="px-4 py-3">
+                <th className="px-3 py-3.5 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     <span>{t("master.ops.systemWorkspace.quotas.colRpmLimit")}</span>
                     <HelpTip
@@ -751,7 +763,7 @@ function AiQuotaManagementView() {
                     />
                   </span>
                 </th>
-                <th className="px-4 py-3 text-right">
+                <th className="px-3 py-3.5 text-right whitespace-nowrap">
                   <span className="inline-flex items-center justify-end gap-1">
                     <span>{t("master.ops.systemWorkspace.quotas.colMonthlyCost")}</span>
                     <HelpTip
@@ -760,10 +772,10 @@ function AiQuotaManagementView() {
                     />
                   </span>
                 </th>
-                <th className="px-5 py-3 text-right">{t("master.ops.systemWorkspace.quotas.colAdminAction")}</th>
+                <th className="px-3.5 py-3.5 text-right whitespace-nowrap">{t("master.ops.systemWorkspace.quotas.colAdminAction")}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {rows.map((row) => {
                 const cvPercent =
                   row.cvLimit > 0
@@ -779,88 +791,145 @@ function AiQuotaManagementView() {
                   row.cvLimit !== row.basePlanCvLimit ||
                   row.interviewHoursLimit !== row.basePlanInterviewHoursLimit ||
                   row.customRpmOverride != null;
+                const cvLimitLabel =
+                  row.cvLimit < 0
+                    ? t("master.ops.systemWorkspace.quotas.unlimited")
+                    : row.cvLimit === 0
+                    ? t("master.ops.systemWorkspace.quotas.lockedZero")
+                    : formatNumber(row.cvLimit, undefined, locale);
+                const interviewLimitLabel =
+                  row.interviewHoursLimit < 0
+                    ? t("master.ops.systemWorkspace.quotas.unlimited")
+                    : row.interviewHoursLimit === 0
+                    ? t("master.ops.systemWorkspace.quotas.lockedZero")
+                    : t("master.ops.systemWorkspace.quotas.interviewHoursUnit", {
+                        hours: row.interviewHoursLimit,
+                      });
 
                 return (
                   <tr
                     key={row.tenantId}
                     className={cn(
-                      "border-t border-slate-100 align-middle transition-colors",
+                      "group align-middle transition-colors",
                       row.aiKillSwitch ? "bg-rose-50/40" : "hover:bg-blue-50/20"
                     )}
                   >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <strong className="text-slate-900">{row.tenantName}</strong>
-                        {row.aiKillSwitch && (
-                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-700">
-                            {t("master.ops.systemWorkspace.quotas.badgeAiLocked")}
-                          </span>
-                        )}
-                        {!row.aiKillSwitch && isOverridden && (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                            {t("master.ops.systemWorkspace.quotas.badgeOverridden")}
-                          </span>
-                        )}
-                      </div>
-                      <span className="mt-1 block text-xs text-slate-500">
-                        {t("master.ops.systemWorkspace.quotas.baseLimitInfo", {
-                          code: row.tenantCode,
-                          plan: row.planName,
-                          cv: row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit,
-                          hours: row.basePlanInterviewHoursLimit < 0 ? "∞" : row.basePlanInterviewHoursLimit,
-                        })}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div className="w-36">
-                        <div className="mb-1.5 flex justify-between text-xs">
-                          <span>
-                            {t("master.ops.systemWorkspace.quotas.cvUsedCount", {
-                              count: formatNumber(row.cvUsed, undefined, locale),
-                            })}
-                          </span>
-                          <strong
-                            className={
-                              row.cvLimit === 0
-                                ? "text-rose-700"
-                                : cvPercent >= 80
-                                ? "text-amber-700"
-                                : "text-slate-700"
-                            }
-                          >
-                            {row.cvLimit < 0
-                              ? t("master.ops.systemWorkspace.quotas.unlimited")
-                              : row.cvLimit === 0
-                              ? t("master.ops.systemWorkspace.quotas.lockedZero")
-                              : `${cvPercent}%`}
-                          </strong>
-                        </div>
-                        <div className="h-2 rounded-full bg-slate-100">
-                          <div
-                            className={cn(
-                              "h-full rounded-full",
-                              row.cvLimit === 0 || cvPercent >= 90
-                                ? "bg-rose-500"
-                                : cvPercent >= 80
-                                ? "bg-amber-500"
-                                : "bg-blue-500"
+                    <td className="px-3.5 py-3">
+                      <Tooltip
+                        className="flex w-full min-w-0"
+                        side="top"
+                        content={
+                          <span className="block space-y-0.5">
+                            <span className="block font-semibold text-white">{row.tenantName}</span>
+                            {row.aiKillSwitch && (
+                              <span className="block font-semibold text-rose-300">
+                                {t("master.ops.systemWorkspace.quotas.badgeAiLocked")}
+                              </span>
                             )}
-                            style={{
-                              width: `${
-                                row.cvLimit < 0
-                                  ? 15
-                                  : row.cvLimit === 0
-                                  ? 100
-                                  : Math.min(cvPercent, 100)
-                              }%`,
-                            }}
-                          />
-                        </div>
-                      </div>
+                            {!row.aiKillSwitch && isOverridden && (
+                              <span className="block font-semibold text-amber-300">
+                                {t("master.ops.systemWorkspace.quotas.badgeOverridden")}
+                              </span>
+                            )}
+                            <span className="block text-slate-300">
+                              {t("master.ops.systemWorkspace.quotas.baseLimitInfo", {
+                                code: row.tenantCode,
+                                plan: row.planName,
+                                cv: row.basePlanCvLimit < 0 ? "∞" : row.basePlanCvLimit,
+                                hours:
+                                  row.basePlanInterviewHoursLimit < 0
+                                    ? "∞"
+                                    : row.basePlanInterviewHoursLimit,
+                              })}
+                            </span>
+                          </span>
+                        }
+                      >
+                        <span className="flex w-full min-w-0 items-center gap-1.5 cursor-default">
+                          <span className="min-w-0 truncate font-semibold text-slate-600">
+                            {row.tenantName}
+                          </span>
+                          {row.aiKillSwitch && (
+                            <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                              {t("master.ops.systemWorkspace.quotas.badgeAiLocked")}
+                            </span>
+                          )}
+                          {!row.aiKillSwitch && isOverridden && (
+                            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                              {t("master.ops.systemWorkspace.quotas.badgeOverridden")}
+                            </span>
+                          )}
+                        </span>
+                      </Tooltip>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-3">
+                      <Tooltip
+                        className="flex w-full min-w-0"
+                        side="top"
+                        content={
+                          <span className="block space-y-0.5">
+                            <span className="block font-semibold text-white">
+                              {t("master.ops.systemWorkspace.quotas.cvUsedCount", {
+                                count: formatNumber(row.cvUsed, undefined, locale),
+                              })}{" "}
+                              / {cvLimitLabel}
+                            </span>
+                            {row.cvLimit > 0 && (
+                              <span className="block font-mono text-slate-300">{cvPercent}%</span>
+                            )}
+                          </span>
+                        }
+                      >
+                        <span className="block w-full cursor-default">
+                          <span className="mb-1 flex items-center justify-between gap-1 text-[11px] whitespace-nowrap">
+                            <span className="text-slate-600">
+                              {t("master.ops.systemWorkspace.quotas.cvUsedCount", {
+                                count: formatNumber(row.cvUsed, undefined, locale),
+                              })}
+                            </span>
+                            <strong
+                              className={
+                                row.cvLimit === 0
+                                  ? "text-rose-700"
+                                  : cvPercent >= 80
+                                  ? "text-amber-700"
+                                  : "text-slate-600"
+                              }
+                            >
+                              {row.cvLimit < 0
+                                ? "∞"
+                                : row.cvLimit === 0
+                                ? t("master.ops.systemWorkspace.quotas.lockedZero")
+                                : `${cvPercent}%`}
+                            </strong>
+                          </span>
+                          <span className="block h-1.5 rounded-full bg-slate-100">
+                            <span
+                              className={cn(
+                                "block h-full rounded-full",
+                                row.cvLimit === 0 || cvPercent >= 90
+                                  ? "bg-rose-500"
+                                  : cvPercent >= 80
+                                  ? "bg-amber-500"
+                                  : "bg-blue-500"
+                              )}
+                              style={{
+                                width: `${
+                                  row.cvLimit < 0
+                                    ? 15
+                                    : row.cvLimit === 0
+                                    ? 100
+                                    : Math.min(cvPercent, 100)
+                                }%`,
+                              }}
+                            />
+                          </span>
+                        </span>
+                      </Tooltip>
+                    </td>
+
+                    <td className="px-3 py-3">
                       <input
                         type="number"
                         min="-1"
@@ -871,31 +940,47 @@ function AiQuotaManagementView() {
                         aria-label={t("master.ops.systemWorkspace.quotas.cvLimitAria", {
                           name: row.tenantName,
                         })}
-                        className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        className="min-h-8 w-full max-w-[92px] rounded-lg border border-slate-200 bg-white px-2 text-right text-xs font-semibold text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
 
-                    <td className="px-4 py-4">
-                      <span
-                        className={cn(
-                          "text-xs font-semibold",
-                          row.interviewHoursLimit === 0
-                            ? "text-rose-700"
-                            : interviewPercent >= 80
-                            ? "text-amber-700"
-                            : "text-slate-700"
-                        )}
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <Tooltip
+                        side="top"
+                        content={
+                          <span className="block space-y-0.5">
+                            <span className="block font-semibold text-white">
+                              {row.interviewHoursUsed} / {interviewLimitLabel}
+                            </span>
+                            {row.interviewHoursLimit > 0 && (
+                              <span className="block font-mono text-slate-300">
+                                {interviewPercent}%
+                              </span>
+                            )}
+                          </span>
+                        }
                       >
-                        {row.interviewHoursUsed} /{" "}
-                        {row.interviewHoursLimit < 0
-                          ? "∞"
-                          : t("master.ops.systemWorkspace.quotas.interviewHoursUnit", {
-                              hours: row.interviewHoursLimit,
-                            })}
-                      </span>
+                        <span
+                          className={cn(
+                            "text-xs font-semibold cursor-default",
+                            row.interviewHoursLimit === 0
+                              ? "text-rose-700"
+                              : interviewPercent >= 80
+                              ? "text-amber-700"
+                              : "text-slate-600"
+                          )}
+                        >
+                          {row.interviewHoursUsed} /{" "}
+                          {row.interviewHoursLimit < 0
+                            ? "∞"
+                            : t("master.ops.systemWorkspace.quotas.interviewHoursUnit", {
+                                hours: row.interviewHoursLimit,
+                              })}
+                        </span>
+                      </Tooltip>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-3">
                       <input
                         type="number"
                         min="-1"
@@ -910,12 +995,22 @@ function AiQuotaManagementView() {
                         aria-label={t("master.ops.systemWorkspace.quotas.interviewLimitAria", {
                           name: row.tenantName,
                         })}
-                        className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        className="min-h-8 w-full max-w-[92px] rounded-lg border border-slate-200 bg-white px-2 text-right text-xs font-semibold text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                       />
                     </td>
 
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col gap-1">
+                    <td className="px-3 py-3">
+                      <Tooltip
+                        side="top"
+                        content={
+                          <span className="block font-mono text-slate-200">
+                            {t("master.ops.systemWorkspace.quotas.currentMinuteUsage", {
+                              rpm: row.currentMinuteRpm ?? 0,
+                              tpm: formatNumber(row.currentMinuteTpm ?? 0, undefined, locale),
+                            })}
+                          </span>
+                        }
+                      >
                         <input
                           type="number"
                           min="-1"
@@ -930,73 +1025,94 @@ function AiQuotaManagementView() {
                           aria-label={t("master.ops.systemWorkspace.quotas.rpmLimitAria", {
                             name: row.tenantName,
                           })}
-                          className="min-h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-right text-xs font-semibold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                          className="min-h-8 w-full max-w-[92px] rounded-lg border border-slate-200 bg-white px-2 text-right text-xs font-semibold text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                         />
-                        <span className="text-[10px] text-slate-400">
-                          {t("master.ops.systemWorkspace.quotas.currentMinuteUsage", {
-                            rpm: row.currentMinuteRpm ?? 0,
-                            tpm: formatNumber(row.currentMinuteTpm ?? 0, undefined, locale),
-                          })}
-                        </span>
-                      </div>
+                      </Tooltip>
                     </td>
 
-                    <td className="px-4 py-4 text-right font-semibold text-slate-900">
+                    <td className="px-3 py-3 text-right font-mono font-semibold text-slate-600 whitespace-nowrap">
                       ${Number(row.estimatedCostUsdMonth ?? 0).toFixed(4)}
                     </td>
 
-                    <td className="px-5 py-4 text-right">
-                      <div className="inline-flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          disabled={savingId === row.tenantId}
-                          onClick={() => handleSaveOverride(row)}
-                          className={cn(
-                            "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors",
+                    <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+                        <Tooltip
+                          side="top"
+                          content={
                             savedId === row.tenantId
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-blue-600 text-white hover:bg-blue-700"
-                          )}
+                              ? t("master.ops.systemWorkspace.quotas.savedBtn")
+                              : t("master.ops.systemWorkspace.quotas.saveBtn")
+                          }
                         >
-                          <Save className="size-3.5" />
-                          {savedId === row.tenantId
-                            ? t("master.ops.systemWorkspace.quotas.savedBtn")
-                            : t("master.ops.systemWorkspace.quotas.saveBtn")}
-                        </button>
-
-                        {isOverridden && (
                           <button
                             type="button"
                             disabled={savingId === row.tenantId}
-                            onClick={() => handleResetToPlan(row)}
-                            title={t("master.ops.systemWorkspace.quotas.resetBtnTitle")}
-                            className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            onClick={() => handleSaveOverride(row)}
+                            aria-label={
+                              savedId === row.tenantId
+                                ? t("master.ops.systemWorkspace.quotas.savedBtn")
+                                : t("master.ops.systemWorkspace.quotas.saveBtn")
+                            }
+                            className={cn(
+                              "inline-flex size-8 items-center justify-center rounded-lg transition-colors disabled:opacity-60",
+                              savedId === row.tenantId
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "bg-blue-600 text-white hover:bg-blue-700 shadow-2xs"
+                            )}
                           >
-                            <RotateCcw className="size-3.5" />
+                            {savedId === row.tenantId ? (
+                              <Check className="size-3.5" />
+                            ) : (
+                              <Save className="size-3.5" />
+                            )}
                           </button>
+                        </Tooltip>
+
+                        {isOverridden && (
+                          <Tooltip side="top" content={t("master.ops.systemWorkspace.quotas.resetBtnTitle")}>
+                            <button
+                              type="button"
+                              disabled={savingId === row.tenantId}
+                              onClick={() => handleResetToPlan(row)}
+                              aria-label={t("master.ops.systemWorkspace.quotas.resetBtnTitle")}
+                              className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-60"
+                            >
+                              <RotateCcw className="size-3.5" />
+                            </button>
+                          </Tooltip>
                         )}
 
-                        <button
-                          type="button"
-                          disabled={savingId === row.tenantId}
-                          onClick={() => handleToggleKillSwitch(row)}
-                          title={
+                        <Tooltip
+                          side="top"
+                          content={
                             row.aiKillSwitch
                               ? t("master.ops.systemWorkspace.quotas.unlockAiTitle")
                               : t("master.ops.systemWorkspace.quotas.lockAiTitle")
                           }
-                          className={cn(
-                            "inline-flex min-h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-semibold transition-colors",
-                            row.aiKillSwitch
-                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                              : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                          )}
                         >
-                          <PowerOff className="size-3.5" />
-                          {row.aiKillSwitch
-                            ? t("master.ops.systemWorkspace.quotas.unlockAiBtn")
-                            : t("master.ops.systemWorkspace.quotas.killSwitchBtn")}
-                        </button>
+                          <button
+                            type="button"
+                            disabled={savingId === row.tenantId}
+                            onClick={() => handleToggleKillSwitch(row)}
+                            aria-label={
+                              row.aiKillSwitch
+                                ? t("master.ops.systemWorkspace.quotas.unlockAiBtn")
+                                : t("master.ops.systemWorkspace.quotas.killSwitchBtn")
+                            }
+                            className={cn(
+                              "inline-flex size-8 items-center justify-center rounded-lg transition-colors disabled:opacity-60",
+                              row.aiKillSwitch
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                            )}
+                          >
+                            {row.aiKillSwitch ? (
+                              <Power className="size-3.5" />
+                            ) : (
+                              <PowerOff className="size-3.5" />
+                            )}
+                          </button>
+                        </Tooltip>
                       </div>
                     </td>
                   </tr>

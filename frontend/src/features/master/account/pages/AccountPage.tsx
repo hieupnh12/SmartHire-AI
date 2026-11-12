@@ -79,12 +79,6 @@ export function AccountPage({ activeTab }: AccountPageProps) {
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in">
-      <div className="mb-7 rounded-3xl border border-slate-200 bg-gradient-to-br from-cyan-50 via-white to-violet-50 px-6 py-8 sm:px-10">
-        <p className="text-sm font-semibold text-blue-700">{t("master.ops.account.roleBadge")}</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{t("master.ops.account.pageTitle")}</h1>
-        <p className="mt-2 text-sm text-slate-600">{t("master.ops.account.pageSubtitle")}</p>
-      </div>
-
       {activeTab === "account-profile" && (
         <section aria-labelledby="account-profile-title">
           <h2 id="account-profile-title" className="mb-5 text-2xl font-bold text-slate-950">{t("master.ops.account.profile.title")}</h2>

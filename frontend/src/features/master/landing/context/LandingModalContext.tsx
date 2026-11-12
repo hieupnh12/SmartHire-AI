@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { t as globalT } from "@/i18n";
 
 interface LandingModalContextType {
   showWorkspaceModal: boolean;
@@ -12,10 +11,24 @@ interface LandingModalContextType {
   closeOrderLookupModal: () => void;
 }
 
+function buildDemoPath(
+  tierName?: string,
+  type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
+) {
+  const params = new URLSearchParams();
+  if (tierName?.trim()) {
+    params.set("tier", tierName);
+  }
+  params.set("type", type);
+  return `/demo?${params.toString()}`;
+}
+
 const defaultContextValue: LandingModalContextType = {
   showWorkspaceModal: false,
   showOrderLookupModal: false,
-  openDemoModal: () => {},
+  openDemoModal: (tierName, type) => {
+    window.location.assign(buildDemoPath(tierName, type));
+  },
   openWorkspaceModal: () => {},
   closeWorkspaceModal: () => {},
   openOrderLookupModal: () => {},
@@ -34,10 +47,7 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
     tierName?: string,
     type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
   ) => {
-    const resolvedTier =
-      tierName ?? globalT("master.landingChrome.modals.defaultConsultTier");
-    const params = new URLSearchParams({ tier: resolvedTier, type });
-    navigate(`/demo?${params.toString()}`);
+    navigate(buildDemoPath(tierName, type));
   };
 
   const openWorkspaceModal = () => {

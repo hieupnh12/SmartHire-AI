@@ -741,7 +741,7 @@ export const masterOpsJa = {
     noRealRequestNote: "実際のリクエスト送信およびテナントデータベースへのクエリは行われません。",
   },
   auditLogs: {
-    title: "システム監査ログ (Audit Logs)",
+    title: "システム監査ログ",
     subtitle: "すべての管理操作、データベース発行、プラットフォーム全体のセキュリティイベントを記録します。",
     filterLabel: "レベルで絞り込み：",
     filterAll: "すべてのレベル",

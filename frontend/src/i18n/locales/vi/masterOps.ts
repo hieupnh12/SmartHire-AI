@@ -741,7 +741,7 @@ export const masterOpsVi = {
     noRealRequestNote: "Không gửi request thật và không truy vấn tenant database.",
   },
   auditLogs: {
-    title: "Nhật Ký Kiểm Toán Hệ Thống (Audit Logs)",
+    title: "Nhật Ký Kiểm Toán Hệ Thống",
     subtitle: "Ghi nhận mọi hành vi quản trị, cấp phát Database và các sự kiện an toàn thông tin toàn sàn.",
     filterLabel: "Lọc theo mức độ:",
     filterAll: "Tất cả mức độ",

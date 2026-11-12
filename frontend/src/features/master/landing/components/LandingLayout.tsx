@@ -1,25 +1,60 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useLocation, Outlet } from "react-router-dom";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
 import { LandingModalProvider } from "../context/LandingModalContext";
 import { LandingHeader } from "./LandingHeader";
 import { LandingFooter } from "./LandingFooter";
 import { WorkspaceModal } from "./modals/WorkspaceModal";
 import { OrderLookupModal } from "./modals/OrderLookupModal";
 
-function ScrollToTopOnRoute() {
+function ScrollToTopOnRoute({ lenisRef }: { lenisRef: React.RefObject<Lenis | null> }) {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [pathname]);
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(0, { immediate: true });
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [pathname, lenisRef]);
 
   return null;
 }
 
 export function LandingLayout({ children }: { children?: React.ReactNode }) {
+  const lenisRef = useRef<Lenis | null>(null);
+
+  useEffect(() => {
+    if (
+      !window.matchMedia("(pointer: fine)").matches ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    const lenis = new Lenis({
+      autoRaf: true,
+      autoToggle: true,
+      anchors: { offset: -74 },
+      duration: 1.35,
+      smoothWheel: true,
+      syncTouch: false,
+      wheelMultiplier: 0.72,
+      prevent: (node: HTMLElement) =>
+        Boolean(node.closest("[role='dialog'], [aria-modal='true'], [data-lenis-prevent]")),
+    });
+
+    lenisRef.current = lenis;
+    return () => {
+      lenisRef.current = null;
+      lenis.destroy();
+    };
+  }, []);
+
   return (
     <LandingModalProvider>
-      <ScrollToTopOnRoute />
+      <ScrollToTopOnRoute lenisRef={lenisRef} />
       <div className="min-h-screen bg-[#f8fafc] text-[#1e293b] font-sans antialiased selection:bg-[#2563eb] selection:text-white relative overflow-x-hidden">
         {/* Dynamic Luminous Ambient Glow Orbs */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
@@ -49,7 +84,7 @@ export function LandingLayout({ children }: { children?: React.ReactNode }) {
         <LandingHeader />
 
         {/* MAIN CONTENT */}
-        <main className="relative z-10 pt-[80px] sm:pt-[84px]">{children ?? <Outlet />}</main>
+        <main className="relative z-10 pt-[68px] sm:pt-[74px]">{children ?? <Outlet />}</main>
 
         {/* FOOTER */}
         <LandingFooter />
