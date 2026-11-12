@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { X, Building2, ArrowRight, KeyRound } from "lucide-react";
+import { X, Building2, ArrowRight } from "lucide-react";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../../context/LandingModalContext";
 
 export function WorkspaceModal() {
   const t = useT();
-  const navigate = useNavigate();
   const { showWorkspaceModal, closeWorkspaceModal } = useLandingModal();
   const [tenantCodeInput, setTenantCodeInput] = useState("");
 
@@ -80,21 +78,6 @@ export function WorkspaceModal() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {/* LINK TO MASTER PLATFORM LOGIN */}
-        <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              closeWorkspaceModal();
-              navigate("/admin/login");
-            }}
-            className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1.5 transition-colors"
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>{t("master.landingChrome.modals.workspace.adminPrompt")}</span>
-          </button>
-        </div>
       </div>
     </div>
   );

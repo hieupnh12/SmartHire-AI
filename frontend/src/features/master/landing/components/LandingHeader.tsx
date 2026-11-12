@@ -77,7 +77,7 @@ export function LandingHeader() {
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (mobileMenuOpen) return;
+      if (event.ctrlKey || event.metaKey || mobileMenuOpen) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("[role='dialog'], [aria-modal='true']")) return;
 
@@ -127,7 +127,7 @@ export function LandingHeader() {
       }`}
     >
       <div
-        className={`mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 transition-[min-height,padding] duration-300 sm:px-6 ${
+        className={`mx-auto flex w-full items-center justify-between gap-2.5 pl-4 pr-4 transition-[min-height,padding] duration-300 sm:pl-5 sm:pr-4 min-[1400px]:gap-3 min-[1400px]:pl-12 min-[1500px]:pl-[72px] min-[1500px]:pr-5 min-[1800px]:pl-40 ${
           isScrolled ? "min-h-[64px] py-2 sm:min-h-[68px]" : "min-h-[68px] py-2.5 sm:min-h-[74px]"
         }`}
       >
@@ -143,7 +143,7 @@ export function LandingHeader() {
 
         {/* Navigation Links - Desktop */}
         <nav
-          className="hidden items-center justify-center gap-1 text-[13.5px] font-medium text-slate-600 xl:flex"
+          className="hidden items-center justify-center gap-0.5 text-[13.5px] font-medium text-slate-600 xl:ml-4 xl:mr-auto xl:flex min-[1400px]:ml-9 min-[1400px]:gap-1 min-[1500px]:ml-12"
           aria-label={t("master.landingChrome.header.mainNavAria")}
         >
           {navLinks.map((item) => (
@@ -151,7 +151,7 @@ export function LandingHeader() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `px-2.5 py-1.5 rounded-full transition-all whitespace-nowrap active:scale-95 ${isActive
+                `px-2 py-1.5 min-[1400px]:px-2.5 rounded-full transition-all whitespace-nowrap active:scale-95 ${isActive
                   ? "text-blue-600 font-semibold bg-blue-50 shadow-2xs border border-blue-200/60"
                   : "text-slate-600 hover:text-blue-600 hover:bg-slate-100/80"
                 }`
@@ -163,13 +163,13 @@ export function LandingHeader() {
         </nav>
 
         {/* Action CTAs & Mobile Hamburger */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 min-[1400px]:gap-2">
           {/* Order Lookup button - prominently visible when viewing Pricing */}
           {isPricingPage && (
             <button
               type="button"
               onClick={openOrderLookupModal}
-              className="group flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50/80 px-3 sm:px-3.5 text-[13.5px] font-semibold text-blue-700 shadow-2xs transition-all hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300 active:scale-95"
+              className="group flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 min-[1400px]:px-3.5 text-[13.5px] font-semibold text-blue-700 shadow-2xs transition-all hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300 active:scale-95"
               title={t("master.landingChrome.header.lookupOrderTitle")}
               aria-label={t("master.landingChrome.header.lookupOrderAria")}
             >
@@ -179,12 +179,10 @@ export function LandingHeader() {
             </button>
           )}
 
-          <LanguageSwitcher variant="icon" />
-
           <button
             type="button"
             onClick={openWorkspaceModal}
-            className="flex min-h-10 min-w-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-[13.5px] font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 sm:px-3.5"
+            className="flex min-h-10 min-w-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-[13.5px] font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 min-[1400px]:px-3.5"
             aria-label={t("master.landingChrome.header.enterWorkspace")}
           >
             <Building2 className="w-4 h-4 text-slate-500" />
@@ -194,12 +192,14 @@ export function LandingHeader() {
           <Link
             to={demoHref}
             onClick={() => setMobileMenuOpen(false)}
-            className="group flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[13.5px] font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-95 active:bg-blue-800 sm:px-4"
+            className="group flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[13.5px] font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-95 active:bg-blue-800 sm:px-3.5 min-[1400px]:px-4"
           >
             <span className="sm:hidden">{t("master.landingChrome.header.demoShort")}</span>
             <span className="hidden sm:inline">{t("master.landingChrome.header.requestDemo")}</span>
             <ArrowRight className="hidden w-4 h-4 group-hover:translate-x-1 transition-transform min-[360px]:block" />
           </Link>
+
+          <LanguageSwitcher variant="icon" />
 
           {/* Mobile Menu Toggle Button */}
           <button

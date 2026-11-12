@@ -219,7 +219,6 @@ export const masterChromeJa = {
         placeholder: "viettel",
         submitBtn: "専用ログインページへ",
         quickSample: "またはサンプルワークスペースを体験：",
-        adminPrompt: "プラットフォーム管理者ですか？ Workspace Adminへサインイン",
       },
     },
   },

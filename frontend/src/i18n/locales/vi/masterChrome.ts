@@ -219,7 +219,6 @@ export const masterChromeVi = {
         placeholder: "viettel",
         submitBtn: "Đến Trang Đăng Nhập Riêng",
         quickSample: "Hoặc trải nghiệm nhanh không gian mẫu:",
-        adminPrompt: "Quản trị viên nền tảng? Đăng nhập Workspace Admin",
       },
     },
   },

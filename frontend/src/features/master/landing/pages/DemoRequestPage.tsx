@@ -347,12 +347,25 @@ export function DemoRequestPage() {
   };
 
   return (
-    <div className="h-screen w-screen bg-slate-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto sm:overflow-hidden">
-      <div className="w-full max-w-2xl my-auto">
+    <div className="relative min-h-screen w-full bg-[#eef4ff] flex items-center justify-center p-3 sm:p-5 overflow-x-hidden overflow-y-auto">
+      {/* Layered 3D architectural glass depth background */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden"
+      >
+        <img
+          src="/demo-bg-depth.jpg"
+          alt=""
+          className="w-full h-full object-cover object-center scale-[1.02]"
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.28)_0%,rgba(239,246,255,0.12)_55%,rgba(15,23,42,0.14)_100%)]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-2xl my-auto">
         {!demoSubmitted ? (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 sm:p-6 lg:p-7">
+          <div className="bg-white/90 backdrop-blur-xl border border-white/85 ring-1 ring-slate-900/5 rounded-2xl shadow-[0_28px_70px_-16px_rgba(30,58,138,0.22),0_10px_25px_-8px_rgba(15,23,42,0.08)] p-5 sm:p-6 lg:p-7">
             {/* Top Navigation & Brand Header */}
-            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-200/70">
               <Link
                 to="/"
                 className="inline-flex items-center text-slate-600 hover:text-blue-600 transition-colors group"
@@ -575,7 +588,7 @@ export function DemoRequestPage() {
           </div>
         ) : (
           /* Success Card */
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 sm:p-10 text-center max-w-lg mx-auto">
+          <div className="bg-white/90 backdrop-blur-xl border border-white/85 ring-1 ring-slate-900/5 rounded-2xl shadow-[0_28px_70px_-16px_rgba(30,58,138,0.22),0_10px_25px_-8px_rgba(15,23,42,0.08)] p-8 sm:p-10 text-center max-w-lg mx-auto">
             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
               <CheckCircle2 className="w-8 h-8" />
             </div>

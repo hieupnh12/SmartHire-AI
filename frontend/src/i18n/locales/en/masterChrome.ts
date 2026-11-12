@@ -219,7 +219,6 @@ export const masterChromeEn = {
         placeholder: "viettel",
         submitBtn: "Go to Workspace Login",
         quickSample: "Or try a sample workspace:",
-        adminPrompt: "Platform administrator? Sign in to Workspace Admin",
       },
     },
   },

@@ -111,7 +111,7 @@ Request tự động (`deferProvisioning` tùy chọn, mặc định `false`):
 
 ## UI mockup
 
-- Modal **Vào Workspace** trên Landing Page ([`WorkspaceModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/landing/components/modals/WorkspaceModal.tsx)) cho phép nhập `subdomain` doanh nghiệp để điều hướng tới `<subdomain>.smarthire.top/internal/login` (hoặc `<subdomain>.localhost:<port>/internal/login` ở môi trường local), kèm liên kết tới `/admin/login`.
+- Modal **Vào Workspace** trên Landing Page ([`WorkspaceModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/landing/components/modals/WorkspaceModal.tsx)) cho phép nhập `subdomain` doanh nghiệp để điều hướng tới `<subdomain>.smarthire.top/internal/login` (hoặc `<subdomain>.localhost:<port>/internal/login` ở môi trường local). Quản trị viên nền tảng truy cập trực tiếp đường dẫn `/admin/login`.
 - Trang Tenant Not Found điều hướng về domain nền tảng hiện tại (`smarthire.top` ở production và `localhost` ở local).
 - `/onboard` ([`TenantOnboardPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/onboarding/pages/TenantOnboardPage.tsx)): form Workspace Admin khởi tạo tenant trực tiếp và `?retry=<id>` cho tenant `FAILED`/`PROVISIONING`.
 - Quản lý vòng đời tenant tại `/admin/tenants/{overview|directory|create|provisioning}` ([`TenantManagementPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/tenant-management/pages/TenantManagementPage.tsx) & [`TenantManagementHub.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/tenant-management/components/TenantManagementHub.tsx)):
