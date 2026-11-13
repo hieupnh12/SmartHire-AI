@@ -140,12 +140,15 @@ export function BillingWorkspace({
 
       {view === "plans" && (
         <section className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
-          {plans.map((plan) => <PlanCard key={plan.id ?? plan.code} plan={plan} tenants={plan.subscriberCount ?? 0} onEdit={() => onEditPlan(plan)} onToggle={() => onTogglePlanStatus(plan)} />)}
-          <button type="button" onClick={onCreatePlan} className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-8 text-center transition-colors hover:bg-blue-50">
-            <span className="grid size-12 place-items-center rounded-2xl bg-white text-blue-700 shadow-sm"><Plus className="size-5" /></span>
-            <span className="mt-4 text-sm font-semibold text-slate-900">{t("master.commerce.billingWorkspace.createNewPlanTitle")}</span>
-            <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">{t("master.commerce.billingWorkspace.createNewPlanDesc")}</span>
-          </button>
+          {plans.map((plan) => (
+            <PlanCard
+              key={plan.id ?? plan.code}
+              plan={plan}
+              tenants={plan.subscriberCount ?? 0}
+              onEdit={() => onEditPlan(plan)}
+              onToggle={() => onTogglePlanStatus(plan)}
+            />
+          ))}
         </section>
       )}
 
@@ -361,8 +364,8 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
   const t = useT();
   const locale = useLocale();
   const displayPrice = plan.priceYearly
-    ? `${formatNumber(plan.priceYearly, undefined, locale)} ₫`
-    : "0 ₫";
+    ? `${formatNumber(plan.priceYearly, undefined, locale)}\u00A0₫`
+    : "0\u00A0₫";
   const subscriberCount = plan.subscriberCount ?? tenants;
   const isArchived = plan.archived || plan.status === "ARCHIVED";
   return (
@@ -379,7 +382,7 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
                 </span>
               )}
             </div>
-            <h2 className="mt-1 text-lg font-semibold text-slate-950">{plan.name}</h2>
+            <h2 className="mt-1 text-lg font-semibold text-slate-800">{plan.name}</h2>
           </div>
           <span className={cn(
             "rounded-full px-2.5 py-1 text-[10px] font-semibold",
@@ -398,7 +401,7 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
         </div>
         <p className="mt-3 min-h-10 text-xs leading-5 text-slate-500">{plan.description}</p>
         <div className="mt-5 flex items-baseline gap-1.5">
-          <strong className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950">{displayPrice}</strong>
+          <strong className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-700 whitespace-nowrap">{displayPrice}</strong>
           <span className="text-xs font-semibold text-slate-600">/ {t("master.commerce.common.yearUnit")}</span>
         </div>
         <p className="mt-1 text-xs text-emerald-600 font-medium">

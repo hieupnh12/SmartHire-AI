@@ -57,9 +57,21 @@ public class MasterAnalyticsService {
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public RevenueAnalyticsResponse getRevenueAnalytics(LocalDateTime startDate, LocalDateTime endDate, String groupBy) {
-        if (startDate == null) startDate = LocalDateTime.now().minusMonths(11).withDayOfMonth(1).withHour(0).withMinute(0);
-        if (endDate == null) endDate = LocalDateTime.now();
         if (groupBy == null || groupBy.isEmpty()) groupBy = "MONTH";
+        if (startDate == null) {
+            if ("YEAR".equalsIgnoreCase(groupBy)) {
+                startDate = LocalDateTime.now().minusYears(4).withDayOfYear(1).withHour(0).withMinute(0).withSecond(0);
+                if (endDate == null) endDate = LocalDateTime.now();
+            } else if ("QUARTER".equalsIgnoreCase(groupBy)) {
+                startDate = LocalDateTime.now().withDayOfYear(1).withHour(0).withMinute(0).withSecond(0);
+                if (endDate == null) endDate = LocalDateTime.now().withMonth(12).withDayOfMonth(31).withHour(23).withMinute(59).withSecond(59);
+            } else {
+                // Default MONTH: 12 months of the year
+                startDate = LocalDateTime.now().withDayOfYear(1).withHour(0).withMinute(0).withSecond(0);
+                if (endDate == null) endDate = LocalDateTime.now().withMonth(12).withDayOfMonth(31).withHour(23).withMinute(59).withSecond(59);
+            }
+        }
+        if (endDate == null) endDate = LocalDateTime.now();
 
         List<Invoice> invoices = invoiceRepository.findByStatusAndPaidAtBetweenOrderByPaidAtAsc("PAID", startDate, endDate);
 
@@ -120,25 +132,40 @@ public class MasterAnalyticsService {
 
         BigDecimal mrr = arr.divide(BigDecimal.valueOf(12), 0, RoundingMode.HALF_UP);
 
-        // Calculate dynamic month-over-month revenue growth rate
-        LocalDateTime currentMonthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime prevMonthStart = currentMonthStart.minusMonths(1);
-        BigDecimal currentMonthRev = invoiceRepository.findByStatusAndPaidAtBetweenOrderByPaidAtAsc("PAID", currentMonthStart, now)
+        // Calculate dynamic revenue growth rate based on period (MoM, QoQ, YoY)
+        LocalDateTime anchor = (endDate != null && !endDate.isAfter(now)) ? endDate : now;
+        LocalDateTime currentPeriodStart;
+        LocalDateTime prevPeriodStart;
+        if ("YEAR".equalsIgnoreCase(groupBy)) {
+            currentPeriodStart = anchor.withDayOfYear(1).withHour(0).withMinute(0).withSecond(0);
+            prevPeriodStart = currentPeriodStart.minusYears(1);
+        } else if ("QUARTER".equalsIgnoreCase(groupBy)) {
+            int currentQuarter = (anchor.getMonthValue() - 1) / 3;
+            currentPeriodStart = anchor.withMonth(currentQuarter * 3 + 1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            prevPeriodStart = currentPeriodStart.minusMonths(3);
+        } else {
+            currentPeriodStart = anchor.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            prevPeriodStart = currentPeriodStart.minusMonths(1);
+        }
+
+        BigDecimal currentPeriodRev = invoiceRepository.findByStatusAndPaidAtBetweenOrderByPaidAtAsc("PAID", currentPeriodStart, anchor)
                 .stream().map(Invoice::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal prevMonthRev = invoiceRepository.findByStatusAndPaidAtBetweenOrderByPaidAtAsc("PAID", prevMonthStart, currentMonthStart.minusSeconds(1))
+        BigDecimal prevPeriodRev = invoiceRepository.findByStatusAndPaidAtBetweenOrderByPaidAtAsc("PAID", prevPeriodStart, currentPeriodStart.minusSeconds(1))
                 .stream().map(Invoice::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         String growthRate;
-        if (prevMonthRev.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal pct = currentMonthRev.subtract(prevMonthRev)
+        if (prevPeriodRev.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal pct = currentPeriodRev.subtract(prevPeriodRev)
                     .multiply(BigDecimal.valueOf(100))
-                    .divide(prevMonthRev, 1, RoundingMode.HALF_UP);
+                    .divide(prevPeriodRev, 1, RoundingMode.HALF_UP);
             growthRate = (pct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + pct.toPlainString() + "%";
-        } else if (currentMonthRev.compareTo(BigDecimal.ZERO) > 0) {
+        } else if (currentPeriodRev.compareTo(BigDecimal.ZERO) > 0) {
             growthRate = "+100.0%";
         } else {
             growthRate = "0.0%";
         }
+
+        LocalDateTime currentMonthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
 
         List<TenantInfo> allTenants = tenantInfoRepository.findAll().stream()
                 .filter(t -> !t.isDeleted())
@@ -177,11 +204,37 @@ public class MasterAnalyticsService {
                     .count();
         }
 
-        // Group by
+        // Group by with pre-populated periods (ensures complete continuous timeline)
         Map<String, BigDecimal> groupedRevenue = new LinkedHashMap<>();
+        if ("YEAR".equalsIgnoreCase(groupBy)) {
+            int startYear = startDate.getYear();
+            int endYear = endDate.getYear();
+            for (int y = startYear; y <= endYear; y++) {
+                groupedRevenue.put(String.valueOf(y), BigDecimal.ZERO);
+            }
+        } else if ("QUARTER".equalsIgnoreCase(groupBy)) {
+            LocalDateTime cursor = startDate;
+            while (!cursor.isAfter(endDate)) {
+                int q = (cursor.getMonthValue() - 1) / 3 + 1;
+                groupedRevenue.put(cursor.getYear() + "-Q" + q, BigDecimal.ZERO);
+                cursor = cursor.plusMonths(3);
+            }
+        } else {
+            // MONTH: pre-populate all months
+            LocalDateTime cursor = startDate.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            while (!cursor.isAfter(endDate)) {
+                groupedRevenue.put(cursor.format(DateTimeFormatter.ofPattern("yyyy-MM")), BigDecimal.ZERO);
+                cursor = cursor.plusMonths(1);
+            }
+        }
+
         for (Invoice inv : invoices) {
             String key = formatGroupKey(inv.getPaidAt(), groupBy);
-            groupedRevenue.put(key, groupedRevenue.getOrDefault(key, BigDecimal.ZERO).add(inv.getAmount()));
+            if (groupedRevenue.containsKey(key)) {
+                groupedRevenue.put(key, groupedRevenue.get(key).add(inv.getAmount()));
+            } else {
+                groupedRevenue.put(key, inv.getAmount());
+            }
         }
 
         List<ChartDataPoint> trend = groupedRevenue.entrySet().stream()
@@ -437,6 +490,9 @@ public class MasterAnalyticsService {
     private String formatGroupKey(LocalDateTime date, String groupBy) {
         if ("YEAR".equalsIgnoreCase(groupBy)) {
             return String.valueOf(date.getYear());
+        } else if ("QUARTER".equalsIgnoreCase(groupBy)) {
+            int quarter = (date.getMonthValue() - 1) / 3 + 1;
+            return date.getYear() + "-Q" + quarter;
         } else if ("WEEK".equalsIgnoreCase(groupBy)) {
             return date.getYear() + "-W" + date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
         }

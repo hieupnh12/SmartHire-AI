@@ -75,7 +75,7 @@ export const masterChromeJa = {
     logoutConfirmTitle: "管理画面からログアウトしますか？",
     logoutConfirmDesc: "Master Adminのサインイン画面へ移動します。",
     logoutBtn: "ログアウト",
-    footer: "SmartHire-AI Platform © 2026 · セントラル管理ポータル",
+    footer: "SmartHire-AI Platform © 2026 · SE51",
   },
   landingChrome: {
     nav: {

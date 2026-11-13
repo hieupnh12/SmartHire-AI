@@ -75,7 +75,7 @@ export const masterChromeVi = {
     logoutConfirmTitle: "Đăng xuất khỏi quản trị?",
     logoutConfirmDesc: "Bạn sẽ được chuyển về màn hình đăng nhập Master Admin.",
     logoutBtn: "Đăng xuất",
-    footer: "SmartHire-AI Platform © 2026 · Cổng Quản Trị Trung Tâm",
+    footer: "SmartHire-AI Platform © 2026 · SE51",
   },
   landingChrome: {
     nav: {

@@ -97,6 +97,7 @@ export {
   toOgLocale,
   formatDate,
   formatDateTime,
+  formatSimpleDateTime,
   formatTime,
   formatNumber,
   compareLocaleText,

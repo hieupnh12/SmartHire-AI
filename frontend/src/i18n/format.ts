@@ -58,6 +58,26 @@ export function formatNumber(
   return new Intl.NumberFormat(toIntlLocale(locale), options).format(value);
 }
 
+export function formatSimpleDateTime(val?: string | number | Date | null): string {
+  if (!val) return "—";
+  try {
+    const d = val instanceof Date ? val : new Date(val);
+    if (!Number.isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const year = d.getFullYear();
+      const month = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      const seconds = pad(d.getSeconds());
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+  } catch {
+    // fallback
+  }
+  return String(val).replace("T", " ").replace(/\.\d+.*$/, "");
+}
+
 export function compareLocaleText(a: string, b: string, locale: Locale = "vi"): number {
   return a.localeCompare(b, toIntlLocale(locale));
 }

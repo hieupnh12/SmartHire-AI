@@ -47,7 +47,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 
 | Method | Path | Quyền | Mô tả |
 |---|---|---|---|
-| GET | `/api/v1/master/analytics/revenue` | WORKSPACE_ADMIN | Doanh thu, MRR, ARR, ARPA, tăng trưởng MoM, breakdown hoá đơn, lead/hợp đồng & `revenueTrend` |
+| GET | `/api/v1/master/analytics/revenue` | WORKSPACE_ADMIN | Doanh thu, MRR, ARR, ARPA, tăng trưởng (MoM / QoQ / YoY theo `groupBy=MONTH\|QUARTER\|YEAR`), breakdown hoá đơn, lead/hợp đồng & `revenueTrend` |
 | GET | `/api/v1/master/analytics/ai-quota` | WORKSPACE_ADMIN | Tiêu thụ AI toàn sàn, chi phí AI ước tính VNĐ, tỷ lệ thành công, latency & sức khoẻ AI |
 | GET | `/api/v1/master/analytics/logs` | WORKSPACE_ADMIN | Lấy danh sách nhật ký hệ thống & lỗi ứng dụng (`tenant_system_logs`, hỗ trợ lọc `?tenantCode=&level=`) |
 | POST | `/api/v1/public/logs/client-crash` | Public | Tiếp nhận báo cáo lỗi crash giao diện Frontend (`REACT_ERROR_BOUNDARY`) kèm stack trace |

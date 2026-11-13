@@ -75,7 +75,7 @@ export const masterChromeEn = {
     logoutConfirmTitle: "Sign out of platform admin?",
     logoutConfirmDesc: "You will be redirected to the Master Admin sign-in screen.",
     logoutBtn: "Sign out",
-    footer: "SmartHire-AI Platform © 2026 · Central Admin Portal",
+    footer: "SmartHire-AI Platform © 2026 · SE51",
   },
   landingChrome: {
     nav: {

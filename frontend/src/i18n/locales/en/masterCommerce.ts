@@ -584,7 +584,7 @@ export const masterCommerceEn = {
     submitBtn: "Issue Invoice",
   },
   invoiceDetailModal: {
-    title: "B2B Invoice Details",
+    title: "Invoice Details",
     customerLabel: "Customer:",
     tenantFallback: "Tenant #{id}",
     tenantCodeSubLabel: "Tenant Code & Subdomain:",
