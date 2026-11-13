@@ -5,17 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Contract;
 import com.smarthire.domain.master.entity.ContractSignature;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.ConsultationRequestRepository;
 import com.smarthire.domain.master.repository.ContractRepository;
 import com.smarthire.domain.master.repository.ContractSignatureRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.billing.dto.CreateInvoiceRequest;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.contract.dto.ContractResponse;
@@ -59,7 +59,7 @@ public class MasterContractService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
     private final ConsultationRequestRepository consultationRequestRepository;
-    private final PlatformAuditLogRepository auditLogRepository;
+    private final TenantSystemLogRepository auditLogRepository;
     private final MasterBillingService billingService;
     private final MasterNotificationPublisher notificationPublisher;
     private final ContractPdfGeneratorService contractPdfGeneratorService;
@@ -308,11 +308,12 @@ public class MasterContractService {
                 saved.getContractNumber(), sendResult.getSignatureRequestId(), sendResult.isTestMode(), saved.getPartyBEmail());
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
                     .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                    .category("CONTRACT")
                     .action("SEND_CONTRACT_DROPBOX_SIGN")
                     .level("INFO")
-                    .description("Đã phát hành Hợp đồng B2B " + saved.getContractNumber()
+                    .message("Đã phát hành Hợp đồng B2B " + saved.getContractNumber()
                             + " qua Dropbox Sign API (signature_request_id=" + sendResult.getSignatureRequestId() + ") tới " + saved.getPartyBEmail())
                     .metadataJson(objectMapper.writeValueAsString(Map.of(
                             "contractId", saved.getId(),
@@ -324,7 +325,7 @@ public class MasterContractService {
                     )))
                     .build());
         } catch (Exception e) {
-            log.warn("Could not write PlatformAuditLog for sendContract {}: {}", saved.getContractNumber(), e.getMessage());
+            log.warn("Could not write TenantSystemLog for sendContract {}: {}", saved.getContractNumber(), e.getMessage());
         }
 
         // Send companion notification email with reference link
@@ -599,12 +600,13 @@ public class MasterContractService {
 
         if (!alreadyClosedWithTargetStatus) {
             try {
-                auditLogRepository.save(PlatformAuditLog.builder()
+                auditLogRepository.save(TenantSystemLog.builder()
                         .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                        .category("CONTRACT")
                         .action(auditAction)
                         .level("WARN")
                         .ipAddress(sourceIp)
-                        .description(auditDescription)
+                        .message(auditDescription)
                         .metadataJson(objectMapper.writeValueAsString(Map.of(
                                 "contractId", contract.getId(),
                                 "contractNumber", contract.getContractNumber(),
@@ -614,7 +616,7 @@ public class MasterContractService {
                         )))
                         .build());
             } catch (Exception e) {
-                log.warn("Could not write PlatformAuditLog for {} {}: {}", auditAction, contract.getContractNumber(), e.getMessage());
+                log.warn("Could not write TenantSystemLog for {} {}: {}", auditAction, contract.getContractNumber(), e.getMessage());
             }
         }
     }
@@ -734,12 +736,13 @@ public class MasterContractService {
 
         TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
                     .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                    .category("CONTRACT")
                     .action("CONTRACT_SIGNED_DROPBOX_SIGN")
                     .level("INFO")
                     .ipAddress(sourceIp)
-                    .description("Hợp đồng B2B " + saved.getContractNumber()
+                    .message("Hợp đồng B2B " + saved.getContractNumber()
                             + " đã được ký số hoàn tất qua Dropbox Sign (SHA-256: " + (finalChecksum != null ? finalChecksum : "N/A") + ")")
                     .metadataJson(objectMapper.writeValueAsString(Map.of(
                             "contractId", saved.getId(),
@@ -751,7 +754,7 @@ public class MasterContractService {
                     )))
                     .build());
         } catch (Exception e) {
-            log.warn("Could not write PlatformAuditLog for finalizeDropboxSignedContract {}: {}", saved.getContractNumber(), e.getMessage());
+            log.warn("Could not write TenantSystemLog for finalizeDropboxSignedContract {}: {}", saved.getContractNumber(), e.getMessage());
         }
 
         if (!wasAlreadySigned) {

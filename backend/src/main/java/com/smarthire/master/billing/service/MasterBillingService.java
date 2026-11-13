@@ -4,17 +4,17 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.InvoiceLineItem;
 import com.smarthire.domain.master.entity.MasterConsentLog;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
 import com.smarthire.domain.master.repository.MasterConsentLogRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.billing.dto.*;
 import com.smarthire.master.tenant.service.MasterTenantService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
@@ -56,7 +56,7 @@ public class MasterBillingService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
     private final MasterConsentLogRepository consentLogRepository;
-    private final PlatformAuditLogRepository platformAuditLogRepository;
+    private final TenantSystemLogRepository systemLogRepository;
     private final MasterTenantService masterTenantService;
     @SuppressWarnings("unused")
     private final InviteMailSender mailSender;
@@ -413,12 +413,13 @@ public class MasterBillingService {
 
         consentLogRepository.saveAll(List.of(tosConsent, privacyConsent));
 
-        PlatformAuditLog auditLog = PlatformAuditLog.builder()
+        TenantSystemLog auditLog = TenantSystemLog.builder()
                 .tenantCode(tenant.getCode())
+                .category("BILLING")
                 .action("ACCEPT_CHECKOUT_TERMS")
                 .level("INFO")
                 .ipAddress(safeIp)
-                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
+                .message("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
                         + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
                 .metadataJson(String.format(
                         "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"%s\"],\"acceptedAt\":\"%s\"}",
@@ -429,7 +430,7 @@ public class MasterBillingService {
                 ))
                 .createdAt(acceptedAt)
                 .build();
-        platformAuditLogRepository.save(auditLog);
+        systemLogRepository.save(auditLog);
 
         // 5. Bank Info and SePay VietQR (Centralized PlatformProperties)
         String bankName = bank.getName();

@@ -46,9 +46,11 @@ public class MasterAnalyticsController {
     }
 
     @GetMapping("/logs")
-    @Operation(summary = "View Tenant System Audit Logs", description = "Returns platform audit log stream.")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSystemAuditLogs() {
-        List<Map<String, Object>> logs = analyticsService.getSystemAuditLogs();
-        return ResponseEntity.ok(ApiResponse.ok("Audit logs fetched successfully", logs));
+    @Operation(summary = "View Tenant System Application Logs", description = "Returns system application log stream filtered by tenant and level.")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSystemAuditLogs(
+            @RequestParam(required = false) String tenantCode,
+            @RequestParam(required = false) String level) {
+        List<Map<String, Object>> logs = analyticsService.getSystemAuditLogs(tenantCode, level);
+        return ResponseEntity.ok(ApiResponse.ok("System logs fetched successfully", logs));
     }
 }

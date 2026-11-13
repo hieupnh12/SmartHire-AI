@@ -1,9 +1,9 @@
 package com.smarthire.master.ai.service;
 
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SystemSetting;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.SystemSettingRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.multitenancy.service.TenantCredentialService;
 import java.util.List;
 import java.util.Optional;
@@ -14,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemSettingService {
 
     private final SystemSettingRepository settingRepository;
-    private final PlatformAuditLogRepository auditLogRepository;
+    private final TenantSystemLogRepository auditLogRepository;
     private final TenantCredentialService credentialService;
 
     public SystemSettingService(
             SystemSettingRepository settingRepository,
-            PlatformAuditLogRepository auditLogRepository,
+            TenantSystemLogRepository auditLogRepository,
             TenantCredentialService credentialService) {
         this.settingRepository = settingRepository;
         this.auditLogRepository = auditLogRepository;
@@ -64,9 +64,12 @@ public class SystemSettingService {
 
         SystemSetting saved = settingRepository.save(setting);
 
-        auditLogRepository.save(PlatformAuditLog.builder()
+        auditLogRepository.save(TenantSystemLog.builder()
+                .tenantCode("MASTER")
+                .category("SYSTEM_SETTING")
                 .action("SYSTEM_SETTING_UPDATED")
-                .description("Updated system setting " + key + " by " + adminEmail)
+                .level("INFO")
+                .message("Updated system setting " + key + " by " + adminEmail)
                 .build());
 
         return saved;

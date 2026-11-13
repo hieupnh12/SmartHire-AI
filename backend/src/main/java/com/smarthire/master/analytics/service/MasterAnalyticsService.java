@@ -53,7 +53,7 @@ public class MasterAnalyticsService {
     private AiProviderKeyRepository aiProviderKeyRepository;
 
     @Autowired(required = false)
-    private PlatformAuditLogRepository auditLogRepository;
+    private TenantSystemLogRepository auditLogRepository;
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public RevenueAnalyticsResponse getRevenueAnalytics(LocalDateTime startDate, LocalDateTime endDate, String groupBy) {
@@ -388,19 +388,45 @@ public class MasterAnalyticsService {
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<Map<String, Object>> getSystemAuditLogs() {
+        return getSystemAuditLogs(null, null);
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+    public List<Map<String, Object>> getSystemAuditLogs(String tenantCode, String level) {
         if (auditLogRepository == null) {
             return List.of();
         }
-        return auditLogRepository.findTop50ByOrderByCreatedAtDesc().stream()
+
+        List<com.smarthire.domain.master.entity.TenantSystemLog> logs;
+        boolean hasTenant = tenantCode != null && !tenantCode.isBlank() && !"ALL".equalsIgnoreCase(tenantCode);
+        boolean hasLevel = level != null && !level.isBlank() && !"ALL".equalsIgnoreCase(level);
+
+        if (hasTenant && hasLevel) {
+            logs = auditLogRepository.findTop100ByTenantCodeAndLevelOrderByCreatedAtDesc(tenantCode.trim(), level.trim().toUpperCase());
+        } else if (hasTenant) {
+            logs = auditLogRepository.findTop100ByTenantCodeOrderByCreatedAtDesc(tenantCode.trim());
+        } else if (hasLevel) {
+            logs = auditLogRepository.findTop100ByLevelOrderByCreatedAtDesc(level.trim().toUpperCase());
+        } else {
+            logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
+        }
+
+        return logs.stream()
                 .map(log -> {
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("id", log.getId());
-                    item.put("tenantCode", log.getTenantCode() != null ? log.getTenantCode() : "MASTER");
-                    item.put("platformUserId", log.getPlatformUserId());
+                    item.put("tenantCode", log.getTenantCode() != null ? log.getTenantCode() : "SYSTEM");
+                    item.put("category", log.getCategory());
                     item.put("action", log.getAction());
-                    item.put("level", log.getLevel() != null ? log.getLevel() : "INFO");
-                    item.put("description", log.getDescription());
+                    item.put("level", log.getLevel() != null ? log.getLevel() : "ERROR");
+                    item.put("message", log.getMessage());
+                    item.put("description", log.getMessage()); // backwards compatibility with UI
+                    item.put("endpoint", log.getEndpoint());
+                    item.put("method", log.getMethod());
+                    item.put("statusCode", log.getStatusCode());
                     item.put("ipAddress", log.getIpAddress());
+                    item.put("traceId", log.getTraceId());
+                    item.put("stackTrace", log.getStackTrace());
                     item.put("metadataJson", log.getMetadataJson());
                     item.put("timestamp", log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
                     return item;

@@ -129,13 +129,9 @@ export function SubscriptionPage() {
     <section className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-brand-primary">Doanh nghiệp</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
             Gói dịch vụ &amp; Hóa đơn
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-            Theo dõi gói bản quyền hiện tại, mức sử dụng hạn mức AI/lưu trữ, đổi gói và lịch sử hóa đơn.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

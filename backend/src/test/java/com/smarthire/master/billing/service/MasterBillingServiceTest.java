@@ -48,7 +48,7 @@ class MasterBillingServiceTest {
     private MasterConsentLogRepository consentLogRepository;
 
     @Mock
-    private PlatformAuditLogRepository platformAuditLogRepository;
+    private TenantSystemLogRepository systemLogRepository;
 
     @Mock
     private MasterTenantService masterTenantService;
@@ -76,7 +76,7 @@ class MasterBillingServiceTest {
                 planRepository,
                 subscriptionRepository,
                 consentLogRepository,
-                platformAuditLogRepository,
+                systemLogRepository,
                 masterTenantService,
                 mailSender,
                 orderPdfGeneratorService,
@@ -165,9 +165,9 @@ class MasterBillingServiceTest {
         assertThat(consentCaptor.getValue().get(0).getUserAgent()).isEqualTo("Mozilla/5.0 Chrome/130");
         assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_2025");
 
-        ArgumentCaptor<PlatformAuditLog> auditCaptor = ArgumentCaptor.forClass(PlatformAuditLog.class);
-        verify(platformAuditLogRepository).save(auditCaptor.capture());
-        assertThat(auditCaptor.getValue().getDescription()).contains("Luật Bảo vệ dữ liệu cá nhân 2025");
+        ArgumentCaptor<TenantSystemLog> auditCaptor = ArgumentCaptor.forClass(TenantSystemLog.class);
+        verify(systemLogRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getMessage()).contains("Luật Bảo vệ dữ liệu cá nhân 2025");
     }
 
     @Test
@@ -187,7 +187,7 @@ class MasterBillingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Điều khoản dịch vụ");
 
-        verifyNoInteractions(invoiceRepository, consentLogRepository, platformAuditLogRepository);
+        verifyNoInteractions(invoiceRepository, consentLogRepository, systemLogRepository);
     }
 
     @Test

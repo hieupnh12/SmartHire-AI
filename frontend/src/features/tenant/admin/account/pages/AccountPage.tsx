@@ -74,10 +74,8 @@ export function AccountPage() {
       </aside>
 
       <div className="min-w-0">
-        <header className="mb-8 rounded-3xl border border-[var(--color-border-default)] bg-gradient-to-br from-[var(--color-primary-subtle)] via-white to-white px-6 py-8 sm:px-10">
-          <p className="text-sm font-semibold text-brand-primary">{t("tenantAdmin.account.eyebrow")}</p>
-          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-on-surface)]">{t("tenantAdmin.account.title")}</h1>
-          <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{t("tenantAdmin.account.subtitle")}</p>
+        <header className="mb-6 rounded-3xl border border-[var(--color-border-default)] bg-gradient-to-br from-[var(--color-primary-subtle)] via-white to-white px-6 py-6 sm:px-8">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[var(--color-on-surface)]">{t("tenantAdmin.account.title")}</h1>
         </header>
 
         {activeSection === "profile" && (

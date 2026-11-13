@@ -47,7 +47,7 @@ class DropboxSignContractServiceTest {
     @Mock
     private ConsultationRequestRepository consultationRequestRepository;
     @Mock
-    private PlatformAuditLogRepository auditLogRepository;
+    private TenantSystemLogRepository auditLogRepository;
     @Mock
     private MasterBillingService masterBillingService;
     @Mock
