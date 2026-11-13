@@ -3,19 +3,17 @@ import { useSearchParams } from "react-router-dom";
 import { TenantSystemLog } from "@/api/master/masterAdminApi";
 import { useAuditLogs, useTenants } from "@/api/master/queries";
 import { LogDetailModal } from "../components/modals/LogDetailModal";
-import { useT, useLocale, formatDateTime, formatNumber } from "@/i18n";
+import { useT, useLocale, formatDateTime } from "@/i18n";
 import {
   Terminal,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
   if (total <= 7) {
@@ -38,8 +36,8 @@ export function AuditLogsPage() {
   const [params, setParams] = useSearchParams();
 
   const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
-  const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
-  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 10;
+  const rawSize = parseInt(params.get("limit") || params.get("size") || "25", 10);
+  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 25;
   const requestedTenant = params.get("tenant") || "ALL";
   const requestedLevel = params.get("level") || "ALL";
 
@@ -47,14 +45,13 @@ export function AuditLogsPage() {
   const [pageSize, setPageSize] = useState(requestedSize);
   const [tenantFilter, setTenantFilter] = useState<string>(requestedTenant);
   const [logLevelFilter, setLogLevelFilter] = useState<string>(requestedLevel);
-  const [jumpVal, setJumpVal] = useState("");
   const [selectedLog, setSelectedLog] = useState<TenantSystemLog | null>(null);
 
   // Synchronize when browser Back / Forward is clicked
   useEffect(() => {
     const p = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
-    const raw = parseInt(params.get("limit") || params.get("size") || "10", 10);
-    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(raw) ? raw : 10;
+    const raw = parseInt(params.get("limit") || params.get("size") || "25", 10);
+    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(raw) ? raw : 25;
     const tCode = params.get("tenant") || "ALL";
     const lvl = params.get("level") || "ALL";
 
@@ -132,7 +129,7 @@ export function AuditLogsPage() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">
+            <h1 className="text-sm sm:text-base font-semibold text-slate-600">
               {t("master.ops.auditLogs.title")}
             </h1>
           </div>
@@ -258,66 +255,43 @@ export function AuditLogsPage() {
           </table>
         </div>
 
-        {/* Full UX/UI Pagination Footer */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between shadow-2xs">
-          {/* Left: Range Info & Background Fetching Indicator */}
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <p>
-              Hiển thị{" "}
-              <strong className="font-semibold text-slate-900">
-                {totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}
-              </strong>{" "}
-              trên <strong className="font-semibold text-slate-900">{formatNumber(totalItems, undefined, locale)}</strong> bản ghi
-            </p>
-            <span className="text-slate-300">·</span>
-            <span className="tabular-nums">
-              Trang {currentPage} / {totalPages}
-            </span>
-            {isFetching && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 ml-1" role="status">
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                <span className="hidden sm:inline">Đang tải…</span>
+        {/* Minimalist Pagination (Chỉ hiển thị khi có trên 10 logs và không bọc khung) */}
+        {totalItems > 10 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 text-xs text-slate-500">
+            {/* Left: Hiển thị 25 dòng & Hiển thị 1 - 14 / 14 log */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span>Hiển thị</span>
+                <select
+                  aria-label="Số dòng mỗi trang"
+                  value={pageSize}
+                  onChange={(e) => {
+                    const nextSize = Number(e.target.value);
+                    goToPage(1, nextSize);
+                  }}
+                  className="h-7 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-blue-600 cursor-pointer"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size} dòng
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <span>
+                Hiển thị {startIndex + 1} - {Math.min(startIndex + pageSize, totalItems)} / {totalItems} log
               </span>
-            )}
-          </div>
 
-          {/* Center: Rows per page dropdown */}
-          <div className="flex items-center justify-start lg:justify-center">
-            <label className="flex items-center gap-1.5 text-xs text-slate-600">
-              <span>Hiển thị</span>
-              <select
-                aria-label="Số bản ghi mỗi trang"
-                value={pageSize}
-                onChange={(e) => {
-                  const nextSize = Number(e.target.value);
-                  goToPage(1, nextSize);
-                }}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 shadow-2xs outline-none hover:border-blue-600 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 cursor-pointer"
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>
-                    {size} / trang
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+              {isFetching && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-blue-600">
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                </span>
+              )}
+            </div>
 
-          {/* Right: Navigation Controls & Page Jumper */}
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <nav className="flex items-center gap-1" aria-label="Điều hướng phân trang">
-              {/* First Page [|<] */}
-              <button
-                type="button"
-                aria-label="Về trang đầu"
-                title="Về trang đầu"
-                disabled={currentPage <= 1}
-                onClick={() => goToPage(1)}
-                className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronsLeft className="size-4" aria-hidden="true" />
-              </button>
-
+            {/* Right: <  1  2  3  > */}
+            <div className="flex items-center gap-1">
               {/* Previous [<] */}
               <button
                 type="button"
@@ -325,19 +299,19 @@ export function AuditLogsPage() {
                 title="Trang trước"
                 disabled={currentPage <= 1}
                 onClick={() => goToPage(currentPage - 1)}
-                className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft className="size-4" aria-hidden="true" />
               </button>
 
-              {/* Page Number Buttons */}
+              {/* Page Numbers */}
               <div className="flex items-center gap-1">
                 {pageItems.map((item, idx) => {
                   if (typeof item !== "number") {
                     return (
                       <span
                         key={`${item}-${idx}`}
-                        className="grid size-8 place-items-center text-xs text-slate-400 select-none"
+                        className="px-1 text-slate-400 select-none"
                         aria-hidden="true"
                       >
                         …
@@ -354,10 +328,10 @@ export function AuditLogsPage() {
                       aria-current={isActive ? "page" : undefined}
                       onClick={() => goToPage(item)}
                       className={cn(
-                        "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all shadow-2xs",
+                        "inline-flex min-w-7 h-7 px-2 items-center justify-center rounded-md text-xs font-semibold transition-colors",
                         isActive
-                          ? "bg-blue-600 text-white shadow-xs"
-                          : "border border-slate-200 bg-white text-slate-700 hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600"
+                          ? "bg-blue-600 text-white"
+                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                       )}
                     >
                       {item}
@@ -373,62 +347,13 @@ export function AuditLogsPage() {
                 title="Trang sau"
                 disabled={currentPage >= totalPages}
                 onClick={() => goToPage(currentPage + 1)}
-                className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronRight className="size-4" aria-hidden="true" />
               </button>
-
-              {/* Last Page [>|] */}
-              <button
-                type="button"
-                aria-label="Đến trang cuối"
-                title={`Đến trang cuối (${totalPages})`}
-                disabled={currentPage >= totalPages}
-                onClick={() => goToPage(totalPages)}
-                className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronsRight className="size-4" aria-hidden="true" />
-              </button>
-            </nav>
-
-            {/* Page Jumper */}
-            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" aria-hidden="true" />
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const p = parseInt(jumpVal, 10);
-                if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                  goToPage(p);
-                  setJumpVal("");
-                }
-              }}
-              className="flex items-center gap-1.5 text-xs text-slate-600"
-            >
-              <label htmlFor="jump-log-page" className="whitespace-nowrap">
-                Đi đến:
-              </label>
-              <input
-                id="jump-log-page"
-                type="number"
-                min={1}
-                max={totalPages}
-                placeholder={String(currentPage)}
-                value={jumpVal}
-                onChange={(e) => setJumpVal(e.target.value)}
-                className="h-8 w-11 rounded-lg border border-slate-200 bg-white px-1 text-center text-xs font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-blue-600 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                title={`Nhập trang từ 1 đến ${totalPages}`}
-              />
-              <span>Trang</span>
-              <button
-                type="submit"
-                disabled={!jumpVal || isNaN(Number(jumpVal)) || Number(jumpVal) < 1 || Number(jumpVal) > totalPages}
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-blue-600 hover:bg-blue-50/50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Đi
-              </button>
-            </form>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <LogDetailModal selectedLog={selectedLog} setSelectedLog={setSelectedLog} />
     </>

@@ -139,6 +139,45 @@ public class TenantSystemLogService {
         });
     }
 
+    /**
+     * Records a frontend client-side crash/error log asynchronously.
+     */
+    public void logClientError(
+            String tenantCode,
+            String action,
+            String message,
+            String pageUrl,
+            String userAgent,
+            String ipAddress,
+            String traceId,
+            String stackTrace,
+            Map<String, Object> extraMeta) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                String metaJson = serializeMetadata(extraMeta);
+
+                TenantSystemLog systemLog = TenantSystemLog.builder()
+                        .tenantCode(normalizeTenant(tenantCode))
+                        .level("ERROR")
+                        .category("FRONTEND_UI")
+                        .action(action != null ? action : "REACT_CRASH")
+                        .message(message != null ? truncate(message, 2000) : "Frontend Unhandled Exception")
+                        .endpoint(pageUrl != null ? truncate(pageUrl, 255) : null)
+                        .method("CLIENT")
+                        .statusCode(500)
+                        .ipAddress(ipAddress)
+                        .traceId(traceId)
+                        .stackTrace(stackTrace != null ? truncate(stackTrace, 5000) : null)
+                        .metadataJson(metaJson)
+                        .build();
+
+                saveLogInternal(systemLog);
+            } catch (Exception e) {
+                log.warn("Failed to persist TenantSystemLog client crash error: {}", e.getMessage());
+            }
+        });
+    }
+
     private void saveLogInternal(TenantSystemLog systemLog) {
         if (transactionTemplate != null) {
             transactionTemplate.execute(status -> logRepository.save(systemLog));
