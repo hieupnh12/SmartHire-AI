@@ -82,9 +82,23 @@ public class ConsultationRequestService {
             entity = repository.findFirstByWorkEmailOrderByCreatedAtDesc(request.getRecipientEmail().trim().toLowerCase()).orElse(null);
         }
 
+        String normalizedCode = StringUtils.hasText(request.getProposedCode())
+                ? request.getProposedCode().trim().toLowerCase()
+                : null;
+        String normalizedSubdomain = StringUtils.hasText(request.getProposedSubdomain())
+                ? request.getProposedSubdomain().trim().toLowerCase()
+                : null;
+
         if (entity != null) {
             entity.setStatus("QUOTED");
             entity.setPlanTier(plan.getName());
+            entity.setQuotedPlanId(plan.getId());
+            if (normalizedCode != null) {
+                entity.setProposedCode(normalizedCode);
+            }
+            if (normalizedSubdomain != null) {
+                entity.setProposedSubdomain(normalizedSubdomain);
+            }
             if (StringUtils.hasText(request.getNotes())) {
                 String existing = entity.getNotes() != null ? entity.getNotes() + "\n" : "";
                 entity.setNotes(existing + "[Báo giá gửi lúc " + LocalDate.now() + "]: " + request.getNotes());
@@ -98,6 +112,9 @@ public class ConsultationRequestService {
                     .phoneNumber(request.getPhoneNumber())
                     .requestType("CONTRACT_QUOTE")
                     .planTier(plan.getName())
+                    .quotedPlanId(plan.getId())
+                    .proposedCode(normalizedCode)
+                    .proposedSubdomain(normalizedSubdomain)
                     .notes(request.getNotes())
                     .status("QUOTED")
                     .build());

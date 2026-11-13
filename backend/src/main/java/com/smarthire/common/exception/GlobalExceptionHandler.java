@@ -1,8 +1,13 @@
 package com.smarthire.common.exception;
 
 import com.smarthire.common.api.ApiResponse;
+import com.smarthire.master.system.service.TenantSystemLogService;
+import com.smarthire.multitenancy.context.TenantContext;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -21,11 +26,42 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private TenantSystemLogService systemLogService;
+
+    @Autowired(required = false)
+    public void setSystemLogService(TenantSystemLogService systemLogService) {
+        this.systemLogService = systemLogService;
+    }
+
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex, HttpServletRequest request) {
         log.warn("Business exception [{}]: {}", ex.getCode(), ex.getMessage(), ex);
+
+        if (ex.getStatus() != null && ex.getStatus().is5xxServerError() && systemLogService != null && request != null) {
+            String tenantCode = TenantContext.getCurrentTenant();
+            String traceId = request.getAttribute("TRACE_ID") != null
+                    ? String.valueOf(request.getAttribute("TRACE_ID"))
+                    : MDC.get("traceId");
+            systemLogService.logHttpError(
+                    tenantCode,
+                    ex.getCode() != null ? ex.getCode() : "SERVER_ERROR",
+                    ex.getMessage(),
+                    request.getRequestURI(),
+                    request.getMethod(),
+                    ex.getStatus().value(),
+                    request.getRemoteAddr(),
+                    traceId,
+                    ex,
+                    null
+            );
+        }
+
         return ResponseEntity.status(ex.getStatus())
                 .body(ApiResponse.error(ex.getMessage(), ex.getCode()));
+    }
+
+    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
+        return handleBusiness(ex, null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -60,16 +96,39 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
+    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex, HttpServletRequest request) {
         // JPA may wrap connection-provider domain failures while opening a transaction.
         Throwable cause = ex.getCause();
         while (cause != null && cause != cause.getCause()) {
-            if (cause instanceof BusinessException business) return handleBusiness(business);
+            if (cause instanceof BusinessException business) return handleBusiness(business, request);
             cause = cause.getCause();
         }
         log.error("Unhandled exception {}: {}", ex.getClass().getName(), ex.getMessage(), ex);
+
+        if (systemLogService != null && request != null) {
+            String tenantCode = TenantContext.getCurrentTenant();
+            String traceId = request.getAttribute("TRACE_ID") != null
+                    ? String.valueOf(request.getAttribute("TRACE_ID"))
+                    : MDC.get("traceId");
+            systemLogService.logHttpError(
+                    tenantCode,
+                    "UNHANDLED_EXCEPTION",
+                    ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName(),
+                    request.getRequestURI(),
+                    request.getMethod(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    request.getRemoteAddr(),
+                    traceId,
+                    ex,
+                    Map.of("exceptionClass", ex.getClass().getName())
+            );
+        }
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An internal error occurred. Please try again later.", "INTERNAL_ERROR"));
     }
-}
 
+    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
+        return handleGeneric(ex, null);
+    }
+}

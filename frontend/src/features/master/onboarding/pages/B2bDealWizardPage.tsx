@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,6 +26,7 @@ import {
   CPQ_RATES, 
   type CpqPricingMode 
 } from "../utils/cpqPricingEngine";
+import { generateTenantSlug } from "../utils/tenantSlug";
 
 
 function createWizardSchema(t: TranslateFn) {
@@ -852,6 +853,58 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: {
   );
 }
 
+type CpqDetailsSnapshot = {
+  platformFee: number;
+  addonFee: number;
+  discount: number;
+  totalQuote: number;
+  pricingMode: string;
+};
+
+type DealWizardDraft = Partial<FormValues> & {
+  codeEdited?: boolean;
+  subdomainEdited?: boolean;
+  cpqDetails?: CpqDetailsSnapshot | null;
+};
+
+function getWizardDraftKey(leadId?: number): string | null {
+  if (!leadId || Number.isNaN(leadId) || leadId <= 0) return null;
+  return `smarthire:deal_wizard_draft:lead:${leadId}`;
+}
+
+function readWizardDraft(leadId?: number): DealWizardDraft | null {
+  const key = getWizardDraftKey(leadId);
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as DealWizardDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeWizardDraft(leadId: number | undefined, draft: DealWizardDraft): void {
+  const key = getWizardDraftKey(leadId);
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function clearWizardDraft(leadId?: number): void {
+  const key = getWizardDraftKey(leadId);
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore storage removal errors
+  }
+}
+
 export function B2bDealWizardPageContent() {
   const t = useT();
   const locale = useLocale();
@@ -861,64 +914,151 @@ export function B2bDealWizardPageContent() {
   const queryClient = useQueryClient();
   const fetchData = () => queryClient.invalidateQueries({ queryKey: masterQueryKeys.all });
 
+  const leadIdParam = searchParams.get("leadId");
+  const parsedLeadId = leadIdParam ? Number(leadIdParam) : undefined;
+  const consultationRequestId = parsedLeadId && !Number.isNaN(parsedLeadId) && parsedLeadId > 0 ? parsedLeadId : undefined;
+
+  const initialDraft = useMemo(() => readWizardDraft(consultationRequestId), [consultationRequestId]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [cpqDetails, setCpqDetails] = useState<{ platformFee: number; addonFee: number; discount: number; totalQuote: number; pricingMode: string } | null>(null);
+  const [cpqDetails, setCpqDetails] = useState<CpqDetailsSnapshot | null>(initialDraft?.cpqDetails ?? null);
   const [successData, setSuccessData] = useState<{ tenantCode: string; closingMethod: "QUOTATION" | "INVOICE" | "CONTRACT"; recipientEmail?: string } | null>(null);
 
-  const leadIdParam = searchParams.get("leadId");
-  const consultationRequestId = leadIdParam ? Number(leadIdParam) : undefined;
   const initialName = searchParams.get("name") || "";
   const initialAdminName = searchParams.get("adminName") || "";
   const initialEmail = searchParams.get("email") || "";
   const initialPhone = searchParams.get("phone") || "";
-  const initialCode = initialName
-    ? initialName
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .substring(0, 30)
-    : "";
+  const initialSlug = generateTenantSlug(initialName);
+
+  const codeManuallyEditedRef = useRef<boolean>(
+    Boolean(initialDraft?.codeEdited) ||
+    (typeof initialDraft?.code === "string" && initialDraft.code.length > 0 && initialDraft.code !== initialSlug)
+  );
+  const subdomainManuallyEditedRef = useRef<boolean>(
+    Boolean(initialDraft?.subdomainEdited) ||
+    (typeof initialDraft?.subdomain === "string" && initialDraft.subdomain.length > 0 && initialDraft.subdomain !== initialSlug)
+  );
+  const dealClosedRef = useRef<boolean>(false);
 
   const wizardSchema = useMemo(() => createWizardSchema(t), [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(wizardSchema),
     defaultValues: {
-      name: initialName,
-      code: initialCode,
-      subdomain: initialCode,
-      adminName: initialAdminName,
-      adminEmail: initialEmail,
-      phone: initialPhone,
-      environmentType: "PRODUCTION",
-      billingCycle: "YEARLY",
-      closingMethod: "QUOTATION",
-      planId: plans?.[0]?.id || 0,
-      companyLegalName: initialName,
-      billingEmail: initialEmail,
+      name: initialDraft?.name ?? initialName,
+      code: initialDraft?.code ?? initialSlug,
+      subdomain: initialDraft?.subdomain ?? initialSlug,
+      adminName: initialDraft?.adminName ?? initialAdminName,
+      adminEmail: initialDraft?.adminEmail ?? initialEmail,
+      phone: initialDraft?.phone ?? initialPhone,
+      environmentType: initialDraft?.environmentType ?? "PRODUCTION",
+      billingCycle: initialDraft?.billingCycle ?? "YEARLY",
+      closingMethod: initialDraft?.closingMethod ?? "QUOTATION",
+      planId: initialDraft?.planId ?? plans?.[0]?.id ?? 0,
+      companyLegalName: initialDraft?.companyLegalName ?? (initialDraft?.name ?? initialName),
+      billingEmail: initialDraft?.billingEmail ?? initialEmail,
+      taxCode: initialDraft?.taxCode ?? "",
+      address: initialDraft?.address ?? "",
+      representative: initialDraft?.representative ?? "",
+      notes: initialDraft?.notes ?? "",
     },
     mode: "onChange",
   });
 
+  // Hydrate persisted proposedCode/proposedSubdomain/quotedPlanId from backend Lead if user hasn't edited locally
+  useEffect(() => {
+    if (!consultationRequestId) return;
+    let active = true;
+    consultationApi
+      .getById(consultationRequestId)
+      .then((lead) => {
+        if (!active || !lead) return;
+
+        if (!form.getValues("name") && lead.companyName) {
+          form.setValue("name", lead.companyName, { shouldValidate: true });
+        }
+        if (!form.getValues("companyLegalName") && lead.companyName) {
+          form.setValue("companyLegalName", lead.companyName);
+        }
+        if (!form.getValues("adminName") && lead.contactName) {
+          form.setValue("adminName", lead.contactName, { shouldValidate: true });
+        }
+        if (!form.getValues("adminEmail") && lead.workEmail) {
+          form.setValue("adminEmail", lead.workEmail, { shouldValidate: true });
+        }
+        if (!form.getValues("billingEmail") && lead.workEmail) {
+          form.setValue("billingEmail", lead.workEmail, { shouldValidate: true });
+        }
+        if (!form.getValues("phone") && lead.phoneNumber) {
+          form.setValue("phone", lead.phoneNumber);
+        }
+
+        const effectiveName = form.getValues("name") || lead.companyName || "";
+        const computedSlug = generateTenantSlug(effectiveName);
+
+        if (!codeManuallyEditedRef.current) {
+          if (lead.proposedCode) {
+            form.setValue("code", lead.proposedCode, { shouldValidate: true });
+            codeManuallyEditedRef.current = true;
+          } else if (!form.getValues("code") && computedSlug) {
+            form.setValue("code", computedSlug, { shouldValidate: true });
+          }
+        }
+
+        if (!subdomainManuallyEditedRef.current) {
+          if (lead.proposedSubdomain) {
+            form.setValue("subdomain", lead.proposedSubdomain, { shouldValidate: true });
+            subdomainManuallyEditedRef.current = true;
+          } else if (!form.getValues("subdomain") && computedSlug) {
+            form.setValue("subdomain", computedSlug, { shouldValidate: true });
+          }
+        }
+
+        if ((!form.getValues("planId") || form.getValues("planId") === 0) && lead.quotedPlanId) {
+          form.setValue("planId", lead.quotedPlanId, { shouldValidate: true });
+        }
+      })
+      .catch(() => {
+        // Fallback silently to query params / local draft if lead lookup fails
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [consultationRequestId, form]);
+
+  // Persist wizard edits per leadId so edited code/subdomain survive page navigation and reload
+  useEffect(() => {
+    if (!consultationRequestId || dealClosedRef.current) return;
+
+    const persistCurrentDraft = (values: Partial<FormValues>) => {
+      if (dealClosedRef.current) return;
+      writeWizardDraft(consultationRequestId, {
+        ...values,
+        codeEdited: codeManuallyEditedRef.current,
+        subdomainEdited: subdomainManuallyEditedRef.current,
+        cpqDetails,
+      });
+    };
+
+    const subscription = form.watch((values) => {
+      persistCurrentDraft(values as Partial<FormValues>);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [consultationRequestId, form, cpqDetails]);
+
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    form.setValue("name", val);
-    const generatedCode = val
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .substring(0, 30);
+    form.setValue("name", val, { shouldValidate: true });
+    const generatedCode = generateTenantSlug(val);
 
-    if (!form.getValues("code") || form.getFieldState("code").isDirty === false) {
+    if (!codeManuallyEditedRef.current && (!form.getValues("code") || form.getFieldState("code").isDirty === false)) {
       form.setValue("code", generatedCode, { shouldValidate: true });
     }
-    if (!form.getValues("subdomain") || form.getFieldState("subdomain").isDirty === false) {
+    if (!subdomainManuallyEditedRef.current && (!form.getValues("subdomain") || form.getFieldState("subdomain").isDirty === false)) {
       form.setValue("subdomain", generatedCode, { shouldValidate: true });
     }
   };
@@ -949,6 +1089,15 @@ export function B2bDealWizardPageContent() {
           totalQuote: cpqDetails?.totalQuote ?? amountVnd,
           pricingMode: cpqDetails?.pricingMode,
           notes: values.notes,
+          proposedCode: values.code.trim().toLowerCase(),
+          proposedSubdomain: values.subdomain.trim().toLowerCase(),
+        });
+
+        writeWizardDraft(consultationRequestId, {
+          ...values,
+          codeEdited: true,
+          subdomainEdited: true,
+          cpqDetails,
         });
 
         fetchData();
@@ -1008,6 +1157,9 @@ export function B2bDealWizardPageContent() {
           partyBEmail: values.billingEmail,
         });
       }
+
+      dealClosedRef.current = true;
+      clearWizardDraft(consultationRequestId);
 
       fetchData();
       setSuccessData({ tenantCode: tenant.code, closingMethod: values.closingMethod });
@@ -1100,14 +1252,38 @@ export function B2bDealWizardPageContent() {
 
                   <div>
                     <label className={labelClass}>{t("master.commerce.dealWizard.codeLabel")} <span className="text-red-500">*</span></label>
-                    <input {...form.register("code")} className={`${inputClass} font-mono text-blue-700 font-semibold`} />
+                    <input
+                      {...(() => {
+                        const field = form.register("code");
+                        return {
+                          ...field,
+                          onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                            codeManuallyEditedRef.current = true;
+                            field.onChange(e);
+                          },
+                        };
+                      })()}
+                      className={`${inputClass} font-mono text-blue-700 font-semibold`}
+                    />
                     {form.formState.errors.code && <p className="mt-1 text-xs text-red-600">{form.formState.errors.code.message}</p>}
                   </div>
 
                   <div>
                     <label className={labelClass}>{t("master.commerce.dealWizard.subdomainLabel")} <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <input {...form.register("subdomain")} className={`${inputClass} font-mono pr-28 text-blue-700 font-semibold`} />
+                      <input
+                        {...(() => {
+                          const field = form.register("subdomain");
+                          return {
+                            ...field,
+                            onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                              subdomainManuallyEditedRef.current = true;
+                              field.onChange(e);
+                            },
+                          };
+                        })()}
+                        className={`${inputClass} font-mono pr-28 text-blue-700 font-semibold`}
+                      />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">.smarthire.top</span>
                     </div>
                     {form.formState.errors.subdomain && <p className="mt-1 text-xs text-red-600">{form.formState.errors.subdomain.message}</p>}
@@ -1433,5 +1609,7 @@ export function B2bDealWizardPageContent() {
 }
 
 export function B2bDealWizardPage() {
-  return <B2bDealWizardPageContent />;
+  const [searchParams] = useSearchParams();
+  const leadKey = searchParams.get("leadId") || "new";
+  return <B2bDealWizardPageContent key={leadKey} />;
 }

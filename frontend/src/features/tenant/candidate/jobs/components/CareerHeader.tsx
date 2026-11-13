@@ -31,6 +31,7 @@ import {
 } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { MobileAppHeaderButton, MobileAppSyncModal } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
+import { useLocalizedLanding } from "@/features/tenant/candidate/jobs/utils/landingLocalization";
 
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
 
@@ -204,6 +205,7 @@ type Props = {
 
 export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryColor }: Props) {
   const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const navRef = useRef<HTMLElement>(null);
@@ -220,11 +222,28 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const clearAuth = useAuthStore((state) => state.logout);
   const landingTenant = getTenantIdFromWindow() || "acme";
   const landing = useQuery({ queryKey: ["public-landing", landingTenant], queryFn: landingApi.getPublicLanding, staleTime: 0 });
+  const localizedLanding = useLocalizedLanding(landing.data?.data, tenantName);
   const publicJobs = useQuery({ queryKey: ["public-jobs", ""], queryFn: () => jobApi.publicList(), staleTime: 60_000 });
   const menus: Menus = useMemo(
-    () => ({ ...buildBaseMenus(t), company: buildCompanyMenu(t, landing.data?.data, publicJobs.data?.data ?? [], Boolean(token)) }),
-    [t, landing.data, publicJobs.data, token],
+    () => ({ ...buildBaseMenus(t), company: buildCompanyMenu(t, localizedLanding, publicJobs.data?.data ?? [], Boolean(token)) }),
+    [t, localizedLanding, publicJobs.data, token],
   );
+
+  const resolvedSlogan = useMemo(() => {
+    if (!slogan) return t("candidate.core.header.defaultSlogan");
+    if (locale !== "vi") {
+      const sNorm = slogan
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[đĐ]/g, "d")
+        .toLowerCase()
+        .trim();
+      if (sNorm.includes("cong tuyen dung nhan tai") || sNorm.includes("cong tuyen dung")) {
+        return t("candidate.core.header.defaultSlogan");
+      }
+    }
+    return slogan;
+  }, [slogan, locale, t]);
   const profile = useQuery({ queryKey: ["auth", "career-profile"], queryFn: authApi.me, enabled: Boolean(token) && !storedUser, retry: false });
   const user = storedUser ?? profile.data?.data ?? null;
   const notifications = useNotifications(Boolean(token));
@@ -265,7 +284,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
       <div className="mx-auto flex h-[76px] max-w-[1536px] items-center gap-5 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-3" aria-label={t("seo.career.careersSiteName", { tenantName })}>
           {showLogo ? <img src={logoUrl!} alt="" className="h-11 max-w-36 object-contain" onError={() => setFailedLogoUrl(logoUrl ?? null)} /> : <span className="grid size-11 place-items-center rounded-xl text-lg font-semibold text-white" style={{ backgroundColor: primaryColor }}>{tenantCode.charAt(0).toUpperCase()}</span>}
-          <span className="hidden min-w-0 xl:block"><span className="block max-w-44 truncate text-lg font-semibold text-slate-800">{tenantName}</span><span className="block max-w-44 truncate text-[11px] text-slate-500">{slogan || t("candidate.core.header.defaultSlogan")}</span></span>
+          <span className="hidden min-w-0 xl:block"><span className="block max-w-44 truncate text-lg font-semibold text-slate-800">{tenantName}</span><span className="block max-w-44 truncate text-[11px] text-slate-500">{resolvedSlogan}</span></span>
         </Link>
 
         <nav ref={navRef} className="relative hidden h-full flex-1 items-stretch lg:flex" aria-label={t("candidate.core.header.navAria")} onMouseLeave={() => setActiveMenu(null)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveMenu(null); }}>

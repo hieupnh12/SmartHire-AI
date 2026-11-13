@@ -111,15 +111,14 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     "/notifications",
   ]);
   const displayedLinks = isRecruiterWorkspace
-    ? isRecruiterJobForm || (accessToken && !user)
+    ? isRecruiterJobForm || (accessToken && !user) || !recruiterJobId
       ? []
-      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "").map((item) => {
           let to: string = item.to;
           if (item.to === "/jobs") {
-            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "";
+            to = `/jobs/${recruiterJobId}`;
           } else if (jobScopedNav.has(item.to)) {
-            if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
-            else to = "";
+            to = `/jobs/${recruiterJobId}${item.to}`;
           }
           return { ...item, to };
         })
@@ -140,6 +139,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     !isRecruiterDashboard &&
     !isRecruiterQuestionBank &&
     !isRecruiterJobForm &&
+    !!recruiterJobId &&
     !!accessToken &&
     !user;
 
@@ -280,8 +280,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
       return groups;
     }, []);
 
+    const isSingleViewportAdmin =
+      location.pathname.endsWith("/recruiter-assignments") ||
+      location.pathname === basePath ||
+      location.pathname === `${basePath}/`;
+
     return (
-      <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+      <div className={cn("tenant-workspace-theme bg-surface-page", isSingleViewportAdmin ? "h-screen overflow-hidden" : "min-h-screen")} style={getTenantThemeStyle(tenantTheme)}>
         <aside
           className="fixed inset-y-0 left-0 z-40 flex w-20 flex-col border-r border-[var(--color-border-default)] bg-white/95 p-3 shadow-sm backdrop-blur-md"
           aria-label={t("a11y.mainNav")}
@@ -403,8 +408,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </div>
         </aside>
 
-        <div className="ml-20 min-h-screen">
-          <header className="sticky top-0 z-30 border-b border-[var(--color-border-default)] bg-white/90 shadow-sm backdrop-blur-md">
+        <div className={cn("ml-20", isSingleViewportAdmin ? "flex h-screen flex-col overflow-hidden" : "min-h-screen")}>
+          <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border-default)] bg-white/90 shadow-sm backdrop-blur-md">
             <div className="grid min-h-14 w-full grid-cols-[2.5rem_minmax(0,40rem)_2.5rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
               <span aria-hidden="true" />
               <AdminGlobalSearch basePath={basePath} />
@@ -461,8 +466,14 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             </div>
           </header>
 
-          <main id="main-content" className="px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10">
-            <div className="mx-auto max-w-[1456px]">
+          <main
+            id="main-content"
+            className={cn(
+              "px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10",
+              isSingleViewportAdmin && "flex flex-1 min-h-0 flex-col overflow-hidden px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8",
+            )}
+          >
+            <div className={cn("mx-auto max-w-[1456px]", isSingleViewportAdmin && "flex h-full w-full min-h-0 flex-col")}>
               <Outlet />
             </div>
           </main>

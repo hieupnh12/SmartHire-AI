@@ -93,10 +93,10 @@ feature-name/
 Các chức năng quản trị nền tảng dùng URL riêng để hỗ trợ tải lại trang, bookmark và điều hướng Back/Forward:
 
 - `/admin/dashboard`, `/admin/analytics`, `/admin/leads`, `/admin/deals`
-- `/admin/tenants/{overview|directory|create|provisioning}` (`/admin/tenants` chuyển về `directory`; `/admin/tenants/create` trỏ tới `B2bDealWizardPage`)
+- `/admin/tenants/{directory|provisioning}` (`/admin/tenants` chuyển về `directory`; `/admin/tenants/create` trỏ tới `B2bDealWizardPage`)
 - `/admin/contracts`, `/admin/contracts/create`, `/admin/invoices`
-- `/admin/subscriptions/{overview|plans|allocations|create}` (`/admin/subscriptions` chuyển về `plans`)
+- `/admin/subscriptions/{plans|allocations|create}` (`/admin/subscriptions` chuyển về `plans`)
 - `/admin/system/{logs|ai-usage|ai-quotas|ai-config}`
-- `/admin/account/{profile|security|accessibility|notifications}`
+- `/admin/account` (hỗ trợ query tab: `?tab=profile|security|accessibility|notifications`, tự động redirect từ các sub-route cũ)
 
 `/admin` chuyển hướng về `/admin/dashboard`. Sidebar (`MasterAdminSidebar.tsx`) điều hướng bằng React Router; không dùng state cục bộ làm nguồn sự thật cho trang hiện tại.

@@ -22,14 +22,14 @@ function getAdminPageTitle(pathname: string, t: TranslateFn): string {
   if (pathname.startsWith("/admin/deals") || pathname.startsWith("/admin/tenants/create")) {
     return t("master.shell.titles.b2bDeals");
   }
-  if (pathname.startsWith("/admin/tenants/directory") || pathname.startsWith("/admin/tenants/overview")) {
+  if (pathname.startsWith("/admin/tenants/directory")) {
     return t("master.shell.titles.tenantDirectory");
   }
   if (pathname.startsWith("/admin/tenants/provisioning")) return t("master.shell.titles.tenantProvisioning");
   if (pathname.startsWith("/admin/tenants")) return t("master.shell.titles.tenants");
   if (pathname.startsWith("/admin/contracts/create")) return t("master.shell.titles.contractCreate");
   if (pathname.startsWith("/admin/contracts")) return t("master.shell.titles.contracts");
-  if (pathname.startsWith("/admin/invoices") || pathname.startsWith("/admin/billing/invoices")) {
+  if (pathname.startsWith("/admin/invoices")) {
     return t("master.shell.titles.invoices");
   }
   if (pathname.startsWith("/admin/billing/vnpay")) return t("master.shell.titles.vnpay");
@@ -44,10 +44,6 @@ function getAdminPageTitle(pathname: string, t: TranslateFn): string {
   if (pathname.startsWith("/admin/system/ai-quotas")) return t("master.shell.titles.aiQuotas");
   if (pathname.startsWith("/admin/system/ai-config")) return t("master.shell.titles.aiConfig");
   if (pathname.startsWith("/admin/system")) return t("master.shell.titles.system");
-  if (pathname.startsWith("/admin/account/profile")) return t("master.shell.titles.accountProfile");
-  if (pathname.startsWith("/admin/account/security")) return t("master.shell.titles.accountSecurity");
-  if (pathname.startsWith("/admin/account/accessibility")) return t("master.shell.titles.accountAccessibility");
-  if (pathname.startsWith("/admin/account/notifications")) return t("master.shell.titles.accountNotifications");
   if (pathname.startsWith("/admin/account")) return t("master.shell.titles.account");
   return t("master.shell.titles.platformAdmin");
 }
@@ -239,11 +235,11 @@ export function MasterAdminLayout() {
                   {/* Account Navigation Links */}
                   <div className="space-y-0.5">
                     <Link
-                      to="/admin/account/profile"
+                      to="/admin/account?tab=profile"
                       onClick={() => setIsAccountOpen(false)}
                       className={cn(
                         "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors",
-                        location.pathname === "/admin/account/profile"
+                        location.pathname === "/admin/account" && (!location.search || location.search.includes("profile"))
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       )}
@@ -253,11 +249,11 @@ export function MasterAdminLayout() {
                     </Link>
 
                     <Link
-                      to="/admin/account/security"
+                      to="/admin/account?tab=security"
                       onClick={() => setIsAccountOpen(false)}
                       className={cn(
                         "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors",
-                        location.pathname === "/admin/account/security"
+                        location.pathname === "/admin/account" && location.search.includes("security")
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       )}
@@ -267,11 +263,11 @@ export function MasterAdminLayout() {
                     </Link>
 
                     <Link
-                      to="/admin/account/accessibility"
+                      to="/admin/account?tab=accessibility"
                       onClick={() => setIsAccountOpen(false)}
                       className={cn(
                         "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors",
-                        location.pathname === "/admin/account/accessibility"
+                        location.pathname === "/admin/account" && location.search.includes("accessibility")
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       )}
@@ -281,11 +277,11 @@ export function MasterAdminLayout() {
                     </Link>
 
                     <Link
-                      to="/admin/account/notifications"
+                      to="/admin/account?tab=notifications"
                       onClick={() => setIsAccountOpen(false)}
                       className={cn(
                         "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors",
-                        location.pathname === "/admin/account/notifications"
+                        location.pathname === "/admin/account" && location.search.includes("notifications")
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       )}

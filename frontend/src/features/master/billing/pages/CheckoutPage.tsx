@@ -111,6 +111,19 @@ export function CheckoutPage() {
           if (data.planCode) {
             setSelectedPlanCode(data.planCode.toUpperCase());
           }
+          if (data.quantity && data.quantity > 0) {
+            setQuantity(data.quantity);
+          }
+          if (data.workspaceName) setWorkspaceName(data.workspaceName);
+          if (data.adminFullName) setAdminFullName(data.adminFullName);
+          if (data.adminEmail) setAdminEmail(data.adminEmail);
+          if (data.adminPhone) setAdminPhone(data.adminPhone);
+          if (data.taxCode || data.companyLegalName || data.billingAddress) {
+            setNeedCompanyInvoice(true);
+            if (data.taxCode) setTaxCode(data.taxCode);
+            if (data.companyLegalName) setCompanyLegalName(data.companyLegalName);
+            if (data.billingAddress) setBillingAddress(data.billingAddress);
+          }
           if (data.status === "PAID") {
             setCurrentStep(3);
           } else if (data.status === "CANCELLED") {
@@ -425,10 +438,15 @@ export function CheckoutPage() {
             <span>{errorMsg}</span>
           </div>
         )}
+        {invoiceParam && loading && !orderResult && (
+          <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        )}
         {/* ======================================================== */}
         {/* STEP 1: ORDER INFORMATION                                */}
         {/* ======================================================== */}
-        {currentStep === 1 && (
+        {currentStep === 1 && !(invoiceParam && loading) && (
           <div className="animate-fade-in">
             <div className="mb-5">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">

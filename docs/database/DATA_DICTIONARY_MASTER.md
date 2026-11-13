@@ -333,24 +333,28 @@ Entity `PlatformUser`. Tách hoàn toàn khỏi bảng `users` của tenant — 
 
 ---
 
-## 11. `platform_audit_logs` — Nhật ký cấp nền tảng
+## 11. `tenant_system_logs` — Nhật ký hệ thống & lỗi ứng dụng cấp Tenant
 
-Entity `PlatformAuditLog`. Bảng chỉ ghi thêm, không sửa, không xoá. Cố ý **không** có khoá ngoại cứng để log
-sống lâu hơn tenant và tài khoản mà nó ghi nhận.
+Entity `TenantSystemLog`. Thay thế `platform_audit_logs` từ V39. Bảng chỉ ghi thêm, không sửa, không xoá, dùng để ghi vết lỗi kỹ thuật (HTTP 500, lỗi async worker, AI timeout, database error) và giám sát theo ngữ cảnh từng Tenant. Cố ý **không** có khoá ngoại cứng để log sống lâu hơn tenant mà nó ghi nhận.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `tenant_code` | VARCHAR(64) | IDX | Có | NULL | Tham chiếu mềm tới `tenants.code` |
-| `platform_user_id` | BIGINT | ref* | Có | NULL | Người thực hiện — **không có khoá ngoại** |
-| `action` | VARCHAR(64) | | Không | — | Mã hành động (vd: `PROVISION_TENANT`, `APPROVE_INVOICE`) |
-| `level` | VARCHAR(16) | | Không | `'INFO'` | Mức độ log (`INFO`, `WARN`, `ERROR`) |
-| `description` | TEXT | | Không | — | Mô tả chi tiết hành động |
+| `tenant_code` | VARCHAR(64) | IDX | Không | `'SYSTEM'` | Tham chiếu mềm tới `tenants.code` hoặc `'SYSTEM'` |
+| `level` | VARCHAR(16) | IDX | Không | `'ERROR'` | Mức độ log (`INFO`, `WARN`, `ERROR`) |
+| `category` | VARCHAR(64) | | Không | `'APPLICATION'` | Phân loại (`HTTP_API`, `ASYNC_WORKER`, `AI_CONFIG`, `BILLING`, `CONTRACT`) |
+| `action` | VARCHAR(64) | | Không | — | Mã hành động / loại lỗi (vd: `HTTP_500_ERROR`, `CV_PARSE_ERROR`, `AI_KEY_SAVED`) |
+| `message` | TEXT | | Không | — | Thông điệp lỗi / mô tả chi tiết sự kiện |
+| `endpoint` | VARCHAR(255) | | Có | NULL | Đường dẫn API HTTP phát sinh lỗi (vd: `/api/v1/tenant/cv/upload`) |
+| `method` | VARCHAR(16) | | Có | NULL | Phương thức HTTP (`GET`, `POST`, `PUT`, `DELETE`) |
+| `status_code` | INT | | Có | NULL | Mã trạng thái HTTP (vd: 500, 502, 400) |
 | `ip_address` | VARCHAR(64) | | Có | NULL | IP nguồn thực hiện |
+| `trace_id` | VARCHAR(64) | | Có | NULL | Mã Trace ID theo dõi luồng xử lý (SLF4J MDC) |
+| `stack_trace` | TEXT | | Có | NULL | Chi tiết vết ngăn xếp ngoại lệ phục vụ Debug |
 | `metadata_json` | JSONB | | Có | NULL | Dữ liệu bổ sung dạng JSON — **không ghi PII hoặc token** |
-| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm ghi log (có Index DESC từ V23) |
+| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm ghi log (có Index DESC từ V39) |
 
-**Index:** `idx_pal_tenant_code`, `idx_pal_created_at`
+**Index:** `idx_tsl_tenant_code`, `idx_tsl_level`, `idx_tsl_created_at`, `idx_tsl_tenant_created`
 
 ---
 
@@ -370,6 +374,9 @@ Entity `ConsultationRequest`. Lead từ landing page, có liên kết ngược s
 | `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | ID Tenant được tạo sau khi chốt deal (V23) |
 | `request_type` | VARCHAR(64) | | Không | `'DEMO'` | Loại yêu cầu (`DEMO` hoặc `CONTRACT_QUOTE`) |
 | `plan_tier` | VARCHAR(128) | | Có | NULL | Gói đang quan tâm |
+| `quoted_plan_id` | BIGINT | | Có | NULL | ID gói cước đã chọn khi gửi báo giá (V38) |
+| `proposed_code` | VARCHAR(64) | | Có | NULL | Mã doanh nghiệp đề xuất do Sales/Admin chỉnh sửa (V38) |
+| `proposed_subdomain` | VARCHAR(128) | | Có | NULL | Tên miền riêng đề xuất do Sales/Admin chỉnh sửa (V38) |
 | `primary_need` | TEXT | | Có | NULL | Nhu cầu chính |
 | `notes` | TEXT | | Có | NULL | Ghi chú nội bộ |
 | `status` | VARCHAR(32) | IDX | Không | `'PENDING'` | Trạng thái (`PENDING`, `CONTACTED`, `PROVISIONED`, `REJECTED`) |

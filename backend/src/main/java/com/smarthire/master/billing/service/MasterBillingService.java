@@ -4,17 +4,17 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.InvoiceLineItem;
 import com.smarthire.domain.master.entity.MasterConsentLog;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
 import com.smarthire.domain.master.repository.MasterConsentLogRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.billing.dto.*;
 import com.smarthire.master.tenant.service.MasterTenantService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
@@ -56,7 +56,7 @@ public class MasterBillingService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
     private final MasterConsentLogRepository consentLogRepository;
-    private final PlatformAuditLogRepository platformAuditLogRepository;
+    private final TenantSystemLogRepository systemLogRepository;
     private final MasterTenantService masterTenantService;
     @SuppressWarnings("unused")
     private final InviteMailSender mailSender;
@@ -413,12 +413,13 @@ public class MasterBillingService {
 
         consentLogRepository.saveAll(List.of(tosConsent, privacyConsent));
 
-        PlatformAuditLog auditLog = PlatformAuditLog.builder()
+        TenantSystemLog auditLog = TenantSystemLog.builder()
                 .tenantCode(tenant.getCode())
+                .category("BILLING")
                 .action("ACCEPT_CHECKOUT_TERMS")
                 .level("INFO")
                 .ipAddress(safeIp)
-                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
+                .message("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
                         + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
                 .metadataJson(String.format(
                         "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"%s\"],\"acceptedAt\":\"%s\"}",
@@ -429,7 +430,7 @@ public class MasterBillingService {
                 ))
                 .createdAt(acceptedAt)
                 .build();
-        platformAuditLogRepository.save(auditLog);
+        systemLogRepository.save(auditLog);
 
         // 5. Bank Info and SePay VietQR (Centralized PlatformProperties)
         String bankName = bank.getName();
@@ -702,7 +703,22 @@ public class MasterBillingService {
     }
 
     public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
-        return toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
+        Integer resolvedQuantity = null;
+        if (invoice != null && invoice.getId() != null) {
+            List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+            if (items != null) {
+                resolvedQuantity = items.stream()
+                        .filter(item -> item.getQuantity() != null && item.getQuantity() > 0)
+                        .map(InvoiceLineItem::getQuantity)
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+        CheckoutResponse response = toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
+        if (resolvedQuantity != null) {
+            response.setQuantity(resolvedQuantity);
+        }
+        return response;
     }
 
     public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
@@ -728,12 +744,38 @@ public class MasterBillingService {
         String planName = plan != null ? plan.getName() : "Gói dịch vụ";
         String planCode = plan != null ? plan.getCode() : "CUSTOM";
 
+        int quantity = 1;
+        if (invoice.getBillingPeriodStart() != null && invoice.getBillingPeriodEnd() != null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(invoice.getBillingPeriodStart(), invoice.getBillingPeriodEnd());
+            if (days > 0) {
+                quantity = Math.max(1, (int) Math.round(days / 365.0));
+            }
+        }
+
+        String taxCode = StringUtils.hasText(invoice.getBillingTaxCode())
+                ? invoice.getBillingTaxCode()
+                : (tenant != null ? tenant.getTaxCode() : null);
+        String companyLegalName = StringUtils.hasText(invoice.getBillingLegalName())
+                ? invoice.getBillingLegalName()
+                : (tenant != null ? tenant.getCompanyLegalName() : null);
+        String billingAddress = StringUtils.hasText(invoice.getBillingAddress())
+                ? invoice.getBillingAddress()
+                : (tenant != null ? tenant.getBillingAddress() : null);
+
         return CheckoutResponse.builder()
                 .invoiceId(invoice.getId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .tenantId(tenant != null ? tenant.getId() : null)
                 .tenantCode(tenant != null ? tenant.getCode() : null)
                 .subdomain(tenant != null ? tenant.getSubdomain() : null)
+                .workspaceName(tenant != null ? tenant.getName() : null)
+                .adminFullName(tenant != null ? tenant.getContactName() : null)
+                .adminEmail(tenant != null ? tenant.getContactEmail() : null)
+                .adminPhone(tenant != null ? tenant.getContactPhone() : null)
+                .taxCode(taxCode)
+                .companyLegalName(companyLegalName)
+                .billingAddress(billingAddress)
+                .quantity(quantity)
                 .planName(planName)
                 .planCode(planCode)
                 .billingCycle("YEARLY")

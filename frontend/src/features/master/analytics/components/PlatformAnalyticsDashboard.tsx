@@ -1,19 +1,15 @@
 import { useState, type ComponentType } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Bot,
   Building2,
   CircleDollarSign,
   Clock3,
-  Cpu,
   Download,
-  HeartPulse,
   LifeBuoy,
-  ShieldCheck,
   Sparkles,
   TrendingUp,
   Users,
@@ -21,9 +17,9 @@ import {
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
-import { useT, useLocale, formatNumber, formatDateTime } from "@/i18n";
+import { useT, useLocale, formatNumber } from "@/i18n";
 
-type PlatformTab = "overview" | "revenue" | "tenants" | "ai" | "system" | "security" | "operations";
+type PlatformTab = "overview" | "revenue" | "operations";
 
 type Props = {
   revenue: RevenueAnalytics | null;
@@ -36,10 +32,6 @@ type Props = {
 const tabs: Array<{ id: PlatformTab; labelKey: string; icon: ComponentType<{ className?: string }> }> = [
   { id: "overview", labelKey: "master.ops.analytics.tabs.overview", icon: TrendingUp },
   { id: "revenue", labelKey: "master.ops.analytics.tabs.revenue", icon: CircleDollarSign },
-  { id: "tenants", labelKey: "master.ops.analytics.tabs.tenants", icon: Building2 },
-  { id: "ai", labelKey: "master.ops.analytics.tabs.ai", icon: Bot },
-  { id: "system", labelKey: "master.ops.analytics.tabs.system", icon: HeartPulse },
-  { id: "security", labelKey: "master.ops.analytics.tabs.security", icon: ShieldCheck },
   { id: "operations", labelKey: "master.ops.analytics.tabs.operations", icon: LifeBuoy },
 ];
 
@@ -163,97 +155,6 @@ function RevenuePanel({ revenue }: { revenue: RevenueAnalytics | null }) {
   </div>;
 }
 
-function TenantHealthPanel({ tenants, aiQuota }: { tenants: TenantInfo[]; aiQuota: AiQuotaUsage | null }) {
-  const t = useT();
-  const avgUsage = aiQuota?.totalCvParsesLimit && aiQuota.totalCvParsesLimit > 0
-    ? Math.min(100, Math.round(((aiQuota.totalCvParsesUsed ?? 0) * 100) / aiQuota.totalCvParsesLimit))
-    : 0;
-  const rows = tenants
-    .filter((item) => !item.deleted)
-    .map((tenant) => {
-      const isActive = tenant.status === "ACTIVE";
-      const isPending = tenant.status === "PENDING_PAYMENT" || tenant.status === "PROVISIONING";
-      const score = isActive ? Math.max(70, 100 - Math.round(avgUsage * 0.25)) : isPending ? 75 : 40;
-      const riskKey = !isActive && !isPending ? "HIGH" : score < 80 ? "MEDIUM" : "LOW";
-      const risk = riskKey === "HIGH"
-        ? t("master.ops.analytics.tenantHealth.riskHigh")
-        : riskKey === "MEDIUM"
-          ? t("master.ops.analytics.tenantHealth.riskMedium")
-          : t("master.ops.analytics.tenantHealth.riskLow");
-      const statusLabel = isActive ? t("master.ops.analytics.tenantHealth.statusHealthy") : tenant.status;
-      return {
-        id: tenant.id,
-        name: tenant.name,
-        code: tenant.code,
-        status: statusLabel,
-        score,
-        usage: isActive ? avgUsage : 0,
-        riskKey,
-        risk,
-      };
-    });
-
-  return <section className={cn(cardClass, "overflow-hidden")}><div className="p-5"><h2 className="font-semibold">{t("master.ops.analytics.tenantHealth.title", { count: rows.length })}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.analytics.tenantHealth.subtitle")}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">{t("master.ops.analytics.tenantHealth.colTenant")}</th><th className="px-3 py-3">{t("master.ops.analytics.tenantHealth.colStatus")}</th><th className="px-3 py-3">{t("master.ops.analytics.tenantHealth.colHealthScore")}</th><th className="px-3 py-3">{t("master.ops.analytics.tenantHealth.colAiQuota")}</th><th className="px-5 py-3 text-right">{t("master.ops.analytics.tenantHealth.colChurnRisk")}</th></tr></thead><tbody>{rows.map((tenant) => <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/40"><td className="px-5 py-4 font-semibold text-slate-900">{tenant.name} <span className="text-xs font-mono text-slate-400">({tenant.code})</span></td><td className="px-3 py-4 text-slate-600">{tenant.status}</td><td className="px-3 py-4"><div className="flex items-center gap-3"><div className="h-2 w-28 rounded-full bg-slate-100"><div className={cn("h-full rounded-full", tenant.score < 60 ? "bg-rose-500" : tenant.score < 80 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${tenant.score}%` }} /></div><strong>{tenant.score}</strong></div></td><td className="px-3 py-4">{tenant.usage}%</td><td className="px-5 py-4 text-right"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", tenant.riskKey === "HIGH" ? "bg-rose-50 text-rose-700" : tenant.riskKey === "MEDIUM" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700")}>{tenant.risk}</span></td></tr>)}{rows.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-500">{t("master.ops.analytics.tenantHealth.empty")}</td></tr>}</tbody></table></div></section>;
-}
-
-function AiUsagePanel({ aiQuota }: { aiQuota: AiQuotaUsage | null }) {
-  const t = useT();
-  const locale = useLocale();
-  const cvLimit = aiQuota?.totalCvParsesLimit || 1000;
-  const voiceHoursLimit = aiQuota?.totalVoiceHoursLimit || 50;
-  const cvPercent = Math.round(((aiQuota?.totalCvParsesUsed ?? 0) / cvLimit) * 100);
-  const voicePercent = Math.round(((aiQuota?.totalVoiceHoursUsed ?? 0) / voiceHoursLimit) * 100);
-  return <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">{t("master.ops.analytics.aiUsage.title")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.analytics.aiUsage.subtitle")}</p><div className="mt-6 space-y-6">{[
-      [t("master.ops.analytics.aiUsage.cvParsingLabel", { limit: formatNumber(cvLimit, undefined, locale) }), aiQuota?.totalCvParsesUsed ?? 0, cvPercent],
-      [t("master.ops.analytics.aiUsage.voiceHoursLabel", { limit: formatNumber(voiceHoursLimit, undefined, locale) }), aiQuota?.totalVoiceHoursUsed ?? 0, voicePercent],
-    ].map(([label,used,percent]) => <div key={String(label)}><div className="mb-2 flex flex-wrap justify-between gap-2 text-sm"><span className="font-medium">{label}</span><strong>{formatNumber(Number(used), undefined, locale)} ({percent}%)</strong></div><div className="h-3 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(percent as number, 100)}%` }} /></div></div>)}</div>
-    
-      <h3 className="mt-8 font-semibold text-sm">{t("master.ops.analytics.aiUsage.usageTrendTitle", { tokens: formatNumber(aiQuota?.totalTokensConsumed ?? 0, undefined, locale) })}</h3>
-      <div className="h-40 w-full mt-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={aiQuota?.usageTrend || []} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-            <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} name={t("master.ops.analytics.aiUsage.tokensSeriesName")} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">{t("master.ops.analytics.aiUsage.activeServicesTitle")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.analytics.aiUsage.activeServicesSubtitle")}</p><div className="mt-5 space-y-3">{(aiQuota?.activeModels ?? []).map((model) => <div key={model} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><span className="grid size-9 place-items-center rounded-lg bg-blue-50 text-blue-600"><Bot className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{model}</p><p className="text-xs text-slate-500">{t("master.ops.analytics.aiUsage.modelActiveDesc", { amount: formatNumber(aiQuota?.estimatedAiCostVnd ?? 0, undefined, locale) })}</p></div><span className="size-2.5 rounded-full bg-emerald-500" aria-label={t("master.ops.analytics.aiUsage.modelActiveAria")} /></div>)}</div></section>
-  </div>;
-}
-
-function SystemPanel({ revenue, aiQuota, tenants, logs }: Omit<Props, "onExport">) {
-  const t = useT();
-  const locale = useLocale();
-  const activeCount = revenue?.activeTenants ?? tenants.filter((item) => !item.deleted && item.status === "ACTIVE").length;
-  const totalCount = revenue?.totalTenants ?? tenants.filter((item) => !item.deleted).length;
-  const provisioningCount = tenants.filter((item) => !item.deleted && (item.status === "PROVISIONING" || item.status === "PENDING_PAYMENT")).length;
-  const failedCount = tenants.filter((item) => !item.deleted && item.status === "FAILED").length;
-  const errorLogsCount = logs.filter((l) => l.level === "ERROR").length;
-
-  const services = [
-    { name: "Master API", uptime: `${aiQuota?.apiSuccessRate ?? 100}%`, detail: aiQuota?.averageLatencyMs ? `${aiQuota.averageLatencyMs} ms` : "< 150 ms", status: t("master.ops.analytics.system.statusHealthy"), isWarning: false },
-    { name: "Tenant databases (HikariCP)", uptime: "100%", detail: t("master.ops.analytics.system.poolsDetail", { active: activeCount, total: totalCount }), status: t("master.ops.analytics.system.statusHealthy"), isWarning: false },
-    { name: "AI Provider Routing", uptime: aiQuota?.systemHealth === "DEGRADED" ? "Degraded" : "100%", detail: t("master.ops.analytics.system.modelsActiveDetail", { count: aiQuota?.activeModels?.length ?? 0 }), status: aiQuota?.systemHealth === "DEGRADED" ? t("master.ops.analytics.system.statusWarning") : t("master.ops.analytics.system.statusHealthy"), isWarning: aiQuota?.systemHealth === "DEGRADED" },
-    { name: "Provisioning Queue", uptime: failedCount > 0 ? t("master.ops.analytics.system.needsRetry") : "100%", detail: t("master.ops.analytics.system.queueDetail", { pending: provisioningCount, failed: failedCount }), status: failedCount > 0 ? t("master.ops.analytics.system.statusWarning") : t("master.ops.analytics.system.statusHealthy"), isWarning: failedCount > 0 },
-    { name: "Audit & Security Monitor", uptime: errorLogsCount > 0 ? t("master.ops.analytics.system.alertState") : "100%", detail: t("master.ops.analytics.system.eventsLoggedDetail", { count: logs.length }), status: errorLogsCount > 0 ? t("master.ops.analytics.system.statusWarning") : t("master.ops.analytics.system.statusHealthy"), isWarning: errorLogsCount > 0 },
-  ];
-  return <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]"><section className={cn(cardClass, "overflow-hidden")}><div className="p-5"><h2 className="font-semibold">{t("master.ops.analytics.system.title")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.analytics.system.subtitle")}</p></div><div className="divide-y divide-slate-100">{services.map((svc) => <div key={svc.name} className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 sm:grid-cols-[1fr_100px_150px_90px]"><strong className="text-sm">{svc.name}</strong><span className="text-sm">{svc.uptime}</span><span className="text-xs text-slate-500">{svc.detail}</span><span className={cn("text-right text-xs font-semibold", svc.isWarning ? "text-amber-700" : "text-emerald-700")}>{svc.status}</span></div>)}</div></section><section className={cn(cardClass, "p-5")}><Cpu className="size-6 text-blue-600" /><h2 className="mt-4 font-semibold">{t("master.ops.analytics.system.statsTitle")}</h2><dl className="mt-5 space-y-4 text-sm"><div className="flex justify-between"><dt className="text-slate-500">{t("master.ops.analytics.system.statProvisioning")}</dt><dd className="font-bold">{provisioningCount}</dd></div><div className="flex justify-between"><dt className="text-slate-500">{t("master.ops.analytics.system.statFailedProv")}</dt><dd className="font-bold text-amber-700">{failedCount}</dd></div><div className="flex justify-between"><dt className="text-slate-500">{t("master.ops.analytics.system.statErrorLogs")}</dt><dd className="font-bold text-rose-700">{errorLogsCount}</dd></div><div className="flex justify-between"><dt className="text-slate-500">{t("master.ops.analytics.system.statTotalTokens")}</dt><dd className="font-bold">{formatNumber(aiQuota?.totalTokensConsumed ?? 0, undefined, locale)}</dd></div></dl></section></div>;
-}
-
-function SecurityPanel({ logs }: { logs: AuditLog[] }) {
-  const t = useT();
-  const locale = useLocale();
-  const items = logs.slice(0, 8);
-  const errorCount = logs.filter((l) => l.level === "ERROR").length;
-  const warnCount = logs.filter((l) => l.level === "WARN").length;
-  return <div className="grid gap-5 xl:grid-cols-[0.7fr_1.3fr]"><section className={cn(cardClass, "p-5")}><ShieldCheck className="size-7 text-blue-600" /><h2 className="mt-4 font-semibold">{t("master.ops.analytics.security.postureTitle")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.analytics.security.postureDesc")}</p><div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl bg-rose-50 p-3"><p className="text-xs text-rose-700">{t("master.ops.analytics.security.errorEvents")}</p><p className="mt-1 text-2xl font-bold text-rose-900">{errorCount}</p></div><div className="rounded-xl bg-amber-50 p-3"><p className="text-xs text-amber-700">{t("master.ops.analytics.security.warnEvents")}</p><p className="mt-1 text-2xl font-bold text-amber-900">{warnCount}</p></div></div></section><section className={cn(cardClass, "overflow-hidden")}><div className="border-b border-slate-100 p-5"><h2 className="font-semibold">{t("master.ops.analytics.security.recentAuditTitle", { count: logs.length })}</h2></div><div className="divide-y divide-slate-100">{items.length ? items.map((log) => <div key={log.id} className="flex gap-3 px-5 py-4"><span className={cn("mt-0.5 size-2.5 shrink-0 rounded-full", log.level === "ERROR" ? "bg-rose-500" : log.level === "WARN" ? "bg-amber-500" : "bg-blue-500")} /><div className="min-w-0 flex-1"><div className="flex flex-wrap justify-between gap-2"><strong className="text-sm">{log.action}</strong><span className="text-xs text-slate-500">{formatDateTime(log.timestamp, undefined, locale)}</span></div><p className="mt-1 text-xs text-slate-500">{log.tenantCode} · {log.description}</p></div></div>) : <p className="p-8 text-center text-sm text-slate-500">{t("master.ops.analytics.security.emptyAudit")}</p>}</div></section></div>;
-}
-
 function OperationsPanel({ revenue, aiQuota, tenants }: Omit<Props, "onExport" | "logs">) {
   const t = useT();
   const locale = useLocale();
@@ -290,10 +191,6 @@ export function PlatformAnalyticsDashboard({ revenue, aiQuota, tenants, logs, on
   const panels: Record<PlatformTab, React.ReactNode> = {
     overview: <Overview revenue={revenue} aiQuota={aiQuota} tenants={tenants} logs={logs} />,
     revenue: <RevenuePanel revenue={revenue} />,
-    tenants: <TenantHealthPanel tenants={tenants} aiQuota={aiQuota} />,
-    ai: <AiUsagePanel aiQuota={aiQuota} />,
-    system: <SystemPanel revenue={revenue} aiQuota={aiQuota} tenants={tenants} logs={logs} />,
-    security: <SecurityPanel logs={logs} />,
     operations: <OperationsPanel revenue={revenue} aiQuota={aiQuota} tenants={tenants} />,
   };
   return (

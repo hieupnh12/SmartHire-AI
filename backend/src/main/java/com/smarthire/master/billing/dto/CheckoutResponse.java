@@ -19,6 +19,14 @@ public class CheckoutResponse {
     private Long tenantId;
     private String tenantCode;
     private String subdomain;
+    private String workspaceName;
+    private String adminFullName;
+    private String adminEmail;
+    private String adminPhone;
+    private String taxCode;
+    private String companyLegalName;
+    private String billingAddress;
+    private Integer quantity;
     private String planName;
     private String planCode;
     private String billingCycle;

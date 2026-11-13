@@ -27,9 +27,6 @@ export function SystemPage() {
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">
           {t("tenantAdmin.system.title")}
         </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          {t("tenantAdmin.system.subtitle")}
-        </p>
       </div>
 
       {/* Main Feature: Gmail Configuration */}

@@ -104,12 +104,12 @@ export const useAiQuotaUsage = (params?: { startDate?: string; endDate?: string 
   });
 };
 
-export const useAuditLogs = () => {
+export const useAuditLogs = (tenantCode?: string, level?: string) => {
   return useQuery({
-    queryKey: masterQueryKeys.logs(),
-    queryFn: masterAdminApi.getAuditLogs,
+    queryKey: [...masterQueryKeys.logs(), tenantCode, level],
+    queryFn: () => masterAdminApi.getAuditLogs(tenantCode, level),
     placeholderData: keepPreviousData,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
 };
 

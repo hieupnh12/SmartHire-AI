@@ -1,6 +1,8 @@
 const tones: Record<string, string> = {
   DRAFT: "bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)]",
   PUBLISHED: "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)]",
+  PAUSED: "bg-amber-50 text-amber-700",
+  CLOSED: "bg-slate-100 text-slate-700",
   ARCHIVED: "bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)]",
   ASSIGNED: "bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]",
   IN_PROGRESS: "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)]",

@@ -133,4 +133,66 @@ class ConsultationRequestServiceTest {
 
         verify(repository, never()).findById(any());
     }
+
+    @Test
+    void sendQuotation_PersistsProposedCodeSubdomainAndPlanAndSendsEmail() {
+        var plan = com.smarthire.domain.master.entity.SubscriptionPlan.builder()
+                .id(2L)
+                .name("Gói Chuyên Nghiệp (Professional)")
+                .build();
+        ConsultationRequest existingLead = ConsultationRequest.builder()
+                .id(12L)
+                .companyName("Công ty Cổ phần Công nghệ VietCloud")
+                .contactName("Nguyễn Minh Khôi")
+                .workEmail("de180169nguyennhatsinh@gmail.com")
+                .status("PENDING")
+                .build();
+
+        when(subscriptionPlanRepository.findById(2L)).thenReturn(java.util.Optional.of(plan));
+        when(repository.findById(12L)).thenReturn(java.util.Optional.of(existingLead));
+        when(repository.save(any(ConsultationRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var req = com.smarthire.master.lead.dto.SendQuotationRequest.builder()
+                .consultationRequestId(12L)
+                .companyName("Công ty Cổ phần Công nghệ VietCloud")
+                .contactName("Nguyễn Minh Khôi")
+                .recipientEmail("de180169nguyennhatsinh@gmail.com")
+                .phoneNumber("0905123456")
+                .planId(2L)
+                .totalQuote(java.math.BigDecimal.valueOf(36_000_000))
+                .proposedCode("  VietCloud-VN  ")
+                .proposedSubdomain("  vietcloud  ")
+                .build();
+
+        ConsultationResponse res = service.sendQuotation(req);
+
+        assertThat(res.getStatus()).isEqualTo("QUOTED");
+        assertThat(res.getQuotedPlanId()).isEqualTo(2L);
+        assertThat(res.getProposedCode()).isEqualTo("vietcloud-vn");
+        assertThat(res.getProposedSubdomain()).isEqualTo("vietcloud");
+        verify(masterNotificationService).sendQuotationProposal(req, plan);
+    }
+
+    @Test
+    void sendQuotation_ThrowsWhenPlanNotFound() {
+        when(subscriptionPlanRepository.findById(999L)).thenReturn(java.util.Optional.empty());
+
+        var req = com.smarthire.master.lead.dto.SendQuotationRequest.builder()
+                .companyName("VietCloud")
+                .contactName("Khoi")
+                .recipientEmail("de180169nguyennhatsinh@gmail.com")
+                .planId(999L)
+                .totalQuote(java.math.BigDecimal.TEN)
+                .build();
+
+        assertThatThrownBy(() -> service.sendQuotation(req))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getCode()).isEqualTo("PLAN_NOT_FOUND");
+                    assertThat(be.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+                });
+
+        verify(masterNotificationService, never()).sendQuotationProposal(any(), any());
+    }
 }

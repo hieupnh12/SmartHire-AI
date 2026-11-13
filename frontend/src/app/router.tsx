@@ -94,6 +94,8 @@ import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessmen
 import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentCreationPage";
 import { AiQuestionGeneratorPage } from "@/features/tenant/recruiter/assessments/pages/AiQuestionGeneratorPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
+import { InterviewSchedulePage } from "@/features/tenant/recruiter/interviews/pages/InterviewSchedulePage";
+import { InterviewEvaluationPage } from "@/features/tenant/recruiter/interviews/pages/InterviewEvaluationPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { AiInterviewDetailPage as RecruiterAiInterviewDetailPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewDetailPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
@@ -274,6 +276,10 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
             <Route path="jobs/:id/interviews" element={<JobRecruitmentWorkspace><RecruiterInterviewsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/new" element={<JobRecruitmentWorkspace><InterviewSchedulePage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/edit" element={<JobRecruitmentWorkspace><InterviewSchedulePage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/evaluation" element={<JobRecruitmentWorkspace><InterviewEvaluationPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/scorecard" element={<JobRecruitmentWorkspace><InterviewEvaluationPage /></JobRecruitmentWorkspace>} />
             <Route path="interviews" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>
@@ -332,10 +338,11 @@ export function AppRouter() {
           <Route path="system/ai-usage" element={<AiManagementPage />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
           <Route path="system/ai-config" element={<AiManagementPage />} />
-          <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
-          <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
-          <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
-          <Route path="account/notifications" element={<MasterAccountPage activeTab="account-notifications" />} />
+          <Route path="account" element={<MasterAccountPage />} />
+          <Route path="account/profile" element={<Navigate to="/admin/account?tab=profile" replace />} />
+          <Route path="account/security" element={<Navigate to="/admin/account?tab=security" replace />} />
+          <Route path="account/accessibility" element={<Navigate to="/admin/account?tab=accessibility" replace />} />
+          <Route path="account/notifications" element={<Navigate to="/admin/account?tab=notifications" replace />} />
         </Route>
       </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />
