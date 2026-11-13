@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LogOut, MessageSquareText, RefreshCw, RotateCcw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi, AlertTriangle, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { toast } from "@/stores/toastStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
 import type { AiAnswer, AiQuestion } from "@/api/types/aiInterview";
@@ -16,7 +17,8 @@ import { InterviewQuestionPanel } from "./InterviewQuestionPanel";
 import { InterviewRoadmap } from "./InterviewRoadmap";
 import { InterviewProcessNavigator } from "./InterviewProcessNavigator";
 import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
-import { MonitoringRequired, ProctoredInterviewGuard, ProctoringStart, type ProctorSession } from "./ProctoredInterviewSession";
+import { MonitoringRequired, ProctoredInterviewGuard, type ProctorSession } from "./ProctoredInterviewSession";
+import { ProctoringPreFlight } from "./ProctoringPreFlight";
 import { stopProctorSession } from "../utils/proctorDevices";
 
 const card = "rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-5 shadow-[var(--shadow-card)]";
@@ -66,14 +68,29 @@ export function AiInterviewRoom({ id }: { id: number }) {
     setSelected(null);
     void client.invalidateQueries({ queryKey: key });
   }
-  const start = useMutation({ mutationFn: async () => { if (session.data?.voiceEnabled) await candidateInterviewApi.consent(id); return candidateInterviewApi.start(id); }, onSuccess: updated });
-  const complete = useMutation({ mutationFn: () => candidateInterviewApi.complete(id), onSuccess: updated });
+  const start = useMutation({
+    mutationFn: async () => {
+      if (session.data?.voiceEnabled) await candidateInterviewApi.consent(id);
+      return candidateInterviewApi.start(id);
+    },
+    onSuccess: updated,
+    onError: err => toast.error(getApiErrorMessage(err)),
+  });
+  const complete = useMutation({
+    mutationFn: () => candidateInterviewApi.complete(id),
+    onSuccess: updated,
+    onError: err => toast.error(getApiErrorMessage(err)),
+  });
   const retry = useMutation({
     mutationFn: (applicationId: number) => candidateInterviewApi.requestStart(applicationId),
     onSuccess: next => {
+      toast.success("Khởi tạo lượt thi mới thành công!");
       client.setQueryData([...scope, next.id], next);
       void client.invalidateQueries({ queryKey: scope });
       navigate(`/interviews/${next.id}`);
+    },
+    onError: err => {
+      toast.error(getApiErrorMessage(err, "Không thể khởi tạo lượt làm lại. Vui lòng thử lại."));
     },
   });
   const data = session.data;
@@ -114,12 +131,28 @@ export function AiInterviewRoom({ id }: { id: number }) {
   }, [data?.applicationId, data?.completedAt, data?.status, proctorSession, retry.mutate]);
   const answerDuration = () => (questions[index]?.answer?.answerDuration ?? 0) + Math.round((Date.now() - openedAt) / 1000);
 
+  // Auto-submit in question-based mode once all questions have been answered and saved
+  const allAnswered = !data?.conversational && inProgress && questions.length > 0 && done === questions.length && !dirty;
+  const autoSubmittedRef = useRef(false);
+
+  useEffect(() => {
+    if (!allAnswered || autoSubmittedRef.current || complete.isPending || data?.completedAt) return;
+    autoSubmittedRef.current = true;
+    toast.info("Bạn đã hoàn thành tất cả câu hỏi. Hệ thống đang tự động nộp bài...");
+    const timer = setTimeout(() => {
+      void complete.mutate();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [allAnswered, complete, data?.completedAt]);
+
   function submit() {
     askConfirm({
-      title: "Kết thúc và nộp bài?",
-      description: data?.conversational ? "Toàn bộ hội thoại sẽ được gửi đánh giá. Bạn không thể gửi thêm tin nhắn sau khi kết thúc." : `${unanswered > 0 ? `Còn ${unanswered} câu chưa trả lời sẽ được tính 0 điểm. ` : ""}Sau khi nộp, bạn không thể sửa câu trả lời.`,
-      confirmLabel: "Nộp bài",
-      danger: !data?.conversational && unanswered > 0,
+      title: "Nộp bài sớm trước hạn?",
+      description: data?.conversational
+        ? "Bạn có chắc chắn muốn kết thúc sớm cuộc phỏng vấn? Toàn bộ hội thoại hiện tại sẽ được gửi để đánh giá."
+        : `${unanswered > 0 ? `Còn ${unanswered} câu chưa hoàn thành sẽ được tính 0 điểm. ` : ""}Bạn có chắc chắn muốn dừng và nộp bài ngay bây giờ?`,
+      confirmLabel: "Nộp bài sớm",
+      danger: true,
       onConfirm: async () => { await complete.mutateAsync(); },
     });
   }
@@ -259,15 +292,36 @@ export function AiInterviewRoom({ id }: { id: number }) {
           )}
 
           {inProgress && (
-            <Button className="bg-[color:var(--color-error-container)] text-[color:var(--color-on-error-container)] shadow-none hover:bg-[color:var(--color-error-container)] hover:opacity-90" disabled={!canSubmit} onClick={submit}>
-              <LogOut className="size-4" aria-hidden="true" />
-              {complete.isPending ? "Đang nộp…" : "Kết thúc"}
-            </Button>
+            complete.isPending ? (
+              <span className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                <RefreshCw className="size-4 animate-spin text-emerald-600" aria-hidden="true" />
+                Đang tự động nộp bài…
+              </span>
+            ) : (
+              <Button
+                variant="ghost"
+                className="text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200/80"
+                disabled={!canSubmit}
+                onClick={submit}
+                title="Chỉ sử dụng khi bạn muốn dừng và nộp bài trước hạn"
+              >
+                <LogOut className="size-3.5" aria-hidden="true" />
+                Nộp bài sớm
+              </Button>
+            )
           )}
         </div>
       </header>
 
-      {error && <p role="alert">{getApiErrorMessage(error)}</p>}
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="size-5 shrink-0 text-red-600" />
+            <span>{getApiErrorMessage(error)}</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => { start.reset(); complete.reset(); retry.reset(); }}>Đóng</Button>
+        </div>
+      )}
 
       {inProgress && !data.conversational && (
         <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />
@@ -302,8 +356,21 @@ export function AiInterviewRoom({ id }: { id: number }) {
             <InterviewQuestionPanel recordingEnabled={data.recordingEnabled} interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
               onSelect={setSelected} onSaved={saved} onDirty={onDirty} answerDuration={answerDuration} />
             <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-              <p className="text-sm">Đã lưu {done}/{questions.length} câu.{unanswered > 0 && planned ? ` Còn ${unanswered} câu chưa trả lời sẽ tính 0 điểm nếu nộp.` : ""}{!planned && unanswered > 0 ? " Cần trả lời đủ các câu trước khi nộp." : ""}</p>
-              <Button disabled={!canSubmit} onClick={submit}>{complete.isPending ? "Đang nộp…" : "Nộp bài phỏng vấn"}</Button>
+              <p className="text-sm">
+                {done === questions.length ? (
+                  <span className="text-emerald-700 font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                    Đã hoàn thành toàn bộ {done}/{questions.length} câu. Đang tự động nộp bài...
+                  </span>
+                ) : (
+                  <>Đã lưu {done}/{questions.length} câu.{unanswered > 0 && planned ? ` Còn ${unanswered} câu chưa trả lời sẽ tính 0 điểm nếu nộp.` : ""}{!planned && unanswered > 0 ? " Cần trả lời đủ các câu trước khi nộp." : ""}</>
+                )}
+              </p>
+              {done < questions.length && (
+                <Button variant="secondary" disabled={!canSubmit} onClick={submit}>
+                  {complete.isPending ? "Đang nộp…" : "Nộp bài trước hạn"}
+                </Button>
+              )}
             </div>
           </>}
 
@@ -350,7 +417,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
     </>
   </section>;
   return inProgress && proctorSession
-    ? <ProctoredInterviewGuard interviewId={id} session={proctorSession} onAutoSubmit={() => complete.mutate()}>{content}</ProctoredInterviewGuard>
+    ? <ProctoredInterviewGuard interviewId={id} session={proctorSession} zeroTouchMode={true} onAutoSubmit={() => complete.mutate()}>{content}</ProctoredInterviewGuard>
     : content;
 }
 
@@ -420,7 +487,6 @@ function InvitationCard({ data, busy, onReady }: {
   busy: boolean;
   onReady: (session: ProctorSession) => void | Promise<void>;
 }) {
-  const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;
   const facts = [
     data.conversational ? ["Chủ đề hội thoại", `${data.questionCount} chủ đề`] : data.roadmap ? ["Câu hỏi phỏng vấn", `${count("OPEN")} câu`] : ["Số câu hỏi", `${data.questionCount} câu`],
@@ -449,11 +515,9 @@ function InvitationCard({ data, busy, onReady }: {
         </p>
       </div>
     )}
-    {data.status === "QUESTIONS_READY" && data.questionsApproved && <div className="space-y-3">
-      <p className="text-sm">{data.conversational ? "Bấm “Bắt đầu phỏng vấn” để vào phòng. Trợ lý AI sẽ chào mừng và đọc câu hỏi đầu tiên theo bộ đề đã duyệt." : "Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu."}</p>
-      {data.voiceEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />Tôi đồng ý dùng micro, chuyển giọng nói thành transcript và phân tích tín hiệu lời nói{data.recordingEnabled ? ", lưu bản ghi âm riêng tư cho nhà tuyển dụng xem xét sau phiên" : ""}.</label>}
-      <ProctoringStart busy={busy || !!data.voiceEnabled && !accepted} onReady={onReady} />
-    </div>}
+    {data.status === "QUESTIONS_READY" && data.questionsApproved && (
+      <ProctoringPreFlight data={data} busy={busy} onReady={onReady} />
+    )}
   </section>;
 }
 
@@ -477,6 +541,18 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
       }`}
       aria-live="polite"
     >
+      {data.proctorTerminated && (
+        <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-rose-900">
+          <div className="flex items-center gap-2 font-bold text-sm">
+            <AlertCircle className="size-5 text-rose-600 shrink-0" />
+            <span>Phiên phỏng vấn đã bị Giám sát viên (HR/Admin) chấm dứt do phát hiện gian lận</span>
+          </div>
+          <p className="mt-1.5 text-xs text-rose-800 leading-relaxed">
+            Lý do ghi nhận: <strong>{data.proctorTerminationReason || data.errorMessage || "Ứng viên vi phạm quy chế giám sát hoặc chạm thiết bị"}</strong>. Toàn bộ transcript và log vi phạm đã được ghi lại trong hồ sơ ứng tuyển.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
@@ -602,10 +678,18 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
               <p className="text-sm text-[var(--color-on-surface-variant)]">
                 Bạn chưa đạt ngưỡng điểm yêu cầu cho vị trí này, tuy nhiên bạn vẫn còn lượt làm bài trước thời hạn.
               </p>
-              <Button disabled={busy} onClick={onRetry} className="gap-2">
-                <RotateCcw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
-                {retrying ? "Đang tạo lượt mới…" : "Làm lại AI Interview"}
-              </Button>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <Button disabled={busy} onClick={onRetry} className="gap-2">
+                  <RotateCcw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+                  {retrying ? "AI đang khởi tạo đề thi mới…" : "Làm lại AI Interview"}
+                </Button>
+                {retrying && (
+                  <span className="text-xs text-blue-600 animate-pulse flex items-center gap-1.5 font-medium">
+                    <RefreshCw className="size-3.5 animate-spin text-blue-500" />
+                    AI đang sinh câu hỏi mới (khoảng 30-45s), vui lòng đợi…
+                  </span>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-[var(--color-on-surface-variant)]">

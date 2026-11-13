@@ -33,5 +33,10 @@ public record AiInterviewResponse(
         boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational,
         int maxQuestionCount,
         boolean questionsApproved,
-        Instant questionsApprovedAt) {
+        Instant questionsApprovedAt,
+        String proctorMeetUrl,
+        boolean proctorApproved,
+        Instant proctorApprovedAt,
+        boolean proctorTerminated,
+        String proctorTerminationReason) {
 }

@@ -107,6 +107,22 @@ public class AiInterviewInvitationService {
             snapshot.set("availableUntil", InterviewPolicies.tree(InterviewPolicies.json(config.availableUntil())));
             interview.setConfigSnapshotJson(snapshot.toString());
         }
+        if (previous != null && previous.getContextSnapshotJson() != null) {
+            try {
+                var prevCtx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(previous.getContextSnapshotJson());
+                boolean wasApproved = prevCtx.path("questionsApproved").asBoolean(false);
+                if (wasApproved) {
+                    prevCtx.put("questionsApproved", true);
+                    prevCtx.put("questionsApprovedAt", java.time.Instant.now().toString());
+                    prevCtx.put("proctorRequired", true);
+                    prevCtx.remove("proctorApproved");
+                    prevCtx.remove("proctorApprovedAt");
+                    prevCtx.remove("proctorTerminated");
+                    prevCtx.remove("proctorTerminationReason");
+                    interview.setContextSnapshotJson(prevCtx.toString());
+                }
+            } catch (Exception ignored) {}
+        }
         interview = interviews.save(interview);
         var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()

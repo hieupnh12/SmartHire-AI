@@ -183,6 +183,43 @@ public class AiInterviewController {
         return ApiResponse.ok(null);
     }
 
+    @PostMapping("/{id}/proctor/approve")
+    @Operation(summary = "Approve secondary camera angle and readiness for the interview (staff)")
+    public ApiResponse<AiInterviewResponse> approveProctorSetup(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.approveProctorSetup(id));
+    }
+
+    @PostMapping("/{id}/proctor/unapprove")
+    @Operation(summary = "Reset proctor approval for the interview (staff)")
+    public ApiResponse<AiInterviewResponse> unapproveProctorSetup(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.unapproveProctorSetup(id));
+    }
+
+    @PostMapping("/{id}/proctor/meet-link")
+    @Operation(summary = "Update Google Meet or secondary device conference URL (staff)")
+    public ApiResponse<AiInterviewResponse> updateProctorMeetUrl(
+            @PathVariable long id,
+            @RequestBody java.util.Map<String, String> body) {
+        String meetUrl = body != null ? body.get("meetUrl") : null;
+        return ApiResponse.ok(aiInterviewService.updateProctorMeetUrl(id, meetUrl));
+    }
+
+    @PostMapping("/{id}/proctor/terminate")
+    @Operation(summary = "Immediately terminate active interview for proctoring/fraud violation (staff)")
+    public ApiResponse<AiInterviewResponse> terminateByProctor(
+            @PathVariable long id,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ApiResponse.ok(aiInterviewService.terminateByProctor(id, reason));
+    }
+
+    @PostMapping("/{id}/proctor/ready")
+    @Operation(summary = "Signal candidate has placed phone and joined meet room (candidate)")
+    public ApiResponse<Void> signalProctorCandidateReady(@PathVariable long id) {
+        aiInterviewService.signalProctorCandidateReady(id);
+        return ApiResponse.ok(null);
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Update AI interview session (staff)")
     public ApiResponse<AiInterviewResponse> update(

@@ -110,9 +110,16 @@ type GuardProps = {
   session: ProctorSession;
   children: ReactNode;
   onAutoSubmit: () => void;
+  zeroTouchMode?: boolean;
 };
 
-export function ProctoredInterviewGuard({ interviewId, session, children, onAutoSubmit }: GuardProps) {
+export function ProctoredInterviewGuard({
+  interviewId,
+  session,
+  children,
+  onAutoSubmit,
+  zeroTouchMode = true,
+}: GuardProps) {
   const user = useAuthStore(state => state.user);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -121,6 +128,8 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
   const violationCount = useRef(0);
   const [violations, setViolations] = useState(0);
   const [warning, setWarning] = useState<string | null>(null);
+  const warningRef = useRef<string | null>(null);
+  useEffect(() => { warningRef.current = warning; }, [warning]);
 
   const send = useCallback((event: ProctorEvent) => {
     void candidateInterviewApi.proctorEvent(interviewId, event).catch(() => undefined);
@@ -133,9 +142,10 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
     const next = violationCount.current + 1;
     violationCount.current = next;
     setViolations(next);
-    setWarning(`${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Bài sẽ được tự động nộp." : "Vui lòng quay lại phòng thi."}`);
+    setWarning(`${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Hệ thống dừng phiên và ghi nhận kết quả tại chỗ." : "Yêu cầu không chạm vào thiết bị."}`);
     if (next >= MAX_VIOLATIONS && !autoSubmitted.current) {
       autoSubmitted.current = true;
+      send({ event: "PROCTOR_EARLY_EXIT", detail: `Đạt giới hạn vi phạm (${next}/${MAX_VIOLATIONS}): ${message}` });
       window.setTimeout(() => autoSubmitRef.current(), 800);
     }
   }, [send]);
@@ -151,13 +161,14 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
     return () => {
       microphoneTrack?.removeEventListener("ended", microphoneLost);
       cameraTrack?.removeEventListener("ended", cameraLost);
-      // The room owns device lifetime; this guard only attaches monitoring listeners.
     };
   }, [session, violate]);
 
   useEffect(() => {
     const fullscreen = () => {
-      if (!document.fullscreenElement) violate("FULLSCREEN_EXIT", "Bạn đã thoát chế độ toàn màn hình");
+      if (!document.fullscreenElement) {
+        violate("FULLSCREEN_EXIT", "Bạn đã thoát chế độ toàn màn hình");
+      }
     };
     const visibility = () => {
       if (document.hidden) {
@@ -169,38 +180,73 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
       }
     };
     const blur = () => { if (!document.hidden) violate("WINDOW_BLUR", "Cửa sổ thi đã mất tiêu điểm"); };
-    const block = (event: Event, type: ProctorEvent["event"], message: string) => { event.preventDefault(); violate(type, message); };
+    const block = (event: Event, type: ProctorEvent["event"], message: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      violate(type, message);
+    };
     const contextmenu = (event: MouseEvent) => block(event, "CONTEXT_MENU", "Menu chuột phải đã bị chặn");
     const copy = (event: ClipboardEvent) => block(event, "COPY_ATTEMPT", "Sao chép nội dung đã bị chặn");
     const paste = (event: ClipboardEvent) => block(event, "PASTE_ATTEMPT", "Dán nội dung đã bị chặn");
+
+    // Zero-Touch Mode: block all keystrokes and detect device touches
     const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-proctor-allowed="true"]')) return;
+      if (zeroTouchMode) {
+        block(event, "KEYBOARD_TOUCH", `Cảnh báo vi phạm: Bạn đã bấm phím ${event.key}! Toàn bộ bàn phím đã bị vô hiệu hóa.`);
+        return;
+      }
       const key = event.key.toLowerCase();
       const blocked = event.key === "F12" || (event.ctrlKey && ["c", "v", "a", "p", "u"].includes(key))
         || (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
       if (blocked) block(event, "BLOCKED_SHORTCUT", `Phím tắt ${event.key} đã bị chặn`);
     };
+
+    // Zero-Touch Mode: block mouse clicks except allowed controls
+    const pointerdown = (event: MouseEvent) => {
+      if (!zeroTouchMode) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-proctor-allowed="true"]')) return;
+      block(event, "MOUSE_TOUCH", "Cảnh báo vi phạm: Bạn đã chạm vào chuột! Chế độ phỏng vấn cấm chạm vào thiết bị.");
+    };
+
     document.addEventListener("fullscreenchange", fullscreen);
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("blur", blur);
-    document.addEventListener("contextmenu", contextmenu);
-    document.addEventListener("copy", copy);
-    document.addEventListener("paste", paste);
+    document.addEventListener("contextmenu", contextmenu, true);
+    document.addEventListener("copy", copy, true);
+    document.addEventListener("paste", paste, true);
     document.addEventListener("keydown", keydown, true);
+    if (zeroTouchMode) {
+      document.addEventListener("mousedown", pointerdown, true);
+    }
     const heartbeat = window.setInterval(() => send({ event: "HEARTBEAT", detail: "Active proctored session" }), 20_000);
     return () => {
       document.removeEventListener("fullscreenchange", fullscreen);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("blur", blur);
-      document.removeEventListener("contextmenu", contextmenu);
-      document.removeEventListener("copy", copy);
-      document.removeEventListener("paste", paste);
+      document.removeEventListener("contextmenu", contextmenu, true);
+      document.removeEventListener("copy", copy, true);
+      document.removeEventListener("paste", paste, true);
       document.removeEventListener("keydown", keydown, true);
+      if (zeroTouchMode) {
+        document.removeEventListener("mousedown", pointerdown, true);
+      }
       window.clearInterval(heartbeat);
     };
-  }, [send, violate]);
+  }, [send, violate, zeroTouchMode]);
 
   const watermark = `${user?.fullName ?? "Candidate"} · ${user?.email ?? "SmartHire"} · AI-${interviewId}`;
   return <div className="relative select-none">
+    {/* Floating Zero-Touch Indicator Banner */}
+    {zeroTouchMode && (
+      <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-rose-300/80 bg-rose-950/90 px-4 py-1.5 text-xs font-semibold text-rose-100 shadow-xl backdrop-blur-md">
+        <span className="size-2 animate-ping rounded-full bg-rose-400" />
+        <span>Chế độ Zero-Touch: Bàn phím &amp; Chuột đã khóa cứng · Ứng viên chỉ ngồi nói</span>
+      </div>
+    )}
+
     <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden opacity-[0.055]" aria-hidden="true">
       <div className="grid h-full -rotate-12 grid-cols-2 content-around gap-16 text-center text-sm font-bold text-slate-900 sm:grid-cols-3">
         {Array.from({ length: 18 }, (_, index) => <span key={index}>{watermark}</span>)}
@@ -215,15 +261,29 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
           </div>}
       <div className="mt-2 flex items-center justify-between text-[11px]"><span className="inline-flex items-center gap-1.5 font-medium text-emerald-400"><span className="size-2 animate-pulse rounded-full bg-emerald-400" />Đang giám sát</span><span className="font-mono text-slate-300">{violations}/{MAX_VIOLATIONS}</span></div>
     </div>
-    {warning && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4" role="alertdialog" aria-modal="true" aria-labelledby="proctor-warning-title">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-        <TriangleAlert className="size-9 text-amber-600" aria-hidden="true" />
-        <h2 id="proctor-warning-title" className="mt-3 text-xl font-semibold">Cảnh báo giám sát</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">{warning}</p>
-        {violations < MAX_VIOLATIONS && <Button className="mt-5" onClick={async () => {
-          setWarning(null);
-          if (!document.fullscreenElement) await document.documentElement.requestFullscreen().catch(() => undefined);
-        }}><Expand className="size-4" aria-hidden="true" />Quay lại bài thi</Button>}
+    {warning && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/75 p-4 backdrop-blur-xs" role="alertdialog" aria-modal="true" aria-labelledby="proctor-warning-title">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-rose-200">
+        <TriangleAlert className="size-10 text-rose-600" aria-hidden="true" />
+        <h2 id="proctor-warning-title" className="mt-3 text-xl font-bold text-rose-900">Cảnh báo vi phạm giám sát</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-700">{warning}</p>
+        <div className="mt-3 rounded-lg bg-rose-50 p-3 text-xs text-rose-800">
+          ⚠️ <strong>Lưu ý:</strong> Ứng viên chỉ trả lời bằng giọng nói. Không chạm tay vào bàn phím hay chuột. Nếu vi phạm quá 3 lần, phiên phỏng vấn sẽ bị dừng và nộp kết quả ngay lập tức.
+        </div>
+        {violations < MAX_VIOLATIONS && (
+          <div data-proctor-allowed="true" className="mt-5">
+            <Button
+              className="w-full"
+              variant="danger"
+              onClick={async () => {
+                setWarning(null);
+                if (!document.fullscreenElement) await document.documentElement.requestFullscreen().catch(() => undefined);
+              }}
+            >
+              <Expand className="size-4" aria-hidden="true" />
+              Tôi đã hiểu &amp; Quay lại bài thi
+            </Button>
+          </div>
+        )}
       </div>
     </div>}
     <div className="relative z-10">{children}</div>

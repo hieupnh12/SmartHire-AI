@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, Zap, RotateCcw } from "lucide-react";
+import { Bot, Mic, Send, Square, Volume2, VolumeX, Sparkles, Keyboard, Zap, RotateCcw, RefreshCw } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ux/Button";
@@ -151,16 +151,25 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   // Auto-complete session when candidate finishes all turns and AI wraps up
   useEffect(() => {
     if (!active || disabled || !session.data?.dialogueComplete || autoSubmittedRef.current) return;
-    if (speaking !== null || busy || send.isPending || !!partial) return;
 
-    autoSubmittedRef.current = true;
-    setAutoSubmitting(true);
+    // Stop mic immediately once dialogue is complete
+    if (voice.status !== "idle") {
+      voice.stop();
+    }
+
+    // Auto-submit after AI finishes closing words (max 3.5s if speaking, or 1.2s if idle)
+    const delay = speaking !== null ? 3500 : 1200;
     const timer = setTimeout(() => {
-      if (onComplete) onComplete();
-    }, 1800);
+      if (!autoSubmittedRef.current && onComplete) {
+        autoSubmittedRef.current = true;
+        setAutoSubmitting(true);
+        stopPlayback();
+        onComplete();
+      }
+    }, delay);
 
     return () => clearTimeout(timer);
-  }, [active, disabled, session.data?.dialogueComplete, speaking, busy, send.isPending, partial, onComplete]);
+  }, [active, disabled, session.data?.dialogueComplete, speaking, onComplete, voice]);
 
   function toggleAutoPlay() {
     setAutoPlayVoice(prev => {
@@ -209,6 +218,44 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
       voice.stop();
     }
   }
+
+  // Hands-Free Zero-Touch Voice Automation: Auto-submit after candidate pauses
+  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const current = (draft || liveTranscript || "").trim();
+    if (!current || voice.status !== "recording" || send.isPending) {
+      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+      return;
+    }
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    silenceTimer.current = setTimeout(() => {
+      const textToSubmit = (draft || liveTranscript || "").trim();
+      if (textToSubmit && !send.isPending && voice.status === "recording") {
+        handleSendVoiceAnswer();
+      }
+    }, 3500);
+
+    return () => {
+      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    };
+  }, [draft, liveTranscript, voice.status, send.isPending]);
+
+  // Hands-Free Zero-Touch Voice Automation: Auto-start listening after AI finishes speaking
+  useEffect(() => {
+    const lastMessage = session.data?.messages.at(-1);
+    if (!active || disabled || !voiceEnabled || speaking !== null || busy || send.isPending) return;
+    if (!lastMessage || lastMessage.role !== "ASSISTANT" || session.data?.dialogueComplete) return;
+    if (voice.status === "idle" && !draft.trim()) {
+      const autoStartTimer = setTimeout(() => {
+        if (speaking === null && voice.status === "idle" && !send.isPending) {
+          submitRecording.current = false;
+          baseDraftRef.current = "";
+          void voice.start();
+        }
+      }, 700);
+      return () => clearTimeout(autoStartTimer);
+    }
+  }, [active, disabled, voiceEnabled, speaking, busy, send.isPending, session.data, voice.status, draft]);
 
   async function playViaBrowser(message: ConversationMessage, request: number): Promise<boolean> {
     if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
@@ -591,25 +638,16 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
 
             {/* Auto-completion panel when dialogue is complete */}
             {session.data?.dialogueComplete && (
-              <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-md">
-                <div className="flex items-center gap-2.5 rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-3.5 text-sm font-semibold text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  <Sparkles className="size-4 animate-spin text-emerald-600" aria-hidden="true" />
-                  <span>
-                    {speaking !== null
-                      ? "Đang lắng nghe lời kết... Sẽ tự động nộp bài sau đó"
-                      : "Đã hoàn tất! Đang tự động nộp bài và chấm điểm..."}
-                  </span>
+              <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-lg text-center animate-fade-in">
+                <div className="flex items-center gap-3.5 rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-4 text-emerald-900 shadow-md dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 w-full justify-center">
+                  <RefreshCw className="size-5 animate-spin text-emerald-600 shrink-0" aria-hidden="true" />
+                  <div className="text-left">
+                    <p className="font-semibold text-sm">Buổi phỏng vấn đã hoàn tất!</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                      Hệ thống đang tự động nộp bài và tiến hành chấm điểm (bạn không cần thao tác thêm).
+                    </p>
+                  </div>
                 </div>
-                {onComplete && (
-                  <Button
-                    type="button"
-                    disabled={disabled}
-                    onClick={onComplete}
-                    className="bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 shadow-md min-w-[170px]"
-                  >
-                    Nộp bài ngay
-                  </Button>
-                )}
               </div>
             )}
 

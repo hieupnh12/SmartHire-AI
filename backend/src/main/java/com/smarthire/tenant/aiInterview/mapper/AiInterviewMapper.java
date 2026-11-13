@@ -60,7 +60,71 @@ public class AiInterviewMapper {
                 InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio(), InterviewPolicies.isConversation(interview),
                 maxQuestionCount(interview),
                 isQuestionsApproved(interview),
-                getQuestionsApprovedAt(interview));
+                getQuestionsApprovedAt(interview),
+                getProctorMeetUrl(interview),
+                isProctorApproved(interview),
+                getProctorApprovedAt(interview),
+                isProctorTerminated(interview),
+                getProctorTerminationReason(interview));
+    }
+
+    public static String getProctorMeetUrl(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) {
+            return buildDefaultProctorMeetUrl(interview.getId());
+        }
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            String url = node.path("proctorMeetUrl").asText(null);
+            return (url != null && !url.isBlank()) ? url : buildDefaultProctorMeetUrl(interview.getId());
+        } catch (Exception e) {
+            return buildDefaultProctorMeetUrl(interview.getId());
+        }
+    }
+
+    private static String buildDefaultProctorMeetUrl(Long interviewId) {
+        return "https://meet.jit.si/smarthire-proctor-" + interviewId + "#config.prejoinPageEnabled=false&config.disableDeepLinking=true";
+    }
+
+    public static boolean isProctorApproved(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return false;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            return node.path("proctorApproved").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static Instant getProctorApprovedAt(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return null;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            String at = node.path("proctorApprovedAt").asText(null);
+            return at != null && !at.isBlank() ? Instant.parse(at) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static boolean isProctorTerminated(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return false;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            return node.path("proctorTerminated").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static String getProctorTerminationReason(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return null;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            String reason = node.path("proctorTerminationReason").asText(null);
+            return (reason != null && !reason.isBlank()) ? reason : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static boolean isQuestionsApproved(AiInterview interview) {

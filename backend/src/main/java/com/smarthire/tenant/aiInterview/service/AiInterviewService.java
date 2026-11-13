@@ -122,13 +122,7 @@ public class AiInterviewService {
         AiInterview current = existing.get(0);
         requireActiveApplication(current);
         return switch (current.getStatus()) {
-            case QUESTIONS_READY -> {
-                if (!AiInterviewMapper.isQuestionsApproved(current)) {
-                    yield mapper.toResponse(current);
-                }
-                yield start(current.getId());
-            }
-            case IN_PROGRESS -> start(current.getId());
+            case QUESTIONS_READY, IN_PROGRESS -> mapper.toResponse(current);
             case CREATED, ERROR -> {
                 requeueGeneration(current.getId());
                 yield generateForStart(current);
@@ -224,6 +218,9 @@ public class AiInterviewService {
         if (!AiInterviewMapper.isQuestionsApproved(interview)) {
             throw new BusinessException("Đề phỏng vấn đang chờ nhà tuyển dụng kiểm tra và duyệt.", HttpStatus.CONFLICT, "AI_QUESTIONS_NOT_APPROVED");
         }
+        if (isProctorApprovalRequired(interview) && !AiInterviewMapper.isProctorApproved(interview)) {
+            throw new BusinessException("Phiên phỏng vấn đang chờ Giám sát viên (HR/Admin) kiểm tra góc quay camera và phê duyệt bắt đầu.", HttpStatus.CONFLICT, "AI_PROCTOR_NOT_APPROVED");
+        }
         if (InterviewPolicies.voiceEnabled(interview) && !consents.findByAiInterview_Id(id).map(c -> c.isAccepted()).orElse(false)) {
             throw new BusinessException("Voice recording consent is required before starting", HttpStatus.CONFLICT, "AI_VOICE_CONSENT_REQUIRED");
         }
@@ -289,6 +286,11 @@ public class AiInterviewService {
         String detail = request.detail() == null ? "browser event" : request.detail();
         if (request.durationSeconds() != null) detail += "; durationSeconds=" + request.durationSeconds();
         activity.record(interview, "PROCTOR_" + request.event(), detail);
+        if ("PROCTOR_EARLY_EXIT".equals(request.event())) {
+            interview.setErrorMessage("Ứng viên thoát phòng thi sớm: " + detail);
+            ensureAnswers(interview, true);
+            markSubmitted(interview);
+        }
     }
 
     @Transactional
@@ -724,21 +726,135 @@ public class AiInterviewService {
     }
 
     private void setQuestionsApproved(AiInterview interview, boolean approved) {
-        com.fasterxml.jackson.databind.node.ObjectNode ctx;
-        try {
-            ctx = interview.getContextSnapshotJson() == null 
-                ? (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}")
-                : ((com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getContextSnapshotJson())).deepCopy();
-        } catch (Exception e) {
-            ctx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}");
-        }
+        com.fasterxml.jackson.databind.node.ObjectNode ctx = getContextNode(interview);
         ctx.put("questionsApproved", approved);
         if (approved) {
             ctx.put("questionsApprovedAt", Instant.now().toString());
+            ctx.put("proctorRequired", true);
         } else {
             ctx.remove("questionsApprovedAt");
         }
         interview.setContextSnapshotJson(ctx.toString());
+    }
+
+    private void setProctorApproved(AiInterview interview, boolean approved) {
+        com.fasterxml.jackson.databind.node.ObjectNode ctx = getContextNode(interview);
+        ctx.put("proctorApproved", approved);
+        ctx.put("proctorRequired", true);
+        if (approved) {
+            ctx.put("proctorApprovedAt", Instant.now().toString());
+        } else {
+            ctx.remove("proctorApprovedAt");
+        }
+        interview.setContextSnapshotJson(ctx.toString());
+    }
+
+    private void setProctorMeetUrl(AiInterview interview, String meetUrl) {
+        com.fasterxml.jackson.databind.node.ObjectNode ctx = getContextNode(interview);
+        ctx.put("proctorMeetUrl", meetUrl);
+        ctx.put("proctorRequired", true);
+        interview.setContextSnapshotJson(ctx.toString());
+    }
+
+    private void setProctorTerminated(AiInterview interview, String reason) {
+        com.fasterxml.jackson.databind.node.ObjectNode ctx = getContextNode(interview);
+        ctx.put("proctorTerminated", true);
+        ctx.put("proctorTerminatedAt", Instant.now().toString());
+        ctx.put("proctorTerminationReason", reason);
+        interview.setContextSnapshotJson(ctx.toString());
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode getContextNode(AiInterview interview) {
+        try {
+            return interview.getContextSnapshotJson() == null
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}")
+                    : ((com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getContextSnapshotJson())).deepCopy();
+        } catch (Exception e) {
+            return (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}");
+        }
+    }
+
+    private boolean isProctorApprovalRequired(AiInterview interview) {
+        if (interview.getContextSnapshotJson() == null) return false;
+        try {
+            var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
+            return node.path("proctorRequired").asBoolean(false) || node.has("proctorMeetUrl");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Transactional
+    public AiInterviewResponse approveProctorSetup(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (isFinished(interview.getStatus())) {
+            throw new BusinessException("AI interview is already finished", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_FINISHED");
+        }
+        setProctorApproved(interview, true);
+        activity.record(interview, "PROCTOR_SETUP_APPROVED", "Giám sát viên đã kiểm tra góc quay thiết bị thứ 2 và phê duyệt bắt đầu.");
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public AiInterviewResponse unapproveProctorSetup(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (interview.getStartedAt() != null || isFinished(interview.getStatus())) {
+            throw new BusinessException("Không thể hủy duyệt khi ứng viên đã bắt đầu hoặc hoàn tất phỏng vấn", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_STARTED");
+        }
+        setProctorApproved(interview, false);
+        activity.record(interview, "PROCTOR_SETUP_UNAPPROVED", "Giám sát viên yêu cầu kiểm tra lại góc quay camera.");
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public AiInterviewResponse updateProctorMeetUrl(long id, String meetUrl) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (meetUrl == null || meetUrl.isBlank()) {
+            throw new BusinessException("Đường dẫn phòng họp không được để trống", HttpStatus.BAD_REQUEST, "INVALID_PROCTOR_MEET_URL");
+        }
+        setProctorMeetUrl(interview, meetUrl.trim());
+        activity.record(interview, "PROCTOR_MEET_URL_UPDATED", "Cập nhật đường dẫn phòng giám sát: " + meetUrl.trim());
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public AiInterviewResponse terminateByProctor(long id, String reason) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (interview.getCompletedAt() != null) {
+            throw new BusinessException("AI interview is already finished", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_FINISHED");
+        }
+        String cleanReason = (reason == null || reason.isBlank()) ? "Giám sát viên phát hiện gian lận trong phiên phỏng vấn." : reason.trim();
+        setProctorTerminated(interview, cleanReason);
+        interview.setCompletedAt(Instant.now());
+        interview.setStatus(AiInterviewStatus.FAILED);
+        interview.setErrorMessage("Phiên bị chấm dứt do Giám sát viên phát hiện gian lận: " + cleanReason);
+        if (InterviewPolicies.isConversation(interview)) {
+            try {
+                conversation.end(interview);
+            } catch (Exception ignored) {}
+        }
+        activity.record(interview, "PROCTOR_TERMINATED_FOR_FRAUD", cleanReason);
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
+    }
+
+    @Transactional
+    public void signalProctorCandidateReady(long id) {
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireCandidateOwns(interview);
+        com.fasterxml.jackson.databind.node.ObjectNode ctx = getContextNode(interview);
+        ctx.put("proctorCandidateReady", true);
+        ctx.put("proctorCandidateReadyAt", Instant.now().toString());
+        interview.setContextSnapshotJson(ctx.toString());
+        activity.record(interview, "PROCTOR_CANDIDATE_READY", "Ứng viên đã kết nối điện thoại và sẵn sàng để HR kiểm tra góc quay.");
+        interviews.save(interview);
     }
 
     @Transactional

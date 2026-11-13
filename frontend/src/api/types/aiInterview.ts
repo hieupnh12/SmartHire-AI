@@ -87,6 +87,11 @@ export type AiInterview = {
   questions: AiQuestion[];
   questionsApproved?: boolean;
   questionsApprovedAt?: string | null;
+  proctorMeetUrl?: string | null;
+  proctorApproved?: boolean;
+  proctorApprovedAt?: string | null;
+  proctorTerminated?: boolean;
+  proctorTerminationReason?: string | null;
 };
 
 export type RoadmapStep = { title: string; kind: "OPEN" | "MCQ"; questionCount: number };

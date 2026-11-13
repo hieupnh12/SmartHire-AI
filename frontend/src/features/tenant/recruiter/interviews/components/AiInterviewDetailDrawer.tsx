@@ -19,6 +19,7 @@ import { InterviewRecordingReview } from "./InterviewRecordingReview";
 import { AiInterviewReportView } from "./AiInterviewReportView";
 import { AVAILABLE_INTERVIEW_PROCESS, visibleInterviewDetails } from "../utils/interviewProcessSettings";
 import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
+import { LiveProctoringPanel } from "./LiveProctoringPanel";
 
 type Props = { interviewId: number; jobId: number; candidateName: string; onClose: () => void };
 
@@ -319,6 +320,7 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
                 </section>
 
                 <div className="space-y-5 lg:sticky lg:top-24 lg:col-span-4">
+                  <LiveProctoringPanel interview={interview} onRefresh={refresh} />
                   <SessionGovernance interview={interview} />
 
                   <details onToggle={event => setShowLogs(event.currentTarget.open)} className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
