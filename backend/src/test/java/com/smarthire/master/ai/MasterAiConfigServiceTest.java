@@ -7,7 +7,7 @@ import com.smarthire.domain.master.entity.AiModelConfig;
 import com.smarthire.domain.master.entity.AiProviderKey;
 import com.smarthire.domain.master.repository.AiModelConfigRepository;
 import com.smarthire.domain.master.repository.AiProviderKeyRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.ai.dto.AiFallbackStep;
 import com.smarthire.master.ai.dto.AiModelConfigDto;
 import com.smarthire.master.ai.dto.AiProviderKeyDto;
@@ -157,7 +157,7 @@ class MasterAiConfigServiceTest {
     private AiModelConfigRepository modelConfigRepository;
 
     @Mock
-    private PlatformAuditLogRepository auditLogRepository;
+    private TenantSystemLogRepository auditLogRepository;
 
     @Mock
     private TenantCredentialService credentialService;

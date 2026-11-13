@@ -4,6 +4,7 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantRegistryService;
 import jakarta.servlet.http.*;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
@@ -11,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import java.util.Locale;
+import java.util.UUID;
 
 @Component
 public class TenantWebInterceptor implements HandlerInterceptor {
@@ -28,6 +30,10 @@ public class TenantWebInterceptor implements HandlerInterceptor {
     public boolean preHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
                              @NonNull Object handler) {
         TenantContext.clear();
+        MDC.clear();
+        String traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        MDC.put("traceId", traceId);
+        request.setAttribute("TRACE_ID", traceId);
         String header = request.getHeader(TENANT_HEADER);
         String headerCode = header == null || header.isBlank() ? null : registry.requireActive(header).getCode();
         String host = request.getServerName().toLowerCase(Locale.ROOT);
@@ -55,6 +61,7 @@ public class TenantWebInterceptor implements HandlerInterceptor {
         }
         if (requested == null) throw new BusinessException("Tenant is required", HttpStatus.BAD_REQUEST, "TENANT_REQUIRED");
         TenantContext.setCurrentTenant(requested);
+        MDC.put("tenantId", requested);
         return true;
     }
 
@@ -67,5 +74,6 @@ public class TenantWebInterceptor implements HandlerInterceptor {
     public void afterCompletion(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
                                 @NonNull Object handler, Exception ex) {
         TenantContext.clear();
+        MDC.clear();
     }
 }

@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Nhật ký hệ thống Tenant thay thế audit log 2026-11-13 | Master V39 (`V39__tenant_system_logs.sql`) xóa `platform_audit_logs`, tạo `tenant_system_logs` (entity `TenantSystemLog`, 4 index) phục vụ System/Application Logs theo ngữ cảnh Tenant (`tenant_code`, `trace_id` SLF4J MDC, `category`, `endpoint`, `status_code`, `stack_trace`) |
 | Lưu cấu hình báo giá trên Lead 2026-11-12 | Master V38 (`V38__consultation_proposed_tenant_slug.sql`) thêm `proposed_code` (`VARCHAR(64)`), `proposed_subdomain` (`VARCHAR(128)`), `quoted_plan_id` (`BIGINT`) nullable vào `consultation_requests` (entity `ConsultationRequest`) để giữ lại mã doanh nghiệp, subdomain và gói báo giá đã chỉnh sửa khi quay lại deal wizard. Không thêm bảng/entity/FK/UNIQUE/index |
 | Lưu việc làm & Thông báo việc làm mới 2026-11-12 | Tenant V60 (`V60__saved_jobs_and_job_alerts.sql`) tạo `saved_jobs` (entity `SavedJob`, 2 FK `ON DELETE CASCADE`, UNIQUE `(candidate_id, job_id)`, 2 index) và `job_alerts` (entity `JobAlert`, 1 FK `ON DELETE CASCADE`, 2 index), đồng thời bổ sung index `idx_rec_subject_target` trên `recommendations (subject_type, subject_id, target_type, score DESC)` |
 | Thống nhất pháp nhân Đà Nẵng, TPBank & Luật BVDLCN 2025 2026-11-11 | Master V37 (`V37__unify_da_nang_legal_entity_and_tpbank.sql`) cập nhật `DEFAULT` cho 7 cột Bên A trên `contracts` về cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và TPBank (`07744348801`, Chi nhánh Đà Nẵng); chuẩn hoá `policy_type` mới trên `master_consent_logs` sang `PRIVACY_POLICY_2025` (Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP). Không đổi số bảng/entity/FK/UNIQUE/index |
@@ -192,7 +193,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 08 | `ContractSignature` | `contract_signatures` | Legal & B2B | Chữ ký số của từng bên trên hợp đồng (V11, V26) |
 | 09 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tài nguyên tổng hợp theo ngày (V6) |
 | 10 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng (`WORKSPACE_ADMIN`) |
-| 11 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký hành động cấp nền tảng (V6) |
+| 11 | `TenantSystemLog` | `tenant_system_logs` | System / Debug | Nhật ký hệ thống & lỗi ứng dụng cấp Tenant (V39) |
 | 12 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn B2B từ landing page (V8, V23) |
 | 13 | `SystemSetting` | `system_settings` | System | Cấu hình hệ thống toàn sàn, PK tự nhiên `setting_key` (V14) |
 | 14 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Kho khóa API AI mã hóa AES-256-GCM (V14) |
@@ -494,10 +495,11 @@ erDiagram
         varchar email UK
         varchar role
     }
-    platform_audit_logs {
+    tenant_system_logs {
         bigint id PK
         varchar tenant_code "tham chiếu mềm"
-        bigint platform_user_id "không có FK"
+        varchar level "ERROR/WARN/INFO"
+        varchar action
     }
     consultation_requests {
         bigint id PK
@@ -507,7 +509,7 @@ erDiagram
     }
 ```
 
-`platform_users`, `platform_audit_logs`, `master_notification_logs`, `system_settings`, `ai_provider_keys`, `ai_model_configs` và `ai_model_pricings` **không** có khoá ngoại — log và cấu hình nền tảng sống độc lập với vòng đời của từng tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
+`platform_users`, `tenant_system_logs`, `master_notification_logs`, `system_settings`, `ai_provider_keys`, `ai_model_configs` và `ai_model_pricings` **không** có khoá ngoại — log và cấu hình nền tảng sống độc lập với vòng đời của từng tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
 
 ### 4.2 Tenant DB — bản đồ tổng quan theo nhóm nghiệp vụ
 
@@ -753,7 +755,7 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | `ContractSignature` | Chữ ký số của từng bên trên hợp đồng (V11, V26) | `contract_id`, `signer_name`, `signer_email`, `signer_title`, `external_signature_id`, `signed_at`, `client_ip`, `status` | `PENDING` → `SIGNED` / `REJECTED` / `DECLINED` |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
 | `PlatformUser` | Tài khoản quản trị nền tảng, tách hoàn toàn khỏi `users` của tenant | `email`, `password_hash`, `role` (mặc định `WORKSPACE_ADMIN`) | `ACTIVE` / khoá |
-| `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
+| `TenantSystemLog` | Nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) theo ngữ cảnh từng Tenant (V39) | `tenant_code`, `level`, `category`, `action`, `message`, `endpoint`, `method`, `status_code`, `trace_id`, `stack_trace`, `metadata_json` | Chỉ ghi thêm, không sửa |
 | `ConsultationRequest` | Lead demo/tư vấn B2B gửi từ landing page | `company_name`, `work_email`, `tenant_id`, `request_type`, `plan_tier`, `primary_need`, `status` | `PENDING` → `CONTACTED` → `PROVISIONED` / `REJECTED` |
 | `SystemSetting` | Tham số cấu hình toàn nền tảng SaaS (V14) | `setting_key` (PK), `setting_value`, `category`, `is_encrypted`, `updated_by` | Đọc/ghi bởi `WORKSPACE_ADMIN` |
 | `MasterNotificationLog` | Nhật ký gửi email/thông báo cấp nền tảng tới doanh nghiệp (V15, V23) | `tenant_code`, `type` (`INVOICE_CREATED`, `QUOTA_WARNING`, `SUBSCRIPTION_EXPIRY`), `to_email`, `status`, `error_message`, `sent_at` | Chỉ ghi thêm |
@@ -1049,8 +1051,7 @@ FK `submission_id` → `submissions` và `ai_interview_id` → `ai_interviews`.
 | Tenant | `application_status_history` | `changed_by` | `users.id` | Xoá user là mất dấu vết truy vết |
 | Tenant | `hiring_decisions` | `decided_by` | `users.id` | Như trên |
 | Tenant | `recommendations` | `subject_id`, `target_id` | đa hình theo `*_type` | Database không kiểm tra được gì |
-| Master | `platform_audit_logs` | `platform_user_id` | `platform_users.id` | Cố ý — log sống lâu hơn tài khoản |
-| Master | `platform_audit_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi, cố ý |
+| Master | `tenant_system_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi, cố ý để log sống lâu hơn tenant |
 | Master | `master_notification_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi để giữ lịch sử gửi email kể cả khi xoá tenant |
 
 ### 7.4 Hai đường đi từ CV về job
@@ -1332,7 +1333,7 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Đáp án bài thi | `options.is_correct`, hidden test_cases, harness và rubric không trả thí sinh; chỉ test sample có input/expected_output công khai |
 | Migration lỗi | Không tự `repair`, không nuốt lỗi, đóng pool chưa khởi tạo xong; API không trả tên database/SQL nội bộ |
 | Dữ liệu cá nhân trong CV | `cvs.retain_until` đặt mốc xoá; `checksum_sha256` để phát hiện trùng file mà không cần đọc lại nội dung |
-| Truy vết | `platform_audit_logs` (cấp nền tảng) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
+| Truy vết | `tenant_system_logs` (cấp nền tảng/tenant) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
 | Secret | Không commit `.env`, `deploy/.env.production`, `TENANT_CREDENTIALS_KEY`, `JWT_SECRET`. Tài liệu này không chứa giá trị thật |
 
 ### 9.4 Rủi ro đã biết
@@ -1405,6 +1406,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
 | V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
 | V38 | `V38__consultation_proposed_tenant_slug.sql` | Thêm `proposed_code`, `proposed_subdomain`, `quoted_plan_id` (nullable) vào `consultation_requests` để lưu mã doanh nghiệp/subdomain đã chỉnh sửa khi báo giá và quay lại wizard |
+| V39 | `V39__tenant_system_logs.sql` | Xóa `platform_audit_logs`, tạo bảng `tenant_system_logs` (entity `TenantSystemLog`, 4 index) lưu nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) gắn ngữ cảnh `tenant_code`, `trace_id` (MDC) |
 
 ### 10.3 Lịch sử migration — Tenant
 

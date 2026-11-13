@@ -1,4 +1,4 @@
-# MASTER-08 — Phân tích Tài chính & AI Nền tảng, Nhật ký Kiểm toán, Quản trị Hệ thống & Cảnh báo Tự động (Platform Analytics, Audit, Admin & Lifecycle Alerts)
+# MASTER-08 — Phân tích Tài chính & AI Nền tảng, Nhật ký Hệ thống & Lỗi Ứng dụng Tenant, Quản trị Hệ thống & Cảnh báo Tự động (Platform Analytics, Tenant System Logs, Admin & Lifecycle Alerts)
 
 **Code ID:** `MASTER-08`  
 **Epic:** Master Platform — SaaS Multi-Tenant Administration  
@@ -6,11 +6,11 @@
 
 ## Mục đích chức năng
 
-Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp nền tảng (**SaaS Executive Analytics — MRR, ARR, ARPA, tăng trưởng MoM, AI Cost/Health**), tra cứu **Nhật ký Kiểm toán Nền tảng (`platform_audit_logs`)**, quản lý tham số hệ thống (`system_settings`), xác thực và tài khoản Quản trị viên Nền tảng (`platform_users`), và vận hành **Bộ lập lịch Cảnh báo Tự động (`MasterNotificationScheduler` & `SubscriptionLifecycleNotificationService`)** qua Email + Chuông realtime khi gói thuê bao sắp hết hạn, quá hạn, tạm khóa hoặc doanh nghiệp chạm ngưỡng 80% / 100% hạn mức tài nguyên.
+Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp nền tảng (**SaaS Executive Analytics — MRR, ARR, ARPA, tăng trưởng MoM, AI Cost/Health**), tra cứu **Nhật ký Hệ thống & Lỗi Ứng dụng theo ngữ cảnh Tenant (`tenant_system_logs`)**, quản lý tham số hệ thống (`system_settings`), xác thực và tài khoản Quản trị viên Nền tảng (`platform_users`), và vận hành **Bộ lập lịch Cảnh báo Tự động (`MasterNotificationScheduler` & `SubscriptionLifecycleNotificationService`)** qua Email + Chuông realtime khi gói thuê bao sắp hết hạn, quá hạn, tạm khóa hoặc doanh nghiệp chạm ngưỡng 80% / 100% hạn mức tài nguyên.
 
 ## Actor
 
-- **Workspace Admin (`WORKSPACE_ADMIN`):** Theo dõi bảng điều khiển `/admin/dashboard` và phân tích 7 góc nhìn tại `/admin/analytics`, xuất báo cáo JSON, kiểm tra nhật ký kiểm toán (`platform_audit_logs`), quản lý tham số cấu hình (`system_settings`), đổi mật khẩu và quản trị tài khoản `platform_users`.
+- **Workspace Admin (`WORKSPACE_ADMIN`):** Theo dõi bảng điều khiển `/admin/dashboard` và phân tích 7 góc nhìn tại `/admin/analytics`, xuất báo cáo JSON, kiểm tra nhật ký hệ thống & lỗi ứng dụng theo từng doanh nghiệp (`tenant_system_logs`), quản lý tham số cấu hình (`system_settings`), đổi mật khẩu và quản trị tài khoản `platform_users`.
 - **Hệ thống (`MasterNotificationScheduler` & `MasterSubscriptionService`):** Quét định kỳ theo lịch cấu hình (`app.subscription.expiry-reminder-cron`, mặc định mỗi giờ tại phút thứ 5) và xử lý chuyển trạng thái quá hạn mỗi giờ (`0 0 * * * *`) để gửi email và đẩy thông báo chuông realtime (`/ws/notifications`) tới quản trị viên doanh nghiệp khi gói thuê bao sắp hết hạn (`7D` / `3D` / `1D`), quá hạn ân hạn (`PAST_DUE`), bị tạm khóa (`SUSPENDED`) hoặc khi sử dụng chạm ngưỡng Quota (`80%` / `100%`).
 
 ## Luồng hoạt động
@@ -22,9 +22,9 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
    - `GET /api/v1/master/analytics/ai-quota`: Tính tổng CV đã phân tích, tổng giờ/giây Voice AI, tổng token tiêu thụ, số tenant gần chạm ngưỡng ≥80% (`nearQuotaTenantsCount`), chi phí AI ước tính quy đổi VNĐ (`estimatedAiCostVnd`), `apiSuccessRate`, `averageLatencyMs`, `systemHealth` (`HEALTHY`/`DEGRADED`), `activeModels` và `usageTrend`.
    - Frontend tính thêm `suspendedRate` từ danh sách tenant và hỗ trợ xuất file báo cáo JSON (`smarthire-platform-analytics-YYYY-MM-DD.json`).
 
-### 2. Nhật ký Kiểm toán, Cấu hình Hệ thống & Tài khoản Nền tảng
-1. **Nhật ký kiểm toán (`GET /api/v1/master/analytics/logs`):** Trả về 50 bản ghi mới nhất trong `platform_audit_logs` để hiển thị tại `/admin/system/logs` kèm modal xem chi tiết JSON metadata (`LogDetailModal.tsx`).
-2. **Tham số hệ thống (`GET/POST /api/v1/master/system/settings`):** `SystemSettingService` cho phép đọc theo `category` và lưu cặp key-value vào `system_settings`; nếu `isEncrypted = true`, giá trị được mã hoá AES-256-GCM qua `TenantCredentialService` với context `"SYSTEM_SETTING"` và ghi audit log `SYSTEM_SETTING_UPDATED`.
+### 2. Nhật ký Hệ thống & Lỗi Ứng dụng Tenant, Cấu hình Toàn sàn & Tài khoản Quản trị
+1. **Nhật ký hệ thống & lỗi ứng dụng (`GET /api/v1/master/analytics/logs?tenantCode=&level=`):** Trả về 100 bản ghi mới nhất trong `tenant_system_logs` (thay thế `platform_audit_logs` từ V39) kèm bộ lọc theo doanh nghiệp (`tenantCode`) và mức độ lỗi (`level`). Cho phép xem chi tiết `stack_trace`, `endpoint`, `trace_id` (MDC) và `metadata_json` trên modal (`LogDetailModal.tsx`).
+2. **Tham số hệ thống (`GET/POST /api/v1/master/system/settings`):** `SystemSettingService` cho phép đọc theo `category` và lưu cặp key-value vào `system_settings`; nếu `isEncrypted = true`, giá trị được mã hoá AES-256-GCM qua `TenantCredentialService` với context `"SYSTEM_SETTING"`.
 3. **Xác thực & Quản trị Platform Admin (`/api/v1/master/auth/**`, `/api/v1/master/admin/users/**`):** `MasterAuthController` hỗ trợ `login`, `refresh`, `logout` (thu hồi JWT trên Redis blacklist + xoá refresh session), `change-password` và `me`; `MasterAdminUserController` cung cấp CRUD tài khoản `platform_users`.
 
 ### 3. Cảnh báo Tự động Hết hạn Gói & Chạm ngưỡng Quota (`MasterNotificationScheduler`)
@@ -35,7 +35,9 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 
 ## Business Rules
 
-- Bảng `platform_audit_logs` chỉ cho phép ghi thêm (Append-only); không có API sửa hoặc xoá nhật ký kiểm toán.
+- Bảng `tenant_system_logs` chỉ cho phép ghi thêm (Append-only); không có API sửa hoặc xoá nhật ký kiểm toán.
+- Hệ thống tự động gắn `tenant_code` và `trace_id` qua SLF4J MDC (`TenantWebInterceptor` cho HTTP API và `TenantJobExecutor` cho RabbitMQ background worker).
+- Mọi ngoại lệ HTTP 5xx không kiểm soát được bắt tại `GlobalExceptionHandler` và tự động đẩy vào `tenant_system_logs` bất đồng bộ kèm vết ngăn xếp (`stack_trace`).
 - Cơ chế chống gửi trùng Redis (`email_sent:sub_alert:*`, `web_notif:sub_alert:*`, `web_notif:quota:*`) kết hợp kiểm tra DB (`masterNotificationLogRepository.existsByTenantCodeAndTypeAndStatusAndSentAtAfter` và `notificationRepository.existsByUser_IdAndTypeAndCreatedAtAfter`) đảm bảo mỗi mốc cảnh báo (`7D`/`3D`/`1D`/`PAST_DUE`/`SUSPENDED`/`QUOTA_WARNING`) chỉ gửi tối đa **01** lần trong chu kỳ tương ứng.
 - Các tham số nhạy cảm trong `system_settings` khi lưu với cờ `is_encrypted = true` được mã hoá AES-256-GCM với context `"SYSTEM_SETTING"`.
 - API quản trị tài khoản Platform Admin (`/api/v1/master/admin/users/**`) và các endpoint phân tích chỉ cho phép `WORKSPACE_ADMIN`.
@@ -46,7 +48,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 |---|---|---|---|
 | GET | `/api/v1/master/analytics/revenue` | WORKSPACE_ADMIN | Doanh thu, MRR, ARR, ARPA, tăng trưởng MoM, breakdown hoá đơn, lead/hợp đồng & `revenueTrend` |
 | GET | `/api/v1/master/analytics/ai-quota` | WORKSPACE_ADMIN | Tiêu thụ AI toàn sàn, chi phí AI ước tính VNĐ, tỷ lệ thành công, latency & sức khoẻ AI |
-| GET | `/api/v1/master/analytics/logs` | WORKSPACE_ADMIN | 50 bản ghi nhật ký kiểm toán nền tảng mới nhất (`platform_audit_logs`) |
+| GET | `/api/v1/master/analytics/logs` | WORKSPACE_ADMIN | Lấy danh sách nhật ký hệ thống & lỗi ứng dụng (`tenant_system_logs`, hỗ trợ lọc `?tenantCode=&level=`) |
 | GET | `/api/v1/master/system/settings` | WORKSPACE_ADMIN | Danh sách tham số hệ thống (`system_settings`, lọc `?category=`) |
 | POST | `/api/v1/master/system/settings` | WORKSPACE_ADMIN | Tạo hoặc cập nhật tham số hệ thống (hỗ trợ mã hoá `isEncrypted`) |
 | POST | `/api/v1/master/auth/{login\|refresh\|logout\|change-password}` | Public / WORKSPACE_ADMIN | Đăng nhập, làm mới token, đăng xuất (blacklist JWT) và đổi mật khẩu Admin nền tảng |
@@ -58,7 +60,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 
 - PostgreSQL (`smarthire_master`):
   - `tenant_usage_daily` (`TenantUsageDaily`) & `tenant_ai_usage_daily` (`TenantAiUsageDaily`).
-  - `platform_audit_logs` (`PlatformAuditLog`): nhật ký kiểm toán nền tảng.
+  - `tenant_system_logs` (`TenantSystemLog`): nhật ký hệ thống & lỗi ứng dụng theo ngữ cảnh từng Tenant.
   - `master_notification_logs` (`MasterNotificationLog`): nhật ký gửi email cảnh báo tự động và chống gửi lặp.
   - `system_settings` (`SystemSetting`): tham số cấu hình toàn sàn.
   - `platform_users` (`PlatformUser`): tài khoản Quản trị viên nền tảng.
@@ -67,7 +69,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 
 ## UI mockup
 
-- `/admin/dashboard` ([`DashboardPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/dashboard/pages/DashboardPage.tsx) + [`PlatformHomeDashboard.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/dashboard/components/PlatformHomeDashboard.tsx)): Bảng điều khiển trung tâm hiển thị KPI tổng quan (tenant, doanh thu, AI usage), biểu đồ xu hướng và danh sách audit log gần đây kèm điều hướng nhanh sang các module quản trị.
+- `/admin/dashboard` ([`DashboardPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/dashboard/pages/DashboardPage.tsx) + [`PlatformHomeDashboard.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/dashboard/components/PlatformHomeDashboard.tsx)): Bảng điều khiển trung tâm hiển thị KPI tổng quan (tenant, doanh thu, AI usage), biểu đồ xu hướng và danh sách log hệ thống gần đây kèm điều hướng nhanh sang các module quản trị.
 - `/admin/analytics` ([`AnalyticsPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/analytics/pages/AnalyticsPage.tsx) + [`PlatformAnalyticsDashboard.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/analytics/components/PlatformAnalyticsDashboard.tsx)): Báo cáo chuyên sâu gồm **7 tab** (`Tổng quan`, `Doanh thu`, `Tenant health`, `AI usage`, `Hệ thống`, `Bảo mật`, `Vận hành`) và nút xuất báo cáo JSON.
-- `/admin/system/logs` ([`AuditLogsPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/system/pages/AuditLogsPage.tsx) + [`LogDetailModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/system/components/modals/LogDetailModal.tsx)): Tra cứu và xem chi tiết nhật ký kiểm toán nền tảng.
+- `/admin/system/logs` ([`AuditLogsPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/system/pages/AuditLogsPage.tsx) + [`LogDetailModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/system/components/modals/LogDetailModal.tsx)): Tra cứu nhật ký hệ thống & lỗi ứng dụng theo từng doanh nghiệp (lọc Tenant, lọc Level, xem Stack trace và sao chép).
 - `/admin/account/{profile|security|accessibility|notifications}` ([`AccountPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/account/pages/AccountPage.tsx) + [`ChangePasswordModal.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/account/components/ChangePasswordModal.tsx)) & `/admin/login` ([`MasterLoginPage.tsx`](file:///d:/9-CT-PROJECT/CODE/SmartHire-AI/frontend/src/features/master/auth/pages/MasterLoginPage.tsx)).

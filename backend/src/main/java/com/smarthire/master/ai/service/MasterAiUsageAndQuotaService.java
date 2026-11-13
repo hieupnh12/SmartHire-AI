@@ -1,16 +1,16 @@
 package com.smarthire.master.ai.service;
 
 import com.smarthire.common.exception.BusinessException;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantAiUsageDaily;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.entity.TenantUsageDaily;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.TenantAiUsageDailyRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.domain.master.repository.TenantUsageDailyRepository;
 import com.smarthire.config.ai.AiRateLimiterService;
 import com.smarthire.master.ai.dto.AiRateLimitConfigDto;
@@ -46,7 +46,7 @@ public class MasterAiUsageAndQuotaService {
     private final TenantSubscriptionRepository subscriptionRepository;
     private final TenantUsageDailyRepository usageDailyRepository;
     private final TenantAiUsageDailyRepository aiUsageDailyRepository;
-    private final PlatformAuditLogRepository auditLogRepository;
+    private final TenantSystemLogRepository auditLogRepository;
     private final TenantQuotaRedisService quotaRedisService;
     private AiRateLimiterService rateLimiterService;
 
@@ -384,11 +384,12 @@ public class MasterAiUsageAndQuotaService {
         quotaRedisService.evictCache(tenant.getCode());
 
         String action = Boolean.TRUE.equals(req.getKillSwitch()) ? "AI_KILL_SWITCH_ENABLED" : "AI_QUOTA_OVERRIDE_UPDATED";
-        auditLogRepository.save(PlatformAuditLog.builder()
+        auditLogRepository.save(TenantSystemLog.builder()
                 .tenantCode(tenant.getCode())
+                .category("AI_QUOTA")
                 .action(action)
                 .level("INFO")
-                .description(String.format("Admin [%s] updated AI Quota for tenant %s: cvLimit=%s, interviewHoursLimit=%s, rpmLimit=%s, killSwitch=%s",
+                .message(String.format("Admin [%s] updated AI Quota for tenant %s: cvLimit=%s, interviewHoursLimit=%s, rpmLimit=%s, killSwitch=%s",
                         adminEmail != null ? adminEmail : "platform_admin",
                         tenant.getCode(), sub.getSnapshotMaxCvParses(), sub.getSnapshotMaxAiInterviewHours(), req.getRpmLimit(), req.getKillSwitch()))
                 .build());
