@@ -59,8 +59,8 @@ export const cvApi = {
   shared: (token: string) =>
     api.get<ApiResponse<{ builderData: CvBuilderData }>>(`/public/cvs/${encodeURIComponent(token)}`).then((r) => r.data),
   mine: () => api.get<ApiResponse<CvSummary[]>>("/cvs/me").then((r) => r.data),
-  get: (id: number | string) =>
-    api.get<ApiResponse<CvDetail>>(`/cvs/${id}`).then((r) => r.data),
+  get: (id: number | string, lang?: string) =>
+    api.get<ApiResponse<CvDetail>>(`/cvs/${id}`, { params: lang ? { lang } : undefined }).then((r) => r.data),
   file: async (id: number | string) => {
     try {
       const response = await api.get(`/cvs/${id}/file`, { responseType: "blob" });
@@ -80,8 +80,8 @@ export const cvApi = {
     api.post<ApiResponse<null>>(`/cvs/${id}/analyze`).then((r) => r.data),
   listByJob: (jobId: number | string, params: CvListParams = {}) =>
     api.get<ApiResponse<CvPageResult>>(`/jobs/${jobId}/cvs`, { params }).then((r) => r.data),
-  match: (jobId: number | string, cvId: number | string) =>
-    api.get<ApiResponse<MatchView>>(`/jobs/${jobId}/cvs/${cvId}/match`).then((r) => r.data),
+  match: (jobId: number | string, cvId: number | string, lang?: string) =>
+    api.get<ApiResponse<MatchView>>(`/jobs/${jobId}/cvs/${cvId}/match`, { params: lang ? { lang } : undefined }).then((r) => r.data),
   recomputeMatch: (jobId: number | string, cvId: number | string) =>
     api.post<ApiResponse<MatchView>>(`/jobs/${jobId}/cvs/${cvId}/match`).then((r) => r.data),
   health: () => api.get<ApiResponse<Record<string, string>>>("/cvs/health").then((r) => r.data),

@@ -71,6 +71,9 @@ export type MatchView = {
   score: number;
   breakdown: MatchBreakdown | null;
   modelVersion: string | null;
+  contentHash?: string | null;
+  sourceLocale?: string | null;
+  translationPending?: boolean | null;
 };
 
 export type GithubAnalysisStatus = "NOT_PROVIDED" | "PENDING" | "PROCESSING" | "COMPLETED" | "PARTIAL" | "FAILED";

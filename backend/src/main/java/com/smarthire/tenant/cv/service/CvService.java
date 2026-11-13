@@ -1,6 +1,8 @@
 package com.smarthire.tenant.cv.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.storage.FileStorageService;
 import com.smarthire.domain.enums.CvStatus;
@@ -24,6 +26,7 @@ import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantRegistryService;
+import com.smarthire.tenant.ai.localization.service.AiLocalizationService;
 import com.smarthire.tenant.cv.dto.CvModels.CvBuilderData;
 import com.smarthire.tenant.cv.dto.CvModels.CvDetail;
 import com.smarthire.tenant.cv.dto.CvModels.CvSummary;
@@ -40,9 +43,11 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -83,6 +88,12 @@ public class CvService {
     private final CvBuilderPdfRenderer builderRenderer;
     private final ObjectMapper objectMapper;
     private final long maxBytes;
+    private AiLocalizationService localizationService;
+
+    @Autowired(required = false)
+    public void setLocalizationService(AiLocalizationService localizationService) {
+        this.localizationService = localizationService;
+    }
 
     public CvService(
             CvRepository cvs,
@@ -410,9 +421,14 @@ public class CvService {
 
     @Transactional(readOnly = true)
     public CvDetail get(long id) {
+        return get(id, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CvDetail get(long id, String lang) {
         Cv cv = cvs.findById(id).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
         access.requireCv(cv);
-        return toDetail(cv);
+        return toDetail(cv, lang);
     }
 
     @Transactional(readOnly = true)
@@ -534,13 +550,19 @@ public class CvService {
 
     @Transactional(readOnly = true)
     public MatchView match(long jobId, long cvId) {
+        return match(jobId, cvId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MatchView match(long jobId, long cvId, String lang) {
         Cv cv = cvs.findById(cvId).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
         if (cv.getJob() == null || !cv.getJob().getId().equals(jobId))
             throw notFound("CV not found", "CV_NOT_FOUND");
         access.requireJob(cv.getJob());
         var score = scores.findByJob_IdAndCv_Id(jobId, cvId)
                 .orElseThrow(() -> notFound("Match score not found", "MATCH_NOT_FOUND"));
-        return mapper.detail(cv, null, List.of(), null, score, null, true).match();
+        MatchView original = mapper.detail(cv, null, List.of(), null, score, null, true).match();
+        return localizeMatchView(original, cvId, lang);
     }
 
     @Transactional
@@ -621,12 +643,16 @@ public class CvService {
     }
 
     private CvDetail toDetail(Cv cv) {
+        return toDetail(cv, null);
+    }
+
+    private CvDetail toDetail(Cv cv, String lang) {
         boolean includeMatch = access.staff();
         var github = includeMatch && cv.getJob() != null
                 ? githubAnalyses.findByCv_IdAndJob_Id(cv.getId(), cv.getJob().getId())
                         .map(row -> GithubAnalysisViews.toView(row, objectMapper)).orElse(null)
                 : null;
-        return mapper.detail(
+        CvDetail rawDetail = mapper.detail(
                 cv,
                 extractions.findByCv_Id(cv.getId()).orElse(null),
                 cvSkills.findByCv_Id(cv.getId()),
@@ -636,6 +662,73 @@ public class CvService {
                         : null,
                 github,
                 includeMatch);
+
+        if (rawDetail == null || rawDetail.match() == null) {
+            return rawDetail;
+        }
+
+        MatchView localizedMatch = localizeMatchView(rawDetail.match(), cv.getId(), lang);
+        return new CvDetail(
+                rawDetail.id(),
+                rawDetail.jobId(),
+                rawDetail.userId(),
+                rawDetail.applicationId(),
+                rawDetail.candidateName(),
+                rawDetail.originalFilename(),
+                rawDetail.mimeType(),
+                rawDetail.fileSize(),
+                rawDetail.status(),
+                rawDetail.errorCode(),
+                rawDetail.errorMessage(),
+                rawDetail.createdAt(),
+                rawDetail.extraction(),
+                rawDetail.extractionModel(),
+                rawDetail.skills(),
+                rawDetail.analysis(),
+                localizedMatch,
+                rawDetail.builderData(),
+                rawDetail.shareToken(),
+                rawDetail.githubAnalysis());
+    }
+
+    private MatchView localizeMatchView(MatchView original, long cvId, String lang) {
+        if (original == null || original.breakdown() == null || localizationService == null) {
+            return original;
+        }
+        JsonNode breakdown = original.breakdown();
+        ObjectNode evaluativeText = objectMapper.createObjectNode();
+        if (breakdown.hasNonNull("verdict")) evaluativeText.set("verdict", breakdown.get("verdict"));
+        if (breakdown.hasNonNull("advice")) evaluativeText.set("advice", breakdown.get("advice"));
+        if (breakdown.hasNonNull("strengths")) evaluativeText.set("strengths", breakdown.get("strengths"));
+        if (breakdown.hasNonNull("risks")) evaluativeText.set("risks", breakdown.get("risks"));
+        if (breakdown.hasNonNull("interviewQuestions")) evaluativeText.set("interviewQuestions", breakdown.get("interviewQuestions"));
+
+        String hash = localizationService.computeContentHash(evaluativeText);
+        String targetLang = (lang != null && !lang.isBlank()) ? lang.trim().toLowerCase() : null;
+
+        if (targetLang == null || targetLang.equalsIgnoreCase("vi")) {
+            return new MatchView(
+                    original.jobId(), original.cvId(), original.score(), original.breakdown(),
+                    original.modelVersion(), hash, "vi", false);
+        }
+
+        Optional<JsonNode> cached = localizationService.getCached("CV_SCREENING", cvId, hash, targetLang);
+        if (cached.isPresent()) {
+            JsonNode translated = cached.get();
+            ObjectNode mergedBreakdown = breakdown.deepCopy();
+            if (translated.hasNonNull("verdict")) mergedBreakdown.set("verdict", translated.get("verdict"));
+            if (translated.hasNonNull("advice")) mergedBreakdown.set("advice", translated.get("advice"));
+            if (translated.hasNonNull("strengths")) mergedBreakdown.set("strengths", translated.get("strengths"));
+            if (translated.hasNonNull("risks")) mergedBreakdown.set("risks", translated.get("risks"));
+            if (translated.hasNonNull("interviewQuestions")) mergedBreakdown.set("interviewQuestions", translated.get("interviewQuestions"));
+            return new MatchView(
+                    original.jobId(), original.cvId(), original.score(), mergedBreakdown,
+                    original.modelVersion(), hash, "vi", false);
+        } else {
+            return new MatchView(
+                    original.jobId(), original.cvId(), original.score(), original.breakdown(),
+                    original.modelVersion(), hash, "vi", true);
+        }
     }
 
     private Candidate owner(Candidate actor, String candidateEmail) {
