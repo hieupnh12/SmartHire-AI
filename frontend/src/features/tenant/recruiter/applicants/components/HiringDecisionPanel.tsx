@@ -3,22 +3,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Gavel, PauseCircle, Send, XCircle } from "lucide-react";
 import { workflowApi, type HiringDecisionType } from "@/api/tenant/workflowApi";
 import type { ApplicationDetail } from "@/api/types/applicant";
+import { formatDateTime, useLocale, useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
 import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
-const LABELS: Record<HiringDecisionType, string> = { HIRE: "Tuyển / gửi offer", REJECT: "Từ chối", HOLD: "Tạm giữ" };
-const TOASTS: Record<HiringDecisionType, string> = {
-  HIRE: "Đã ghi nhận quyết định tuyển và gửi offer cho ứng viên",
-  REJECT: "Đã từ chối ứng viên",
-  HOLD: "Đã tạm giữ hồ sơ",
-};
 const DECIDABLE = new Set(["HUMAN_INTERVIEW", "OFFER"]);
 
 /** WF-03: formal hiring decision after the human interview round, with history. */
 export function HiringDecisionPanel({ detail, onChanged }: { detail: ApplicationDetail; onChanged: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [reason, setReason] = useState("");
@@ -28,7 +25,7 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
   const decide = useMutation({
     mutationFn: (decision: HiringDecisionType) => workflowApi.decide(detail.id, { decision, reason: reason.trim() || undefined }),
     onSuccess: (_response, decision) => {
-      toast.success(TOASTS[decision]);
+      toast.success(t(`recruiter.ops.applicants.hiringDecision.toasts.${decision}`));
       setReason("");
       void client.invalidateQueries({ queryKey });
       onChanged();
@@ -42,7 +39,7 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
 
   const submit = (decision: HiringDecisionType) => {
     if (decision !== "HIRE" && !reason.trim()) {
-      setReasonError("Nhập lý do cho quyết định Từ chối hoặc Tạm giữ.");
+      setReasonError(t("recruiter.ops.applicants.hiringDecision.reasonRequired"));
       return;
     }
     setReasonError(null);
@@ -51,12 +48,16 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
       return;
     }
     askConfirm({
-      title: decision === "HIRE" ? "Gửi offer cho ứng viên?" : "Từ chối ứng viên?",
+      title: decision === "HIRE"
+        ? t("recruiter.ops.applicants.hiringDecision.confirmHireTitle")
+        : t("recruiter.ops.applicants.hiringDecision.confirmRejectTitle"),
       description: decision === "HIRE"
-        ? `${detail.candidateName} sẽ nhận thông báo offer và tự chấp nhận hoặc từ chối.`
-        : `${detail.candidateName} sẽ chuyển sang trạng thái Đã từ chối. Không thể mở lại.`,
+        ? t("recruiter.ops.applicants.hiringDecision.confirmHireDesc", { name: detail.candidateName })
+        : t("recruiter.ops.applicants.hiringDecision.confirmRejectDesc", { name: detail.candidateName }),
       danger: decision === "REJECT",
-      confirmLabel: decision === "HIRE" ? "Gửi offer" : "Từ chối",
+      confirmLabel: decision === "HIRE"
+        ? t("recruiter.ops.applicants.hiringDecision.confirmHireBtn")
+        : t("recruiter.ops.applicants.hiringDecision.confirmRejectBtn"),
       onConfirm: async () => { await decide.mutateAsync(decision); },
     });
   };
@@ -68,11 +69,11 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
           <Gavel className="size-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Quyết định tuyển dụng</h3>
+          <h3 className="text-sm font-semibold">{t("recruiter.ops.applicants.hiringDecision.title")}</h3>
           <p className="text-xs text-[var(--color-on-surface-variant)]">
             {detail.status === "OFFER"
-              ? "Đã gửi offer, đang chờ ứng viên chấp nhận hoặc từ chối."
-              : "Chỉ người phụ trách Job hoặc quản trị công ty được ra quyết định."}
+              ? t("recruiter.ops.applicants.hiringDecision.offerSentHint")
+              : t("recruiter.ops.applicants.hiringDecision.permissionHint")}
           </p>
         </div>
       </div>
@@ -80,7 +81,9 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
       {canDecide && (
         <>
           <label className="block space-y-1">
-            <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">Lý do / ghi chú quyết định</span>
+            <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+              {t("recruiter.ops.applicants.hiringDecision.reasonLabel")}
+            </span>
             <textarea value={reason} maxLength={2000} rows={2} onChange={(e) => setReason(e.target.value)}
               aria-invalid={reasonError ? true : undefined}
               className="w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/15" />
@@ -89,16 +92,18 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
           <div className="flex flex-wrap gap-2">
             <button type="button" className={primary} disabled={decide.isPending} onClick={() => submit("HIRE")}>
               <Send className="size-4" aria-hidden="true" />
-              {detail.status === "OFFER" ? "Xác nhận tuyển" : "Gửi offer"}
+              {detail.status === "OFFER"
+                ? t("recruiter.ops.applicants.hiringDecision.confirmHireAction")
+                : t("recruiter.ops.applicants.hiringDecision.sendOfferAction")}
             </button>
             <button type="button" className={button} disabled={decide.isPending} onClick={() => submit("HOLD")}>
               <PauseCircle className="size-4" aria-hidden="true" />
-              Tạm giữ
+              {t("recruiter.ops.applicants.hiringDecision.holdAction")}
             </button>
             <button type="button" disabled={decide.isPending} onClick={() => submit("REJECT")}
               className={cn(button, "hover:border-[var(--color-error)] hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)]")}>
               <XCircle className="size-4" aria-hidden="true" />
-              Từ chối
+              {t("recruiter.ops.applicants.hiringDecision.rejectAction")}
             </button>
           </div>
         </>
@@ -108,9 +113,13 @@ export function HiringDecisionPanel({ detail, onChanged }: { detail: Application
         <ol className="space-y-2 border-t border-[var(--color-border-default)] pt-3">
           {rows.map((row) => (
             <li key={row.id} className="text-xs">
-              <p className="font-semibold">{LABELS[row.decision]} · {row.decidedByName ?? `#${row.decidedBy}`}</p>
+              <p className="font-semibold">
+                {t(`recruiter.ops.applicants.hiringDecision.labels.${row.decision}`)} · {row.decidedByName ?? `#${row.decidedBy}`}
+              </p>
               {row.reason && <p className="text-[var(--color-on-surface-variant)]">{row.reason}</p>}
-              <p className="text-[11px] text-[var(--color-outline)]">{new Date(row.createdAt).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })}</p>
+              <p className="text-[11px] text-[var(--color-outline)]">
+                {formatDateTime(row.createdAt, { dateStyle: "short", timeStyle: "short" }, locale)}
+              </p>
             </li>
           ))}
         </ol>

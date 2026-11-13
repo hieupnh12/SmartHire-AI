@@ -1,24 +1,72 @@
 import type { AiInterview, InterviewProcessConfig } from "@/api/types/aiInterview";
+import { t as globalT, type TranslateFn } from "@/i18n";
 import { z } from "zod";
 
-export const ASSESSMENT_CRITERIA = [
-  { key: "technicalKnowledgeWeight", label: "Kiến thức chuyên môn", description: "Hiểu và áp dụng đúng kỹ năng, kiến thức cần cho job." },
-  { key: "problemSolvingWeight", label: "Giải quyết vấn đề", description: "Xác định vấn đề, đề xuất giải pháp và kiểm tra kết quả." },
-  { key: "reasoningWeight", label: "Lập luận", description: "Giải thích lựa chọn, căn cứ, phương án khác và đánh đổi." },
-  { key: "communicationWeight", label: "Giao tiếp", description: "Trình bày rõ ràng, đúng trọng tâm, phù hợp người nghe." },
+export const ASSESSMENT_CRITERIA_KEYS = [
+  "technicalKnowledgeWeight",
+  "problemSolvingWeight",
+  "reasoningWeight",
+  "communicationWeight",
 ] as const;
-const criterionWeight = z.number().int("Nhập số nguyên 0–100.").min(0, "0–100%.").max(100, "0–100%.");
-export const conversationAssessmentSchema = z.object({
-  topic: z.string().trim().min(1, "Chọn chủ đề phỏng vấn."),
-  followUpEnabled: z.boolean(),
-  maxFollowUp: z.coerce.number().int(),
-  technicalKnowledgeWeight: criterionWeight, problemSolvingWeight: criterionWeight,
-  reasoningWeight: criterionWeight, communicationWeight: criterionWeight,
-  assessmentFocus: z.string().trim().max(2000, "Trọng tâm phỏng vấn tối đa 2.000 ký tự."),
-}).refine(value => ASSESSMENT_CRITERIA.reduce((sum, criterion) => sum + value[criterion.key], 0) === 100,
-  { message: "Tổng trọng số 4 tiêu chí phải bằng 100%." })
-  .refine(value => !value.followUpEnabled || value.maxFollowUp >= 2 && value.maxFollowUp <= 10,
-    { path: ["maxFollowUp"], message: "Chọn tối đa 2–10 câu hỏi thêm." });
+
+export type AssessmentCriterionKey = (typeof ASSESSMENT_CRITERIA_KEYS)[number];
+
+export function getAssessmentCriteria(t: TranslateFn = globalT) {
+  return [
+    {
+      key: "technicalKnowledgeWeight" as const,
+      label: t("recruiter.interviews.ai.processSettings.criteria.technicalKnowledgeWeightLabel"),
+      description: t("recruiter.interviews.ai.processSettings.criteria.technicalKnowledgeWeightDesc"),
+    },
+    {
+      key: "problemSolvingWeight" as const,
+      label: t("recruiter.interviews.ai.processSettings.criteria.problemSolvingWeightLabel"),
+      description: t("recruiter.interviews.ai.processSettings.criteria.problemSolvingWeightDesc"),
+    },
+    {
+      key: "reasoningWeight" as const,
+      label: t("recruiter.interviews.ai.processSettings.criteria.reasoningWeightLabel"),
+      description: t("recruiter.interviews.ai.processSettings.criteria.reasoningWeightDesc"),
+    },
+    {
+      key: "communicationWeight" as const,
+      label: t("recruiter.interviews.ai.processSettings.criteria.communicationWeightLabel"),
+      description: t("recruiter.interviews.ai.processSettings.criteria.communicationWeightDesc"),
+    },
+  ] as const;
+}
+
+export const ASSESSMENT_CRITERIA = getAssessmentCriteria(globalT);
+
+export function createConversationAssessmentSchema(t: TranslateFn = globalT) {
+  const criterionWeight = z
+    .number()
+    .int(t("recruiter.interviews.ai.processSettings.schema.weightInt"))
+    .min(0, t("recruiter.interviews.ai.processSettings.schema.weightRange"))
+    .max(100, t("recruiter.interviews.ai.processSettings.schema.weightRange"));
+
+  return z
+    .object({
+      topic: z.string().trim().min(1, t("recruiter.interviews.ai.processSettings.schema.topicRequired")),
+      followUpEnabled: z.boolean(),
+      maxFollowUp: z.coerce.number().int(),
+      technicalKnowledgeWeight: criterionWeight,
+      problemSolvingWeight: criterionWeight,
+      reasoningWeight: criterionWeight,
+      communicationWeight: criterionWeight,
+      assessmentFocus: z.string().trim().max(2000, t("recruiter.interviews.ai.processSettings.schema.focusMaxLength")),
+    })
+    .refine(
+      (value) => ASSESSMENT_CRITERIA_KEYS.reduce((sum, key) => sum + value[key], 0) === 100,
+      { message: t("recruiter.interviews.ai.processSettings.schema.weightsTotal100") },
+    )
+    .refine(
+      (value) => !value.followUpEnabled || (value.maxFollowUp >= 2 && value.maxFollowUp <= 10),
+      { path: ["maxFollowUp"], message: t("recruiter.interviews.ai.processSettings.schema.maxFollowUpRange") },
+    );
+}
+
+export const conversationAssessmentSchema = createConversationAssessmentSchema(globalT);
 
 export const MINUTES_PER_QUESTION = 5;
 export function interviewDurationMinutes(processes: InterviewProcessConfig[]) {

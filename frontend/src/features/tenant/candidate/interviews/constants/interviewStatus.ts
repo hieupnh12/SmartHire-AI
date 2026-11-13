@@ -1,13 +1,11 @@
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
+import { t as globalT, type TranslateFn } from "@/i18n";
 
-export const interviewStatus: Record<AiInterviewStatus, string> = {
-  GENERATING: "Đang sinh câu hỏi",
-  PASSED: "Đạt · Assessment đã mở",
-  ERROR: "Lỗi xử lý · Chờ nhà tuyển dụng thử lại",
-  CREATED: "Đang chuẩn bị câu hỏi",
-  QUESTIONS_READY: "Sẵn sàng phỏng vấn",
-  IN_PROGRESS: "Đang phỏng vấn",
-  SCORING: "Đã nộp · Chờ đánh giá",
-  SCORED: "Đã có kết quả",
-  FAILED: "Chưa đạt",
-};
+export function getAiInterviewStatusLabel(
+  status: AiInterviewStatus,
+  translate: TranslateFn = globalT,
+): string {
+  const key = `candidate.assess.interviews.status.${status}`;
+  const label = translate(key);
+  return label === key ? status : label;
+}

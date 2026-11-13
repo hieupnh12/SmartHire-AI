@@ -101,19 +101,19 @@
             <table class="quota-grid">
                 <tr>
                     <td class="label">• Tin tuyển dụng đang mở (Active Jobs):</td>
-                    <td class="val" th:text="${maxJobs} + ' tin'">25 tin</td>
+                    <td class="val" th:text="${maxJobs}">25 tin</td>
                 </tr>
                 <tr>
                     <td class="label">• Lượt quét & phân tích CV bằng AI:</td>
-                    <td class="val" th:text="${maxCvParses} + ' CV/tháng'">2.500 CV/tháng</td>
+                    <td class="val" th:text="${maxCvParses}">2.500 CV/tháng</td>
                 </tr>
                 <tr>
                     <td class="label">• Thời lượng Phỏng vấn AI Voice đàm thoại:</td>
-                    <td class="val" th:text="${maxAiInterviewHours} + ' giờ/tháng'">30 giờ/tháng</td>
+                    <td class="val" th:text="${maxAiInterviewHours}">30 giờ/tháng</td>
                 </tr>
                 <tr>
                     <td class="label">• Dung lượng lưu trữ đám mây:</td>
-                    <td class="val" th:text="${maxStorageGb} + ' GB'">25 GB</td>
+                    <td class="val" th:text="${maxStorageGb}">25 GB</td>
                 </tr>
                 <tr>
                     <td class="label">• Hạ tầng lưu trữ dữ liệu ứng viên:</td>
@@ -132,14 +132,14 @@
 
         <div class="cta-container">
             <p style="font-size: 13px; color: #475569; margin-bottom: 12px;">Quý khách vui lòng phản hồi email này hoặc liên hệ hotline để xác nhận tiến hành ký kết hợp đồng:</p>
-            <a href="mailto:sales@smarthire.top?subject=Xác nhận báo giá SmartHire-AI" class="btn">Phản Hồi Đồng Ý Báo Giá</a>
+            <a th:href="'mailto:' + (${supportEmail} ?: 'support@smarthire.top') + '?subject=Xác nhận báo giá SmartHire-AI'" href="mailto:support@smarthire.top?subject=Xác nhận báo giá SmartHire-AI" class="btn">Phản Hồi Đồng Ý Báo Giá</a>
         </div>
     </div>
 
     <div class="footer">
-        <p><strong>CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM</strong></p>
-        <p>Tòa nhà Keangnam Landmark 72, Phạm Hùng, Nam Từ Liêm, Hà Nội</p>
-        <p>Hotline: <strong>1900 6868</strong> | Email: <strong>sales@smarthire.top</strong> | Website: <strong>smarthire.top</strong></p>
+        <p><strong th:text="${platformCompanyName} ?: 'CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM'">CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM</strong></p>
+        <p th:text="${platformAddress} ?: 'Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng'">Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng</p>
+        <p>Hotline: <strong th:text="${supportHotline} ?: '0988.888.888'">0988.888.888</strong> | Email: <strong th:text="${supportEmail} ?: 'support@smarthire.top'">support@smarthire.top</strong> | Website: <strong>smarthire.top</strong></p>
     </div>
 </div>
 </body>

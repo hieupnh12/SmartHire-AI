@@ -133,15 +133,25 @@ export interface AiQuotaUsage {
   averageLatencyMs?: number;
 }
 
-export interface AuditLog {
+export interface TenantSystemLog {
   id: number;
   tenantCode: string;
+  category?: string;
   action: string;
+  message?: string;
   description: string;
   level: "INFO" | "WARN" | "ERROR";
+  endpoint?: string;
+  method?: string;
+  statusCode?: number;
+  ipAddress?: string;
+  traceId?: string;
+  stackTrace?: string;
+  metadataJson?: string;
   timestamp: string;
-  ipAddress: string;
 }
+
+export type AuditLog = TenantSystemLog;
 
 export const masterAdminApi = {
   // 1. Tenants
@@ -241,8 +251,13 @@ export const masterAdminApi = {
     const res = await masterClient.get(`${API_BASE}/master/analytics/ai-quota?${params.toString()}`);
     return res.data.data;
   },
-  getAuditLogs: async (): Promise<AuditLog[]> => {
-    const res = await masterClient.get(`${API_BASE}/master/analytics/logs`);
+  getAuditLogs: async (tenantCode?: string, level?: string): Promise<TenantSystemLog[]> => {
+    const params = new URLSearchParams();
+    if (tenantCode && tenantCode !== "ALL") params.append("tenantCode", tenantCode);
+    if (level && level !== "ALL") params.append("level", level);
+    const qs = params.toString();
+    const url = qs ? `${API_BASE}/master/analytics/logs?${qs}` : `${API_BASE}/master/analytics/logs`;
+    const res = await masterClient.get(url);
     return res.data.data;
   }
 };

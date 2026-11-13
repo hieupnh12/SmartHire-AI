@@ -4,17 +4,17 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.InvoiceLineItem;
 import com.smarthire.domain.master.entity.MasterConsentLog;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
 import com.smarthire.domain.master.repository.MasterConsentLogRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.billing.dto.*;
 import com.smarthire.master.tenant.service.MasterTenantService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
@@ -28,8 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import com.smarthire.master.billing.dto.OrderPdfData;
@@ -58,7 +56,7 @@ public class MasterBillingService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
     private final MasterConsentLogRepository consentLogRepository;
-    private final PlatformAuditLogRepository platformAuditLogRepository;
+    private final TenantSystemLogRepository systemLogRepository;
     private final MasterTenantService masterTenantService;
     @SuppressWarnings("unused")
     private final InviteMailSender mailSender;
@@ -69,8 +67,15 @@ public class MasterBillingService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaRedisService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
+
+    private com.smarthire.config.PlatformProperties getPlatformProperties() {
+        return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<InvoiceResponse> getAllInvoices(String statusFilter, Long tenantId) {
@@ -232,11 +237,7 @@ public class MasterBillingService {
 
         if ("PAID".equals(nextStatus)) {
             invoice.setPaidAt(request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now());
-            if (invoice.getSubscriptionId() != null) {
-                subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
-                    activatePaidSubscription(sub);
-                });
-            }
+            applyPaidSubscriptionForInvoice(invoice);
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 pendingTenant.setStatus("PROVISIONING");
@@ -248,6 +249,9 @@ public class MasterBillingService {
                         pendingTenant.getId(),
                         invoice.getSubscriptionId()
                 ));
+            } else if (pendingTenant != null && "SUSPENDED".equalsIgnoreCase(pendingTenant.getStatus())) {
+                pendingTenant.setStatus("ACTIVE");
+                tenantRepository.save(pendingTenant);
             }
         }
 
@@ -287,9 +291,20 @@ public class MasterBillingService {
             );
         }
 
+        com.smarthire.config.PlatformProperties props = getPlatformProperties();
+        com.smarthire.config.PlatformProperties.Legal legal = props.getLegal();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = props.getPayment().getBank();
+
+        String defaultVersion = StringUtils.hasText(legal.getTermsVersion()) ? legal.getTermsVersion() : DEFAULT_TERMS_VERSION;
         String policyVersion = StringUtils.hasText(request.getTermsVersion())
                 ? request.getTermsVersion().trim()
-                : DEFAULT_TERMS_VERSION;
+                : defaultVersion;
+        String privacyPolicyCode = StringUtils.hasText(legal.getPrivacyPolicyCode())
+                ? legal.getPrivacyPolicyCode()
+                : "PRIVACY_POLICY_2025";
+        String privacyLawLabel = StringUtils.hasText(legal.getPrivacyLawLabel())
+                ? legal.getPrivacyLawLabel()
+                : "Luật Bảo vệ dữ liệu cá nhân 2025 & Nghị định số 356/2025/NĐ-CP";
         LocalDateTime acceptedAt = LocalDateTime.now();
         String safeIp = StringUtils.hasText(clientIp) ? clientIp.trim() : "127.0.0.1";
         String safeUserAgent = StringUtils.hasText(userAgent) ? userAgent.trim() : "UNKNOWN";
@@ -367,7 +382,7 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
-        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Decree 13/2023/ND-CP Privacy Policy)
+        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Personal Data Protection Law 2025)
         MasterConsentLog tosConsent = MasterConsentLog.builder()
                 .tenantId(tenant.getId())
                 .invoiceId(savedInvoice.getId())
@@ -387,7 +402,7 @@ public class MasterBillingService {
                 .invoiceId(savedInvoice.getId())
                 .actorName(request.getAdminFullName().trim())
                 .actorEmail(request.getAdminEmail().trim())
-                .policyType("PRIVACY_POLICY_ND13")
+                .policyType(privacyPolicyCode)
                 .policyVersion(policyVersion)
                 .accepted(true)
                 .ipAddress(safeIp)
@@ -398,34 +413,32 @@ public class MasterBillingService {
 
         consentLogRepository.saveAll(List.of(tosConsent, privacyConsent));
 
-        PlatformAuditLog auditLog = PlatformAuditLog.builder()
+        TenantSystemLog auditLog = TenantSystemLog.builder()
                 .tenantCode(tenant.getCode())
+                .category("BILLING")
                 .action("ACCEPT_CHECKOUT_TERMS")
                 .level("INFO")
                 .ipAddress(safeIp)
-                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (NĐ 13/2023/NĐ-CP) phiên bản "
+                .message("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (" + privacyLawLabel + ") phiên bản "
                         + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
                 .metadataJson(String.format(
-                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"PRIVACY_POLICY_ND13\"],\"acceptedAt\":\"%s\"}",
+                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"%s\"],\"acceptedAt\":\"%s\"}",
                         savedInvoice.getInvoiceNumber(),
                         policyVersion,
+                        privacyPolicyCode,
                         acceptedAt
                 ))
                 .createdAt(acceptedAt)
                 .build();
-        platformAuditLogRepository.save(auditLog);
+        systemLogRepository.save(auditLog);
 
-        // 5. Bank Info and SePay VietQR (TPBank)
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        // 5. Bank Info and SePay VietQR (Centralized PlatformProperties)
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
-        String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-        String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger()
-                + "&addInfo=" + encodedSyntax
-                + "&accountName=" + encodedAccount;
+        String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
         // 6. Asynchronously generate PDF and send Order Confirmation Email
         CompletableFuture.runAsync(() -> {
@@ -451,6 +464,7 @@ public class MasterBillingService {
                         .unitPrice(unitPriceVnd)
                         .totalPrice(amountVnd)
                         .bankName(bankName)
+                        .bankBranch(bankBranch)
                         .accountNumber(accountNumber)
                         .accountName(accountName)
                         .transferSyntax(transferSyntax)
@@ -498,9 +512,7 @@ public class MasterBillingService {
         }
         Invoice saved = invoiceRepository.save(invoice);
 
-        if (saved.getSubscriptionId() != null) {
-            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(this::activatePaidSubscription);
-        }
+        applyPaidSubscriptionForInvoice(saved);
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
         if (tenant != null && quotaRedisService != null) {
@@ -517,11 +529,64 @@ public class MasterBillingService {
                     tenant.getId(),
                     saved.getSubscriptionId()
             ));
+        } else if (tenant != null && "SUSPENDED".equalsIgnoreCase(tenant.getStatus())) {
+            tenant.setStatus("ACTIVE");
+            tenantRepository.save(tenant);
         }
         return saved;
     }
 
-    private void activatePaidSubscription(TenantSubscription sub) {
+    private void applyPaidSubscriptionForInvoice(Invoice invoice) {
+        if (invoice == null || invoice.getSubscriptionId() == null) {
+            return;
+        }
+        TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+        if (sub == null) {
+            return;
+        }
+        List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+        boolean isRenewal = items != null && items.stream()
+                .anyMatch(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()));
+        if (isRenewal && !"PENDING".equalsIgnoreCase(sub.getStatus())) {
+            int years = items.stream()
+                    .filter(item -> "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                    .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                    .findFirst()
+                    .orElse(1);
+            renewExistingSubscription(sub, years);
+            return;
+        }
+        int fallbackYears = items == null ? 1 : items.stream()
+                .filter(item -> "SUBSCRIPTION".equalsIgnoreCase(item.getItemType())
+                        || "SUBSCRIPTION_RENEWAL".equalsIgnoreCase(item.getItemType()))
+                .mapToInt(item -> item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
+                .findFirst()
+                .orElse(1);
+        activatePaidSubscription(sub, fallbackYears);
+    }
+
+    private void renewExistingSubscription(TenantSubscription sub, int years) {
+        if (sub == null) {
+            return;
+        }
+        if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
+            planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        boolean hadRemainingTerm = sub.getEndsAt() != null && sub.getEndsAt().isAfter(now);
+        LocalDateTime baseEnd = hadRemainingTerm ? sub.getEndsAt() : now;
+        if (!hadRemainingTerm || sub.getStartsAt() == null) {
+            sub.setStartsAt(now);
+        }
+        sub.setEndsAt(baseEnd.plusYears(Math.max(1, years)));
+        sub.setStatus("ACTIVE");
+        sub.setGracePeriodEndsAt(null);
+        sub.setCanceledAt(null);
+        sub.setCancelReason(null);
+        subscriptionRepository.save(sub);
+    }
+
+    private void activatePaidSubscription(TenantSubscription sub, int fallbackYears) {
         if (sub == null) {
             return;
         }
@@ -549,9 +614,10 @@ public class MasterBillingService {
                 }
             }
         }
-        long years = (sub.getStartsAt() != null && sub.getEndsAt() != null)
+        long calculatedYears = (sub.getStartsAt() != null && sub.getEndsAt() != null)
                 ? Math.max(1L, Math.round(java.time.temporal.ChronoUnit.DAYS.between(sub.getStartsAt(), sub.getEndsAt()) / 365.0))
                 : 1L;
+        long years = Math.max(calculatedYears, Math.max(1L, fallbackYears));
         sub.setStartsAt(now);
         sub.setEndsAt(now.plusYears(years));
         sub.setStatus("ACTIVE");
@@ -637,20 +703,64 @@ public class MasterBillingService {
     }
 
     public CheckoutResponse buildCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        Integer resolvedQuantity = null;
+        if (invoice != null && invoice.getId() != null) {
+            List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(invoice.getId());
+            if (items != null) {
+                resolvedQuantity = items.stream()
+                        .filter(item -> item.getQuantity() != null && item.getQuantity() > 0)
+                        .map(InvoiceLineItem::getQuantity)
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+        CheckoutResponse response = toCheckoutResponse(invoice, tenant, plan, getPlatformProperties());
+        if (resolvedQuantity != null) {
+            response.setQuantity(resolvedQuantity);
+        }
+        return response;
+    }
+
+    public static CheckoutResponse toCheckoutResponse(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
+        return toCheckoutResponse(invoice, tenant, plan, new com.smarthire.config.PlatformProperties());
+    }
+
+    public static CheckoutResponse toCheckoutResponse(
+            Invoice invoice,
+            TenantInfo tenant,
+            SubscriptionPlan plan,
+            com.smarthire.config.PlatformProperties props) {
+        com.smarthire.config.PlatformProperties safeProps = props != null ? props : new com.smarthire.config.PlatformProperties();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = safeProps.getPayment().getBank();
+
         BigDecimal amountVnd = invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO;
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
         String transferSyntax = "SH " + invoice.getInvoiceNumber();
-        String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-        String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger()
-                + "&addInfo=" + encodedSyntax
-                + "&accountName=" + encodedAccount;
+        String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
         String planName = plan != null ? plan.getName() : "Gói dịch vụ";
         String planCode = plan != null ? plan.getCode() : "CUSTOM";
+
+        int quantity = 1;
+        if (invoice.getBillingPeriodStart() != null && invoice.getBillingPeriodEnd() != null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(invoice.getBillingPeriodStart(), invoice.getBillingPeriodEnd());
+            if (days > 0) {
+                quantity = Math.max(1, (int) Math.round(days / 365.0));
+            }
+        }
+
+        String taxCode = StringUtils.hasText(invoice.getBillingTaxCode())
+                ? invoice.getBillingTaxCode()
+                : (tenant != null ? tenant.getTaxCode() : null);
+        String companyLegalName = StringUtils.hasText(invoice.getBillingLegalName())
+                ? invoice.getBillingLegalName()
+                : (tenant != null ? tenant.getCompanyLegalName() : null);
+        String billingAddress = StringUtils.hasText(invoice.getBillingAddress())
+                ? invoice.getBillingAddress()
+                : (tenant != null ? tenant.getBillingAddress() : null);
 
         return CheckoutResponse.builder()
                 .invoiceId(invoice.getId())
@@ -658,6 +768,14 @@ public class MasterBillingService {
                 .tenantId(tenant != null ? tenant.getId() : null)
                 .tenantCode(tenant != null ? tenant.getCode() : null)
                 .subdomain(tenant != null ? tenant.getSubdomain() : null)
+                .workspaceName(tenant != null ? tenant.getName() : null)
+                .adminFullName(tenant != null ? tenant.getContactName() : null)
+                .adminEmail(tenant != null ? tenant.getContactEmail() : null)
+                .adminPhone(tenant != null ? tenant.getContactPhone() : null)
+                .taxCode(taxCode)
+                .companyLegalName(companyLegalName)
+                .billingAddress(billingAddress)
+                .quantity(quantity)
                 .planName(planName)
                 .planCode(planCode)
                 .billingCycle("YEARLY")
@@ -665,6 +783,7 @@ public class MasterBillingService {
                 .currency(StringUtils.hasText(invoice.getCurrency()) ? invoice.getCurrency() : "VND")
                 .status(invoice.getStatus())
                 .bankName(bankName)
+                .bankBranch(bankBranch)
                 .accountNumber(accountNumber)
                 .accountName(accountName)
                 .transferSyntax(transferSyntax)
@@ -717,9 +836,11 @@ public class MasterBillingService {
         Map<Long, SubscriptionPlan> planMap = planRepository.findAll().stream()
                 .collect(Collectors.toMap(SubscriptionPlan::getId, Function.identity(), (a, b) -> a));
 
-        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
-        String accountNumber = "07744348801";
-        String accountName = "NGUYEN NHAT SINH";
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = getPlatformProperties().getPayment().getBank();
+        String bankName = bank.getName();
+        String bankBranch = bank.getBranch();
+        String accountNumber = bank.getAccountNumber();
+        String accountName = bank.getAccountName();
 
         return matchingInvoices.stream().map(inv -> {
             TenantInfo tenant = tenantMap.get(inv.getTenantId());
@@ -735,12 +856,7 @@ public class MasterBillingService {
 
             BigDecimal amountVnd = inv.getAmount() != null ? inv.getAmount() : BigDecimal.ZERO;
             String transferSyntax = "SH " + inv.getInvoiceNumber();
-            String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
-            String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-            String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                    + amountVnd.toBigInteger()
-                    + "&addInfo=" + encodedSyntax
-                    + "&accountName=" + encodedAccount;
+            String qrUrl = bank.buildVietQrUrl(amountVnd, transferSyntax);
 
             boolean canPay = "PENDING".equalsIgnoreCase(inv.getStatus());
 
@@ -764,6 +880,7 @@ public class MasterBillingService {
                     .dueDate(inv.getDueDate())
                     .paidAt(inv.getPaidAt())
                     .bankName(bankName)
+                    .bankBranch(bankBranch)
                     .accountNumber(accountNumber)
                     .accountName(accountName)
                     .transferSyntax(transferSyntax)

@@ -10,6 +10,7 @@ import {
   QrCode,
 } from "lucide-react";
 import { QrCodeView } from "@/components/shared/QrCodeView";
+import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 
@@ -32,6 +33,7 @@ export function JobDetailAppQrCard({
   logoUrl,
   className = "",
 }: JobDetailAppQrCardProps) {
+  const t = useT();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedTenantId, setCopiedTenantId] = useState(false);
   const [qrMode, setQrMode] = useState<"app" | "web">("app");
@@ -64,8 +66,8 @@ export function JobDetailAppQrCard({
       setCopiedLink(true);
       toast.success(
         qrMode === "app"
-          ? "Đã sao chép dữ liệu JSON chứa Tenant ID & Job ID!"
-          : "Đã sao chép liên kết vị trí tuyển dụng!"
+          ? t("candidate.core.jobQr.toastCopiedJson")
+          : t("candidate.core.jobQr.toastCopiedLink")
       );
       setTimeout(() => setCopiedLink(false), 2000);
     }
@@ -75,7 +77,7 @@ export function JobDetailAppQrCard({
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(resolvedTenantId);
       setCopiedTenantId(true);
-      toast.success(`Đã sao chép Tenant ID: "${resolvedTenantId}"`);
+      toast.success(t("candidate.core.jobQr.toastCopiedTenantId", { tenantId: resolvedTenantId }));
       setTimeout(() => setCopiedTenantId(false), 2000);
     }
   };
@@ -97,23 +99,23 @@ export function JobDetailAppQrCard({
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200/60">
               <Sparkles className="size-3 text-amber-500" />
-              Tiện ích ứng viên
+              {t("candidate.core.jobQr.badgeCandidateUtility")}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200/60">
-              App Mobile
+              {t("candidate.core.jobQr.badgeMobileApp")}
             </span>
           </div>
           <h3
             id="app-qr-box-title"
             className="mt-1 text-sm font-semibold text-slate-900 leading-snug"
           >
-            Ứng tuyển hoặc theo dõi trạng thái qua App
+            {t("candidate.core.jobQr.title")}
           </h3>
         </div>
       </div>
 
       <p className="mt-2 text-xs leading-5 text-slate-600">
-        Quét mã QR bằng App Mobile SmartHire để tự động kết nối doanh nghiệp và nộp hồ sơ.
+        {t("candidate.core.jobQr.description")}
       </p>
 
       {/* Mode Switcher Tabs */}
@@ -129,7 +131,7 @@ export function JobDetailAppQrCard({
             }`}
           >
             <QrCode className="size-3" />
-            <span>App Mobile (JSON)</span>
+            <span>{t("candidate.core.jobQr.tabApp")}</span>
           </button>
           <button
             type="button"
@@ -141,7 +143,7 @@ export function JobDetailAppQrCard({
             }`}
           >
             <Globe className="size-3" />
-            <span>Link Web</span>
+            <span>{t("candidate.core.jobQr.tabWeb")}</span>
           </button>
         </div>
       </div>
@@ -154,13 +156,13 @@ export function JobDetailAppQrCard({
             size={142}
             logoUrl={logoUrl}
             logoText={tenantName}
-            label={`QR ứng tuyển vị trí ${jobTitle}`}
+            label={t("candidate.core.jobQr.qrLabel", { jobTitle })}
           />
         </div>
         <p className="mt-1.5 text-[11px] font-medium text-slate-500">
           {qrMode === "app"
-            ? "Mã QR chứa Tenant ID và Job ID cho App di động"
-            : "Hỗ trợ quét nhanh mở trực tiếp bằng trình duyệt"}
+            ? t("candidate.core.jobQr.hintApp")
+            : t("candidate.core.jobQr.hintWeb")}
         </p>
       </div>
 
@@ -168,12 +170,12 @@ export function JobDetailAppQrCard({
       <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-1.5 text-xs">
         <div className="flex items-center gap-1.5 min-w-0">
           <Building2 className="size-3.5 shrink-0 text-blue-600" />
-          <span className="text-slate-500 text-[11px]">Tenant:</span>
+          <span className="text-slate-500 text-[11px]">{t("candidate.core.jobQr.tenantLabel")}</span>
           <span className="font-mono font-semibold text-blue-700 truncate max-w-[90px]">
             {resolvedTenantId}
           </span>
           <span className="text-slate-300">•</span>
-          <span className="text-slate-500 text-[11px]">Job:</span>
+          <span className="text-slate-500 text-[11px]">{t("candidate.core.jobQr.jobLabel")}</span>
           <span className="font-mono font-semibold text-slate-700">#{jobId}</span>
         </div>
         <button
@@ -184,12 +186,12 @@ export function JobDetailAppQrCard({
           {copiedTenantId ? (
             <>
               <Check className="size-3 text-emerald-600" />
-              <span className="text-emerald-700">Đã chép</span>
+              <span className="text-emerald-700">{t("candidate.core.jobQr.copiedShort")}</span>
             </>
           ) : (
             <>
               <Copy className="size-3" />
-              <span>Copy</span>
+              <span>{t("candidate.core.jobQr.copyShort")}</span>
             </>
           )}
         </button>
@@ -199,11 +201,11 @@ export function JobDetailAppQrCard({
       <div className="mt-3 space-y-1.5 rounded-xl bg-slate-50 p-2.5 text-[11px] text-slate-600 border border-slate-100">
         <div className="flex items-center gap-2">
           <span className="size-1.5 rounded-full bg-[var(--color-primary)]" />
-          <span>Nộp CV & phỏng vấn AI ngay trên điện thoại</span>
+          <span>{t("candidate.core.jobQr.bullet1")}</span>
         </div>
         <div className="flex items-center gap-2">
           <Bell className="size-3 text-blue-500" />
-          <span>Nhận kết quả và nhắc lịch phỏng vấn 24/7</span>
+          <span>{t("candidate.core.jobQr.bullet2")}</span>
         </div>
       </div>
 
@@ -222,12 +224,12 @@ export function JobDetailAppQrCard({
           {copiedLink ? (
             <>
               <Check className="size-3 text-emerald-600" />
-              <span>Đã sao chép</span>
+              <span>{t("candidate.core.jobQr.copied")}</span>
             </>
           ) : (
             <>
               <Copy className="size-3" />
-              <span>{qrMode === "app" ? "Sao chép JSON" : "Sao chép link"}</span>
+              <span>{qrMode === "app" ? t("candidate.core.jobQr.copyJson") : t("candidate.core.jobQr.copyLink")}</span>
             </>
           )}
         </button>

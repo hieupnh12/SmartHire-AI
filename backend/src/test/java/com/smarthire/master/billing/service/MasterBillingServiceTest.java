@@ -48,7 +48,7 @@ class MasterBillingServiceTest {
     private MasterConsentLogRepository consentLogRepository;
 
     @Mock
-    private PlatformAuditLogRepository platformAuditLogRepository;
+    private TenantSystemLogRepository systemLogRepository;
 
     @Mock
     private MasterTenantService masterTenantService;
@@ -76,7 +76,7 @@ class MasterBillingServiceTest {
                 planRepository,
                 subscriptionRepository,
                 consentLogRepository,
-                platformAuditLogRepository,
+                systemLogRepository,
                 masterTenantService,
                 mailSender,
                 orderPdfGeneratorService,
@@ -145,7 +145,9 @@ class MasterBillingServiceTest {
         assertThat(response.getCurrency()).isEqualTo("VND");
         assertThat(response.getStatus()).isEqualTo("PENDING");
         assertThat(response.getBankName()).isEqualTo("Ngân hàng TMCP Tiên Phong (TPBank)");
+        assertThat(response.getBankBranch()).isEqualTo("Chi nhánh Đà Nẵng");
         assertThat(response.getAccountNumber()).isEqualTo("07744348801");
+        assertThat(response.getAccountName()).isEqualTo("NGUYEN NHAT SINH");
         assertThat(response.getTransferSyntax()).startsWith("SH ");
         assertThat(response.getQrUrl()).contains("07744348801");
         assertThat(response.getQrUrl()).contains("12000000");
@@ -161,8 +163,11 @@ class MasterBillingServiceTest {
         assertThat(consentCaptor.getValue().get(0).getPolicyType()).isEqualTo("TERMS_OF_SERVICE");
         assertThat(consentCaptor.getValue().get(0).getIpAddress()).isEqualTo("203.113.152.10");
         assertThat(consentCaptor.getValue().get(0).getUserAgent()).isEqualTo("Mozilla/5.0 Chrome/130");
-        assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_ND13");
-        verify(platformAuditLogRepository).save(any(PlatformAuditLog.class));
+        assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_2025");
+
+        ArgumentCaptor<TenantSystemLog> auditCaptor = ArgumentCaptor.forClass(TenantSystemLog.class);
+        verify(systemLogRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getMessage()).contains("Luật Bảo vệ dữ liệu cá nhân 2025");
     }
 
     @Test
@@ -182,7 +187,7 @@ class MasterBillingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Điều khoản dịch vụ");
 
-        verifyNoInteractions(invoiceRepository, consentLogRepository, platformAuditLogRepository);
+        verifyNoInteractions(invoiceRepository, consentLogRepository, systemLogRepository);
     }
 
     @Test
@@ -334,5 +339,183 @@ class MasterBillingServiceTest {
         assertThatThrownBy(() -> billingService.approveInvoice(999L))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Hóa đơn không tồn tại");
+    }
+
+    @Test
+    void completePaidInvoice_RenewalOnActiveSubscription_ExtendsRemainingTerm() {
+        LocalDateTime originalStart = LocalDateTime.now().minusMonths(9);
+        LocalDateTime originalEnd = LocalDateTime.now().plusDays(90);
+
+        TenantSubscription activeSub = TenantSubscription.builder()
+                .id(30L)
+                .tenantId(10L)
+                .planId(2L)
+                .planCodeSnapshot("PROFESSIONAL")
+                .planNameSnapshot("Professional")
+                .status("ACTIVE")
+                .startsAt(originalStart)
+                .endsAt(originalEnd)
+                .build();
+
+        Invoice renewalInvoice = Invoice.builder()
+                .id(60L)
+                .invoiceNumber("INV-202611-0060")
+                .tenantId(10L)
+                .subscriptionId(30L)
+                .amount(new BigDecimal("72000000"))
+                .currency("VND")
+                .status("PENDING")
+                .build();
+
+        InvoiceLineItem renewalItem = InvoiceLineItem.builder()
+                .invoiceId(60L)
+                .itemType("SUBSCRIPTION_RENEWAL")
+                .quantity(2)
+                .unitPrice(new BigDecimal("36000000"))
+                .totalPrice(new BigDecimal("72000000"))
+                .build();
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(10L);
+        tenant.setCode("acme");
+        tenant.setStatus("ACTIVE");
+
+        when(invoiceRepository.findById(60L)).thenReturn(Optional.of(renewalInvoice));
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
+        when(subscriptionRepository.findById(30L)).thenReturn(Optional.of(activeSub));
+        when(invoiceLineItemRepository.findByInvoiceId(60L)).thenReturn(java.util.List.of(renewalItem));
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+
+        billingService.completePaidInvoice(60L, "SEPAY", "TXN-1", "Renew 2 years");
+
+        assertThat(renewalInvoice.getStatus()).isEqualTo("PAID");
+        assertThat(activeSub.getStatus()).isEqualTo("ACTIVE");
+        assertThat(activeSub.getStartsAt()).isEqualTo(originalStart);
+        assertThat(activeSub.getEndsAt()).isEqualTo(originalEnd.plusYears(2));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void completePaidInvoice_UpgradeFromPendingSub_CancelsOldSubAndActivatesNewSub() {
+        TenantSubscription oldSub = TenantSubscription.builder()
+                .id(40L)
+                .tenantId(10L)
+                .planId(1L)
+                .status("ACTIVE")
+                .startsAt(LocalDateTime.now().minusMonths(6))
+                .endsAt(LocalDateTime.now().plusMonths(6))
+                .build();
+
+        TenantSubscription pendingUpgradeSub = TenantSubscription.builder()
+                .id(41L)
+                .tenantId(10L)
+                .planId(2L)
+                .planCodeSnapshot("PROFESSIONAL")
+                .status("PENDING")
+                .upgradedFromSubscriptionId(40L)
+                .build();
+
+        Invoice upgradeInvoice = Invoice.builder()
+                .id(61L)
+                .invoiceNumber("INV-202611-0061")
+                .tenantId(10L)
+                .subscriptionId(41L)
+                .amount(new BigDecimal("24000000"))
+                .currency("VND")
+                .status("PENDING")
+                .build();
+
+        InvoiceLineItem upgradeItem = InvoiceLineItem.builder()
+                .invoiceId(61L)
+                .itemType("SUBSCRIPTION_UPGRADE")
+                .quantity(1)
+                .unitPrice(new BigDecimal("36000000"))
+                .totalPrice(new BigDecimal("36000000"))
+                .build();
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(10L);
+        tenant.setCode("acme");
+        tenant.setStatus("ACTIVE");
+
+        when(invoiceRepository.findById(61L)).thenReturn(Optional.of(upgradeInvoice));
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
+        when(subscriptionRepository.findById(41L)).thenReturn(Optional.of(pendingUpgradeSub));
+        when(subscriptionRepository.findById(40L)).thenReturn(Optional.of(oldSub));
+        when(invoiceLineItemRepository.findByInvoiceId(61L)).thenReturn(java.util.List.of(upgradeItem));
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+
+        billingService.completePaidInvoice(61L, "VNPAY", "VNP-99", "Upgrade approved");
+
+        assertThat(oldSub.getStatus()).isEqualTo("CANCELED");
+        assertThat(oldSub.getCancelReason()).isEqualTo("UPGRADED_TO_PROFESSIONAL");
+        assertThat(pendingUpgradeSub.getStatus()).isEqualTo("ACTIVE");
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void getCheckoutOrderByInvoiceNumber_PopulatesBuyerAndTaxDetails() {
+        SubscriptionPlan plan = SubscriptionPlan.builder()
+                .id(2L)
+                .code("PROFESSIONAL")
+                .name("Gói Chuyên Nghiệp")
+                .priceYearly(new BigDecimal("36000000"))
+                .build();
+
+        TenantSubscription sub = TenantSubscription.builder()
+                .id(25L)
+                .tenantId(10L)
+                .planId(2L)
+                .status("PENDING")
+                .build();
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(10L);
+        tenant.setCode("acme");
+        tenant.setName("Acme Corp");
+        tenant.setSubdomain("acme");
+        tenant.setContactName("Nguyen Van A");
+        tenant.setContactEmail("admin@acme.com");
+        tenant.setContactPhone("0987654321");
+
+        Invoice invoice = Invoice.builder()
+                .id(70L)
+                .invoiceNumber("INV-202611-0070")
+                .tenantId(10L)
+                .subscriptionId(25L)
+                .amount(new BigDecimal("72000000"))
+                .currency("VND")
+                .status("PENDING")
+                .billingTaxCode("0102030405")
+                .billingLegalName("Cong Ty TNHH Acme")
+                .billingAddress("Da Nang")
+                .billingPeriodStart(LocalDateTime.now())
+                .billingPeriodEnd(LocalDateTime.now().plusYears(2))
+                .build();
+
+        InvoiceLineItem lineItem = InvoiceLineItem.builder()
+                .invoiceId(70L)
+                .quantity(2)
+                .unitPrice(new BigDecimal("36000000"))
+                .totalPrice(new BigDecimal("72000000"))
+                .itemType("SUBSCRIPTION")
+                .build();
+
+        when(invoiceRepository.findByInvoiceNumber("INV-202611-0070")).thenReturn(Optional.of(invoice));
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+        when(subscriptionRepository.findById(25L)).thenReturn(Optional.of(sub));
+        when(planRepository.findById(2L)).thenReturn(Optional.of(plan));
+        when(invoiceLineItemRepository.findByInvoiceId(70L)).thenReturn(java.util.List.of(lineItem));
+
+        CheckoutResponse response = billingService.getCheckoutOrderByInvoiceNumber("INV-202611-0070");
+
+        assertThat(response.getWorkspaceName()).isEqualTo("Acme Corp");
+        assertThat(response.getAdminFullName()).isEqualTo("Nguyen Van A");
+        assertThat(response.getAdminEmail()).isEqualTo("admin@acme.com");
+        assertThat(response.getAdminPhone()).isEqualTo("0987654321");
+        assertThat(response.getTaxCode()).isEqualTo("0102030405");
+        assertThat(response.getCompanyLegalName()).isEqualTo("Cong Ty TNHH Acme");
+        assertThat(response.getBillingAddress()).isEqualTo("Da Nang");
+        assertThat(response.getQuantity()).isEqualTo(2);
     }
 }

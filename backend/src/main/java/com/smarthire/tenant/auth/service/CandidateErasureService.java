@@ -7,7 +7,9 @@ import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.CandidateRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
+import com.smarthire.domain.tenant.repository.JobAlertRepository;
 import com.smarthire.domain.tenant.repository.OauthAccountRepository;
+import com.smarthire.domain.tenant.repository.SavedJobRepository;
 import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,8 @@ public class CandidateErasureService {
     private final CvRepository cvs;
     private final OauthAccountRepository oauthAccounts;
     private final ApplicationClosureService closures;
+    private SavedJobRepository savedJobs;
+    private JobAlertRepository jobAlerts;
 
     public CandidateErasureService(CvAccess access, CandidateRepository candidates, ApplicationRepository applications,
             CvRepository cvs, OauthAccountRepository oauthAccounts, ApplicationClosureService closures) {
@@ -42,6 +46,12 @@ public class CandidateErasureService {
         this.cvs = cvs;
         this.oauthAccounts = oauthAccounts;
         this.closures = closures;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setJobEngagementRepos(SavedJobRepository savedJobs, JobAlertRepository jobAlerts) {
+        this.savedJobs = savedJobs;
+        this.jobAlerts = jobAlerts;
     }
 
     @Transactional
@@ -56,6 +66,12 @@ public class CandidateErasureService {
         }
         cvs.findByCandidate_IdOrderByIdDesc(candidate.getId()).forEach(closures::purge);
         oauthAccounts.findByCandidate(candidate).ifPresent(oauthAccounts::delete);
+        if (savedJobs != null) {
+            savedJobs.deleteByCandidate_Id(candidate.getId());
+        }
+        if (jobAlerts != null) {
+            jobAlerts.deleteByCandidate_Id(candidate.getId());
+        }
         candidate.setEmail(erasedEmail(candidate.getEmail()));
         candidate.setFullName(ERASED_NAME);
         candidate.setPasswordHash(null);

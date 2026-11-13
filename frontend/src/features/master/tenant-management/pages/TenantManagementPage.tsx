@@ -4,6 +4,8 @@ import { TenantManagementHub, type TenantHubTab } from "../components/TenantMana
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useT } from "@/i18n";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
@@ -13,9 +15,11 @@ function currentTab(pathname: string): TenantHubTab {
 }
 
 export function TenantManagementPage() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
   const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
@@ -28,29 +32,34 @@ export function TenantManagementPage() {
     const status = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     const updated = await masterAdminApi.updateTenantStatus(tenant.id, status);
     setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-    triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
+    triggerNotification(t("master.ops.tenants.toasts.statusUpdated", { code: tenant.code, status }));
   };
 
-  const softDeleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(`Bạn có chắc muốn xoá mềm (lưu trữ) tenant ${tenant.code}? Database vẫn được giữ lại và có thể khôi phục sau.`)) {
-      return;
-    }
-    try {
-      const updated = await masterAdminApi.softDeleteTenant(tenant.id);
-      setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(`Đã xoá mềm tenant ${tenant.code}.`);
-    } catch {
-      toast.danger("Lỗi khi xoá mềm tenant.");
-    }
+  const softDeleteTenant = (tenant: TenantInfo) => {
+    askConfirm({
+      title: t("master.ops.tenants.toasts.softDeleteConfirmTitle", { code: tenant.code }),
+      description: t("master.ops.tenants.toasts.softDeleteConfirmDesc"),
+      confirmLabel: t("master.ops.tenants.toasts.softDeleteConfirmBtn"),
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const updated = await masterAdminApi.softDeleteTenant(tenant.id);
+          setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
+          triggerNotification(t("master.ops.tenants.toasts.softDeleteSuccess", { code: tenant.code }));
+        } catch {
+          toast.danger(t("master.ops.tenants.toasts.softDeleteError"));
+        }
+      },
+    });
   };
 
   const restoreTenant = async (tenant: TenantInfo) => {
     try {
       const updated = await masterAdminApi.restoreTenant(tenant.id);
       setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
-      triggerNotification(`Đã khôi phục tenant ${tenant.code} về trạng thái SUSPENDED.`);
+      triggerNotification(t("master.ops.tenants.toasts.restoreSuccess", { code: tenant.code }));
     } catch {
-      toast.danger("Lỗi khi khôi phục tenant.");
+      toast.danger(t("master.ops.tenants.toasts.restoreError"));
     }
   };
 

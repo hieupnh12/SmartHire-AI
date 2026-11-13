@@ -124,6 +124,13 @@ public class JobService {
         this.closures = closures;
     }
 
+    private org.springframework.beans.factory.ObjectProvider<JobAlertService> jobAlerts;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setJobAlerts(org.springframework.beans.factory.ObjectProvider<JobAlertService> jobAlerts) {
+        this.jobAlerts = jobAlerts;
+    }
+
     public Map<String, String> health() {
         return Map.of("module", "job", "status", "ready");
     }
@@ -134,13 +141,18 @@ public class JobService {
         closeExpiredJobs();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
-        // scope=all: admin only — returns every non-deleted job regardless of assignment.
-        // scope=my (default): staff see only jobs they are assigned to; admins see all.
-        boolean scopeAll = "all".equalsIgnoreCase(scope) || jobAccess.canViewAllJobs();
-        if ("all".equalsIgnoreCase(scope) && !jobAccess.canViewAllJobs()) {
+        String normalizedScope = scope == null || scope.isBlank()
+                ? "my"
+                : scope.trim().toLowerCase(Locale.ROOT);
+        if (!"my".equals(normalizedScope) && !"all".equals(normalizedScope)) {
+            throw new BusinessException("Invalid job scope: " + scope, HttpStatus.BAD_REQUEST, "INVALID_JOB_SCOPE");
+        }
+        boolean scopeAll = "all".equals(normalizedScope);
+        if (scopeAll && !jobAccess.canViewAllJobs()) {
             throw new BusinessException("scope=all requires admin or all-jobs access", HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
-        Long scopeUserId = scopeAll ? null : access.jobScopeUserId();
+        // scope=my filters to jobs created by or assigned to the current actor (even for admins and JOBS_ALL).
+        Long scopeUserId = scopeAll ? null : access.actor().getId();
         var result = jobs.search(status, blankToNull(query), blankToNull(department),
                 scopeUserId, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
         List<Long> ids = result.getContent().stream().map(Job::getId).toList();
@@ -188,10 +200,21 @@ public class JobService {
         }
     }
 
+    public record PublicJobSitemapEntry(long id, Instant lastModified) {}
+
     @Transactional(readOnly = true)
     public List<PublicJob> publicList(String query) {
         return jobs.publicOpen(Instant.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
                 .map(job -> mapper.publicJob(job, jobSkills.findByJob_IdOrderByIdAsc(job.getId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicJobSitemapEntry> publicSitemapEntries() {
+        return jobs.publicOpen(Instant.now(), null, JobStatus.PUBLISHED).stream()
+                .map(job -> new PublicJobSitemapEntry(
+                        job.getId(),
+                        job.getUpdatedAt() != null ? job.getUpdatedAt() : job.getPublishedAt()))
                 .toList();
     }
 
@@ -333,7 +356,8 @@ public class JobService {
                 || job.getDescription() == null || job.getDescription().isBlank()) {
             throw new BusinessException("Title and description are required to publish", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_NOT_READY");
         }
-        if (jobSkills.findByJob_IdOrderByIdAsc(id).isEmpty()) {
+        List<JobSkill> requiredSkills = jobSkills.findByJob_IdOrderByIdAsc(id);
+        if (requiredSkills.isEmpty()) {
             throw new BusinessException("Add at least one skill before publishing", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_SKILLS_REQUIRED");
         }
         if (stages.findByJob_IdOrderBySortOrderAsc(id).isEmpty()) {
@@ -341,12 +365,19 @@ public class JobService {
             jobAccess.requireOwner(id);
         }
         ensureCatalogStages(job);
+        boolean firstPublish = job.getPublishedAt() == null;
         job.setStatus(JobStatus.PUBLISHED);
-        job.setPublishedAt(job.getPublishedAt() == null ? Instant.now() : job.getPublishedAt());
+        job.setPublishedAt(firstPublish ? Instant.now() : job.getPublishedAt());
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
         scheduleJobExpiry(job);
+        if (firstPublish && jobAlerts != null) {
+            JobAlertService alertService = jobAlerts.getIfAvailable();
+            if (alertService != null) {
+                alertService.notifyMatchingSubscribers(job, requiredSkills);
+            }
+        }
         return get(id);
     }
 

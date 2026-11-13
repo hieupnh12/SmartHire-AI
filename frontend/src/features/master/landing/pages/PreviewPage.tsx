@@ -12,8 +12,10 @@ import {
   Volume2
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
+import { useT } from "@/i18n";
 
 export function PreviewPage() {
+  const t = useT();
   const { openDemoModal } = useLandingModal();
   const [activeTab, setActiveTab] = useState<"screening" | "assessment" | "interview">("screening");
 
@@ -24,18 +26,18 @@ export function PreviewPage() {
         <div className="text-center max-w-4xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold mb-6 shadow-2xs">
             <Sparkles className="w-4 h-4 text-blue-600" />
-            <span>Phòng Trải Nghiệm Công Nghệ Tương Tác</span>
+            <span>{t("master.landing.preview.hero.badge")}</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
-            Thao Tác Trực Tiếp Với{" "}
+            {t("master.landing.preview.hero.titlePrefix")}{" "}
             <span className="text-blue-600 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
-              Giao Diện Tuyển Dụng AI
+              {t("master.landing.preview.hero.titleHighlight")}
             </span>
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-8 leading-relaxed">
-            Xem cách nền tảng SmartHire-AI xử lý hồ sơ ứng viên, chấm điểm code tự động trong Sandbox và đàm thoại phỏng vấn bằng giọng nói thời gian thực.
+            {t("master.landing.preview.hero.subtitle")}
           </p>
 
           {/* Interactive Tab Switcher */}
@@ -49,7 +51,7 @@ export function PreviewPage() {
               }`}
             >
               <FileCheck2 className="w-4 h-4" />
-              <span>1. Lọc CV Thông Minh</span>
+              <span>{t("master.landing.preview.hero.tabScreening")}</span>
             </button>
             <button
               onClick={() => setActiveTab("assessment")}
@@ -60,7 +62,7 @@ export function PreviewPage() {
               }`}
             >
               <Code2 className="w-4 h-4" />
-              <span>2. Đánh Giá Kỹ Thuật</span>
+              <span>{t("master.landing.preview.hero.tabAssessment")}</span>
             </button>
             <button
               onClick={() => setActiveTab("interview")}
@@ -71,7 +73,7 @@ export function PreviewPage() {
               }`}
             >
               <Mic className="w-4 h-4" />
-              <span>3. Phỏng Vấn Giọng Nói AI</span>
+              <span>{t("master.landing.preview.hero.tabInterview")}</span>
             </button>
           </div>
         </div>
@@ -82,23 +84,26 @@ export function PreviewPage() {
             <div className="grid md:grid-cols-12 gap-8 items-center animate-fade-in">
               <div className="md:col-span-6 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Parsing & Match Scoring
+                  <Sparkles className="w-3.5 h-3.5" /> {t("master.landing.preview.tabs.screening.badge")}
                 </div>
                 <h3 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                  Tự động bóc tách & xếp hạng hồ sơ trong 1 giây
+                  {t("master.landing.preview.tabs.screening.title")}
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  AI tự động đọc hiểu mọi file CV (PDF, DOCX), trích xuất chính xác số năm kinh nghiệm, bộ kỹ năng kỹ thuật và đối khớp thông minh với bản Mô tả công việc (JD).
+                  {t("master.landing.preview.tabs.screening.description")}
                 </p>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 font-medium pt-2">
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tự động loại bỏ hồ sơ rác, phát hiện từ khóa spam
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.screening.b1")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đề xuất Top 10% ứng viên sáng giá nhất vào vòng tiếp
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.screening.b2")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Giải thích lý do vì sao hồ sơ phù hợp hoặc thiếu hụt
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.screening.b3")}
                   </li>
                 </ul>
               </div>
@@ -106,37 +111,44 @@ export function PreviewPage() {
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                      NA
+                      {t("master.landing.preview.tabs.screening.initials")}
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-900 text-sm">Nguyễn Tuấn Anh</div>
-                      <div className="text-[11px] text-slate-500">Ứng tuyển: Backend Tech Lead</div>
+                      <div className="font-semibold text-slate-900 text-sm">
+                        {t("master.landing.preview.tabs.screening.candidateName")}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {t("master.landing.preview.tabs.screening.appliedRole")}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="text-lg font-bold text-blue-600">96 / 100</span>
-                    <div className="text-[10px] text-emerald-600 font-semibold">Rất Phù Hợp</div>
+                    <div className="text-[10px] text-emerald-600 font-semibold">
+                      {t("master.landing.preview.tabs.screening.matchStatus")}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div>
                     <span className="text-[11px] font-semibold text-slate-700 block mb-1.5">
-                      Kỹ năng đối khớp trực tiếp với JD:
+                      {t("master.landing.preview.tabs.screening.matchedSkillsLabel")}
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-medium">
-                        ✓ Spring Boot (5 năm)
+                        {t("master.landing.preview.tabs.screening.skill1")}
                       </span>
                       <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-medium">
-                        ✓ Microservices Architecture
+                        {t("master.landing.preview.tabs.screening.skill2")}
                       </span>
                       <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-medium">
-                        ✓ Redis & RabbitMQ
+                        {t("master.landing.preview.tabs.screening.skill3")}
                       </span>
                     </div>
                   </div>
                   <div className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed shadow-2xs">
-                    <strong>Nhận xét từ AI:</strong> Ứng viên có bề dày kinh nghiệm thiết kế hệ thống lớn, đã từng lead team 15 người. Khuyến nghị mời tham gia bài test kỹ thuật.
+                    <strong>{t("master.landing.preview.tabs.screening.aiCommentLabel")}</strong>{" "}
+                    {t("master.landing.preview.tabs.screening.aiCommentBody")}
                   </div>
                 </div>
               </div>
@@ -147,30 +159,37 @@ export function PreviewPage() {
             <div className="grid md:grid-cols-12 gap-8 items-center animate-fade-in">
               <div className="md:col-span-6 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
-                  <Terminal className="w-3.5 h-3.5" /> Coding Sandbox & Anti-Cheat
+                  <Terminal className="w-3.5 h-3.5" /> {t("master.landing.preview.tabs.assessment.badge")}
                 </div>
                 <h3 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                  Đánh giá năng lực thực chiến & Chống gian lận
+                  {t("master.landing.preview.tabs.assessment.title")}
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Hệ thống bài thi trắc nghiệm chuyên sâu và bài tập lập trình tương tác. Tự động biên dịch, chạy TestCase trong môi trường Sandbox độc lập và chấm điểm tức thì.
+                  {t("master.landing.preview.tabs.assessment.description")}
                 </p>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 font-medium pt-2">
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tự động khóa bài và cảnh báo khi phát hiện chuyển tab
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.assessment.b1")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Báo cáo chi tiết độ tối ưu thuật toán (Time & Space Complexity)
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.assessment.b2")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Ngân hàng hơn 500+ bài toán lập trình chuẩn LeetCode
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.assessment.b3")}
                   </li>
                 </ul>
               </div>
               <div className="md:col-span-6 bg-slate-900 rounded-2xl p-6 text-white font-mono text-xs shadow-inner border border-slate-800">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-700 mb-3">
-                  <span className="text-slate-400">Solution.java (Coding Challenge)</span>
-                  <span className="text-emerald-400 font-semibold">4 / 4 Test Cases Passed</span>
+                  <span className="text-slate-400">
+                    {t("master.landing.preview.tabs.assessment.fileHeader")}
+                  </span>
+                  <span className="text-emerald-400 font-semibold">
+                    {t("master.landing.preview.tabs.assessment.testsPassed")}
+                  </span>
                 </div>
                 <div className="text-slate-300 space-y-1 text-[11px] mb-4">
                   <p><span className="text-blue-400">public</span> <span className="text-blue-400">int</span> maxSubArray(<span className="text-blue-400">int</span>[] nums) &#123;</p>
@@ -184,8 +203,10 @@ export function PreviewPage() {
                   <p>&#125;</p>
                 </div>
                 <div className="pt-3 border-t border-slate-700 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Thời gian thực thi: 12ms</span>
-                  <span className="text-emerald-400 font-semibold">Điểm tuyệt đối: 100/100</span>
+                  <span>{t("master.landing.preview.tabs.assessment.execTime")}</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {t("master.landing.preview.tabs.assessment.perfectScore")}
+                  </span>
                 </div>
               </div>
             </div>
@@ -195,23 +216,26 @@ export function PreviewPage() {
             <div className="grid md:grid-cols-12 gap-8 items-center animate-fade-in">
               <div className="md:col-span-6 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
-                  <Mic className="w-3.5 h-3.5" /> Realtime Voice STT & NLP Analysis
+                  <Mic className="w-3.5 h-3.5" /> {t("master.landing.preview.tabs.interview.badge")}
                 </div>
                 <h3 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                  Phỏng vấn đàm thoại 24/7 cùng Trợ lý AI
+                  {t("master.landing.preview.tabs.interview.title")}
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Ứng viên được phỏng vấn tương tác bằng giọng nói tự nhiên. AI tự động nhận diện âm thanh (Speech-to-Text), phân tích tư duy phản biện và phong thái trả lời.
+                  {t("master.landing.preview.tabs.interview.description")}
                 </p>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 font-medium pt-2">
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Ứng viên chủ động tham gia mọi lúc, không kẹt lịch HR
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.interview.b1")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Báo cáo chấm điểm chi tiết 5 yếu tố kỹ năng mềm
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.interview.b2")}
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Lưu trữ bản ghi âm và transcript đầy đủ
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                    {t("master.landing.preview.tabs.interview.b3")}
                   </li>
                 </ul>
               </div>
@@ -219,26 +243,31 @@ export function PreviewPage() {
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                    <span className="font-semibold text-slate-900">AI Voice Session: Đang phỏng vấn</span>
+                    <span className="font-semibold text-slate-900">
+                      {t("master.landing.preview.tabs.interview.sessionStatus")}
+                    </span>
                   </div>
                   <span className="text-slate-500 font-mono text-[11px]">00:04:18</span>
                 </div>
                 <div className="p-3.5 bg-white rounded-xl border border-slate-200 mb-3 shadow-2xs">
                   <div className="text-[11px] font-semibold text-blue-600 mb-1 flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5" /> Câu hỏi từ Trợ lý AI:
+                    <Volume2 className="w-3.5 h-3.5" />{" "}
+                    {t("master.landing.preview.tabs.interview.questionLabel")}
                   </div>
                   <p className="text-slate-700 italic">
-                    "Hãy chia sẻ cách bạn xử lý khi hệ thống database gặp tắc nghẽn connection pool vào giờ cao điểm?"
+                    {t("master.landing.preview.tabs.interview.questionText")}
                   </p>
                 </div>
                 <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200 space-y-1.5">
-                  <div className="text-[11px] font-semibold text-slate-800 mb-1">Phân tích phản hồi ứng viên:</div>
+                  <div className="text-[11px] font-semibold text-slate-800 mb-1">
+                    {t("master.landing.preview.tabs.interview.analysisTitle")}
+                  </div>
                   <div className="flex items-center justify-between text-slate-600">
-                    <span>Độ rõ ràng & mạch lạc</span>
+                    <span>{t("master.landing.preview.tabs.interview.metric1Label")}</span>
                     <span className="font-semibold text-blue-700">92%</span>
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
-                    <span>Khả năng giải quyết vấn đề</span>
+                    <span>{t("master.landing.preview.tabs.interview.metric2Label")}</span>
                     <span className="font-semibold text-blue-700">89%</span>
                   </div>
                 </div>
@@ -261,7 +290,7 @@ export function PreviewPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-md border border-blue-200">
-                Toàn Cảnh Bảng Kanban Tuyển Dụng Doanh Nghiệp
+                {t("master.landing.pipelineMockup.previewBadge")}
               </span>
             </div>
           </div>
@@ -269,12 +298,12 @@ export function PreviewPage() {
           {/* Mockup Content: Pipeline Columns */}
           <div className="p-6 sm:p-8 bg-slate-50/50">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Column 1: Sàng lọc CV */}
+              {/* Column 1: CV Screening */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <FileCheck2 className="w-3.5 h-3.5 text-blue-600" />
-                    <span>1. Sàng lọc CV</span>
+                    <span>{t("master.landing.pipelineMockup.col1Title")}</span>
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     48
@@ -282,12 +311,16 @@ export function PreviewPage() {
                 </div>
                 <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/70 mb-2.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-900">Nguyễn Minh Anh</span>
+                    <span className="text-xs font-semibold text-slate-900">
+                      {t("master.landing.pipelineMockup.col1Cand1Name")}
+                    </span>
                     <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                      96% Match
+                      {t("master.landing.pipelineMockup.col1Cand1Match")}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">Senior Java & React · 5 năm kn</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t("master.landing.pipelineMockup.col1Cand1Role")}
+                  </p>
                   <div className="flex items-center gap-1 mt-2">
                     <span className="text-[10px] bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
                       Spring Boot
@@ -299,21 +332,25 @@ export function PreviewPage() {
                 </div>
                 <div className="p-3 rounded-lg bg-white border border-slate-200 opacity-70">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-800">Trần Quốc Bảo</span>
+                    <span className="text-xs font-semibold text-slate-800">
+                      {t("master.landing.pipelineMockup.col1Cand2Name")}
+                    </span>
                     <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                      88% Match
+                      {t("master.landing.pipelineMockup.col1Cand2Match")}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">Fullstack Engineer · 3 năm kn</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t("master.landing.pipelineMockup.col1Cand2Role")}
+                  </p>
                 </div>
               </div>
 
-              {/* Column 2: Đánh giá Kỹ thuật */}
+              {/* Column 2: Code Assessment */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Code2 className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>2. Đánh giá Code</span>
+                    <span>{t("master.landing.pipelineMockup.col2Title")}</span>
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     14
@@ -321,24 +358,28 @@ export function PreviewPage() {
                 </div>
                 <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-200/70 mb-2.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-900">Lê Hoàng Nam</span>
+                    <span className="text-xs font-semibold text-slate-900">
+                      {t("master.landing.pipelineMockup.col2Cand1Name")}
+                    </span>
                     <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
                       100/100
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">Coding Challenge: 4/4 Test Passed</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t("master.landing.pipelineMockup.col2Cand1Meta")}
+                  </p>
                   <div className="mt-2 text-[10px] text-emerald-700 flex items-center gap-1 font-semibold">
-                    <Check className="w-3 h-3" /> Chống gian lận: Tuyệt đối an toàn
+                    <Check className="w-3 h-3" /> {t("master.landing.pipelineMockup.col2Cand1Note")}
                   </div>
                 </div>
               </div>
 
-              {/* Column 3: Phỏng vấn AI */}
+              {/* Column 3: AI Interview */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Mic className="w-3.5 h-3.5 text-amber-600" />
-                    <span>3. Phỏng vấn AI</span>
+                    <span>{t("master.landing.pipelineMockup.col3Title")}</span>
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     8
@@ -346,24 +387,28 @@ export function PreviewPage() {
                 </div>
                 <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-200/70 mb-2.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-900">Phạm Thúy Vy</span>
+                    <span className="text-xs font-semibold text-slate-900">
+                      {t("master.landing.pipelineMockup.col3Cand1Name")}
+                    </span>
                     <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
                       9.2 / 10
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">AI Voice STT: Giao tiếp xuất sắc</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t("master.landing.pipelineMockup.col3Cand1Meta")}
+                  </p>
                   <div className="mt-2 text-[10px] text-amber-800 bg-white px-2 py-1 rounded border border-amber-200">
-                    Khuyên dùng: Phù hợp văn hóa & tư duy
+                    {t("master.landing.pipelineMockup.col3Cand1Note")}
                   </div>
                 </div>
               </div>
 
-              {/* Column 4: Gửi Thư Mời (Offer) */}
+              {/* Column 4: Offer */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Award className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>4. Chốt Offer</span>
+                    <span>{t("master.landing.pipelineMockup.col4Title")}</span>
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     5
@@ -371,13 +416,19 @@ export function PreviewPage() {
                 </div>
                 <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-900">Vũ Đình Khoa</span>
+                    <span className="text-xs font-semibold text-slate-900">
+                      {t("master.landing.pipelineMockup.col4Cand1Name")}
+                    </span>
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      Accepted
+                      {t("master.landing.pipelineMockup.col4Cand1Status")}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">Vị trí: Lead Software Engineer</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Đã ký thư mời nhận việc</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t("master.landing.pipelineMockup.col4Cand1Role")}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {t("master.landing.pipelineMockup.col4Cand1Note")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -388,46 +439,54 @@ export function PreviewPage() {
         <div className="mb-24">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-              Quy Trình Hoạt Động
+              {t("master.landing.preview.flow.badge")}
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-3 mb-2">
-              4 Bước Triển Khai Tuyển Dụng Tự Động
+              {t("master.landing.preview.flow.title")}
             </h2>
             <p className="text-slate-600 text-sm">
-              Doanh nghiệp chỉ cần cung cấp Mô tả công việc, toàn bộ khâu sàng lọc sơ bộ sẽ do SmartHire-AI đảm nhận.
+              {t("master.landing.preview.flow.subtitle")}
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs relative">
               <span className="text-3xl font-extrabold text-blue-100 absolute top-4 right-4">01</span>
-              <h3 className="text-base font-semibold text-slate-900 mb-2">Đăng Tuyển & Nhận CV</h3>
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
+                {t("master.landing.preview.flow.s1Title")}
+              </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Tạo chiến dịch tuyển dụng, kết nối Career Site riêng. Ứng viên nộp CV qua cổng thông tin hoặc HR tải hàng loạt CV lên hệ thống.
+                {t("master.landing.preview.flow.s1Desc")}
               </p>
             </div>
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs relative">
               <span className="text-3xl font-extrabold text-blue-100 absolute top-4 right-4">02</span>
-              <h3 className="text-base font-semibold text-slate-900 mb-2">AI Sàng Lọc & Xếp Hạng</h3>
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
+                {t("master.landing.preview.flow.s2Title")}
+              </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Trong 1.2 giây/CV, AI đọc hiểu toàn bộ thông tin, so khớp với tiêu chí công việc và tự động gửi email mời làm bài kiểm tra năng lực.
+                {t("master.landing.preview.flow.s2Desc")}
               </p>
             </div>
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs relative">
               <span className="text-3xl font-extrabold text-blue-100 absolute top-4 right-4">03</span>
-              <h3 className="text-base font-semibold text-slate-900 mb-2">Đánh Giá & Phỏng Vấn AI</h3>
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
+                {t("master.landing.preview.flow.s3Title")}
+              </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Ứng viên làm bài test lập trình trên Sandbox an toàn và thực hiện phỏng vấn bằng giọng nói với AI bất kỳ lúc nào thuận tiện.
+                {t("master.landing.preview.flow.s3Desc")}
               </p>
             </div>
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs relative">
               <span className="text-3xl font-extrabold text-blue-100 absolute top-4 right-4">04</span>
-              <h3 className="text-base font-semibold text-slate-900 mb-2">Báo Cáo & Chốt Offer</h3>
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
+                {t("master.landing.preview.flow.s4Title")}
+              </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                HR và Hội đồng tuyển dụng nhận báo cáo đa chiều kèm khuyến nghị từ AI, chỉ cần phỏng vấn vòng cuối và gửi thư mời làm việc.
+                {t("master.landing.preview.flow.s4Desc")}
               </p>
             </div>
           </div>
@@ -436,16 +495,16 @@ export function PreviewPage() {
         {/* BOTTOM CTA */}
         <div className="rounded-3xl bg-slate-900 text-white p-8 sm:p-14 text-center shadow-xl">
           <h2 className="text-2xl sm:text-4xl font-bold mb-4">
-            Muốn Xem Demo Trực Tiếp Trên Dữ Liệu Doanh Nghiệp?
+            {t("master.landing.preview.bottomCta.title")}
           </h2>
           <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
-            Chúng tôi cung cấp buổi chạy thử 1:1 miễn phí với bài toán tuyển dụng thực tế của công ty bạn trong 30 phút.
+            {t("master.landing.preview.bottomCta.subtitle")}
           </p>
           <button
-            onClick={() => openDemoModal("Trải Nghiệm Live Demo 1:1")}
+            onClick={() => openDemoModal(t("master.landing.shared.liveDemoTier"))}
             className="px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all inline-flex items-center gap-2"
           >
-            <span>Đặt Lịch Demo 1:1 Ngay</span>
+            <span>{t("master.landing.preview.bottomCta.button")}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

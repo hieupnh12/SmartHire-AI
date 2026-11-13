@@ -1,5 +1,7 @@
 package com.smarthire.tenant.cv.github;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.tenant.cv.github.GithubUrls.GithubRef;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -10,6 +12,7 @@ import java.util.regex.Pattern;
 
 /** Reads GitHub URLs from builder contact data and CV text. Does not fetch them. */
 public final class GithubUrlExtractor {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final Pattern URL = Pattern.compile(
             "(?<![A-Za-z0-9.])(?:https?://)?(?:www\\.)?github\\.com/[A-Za-z0-9][A-Za-z0-9./_-]{0,200}",
             Pattern.CASE_INSENSITIVE);
@@ -51,15 +54,15 @@ public final class GithubUrlExtractor {
     }
 
     private static String builderGithub(String builderData) {
-        if (builderData == null || !builderData.contains("\"github\"")) return "";
-        int key = builderData.indexOf("\"github\"");
-        int colon = builderData.indexOf(':', key);
-        if (colon < 0) return "";
-        int start = builderData.indexOf('"', colon + 1);
-        if (start < 0) return "";
-        int end = builderData.indexOf('"', start + 1);
-        if (end < 0) return "";
-        return builderData.substring(start + 1, end);
+        if (builderData == null || builderData.isBlank()) return "";
+        try {
+            JsonNode root = JSON.readTree(builderData);
+            String value = root.path("personalInfo").path("github").asText("").trim();
+            if (!value.isEmpty()) return value;
+            return root.path("github").asText("").trim();
+        } catch (Exception ex) {
+            return "";
+        }
     }
 
     private static String trim(String raw) {

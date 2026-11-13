@@ -1,5 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
+import type { CheckoutResponseData } from "@/api/master/checkoutApi";
 import type {
   CompanyDirectory,
   CompanyEmailSetting,
@@ -19,7 +20,11 @@ export interface TenantInvoiceItem {
   paidAt?: string | null;
   billingPeriodStart?: string | null;
   billingPeriodEnd?: string | null;
+  planCode?: string | null;
   planName?: string | null;
+  invoiceType?: "UPGRADE" | "RENEWAL" | "SUBSCRIPTION" | "B2B_CONTRACT" | string | null;
+  paymentGateway?: string | null;
+  notes?: string | null;
 }
 
 export interface TenantSubscriptionQuota {
@@ -30,6 +35,7 @@ export interface TenantSubscriptionQuota {
   description: string;
   priceYearly: number;
   subscriptionStatus: string;
+  hasExplicitSubscription?: boolean;
   autoRenew: boolean;
   startsAt?: string | null;
   endsAt?: string | null;
@@ -132,6 +138,27 @@ export const companyApi = {
         targetPlanCode,
         notes,
       })
+      .then((r) => r.data),
+  renewSubscription: (years: number = 1, notes?: string) =>
+    api
+      .post<ApiResponse<TenantSubscriptionQuota>>("/tenant/company/subscription/renew", {
+        years,
+        notes,
+      })
+      .then((r) => r.data),
+  updateAutoRenew: (autoRenew: boolean) =>
+    api
+      .patch<ApiResponse<TenantSubscriptionQuota>>("/tenant/company/subscription/auto-renew", {
+        autoRenew,
+      })
+      .then((r) => r.data),
+  getSubscriptionInvoiceCheckout: (invoiceId: number) =>
+    api
+      .get<ApiResponse<CheckoutResponseData>>(`/tenant/company/subscription/invoices/${invoiceId}/checkout`)
+      .then((r) => r.data),
+  cancelPendingInvoice: (invoiceId: number) =>
+    api
+      .post<ApiResponse<TenantSubscriptionQuota>>(`/tenant/company/subscription/invoices/${invoiceId}/cancel`)
       .then((r) => r.data),
   cancelScheduledDowngrade: () =>
     api

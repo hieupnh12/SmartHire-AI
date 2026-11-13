@@ -27,6 +27,8 @@ public class ContractResponse {
     private Integer maxCvParses;
     private Integer maxAiInterviewHours;
     private Integer maxStorageGb;
+    private Integer maxProctoringHours;
+    private Integer videoRetentionDays;
     private Long consultationRequestId;
     private String title;
     private BigDecimal contractValue;

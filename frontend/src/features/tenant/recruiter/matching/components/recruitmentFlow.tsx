@@ -1,3 +1,4 @@
+import { t as globalT, useT, type TranslateFn } from "@/i18n";
 import { muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
 export const PIPELINE_STEPS = [
@@ -8,6 +9,16 @@ export const PIPELINE_STEPS = [
   { id: "decision", label: "Đánh giá chung", statuses: ["OFFER", "HIRED"] },
 ] as const;
 
+export function getPipelineSteps(translate: TranslateFn = globalT) {
+  return [
+    { id: "cv", label: translate("recruiter.screening.pipeline.cv"), statuses: ["NEW", "IN_REVIEW"] },
+    { id: "ai", label: translate("recruiter.screening.pipeline.ai"), statuses: ["INTERVIEW"] },
+    { id: "test", label: translate("recruiter.screening.pipeline.test"), statuses: ["ASSESSMENT"] },
+    { id: "human", label: translate("recruiter.screening.pipeline.human"), statuses: ["HUMAN_INTERVIEW"] },
+    { id: "decision", label: translate("recruiter.screening.pipeline.decision"), statuses: ["OFFER", "HIRED"] },
+  ] as const;
+}
+
 export function pipelineIndex(status: string) {
   if (status === "REJECTED" || status === "FAILED" || status === "WITHDRAWN") return -1;
   const index = PIPELINE_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
@@ -15,10 +26,12 @@ export function pipelineIndex(status: string) {
 }
 
 export function ApplicationPipeline({ status }: { status: string }) {
+  const t = useT();
+  const steps = getPipelineSteps(t);
   const current = pipelineIndex(status);
   return (
     <ol className="grid gap-2 sm:grid-cols-5">
-      {PIPELINE_STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const active = current === index;
         const done = current > index;
         return (

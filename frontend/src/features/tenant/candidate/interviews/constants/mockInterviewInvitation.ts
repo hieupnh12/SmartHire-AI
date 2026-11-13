@@ -1,60 +1,112 @@
+import { t as globalT, type TranslateFn } from "@/i18n";
 import type { CandidateInterview } from "../api/candidateInterviewApi";
 
-const now = Date.now();
+export const MOCK_INTERVIEW_ID = -1;
+const CREATED_AT = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+const AVAILABLE_FROM = new Date().toISOString();
+const AVAILABLE_UNTIL = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
 
-export const mockInterviewInvitation: CandidateInterview = {
-  id: -1,
-  applicationId: 1024,
-  jobId: 128,
-  jobTitle: "Senior Backend Engineer",
-  candidateId: null,
-  workflowStageId: null,
-  status: "QUESTIONS_READY",
-  createdAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
-  availableFrom: new Date(now).toISOString(),
-  availableUntil: new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString(),
-  startedAt: null,
-  completedAt: null,
-  overallScore: null,
-  passingScore: 70,
-  errorMessage: null,
-  questionCount: 12,
-  durationMinutes: 45,
-  maxAttempts: 1,
-  attemptNumber: 1,
-  canRetry: false,
-  roadmap: [
-    { title: "Kiến thức kỹ thuật", kind: "MCQ", questionCount: 2 },
-    { title: "Giải quyết vấn đề", kind: "OPEN", questionCount: 2 },
-    { title: "Kinh nghiệm thực tế", kind: "OPEN", questionCount: 1 },
-  ],
-  questions: [
-    {
-      id: -101, aiInterviewId: -1, questionOrder: 1, questionType: "MCQ", createdAt: new Date(now).toISOString(), answer: null,
-      stageTitle: "Kiến thức kỹ thuật", skills: ["Java", "Spring Boot"], competencies: ["TECHNICAL_KNOWLEDGE"],
-      questionText: "Trong Spring Boot, annotation nào phù hợp nhất để đánh dấu một service chứa business logic?",
-      options: ["@RestController", "@Service", "@Repository", "@Configuration"],
-    },
-    {
-      id: -102, aiInterviewId: -1, questionOrder: 2, questionType: "MCQ", createdAt: new Date(now).toISOString(), answer: null,
-      stageTitle: "Kiến thức kỹ thuật", skills: ["Database", "Multi-tenant"], competencies: ["TECHNICAL_KNOWLEDGE"],
-      questionText: "Với mô hình database-per-tenant, biện pháp nào quan trọng nhất để tránh truy cập nhầm dữ liệu giữa các tenant?",
-      options: ["Dùng một cache chung", "Resolve tenant context trước mọi truy vấn", "Tăng connection pool", "Tắt transaction"],
-    },
-    {
-      id: -103, aiInterviewId: -1, questionOrder: 3, questionType: "OPEN", createdAt: new Date(now).toISOString(), answer: null,
-      stageTitle: "Giải quyết vấn đề", skills: ["System Design", "Redis"], competencies: ["PROBLEM_SOLVING"],
-      questionText: "API tìm kiếm ứng viên tăng từ 200ms lên 4 giây khi lượng dữ liệu tăng gấp 10 lần. Bạn sẽ điều tra nguyên nhân và ưu tiên giải pháp như thế nào?",
-    },
-    {
-      id: -104, aiInterviewId: -1, questionOrder: 4, questionType: "OPEN", createdAt: new Date(now).toISOString(), answer: null,
-      stageTitle: "Giải quyết vấn đề", skills: ["RabbitMQ", "Reliability"], competencies: ["PROBLEM_SOLVING"],
-      questionText: "Một RabbitMQ consumer xử lý cùng một CV hai lần. Hãy mô tả cách bạn thiết kế xử lý idempotent và theo dõi lỗi.",
-    },
-    {
-      id: -105, aiInterviewId: -1, questionOrder: 5, questionType: "OPEN", createdAt: new Date(now).toISOString(), answer: null,
-      stageTitle: "Kinh nghiệm thực tế", skills: ["Leadership", "Delivery"], competencies: ["PRACTICAL_EXPERIENCE"],
-      questionText: "Hãy kể về một quyết định kỹ thuật khó mà bạn từng chịu trách nhiệm. Bạn đã cân nhắc trade-off và đo lường kết quả ra sao?",
-    },
-  ],
-};
+export function getMockInterviewInvitation(
+  t: TranslateFn = globalT,
+): CandidateInterview {
+  const stageTechnical = t("candidate.assess.interviews.mockInvitation.stageTechnical");
+  const stageProblemSolving = t("candidate.assess.interviews.mockInvitation.stageProblemSolving");
+  const stagePractical = t("candidate.assess.interviews.mockInvitation.stagePractical");
+
+  return {
+    id: MOCK_INTERVIEW_ID,
+    applicationId: 1024,
+    jobId: 128,
+    jobTitle: "Senior Backend Engineer",
+    candidateId: null,
+    workflowStageId: null,
+    status: "QUESTIONS_READY",
+    createdAt: CREATED_AT,
+    availableFrom: AVAILABLE_FROM,
+    availableUntil: AVAILABLE_UNTIL,
+    startedAt: null,
+    completedAt: null,
+    overallScore: null,
+    passingScore: 70,
+    errorMessage: null,
+    questionCount: 12,
+    durationMinutes: 45,
+    maxAttempts: 1,
+    attemptNumber: 1,
+    canRetry: false,
+    roadmap: [
+      { title: stageTechnical, kind: "MCQ", questionCount: 2 },
+      { title: stageProblemSolving, kind: "OPEN", questionCount: 2 },
+      { title: stagePractical, kind: "OPEN", questionCount: 1 },
+    ],
+    questions: [
+      {
+        id: -101,
+        aiInterviewId: MOCK_INTERVIEW_ID,
+        questionOrder: 1,
+        questionType: "MCQ",
+        createdAt: AVAILABLE_FROM,
+        answer: null,
+        stageTitle: stageTechnical,
+        skills: ["Java", "Spring Boot"],
+        competencies: ["TECHNICAL_KNOWLEDGE"],
+        questionText: t("candidate.assess.interviews.mockInvitation.q1Text"),
+        options: ["@RestController", "@Service", "@Repository", "@Configuration"],
+      },
+      {
+        id: -102,
+        aiInterviewId: MOCK_INTERVIEW_ID,
+        questionOrder: 2,
+        questionType: "MCQ",
+        createdAt: AVAILABLE_FROM,
+        answer: null,
+        stageTitle: stageTechnical,
+        skills: ["Database", "Multi-tenant"],
+        competencies: ["TECHNICAL_KNOWLEDGE"],
+        questionText: t("candidate.assess.interviews.mockInvitation.q2Text"),
+        options: [
+          t("candidate.assess.interviews.mockInvitation.q2Opt1"),
+          t("candidate.assess.interviews.mockInvitation.q2Opt2"),
+          t("candidate.assess.interviews.mockInvitation.q2Opt3"),
+          t("candidate.assess.interviews.mockInvitation.q2Opt4"),
+        ],
+      },
+      {
+        id: -103,
+        aiInterviewId: MOCK_INTERVIEW_ID,
+        questionOrder: 3,
+        questionType: "OPEN",
+        createdAt: AVAILABLE_FROM,
+        answer: null,
+        stageTitle: stageProblemSolving,
+        skills: ["System Design", "Redis"],
+        competencies: ["PROBLEM_SOLVING"],
+        questionText: t("candidate.assess.interviews.mockInvitation.q3Text"),
+      },
+      {
+        id: -104,
+        aiInterviewId: MOCK_INTERVIEW_ID,
+        questionOrder: 4,
+        questionType: "OPEN",
+        createdAt: AVAILABLE_FROM,
+        answer: null,
+        stageTitle: stageProblemSolving,
+        skills: ["RabbitMQ", "Reliability"],
+        competencies: ["PROBLEM_SOLVING"],
+        questionText: t("candidate.assess.interviews.mockInvitation.q4Text"),
+      },
+      {
+        id: -105,
+        aiInterviewId: MOCK_INTERVIEW_ID,
+        questionOrder: 5,
+        questionType: "OPEN",
+        createdAt: AVAILABLE_FROM,
+        answer: null,
+        stageTitle: stagePractical,
+        skills: ["Leadership", "Delivery"],
+        competencies: ["PRACTICAL_EXPERIENCE"],
+        questionText: t("candidate.assess.interviews.mockInvitation.q5Text"),
+      },
+    ],
+  };
+}

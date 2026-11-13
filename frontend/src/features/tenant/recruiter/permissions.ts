@@ -11,6 +11,22 @@ export function isRecruiterReadOnlyUser(user?: { recruiterReadOnly?: boolean } |
   return user?.recruiterReadOnly === true;
 }
 
+export function isCompanyAdminUser(user?: { role?: string | null } | null) {
+  return (
+    user?.role === "TENANT_ADMIN" ||
+    user?.role === "ADMIN" ||
+    user?.role === "SUPER_ADMIN"
+  );
+}
+
+export function canViewAllJobs(
+  user?: { role?: string | null; permissions?: string[] | null } | null,
+) {
+  if (!user) return false;
+  if (isCompanyAdminUser(user)) return true;
+  return user.permissions != null && hasRecruiterFeature(user.permissions, "JOBS_ALL");
+}
+
 export function hasRecruiterFeature(
   permissions: string[] | null | undefined,
   code: RecruiterFeatureCode,

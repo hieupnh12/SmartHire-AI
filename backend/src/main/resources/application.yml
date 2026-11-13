@@ -173,20 +173,22 @@ app:
     maintenance-cron: ${APPLICATION_MAINTENANCE_CRON:0 15 * * * *}
   billing:
     unpaid-cleanup-cron: ${BILLING_UNPAID_CLEANUP_CRON:0 0 * * * *}
+  subscription:
+    expiry-reminder-cron: ${SUBSCRIPTION_EXPIRY_REMINDER_CRON:0 5 * * * *}
   github:
     enabled: ${GITHUB_ANALYSIS_ENABLED:true}
     token: ${GITHUB_TOKEN:}
     max-repos: ${GITHUB_MAX_REPOS:2}
-    max-files: ${GITHUB_MAX_FILES:8}
-    max-file-bytes: ${GITHUB_MAX_FILE_BYTES:12000}
-    max-total-bytes: ${GITHUB_MAX_TOTAL_BYTES:48000}
-    max-prompt-chars: ${GITHUB_MAX_PROMPT_CHARS:60000}
+    max-files: ${GITHUB_MAX_FILES:6}
+    max-file-bytes: ${GITHUB_MAX_FILE_BYTES:8000}
+    max-total-bytes: ${GITHUB_MAX_TOTAL_BYTES:28000}
+    max-prompt-chars: ${GITHUB_MAX_PROMPT_CHARS:28000}
     timeout-seconds: ${GITHUB_TIMEOUT_SECONDS:12}
     max-retries: ${GITHUB_MAX_RETRIES:2}
     listener-concurrency: ${GITHUB_LISTENER_CONCURRENCY:1-2}
     # Bump these when the file-selection strategy or the prompt changes so cached results are not reused.
-    strategy-version: github-v1
-    prompt-version: github-prompt-v1
+    strategy-version: github-v2
+    prompt-version: github-prompt-v2
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     # Provider, model and API key per task live only in Master DB (Admin > AI Config)
@@ -209,6 +211,33 @@ smarthire:
   jobs:
     close-scan-enabled: ${JOB_CLOSE_SCAN_ENABLED:true}
     close-scan-ms: ${JOB_CLOSE_SCAN_MS:60000}
+
+  platform:
+    legal:
+      company-name: ${PLATFORM_COMPANY_NAME:CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM}
+      tax-code: ${PLATFORM_TAX_CODE:0110888999}
+      address: ${PLATFORM_COMPANY_ADDRESS:Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng}
+      city: ${PLATFORM_CITY:Đà Nẵng}
+      dispute-court: ${PLATFORM_DISPUTE_COURT:Tòa án nhân dân có thẩm quyền tại Thành phố Đà Nẵng}
+      representative: ${PLATFORM_REPRESENTATIVE:Phan Nhật Hưng}
+      position: ${PLATFORM_REPRESENTATIVE_POSITION:Tổng Giám Đốc}
+      hotline: ${PLATFORM_HOTLINE:0988.888.888}
+      support-email: ${PLATFORM_SUPPORT_EMAIL:support@smarthire.top}
+      legal-email: ${PLATFORM_LEGAL_EMAIL:support@smarthire.top}
+      sales-email: ${PLATFORM_SALES_EMAIL:support@smarthire.top}
+      privacy-email: ${PLATFORM_PRIVACY_EMAIL:privacy@smarthire.top}
+      terms-version: ${PLATFORM_TERMS_VERSION:v2026.10}
+      terms-effective-date: ${PLATFORM_TERMS_EFFECTIVE_DATE:15/06/2026}
+      privacy-law-label: ${PLATFORM_PRIVACY_LAW_LABEL:Luật Bảo vệ dữ liệu cá nhân 2025 & Nghị định số 356/2025/NĐ-CP}
+      privacy-policy-code: ${PLATFORM_PRIVACY_POLICY_CODE:PRIVACY_POLICY_2025}
+    payment:
+      bank:
+        short-code: ${PLATFORM_BANK_CODE:TPBank}
+        name: ${PLATFORM_BANK_NAME:Ngân hàng TMCP Tiên Phong (TPBank)}
+        branch: ${PLATFORM_BANK_BRANCH:Chi nhánh Đà Nẵng}
+        account-number: ${PLATFORM_BANK_ACCOUNT_NUMBER:07744348801}
+        account-name: ${PLATFORM_BANK_ACCOUNT_NAME:NGUYEN NHAT SINH}
+        vietqr-template: ${PLATFORM_BANK_VIETQR_TEMPLATE:compact2}
 
 vnpay:
   tmn-code: ${VNPAY_TMN_CODE:2QXUI4J4}

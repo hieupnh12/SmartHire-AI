@@ -26,6 +26,14 @@ export interface CheckoutResponseData {
   tenantId: number;
   tenantCode: string;
   subdomain: string;
+  workspaceName?: string;
+  adminFullName?: string;
+  adminEmail?: string;
+  adminPhone?: string;
+  taxCode?: string;
+  companyLegalName?: string;
+  billingAddress?: string;
+  quantity?: number;
   planName: string;
   planCode: string;
   billingCycle: "MONTHLY" | "YEARLY";
@@ -33,6 +41,7 @@ export interface CheckoutResponseData {
   currency: string;
   status: string;
   bankName: string;
+  bankBranch?: string;
   accountNumber: string;
   accountName: string;
   transferSyntax: string;
@@ -53,6 +62,10 @@ export interface PublicSubscriptionPlan {
   maxCvParses: number;
   maxAiInterviewHours?: number;
   maxStorageGb?: number;
+  maxProctoringHours?: number;
+  videoRetentionDays?: number;
+  version?: number;
+  custom?: boolean;
   featuresJson?: string;
   status: string;
 }
@@ -82,6 +95,8 @@ export interface VnPayVerifyReturnData {
   transactionNo?: string;
   bankCode?: string;
   payDate?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface PayPalVerifyReturnData {
@@ -95,6 +110,8 @@ export interface PayPalVerifyReturnData {
   contactEmail?: string;
   amountVnd: number;
   transactionNo?: string;
+  paymentPurpose?: "ONBOARDING" | "UPGRADE" | "RENEWAL";
+  planName?: string;
 }
 
 export interface InvoiceStatusResponse {
@@ -128,6 +145,7 @@ export interface PublicOrderLookupItem {
   dueDate?: string;
   paidAt?: string;
   bankName: string;
+  bankBranch?: string;
   accountNumber: string;
   accountName: string;
   transferSyntax: string;

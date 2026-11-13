@@ -5,17 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Contract;
 import com.smarthire.domain.master.entity.ContractSignature;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.ConsultationRequestRepository;
 import com.smarthire.domain.master.repository.ContractRepository;
 import com.smarthire.domain.master.repository.ContractSignatureRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.billing.dto.CreateInvoiceRequest;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.contract.dto.ContractResponse;
@@ -59,7 +59,7 @@ public class MasterContractService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
     private final ConsultationRequestRepository consultationRequestRepository;
-    private final PlatformAuditLogRepository auditLogRepository;
+    private final TenantSystemLogRepository auditLogRepository;
     private final MasterBillingService billingService;
     private final MasterNotificationPublisher notificationPublisher;
     private final ContractPdfGeneratorService contractPdfGeneratorService;
@@ -68,6 +68,13 @@ public class MasterContractService {
 
     @Value("${smarthire.invite.public-origin:http://localhost:5173}")
     private String publicOrigin;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.config.PlatformProperties platformProperties;
+
+    private com.smarthire.config.PlatformProperties getPlatformProperties() {
+        return platformProperties != null ? platformProperties : new com.smarthire.config.PlatformProperties();
+    }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<ContractResponse> getAllContracts(String statusFilter, Long tenantId) {
@@ -125,6 +132,10 @@ public class MasterContractService {
 
         String signingToken = java.util.UUID.randomUUID().toString().replace("-", "");
 
+        com.smarthire.config.PlatformProperties props = getPlatformProperties();
+        com.smarthire.config.PlatformProperties.Legal legal = props.getLegal();
+        com.smarthire.config.PlatformProperties.Payment.Bank bank = props.getPayment().getBank();
+
         Contract contract = Contract.builder()
                 .contractNumber(contractNumber)
                 .tenantId(tenant != null ? tenant.getId() : null)
@@ -136,16 +147,16 @@ public class MasterContractService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 // Party A
-                .partyAName(StringUtils.hasText(request.getPartyAName()) ? request.getPartyAName().trim() : "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM")
-                .partyATaxCode(StringUtils.hasText(request.getPartyATaxCode()) ? request.getPartyATaxCode().trim() : "0110889988")
-                .partyAAddress(StringUtils.hasText(request.getPartyAAddress()) ? request.getPartyAAddress().trim() : "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Phường Mễ Trì, Quận Nam Từ Liêm, TP. Hà Nội")
-                .partyARepresentative(StringUtils.hasText(request.getPartyARepresentative()) ? request.getPartyARepresentative().trim() : "Phan Nhật Hưng")
-                .partyAPosition(StringUtils.hasText(request.getPartyAPosition()) ? request.getPartyAPosition().trim() : "Tổng Giám Đốc")
-                .partyAPhone(StringUtils.hasText(request.getPartyAPhone()) ? request.getPartyAPhone().trim() : "1900 6868")
-                .partyAEmail(StringUtils.hasText(request.getPartyAEmail()) ? request.getPartyAEmail().trim() : "legal@smarthire.top")
-                .partyABankName(StringUtils.hasText(request.getPartyABankName()) ? request.getPartyABankName().trim() : "Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank)")
-                .partyABankAccount(StringUtils.hasText(request.getPartyABankAccount()) ? request.getPartyABankAccount().trim() : "190388889999")
-                .partyABankBranch(StringUtils.hasText(request.getPartyABankBranch()) ? request.getPartyABankBranch().trim() : "Chi nhánh Hà Nội")
+                .partyAName(StringUtils.hasText(request.getPartyAName()) ? request.getPartyAName().trim() : legal.getCompanyName())
+                .partyATaxCode(StringUtils.hasText(request.getPartyATaxCode()) ? request.getPartyATaxCode().trim() : legal.getTaxCode())
+                .partyAAddress(StringUtils.hasText(request.getPartyAAddress()) ? request.getPartyAAddress().trim() : legal.getAddress())
+                .partyARepresentative(StringUtils.hasText(request.getPartyARepresentative()) ? request.getPartyARepresentative().trim() : legal.getRepresentative())
+                .partyAPosition(StringUtils.hasText(request.getPartyAPosition()) ? request.getPartyAPosition().trim() : legal.getPosition())
+                .partyAPhone(StringUtils.hasText(request.getPartyAPhone()) ? request.getPartyAPhone().trim() : legal.getHotline())
+                .partyAEmail(StringUtils.hasText(request.getPartyAEmail()) ? request.getPartyAEmail().trim() : legal.getLegalEmail())
+                .partyABankName(StringUtils.hasText(request.getPartyABankName()) ? request.getPartyABankName().trim() : bank.getName())
+                .partyABankAccount(StringUtils.hasText(request.getPartyABankAccount()) ? request.getPartyABankAccount().trim() : bank.getAccountNumber())
+                .partyABankBranch(StringUtils.hasText(request.getPartyABankBranch()) ? request.getPartyABankBranch().trim() : bank.getBranch())
                 // Party B
                 .partyBName(StringUtils.hasText(request.getPartyBName()) ? request.getPartyBName().trim() : (tenant != null ? tenant.getName() : "Không xác định"))
                 .partyBTaxCode(StringUtils.hasText(request.getPartyBTaxCode()) ? request.getPartyBTaxCode().trim() : null)
@@ -297,11 +308,12 @@ public class MasterContractService {
                 saved.getContractNumber(), sendResult.getSignatureRequestId(), sendResult.isTestMode(), saved.getPartyBEmail());
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
                     .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                    .category("CONTRACT")
                     .action("SEND_CONTRACT_DROPBOX_SIGN")
                     .level("INFO")
-                    .description("Đã phát hành Hợp đồng B2B " + saved.getContractNumber()
+                    .message("Đã phát hành Hợp đồng B2B " + saved.getContractNumber()
                             + " qua Dropbox Sign API (signature_request_id=" + sendResult.getSignatureRequestId() + ") tới " + saved.getPartyBEmail())
                     .metadataJson(objectMapper.writeValueAsString(Map.of(
                             "contractId", saved.getId(),
@@ -313,7 +325,7 @@ public class MasterContractService {
                     )))
                     .build());
         } catch (Exception e) {
-            log.warn("Could not write PlatformAuditLog for sendContract {}: {}", saved.getContractNumber(), e.getMessage());
+            log.warn("Could not write TenantSystemLog for sendContract {}: {}", saved.getContractNumber(), e.getMessage());
         }
 
         // Send companion notification email with reference link
@@ -588,12 +600,13 @@ public class MasterContractService {
 
         if (!alreadyClosedWithTargetStatus) {
             try {
-                auditLogRepository.save(PlatformAuditLog.builder()
+                auditLogRepository.save(TenantSystemLog.builder()
                         .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                        .category("CONTRACT")
                         .action(auditAction)
                         .level("WARN")
                         .ipAddress(sourceIp)
-                        .description(auditDescription)
+                        .message(auditDescription)
                         .metadataJson(objectMapper.writeValueAsString(Map.of(
                                 "contractId", contract.getId(),
                                 "contractNumber", contract.getContractNumber(),
@@ -603,7 +616,7 @@ public class MasterContractService {
                         )))
                         .build());
             } catch (Exception e) {
-                log.warn("Could not write PlatformAuditLog for {} {}: {}", auditAction, contract.getContractNumber(), e.getMessage());
+                log.warn("Could not write TenantSystemLog for {} {}: {}", auditAction, contract.getContractNumber(), e.getMessage());
             }
         }
     }
@@ -723,12 +736,13 @@ public class MasterContractService {
 
         TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
                     .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                    .category("CONTRACT")
                     .action("CONTRACT_SIGNED_DROPBOX_SIGN")
                     .level("INFO")
                     .ipAddress(sourceIp)
-                    .description("Hợp đồng B2B " + saved.getContractNumber()
+                    .message("Hợp đồng B2B " + saved.getContractNumber()
                             + " đã được ký số hoàn tất qua Dropbox Sign (SHA-256: " + (finalChecksum != null ? finalChecksum : "N/A") + ")")
                     .metadataJson(objectMapper.writeValueAsString(Map.of(
                             "contractId", saved.getId(),
@@ -740,7 +754,7 @@ public class MasterContractService {
                     )))
                     .build());
         } catch (Exception e) {
-            log.warn("Could not write PlatformAuditLog for finalizeDropboxSignedContract {}: {}", saved.getContractNumber(), e.getMessage());
+            log.warn("Could not write TenantSystemLog for finalizeDropboxSignedContract {}: {}", saved.getContractNumber(), e.getMessage());
         }
 
         if (!wasAlreadySigned) {
@@ -892,6 +906,8 @@ public class MasterContractService {
             res.setMaxCvParses(plan.getMaxCvParses());
             res.setMaxAiInterviewHours(plan.getMaxAiInterviewHours());
             res.setMaxStorageGb(plan.getMaxStorageGb());
+            res.setMaxProctoringHours(plan.getMaxProctoringHours());
+            res.setVideoRetentionDays(plan.getVideoRetentionDays());
         }
         List<ContractSignature> signatures = signatureRepository.findByContractId(contract.getId());
         res.setSignatures(signatures.stream().map(ContractSignatureResponse::from).toList());

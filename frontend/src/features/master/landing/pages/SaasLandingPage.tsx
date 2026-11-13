@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import {
@@ -19,10 +19,15 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
+import { PlanFeatureList } from "../components/PlanFeatureList";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatNumber, useLocale, useT } from "@/i18n";
 
 export function SaasLandingPage() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const { openDemoModal, openWorkspaceModal } = useLandingModal();
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
@@ -58,24 +63,27 @@ export function SaasLandingPage() {
     setExpandedFaq(expandedFaq === index ? null : index);
   };
 
-  const faqs = [
-    {
-      q: "Hệ thống có bảo vệ và cách ly dữ liệu tuyển dụng giữa các công ty không?",
-      a: "Tuyệt đối an toàn. Mỗi doanh nghiệp được cấp phát một môi trường dữ liệu và không gian làm việc hoàn toàn tách biệt theo kiến trúc Separate Database per Tenant. Dữ liệu ứng viên, lịch sử phỏng vấn và mức lương đề xuất của công ty bạn không bao giờ bị chia sẻ hay rò rỉ sang bất kỳ tổ chức nào khác.",
-    },
-    {
-      q: "Thời gian triển khai giải pháp cho một doanh nghiệp mất bao lâu?",
-      a: "Với các gói tiêu chuẩn, không gian làm việc số hóa của doanh nghiệp được cấu hình và bàn giao tự động trong vòng 24 giờ. Với các tập đoàn lớn cần tích hợp đăng nhập một lần (SSO) hoặc kết nối máy chủ nội bộ, đội ngũ kỹ sư giải pháp sẽ đồng hành triển khai trọn gói từ 3 đến 5 ngày làm việc.",
-    },
-    {
-      q: "Trợ lý AI phỏng vấn giọng nói có gây khó khăn cho ứng viên không?",
-      a: "Trải nghiệm được thiết kế vô cùng tự nhiên và thân thiện. Ứng viên có thể trả lời bằng micro trên điện thoại hoặc máy tính bất kỳ lúc nào thuận tiện 24/7. AI sẽ tương tác đàm thoại 2 chiều, ghi nhận âm thanh và xuất báo cáo khách quan, loại bỏ cảm giác căng thẳng so với phỏng vấn thông thường.",
-    },
-    {
-      q: "Doanh nghiệp có thể tùy chỉnh bài thi kỹ thuật và tiêu chí chấm điểm theo yêu cầu riêng không?",
-      a: "Hoàn toàn có thể. Doanh nghiệp có thể sử dụng ngân hàng đề thi chuẩn hóa của SmartHire-AI hoặc tự tạo đề trắc nghiệm, bài test lập trình và thiết lập trọng số ưu tiên (kinh nghiệm, kỹ năng cốt lõi) phù hợp với tiêu chuẩn nội bộ của từng phòng ban.",
-    },
-  ];
+  const faqs = useMemo(
+    () => [
+      {
+        q: t("master.landing.saas.faq.q1"),
+        a: t("master.landing.saas.faq.a1"),
+      },
+      {
+        q: t("master.landing.saas.faq.q2"),
+        a: t("master.landing.saas.faq.a2"),
+      },
+      {
+        q: t("master.landing.saas.faq.q3"),
+        a: t("master.landing.saas.faq.a3"),
+      },
+      {
+        q: t("master.landing.saas.faq.q4"),
+        a: t("master.landing.saas.faq.a4"),
+      },
+    ],
+    [t],
+  );
 
   return (
     <>
@@ -83,22 +91,22 @@ export function SaasLandingPage() {
       <section className="pt-16 pb-12 md:pt-24 md:pb-20 max-w-7xl mx-auto px-6">
         <div className="text-center max-w-4xl mx-auto">
           <h1 data-reveal="fade-up" className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
-            Nâng Tầm Hiệu Suất Tuyển Dụng Với{" "}
+            {t("master.landing.saas.hero.titlePrefix")}{" "}
             <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
-              Trí Tuệ Nhân Tạo
+              {t("master.landing.saas.hero.titleHighlight")}
             </span>
           </h1>
 
           <p data-reveal="fade-up" style={{ transitionDelay: "80ms" }} className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
-            Giải pháp toàn diện giúp doanh nghiệp tự động hóa từ khâu sàng lọc hồ sơ, đánh giá năng lực đến phỏng vấn sơ loại. Rút ngắn 70% thời gian tuyển dụng, tối ưu chi phí và thu hút nhân tài xuất sắc.
+            {t("master.landing.saas.hero.subtitle")}
           </p>
 
           <div data-reveal="fade-up" style={{ transitionDelay: "160ms" }} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
             <button
-              onClick={() => openDemoModal("Tư Vấn Giải Pháp Doanh Nghiệp")}
+              onClick={() => openDemoModal(t("master.landing.shared.consultTier"))}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5 group"
             >
-              <span>Nhận Tư Vấn & Buổi Demo 1:1</span>
+              <span>{t("master.landing.saas.hero.primaryCta")}</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
 
@@ -106,7 +114,7 @@ export function SaasLandingPage() {
               to="/preview"
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-white hover:bg-slate-50 active:scale-98 text-slate-700 border border-slate-300 shadow-2xs transition-all inline-flex items-center justify-center"
             >
-              Xem Trải Nghiệm Thực Tế
+              {t("master.landing.saas.hero.secondaryCta")}
             </Link>
           </div>
 
@@ -118,8 +126,12 @@ export function SaasLandingPage() {
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div className="text-left text-xs">
-                <div className="font-semibold text-slate-900">Đã sàng lọc 1,840 CVs hôm nay</div>
-                <div className="text-slate-500 font-medium">Tốc độ xử lý: 1.2s / hồ sơ</div>
+                <div className="font-semibold text-slate-900">
+                  {t("master.landing.saas.hero.chipLeftTitle", {
+                    count: formatNumber(1840, undefined, locale),
+                  })}
+                </div>
+                <div className="text-slate-500 font-medium">{t("master.landing.saas.hero.chipLeftSub")}</div>
               </div>
             </div>
 
@@ -129,8 +141,8 @@ export function SaasLandingPage() {
                 <Activity className="w-5 h-5" />
               </div>
               <div className="text-left text-xs">
-                <div className="font-semibold text-slate-900">96.4% Độ khớp ứng viên</div>
-                <div className="text-slate-500 font-medium">Tự động đề xuất phỏng vấn AI</div>
+                <div className="font-semibold text-slate-900">{t("master.landing.saas.hero.chipRightTitle")}</div>
+                <div className="text-slate-500 font-medium">{t("master.landing.saas.hero.chipRightSub")}</div>
               </div>
             </div>
 
@@ -148,7 +160,7 @@ export function SaasLandingPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">
-                    Live Recruitment Workspace
+                    {t("master.landing.pipelineMockup.liveBadge")}
                   </span>
                 </div>
               </div>
@@ -156,12 +168,12 @@ export function SaasLandingPage() {
               {/* Mockup Content: Pipeline Columns */}
               <div className="p-6 bg-slate-50/50">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Column 1: Sàng lọc CV */}
+                  {/* Column 1: CV Screening */}
                   <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                     <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                       <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         <FileCheck2 className="w-3.5 h-3.5 text-blue-600" />
-                        <span>1. Sàng lọc CV</span>
+                        <span>{t("master.landing.pipelineMockup.col1Title")}</span>
                       </span>
                       <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         48
@@ -169,12 +181,16 @@ export function SaasLandingPage() {
                     </div>
                     <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/70 mb-2.5">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900">Nguyễn Minh Anh</span>
+                        <span className="text-xs font-semibold text-slate-900">
+                          {t("master.landing.pipelineMockup.col1Cand1Name")}
+                        </span>
                         <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                          96% Match
+                          {t("master.landing.pipelineMockup.col1Cand1Match")}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Senior Java & React · 5 năm kn</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t("master.landing.pipelineMockup.col1Cand1Role")}
+                      </p>
                       <div className="flex items-center gap-1 mt-2">
                         <span className="text-[10px] bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
                           Spring Boot
@@ -186,21 +202,25 @@ export function SaasLandingPage() {
                     </div>
                     <div className="p-3 rounded-lg bg-white border border-slate-200 opacity-70">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-800">Trần Quốc Bảo</span>
+                        <span className="text-xs font-semibold text-slate-800">
+                          {t("master.landing.pipelineMockup.col1Cand2Name")}
+                        </span>
                         <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          88% Match
+                          {t("master.landing.pipelineMockup.col1Cand2Match")}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Fullstack Engineer · 3 năm kn</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t("master.landing.pipelineMockup.col1Cand2Role")}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Column 2: Đánh giá Kỹ thuật */}
+                  {/* Column 2: Code Assessment */}
                   <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                     <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                       <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         <Code2 className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>2. Đánh giá Code</span>
+                        <span>{t("master.landing.pipelineMockup.col2Title")}</span>
                       </span>
                       <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         14
@@ -208,24 +228,28 @@ export function SaasLandingPage() {
                     </div>
                     <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-200/70 mb-2.5">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900">Lê Hoàng Nam</span>
+                        <span className="text-xs font-semibold text-slate-900">
+                          {t("master.landing.pipelineMockup.col2Cand1Name")}
+                        </span>
                         <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
                           100/100
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Coding Challenge: 4/4 Test Passed</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t("master.landing.pipelineMockup.col2Cand1Meta")}
+                      </p>
                       <div className="mt-2 text-[10px] text-emerald-700 flex items-center gap-1 font-semibold">
-                        <Check className="w-3 h-3" /> Chống gian lận: Tuyệt đối an toàn
+                        <Check className="w-3 h-3" /> {t("master.landing.pipelineMockup.col2Cand1Note")}
                       </div>
                     </div>
                   </div>
 
-                  {/* Column 3: Phỏng vấn AI */}
+                  {/* Column 3: AI Interview */}
                   <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                     <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                       <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         <Mic className="w-3.5 h-3.5 text-amber-600" />
-                        <span>3. Phỏng vấn AI</span>
+                        <span>{t("master.landing.pipelineMockup.col3Title")}</span>
                       </span>
                       <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         8
@@ -233,24 +257,28 @@ export function SaasLandingPage() {
                     </div>
                     <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-200/70 mb-2.5">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900">Phạm Thúy Vy</span>
+                        <span className="text-xs font-semibold text-slate-900">
+                          {t("master.landing.pipelineMockup.col3Cand1Name")}
+                        </span>
                         <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
                           9.2 / 10
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">AI Voice STT: Giao tiếp xuất sắc</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t("master.landing.pipelineMockup.col3Cand1Meta")}
+                      </p>
                       <div className="mt-2 text-[10px] text-amber-800 bg-white px-2 py-1 rounded border border-amber-200">
-                        Khuyên dùng: Phù hợp văn hóa & tư duy
+                        {t("master.landing.pipelineMockup.col3Cand1Note")}
                       </div>
                     </div>
                   </div>
 
-                  {/* Column 4: Gửi Thư Mời (Offer) */}
+                  {/* Column 4: Offer */}
                   <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                     <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
                       <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                         <Award className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>4. Chốt Offer</span>
+                        <span>{t("master.landing.pipelineMockup.col4Title")}</span>
                       </span>
                       <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         5
@@ -258,13 +286,19 @@ export function SaasLandingPage() {
                     </div>
                     <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900">Vũ Đình Khoa</span>
+                        <span className="text-xs font-semibold text-slate-900">
+                          {t("master.landing.pipelineMockup.col4Cand1Name")}
+                        </span>
                         <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          Accepted
+                          {t("master.landing.pipelineMockup.col4Cand1Status")}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Vị trí: Lead Software Engineer</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Đã ký thư mời nhận việc</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t("master.landing.pipelineMockup.col4Cand1Role")}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {t("master.landing.pipelineMockup.col4Cand1Note")}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -275,7 +309,7 @@ export function SaasLandingPage() {
           {/* TRUST BANNER */}
           <div data-reveal="fade-in" className="pt-8 border-t border-slate-200">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-6">
-              Giải pháp được nghiên cứu và tin cậy bởi các tổ chức & doanh nghiệp hàng đầu
+              {t("master.landing.saas.trust.heading")}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-14 opacity-75 hover:opacity-100 transition-opacity">
               <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">VIETTEL SOLUTIONS</span>
@@ -293,13 +327,13 @@ export function SaasLandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-              Hệ Sinh Thái Tuyển Dụng
+              {t("master.landing.saas.solutionsTeaser.badge")}
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
-              5 Module AI Chuyên Sâu Tối Ưu Mọi Điểm Chạm Tuyển Dụng
+              {t("master.landing.saas.solutionsTeaser.title")}
             </h2>
             <p className="text-slate-600 text-base leading-relaxed">
-              Từ lúc nhận hồ sơ CV đến bài test kỹ thuật và phỏng vấn đàm thoại trực tiếp, AI đồng hành cùng HR ở từng công đoạn.
+              {t("master.landing.saas.solutionsTeaser.subtitle")}
             </p>
           </div>
 
@@ -308,12 +342,14 @@ export function SaasLandingPage() {
               <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <FileCheck2 className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">1. Sàng Lọc CV & Đối Khớp JD</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">
+                {t("master.landing.saas.solutionsTeaser.card1Title")}
+              </h3>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
-                Bóc tách đa định dạng PDF/Word trong 1.2s, so khớp thông minh theo ngữ nghĩa và xếp hạng tự động hồ sơ tiềm năng.
+                {t("master.landing.saas.solutionsTeaser.card1Desc")}
               </p>
               <Link to="/solutions" className="text-xs font-semibold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                <span>Khám phá tính năng</span>
+                <span>{t("master.landing.saas.solutionsTeaser.exploreLink")}</span>
                 <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -322,12 +358,14 @@ export function SaasLandingPage() {
               <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-5 border border-indigo-200 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                 <Code2 className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">2. Đánh Giá Code & Sandbox Docker</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">
+                {t("master.landing.saas.solutionsTeaser.card2Title")}
+              </h3>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
-                Môi trường thi lập trình độc lập, chấm điểm tức thì qua bộ TestCase ẩn và phân tích độ tối ưu thuật toán.
+                {t("master.landing.saas.solutionsTeaser.card2Desc")}
               </p>
               <Link to="/solutions" className="text-xs font-semibold text-indigo-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                <span>Khám phá tính năng</span>
+                <span>{t("master.landing.saas.solutionsTeaser.exploreLink")}</span>
                 <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -336,12 +374,14 @@ export function SaasLandingPage() {
               <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-5 border border-amber-200 group-hover:bg-amber-600 group-hover:text-white transition-colors">
                 <Mic className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">3. Phỏng Vấn Giọng Nói AI 24/7</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">
+                {t("master.landing.saas.solutionsTeaser.card3Title")}
+              </h3>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
-                Trợ lý AI đàm thoại bằng giọng nói tự nhiên, nhận diện âm thanh thời gian thực và phân tích năng lực phản biện.
+                {t("master.landing.saas.solutionsTeaser.card3Desc")}
               </p>
               <Link to="/solutions" className="text-xs font-semibold text-amber-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                <span>Khám phá tính năng</span>
+                <span>{t("master.landing.saas.solutionsTeaser.exploreLink")}</span>
                 <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -352,7 +392,7 @@ export function SaasLandingPage() {
               to="/solutions"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-50 text-blue-700 font-semibold text-xs sm:text-sm border border-blue-200 hover:bg-blue-100 transition-colors"
             >
-              <span>Xem Đầy Đủ Chi Tiết Hệ Sinh Thái Giải Pháp AI</span>
+              <span>{t("master.landing.saas.solutionsTeaser.viewAllBtn")}</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -363,13 +403,13 @@ export function SaasLandingPage() {
       <section className="py-20 max-w-7xl mx-auto px-6">
         <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-            Giá Trị Thực Tiễn
+            {t("master.landing.saas.valueRoi.badge")}
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
-            Chuyển Đổi Hiệu Quả Tuyển Dụng Bằng Số Liệu Đo Lường Cụ Thể
+            {t("master.landing.saas.valueRoi.title")}
           </h2>
           <p className="text-slate-600 text-base leading-relaxed">
-            Giúp đội ngũ nhân sự thoát khỏi các tác vụ thủ công lặp lại để tập trung vào việc tương tác, thu hút và giữ chân nhân tài chất lượng cao.
+            {t("master.landing.saas.valueRoi.subtitle")}
           </p>
         </div>
 
@@ -379,9 +419,11 @@ export function SaasLandingPage() {
               <Clock className="w-6 h-6" />
             </div>
             <div className="text-4xl font-extrabold text-slate-900 mb-2">-70%</div>
-            <h4 className="text-base font-bold text-slate-900 mb-1">Thời Gian Lọc Hồ Sơ</h4>
+            <h4 className="text-base font-bold text-slate-900 mb-1">
+              {t("master.landing.saas.valueRoi.stat1Label")}
+            </h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Tự động phân loại và đọc hiểu hàng trăm CV trong vài phút thay vì hàng tuần làm thủ công.
+              {t("master.landing.saas.valueRoi.stat1Desc")}
             </p>
           </div>
 
@@ -390,9 +432,11 @@ export function SaasLandingPage() {
               <TrendingUp className="w-6 h-6" />
             </div>
             <div className="text-4xl font-extrabold text-slate-900 mb-2">3.5x</div>
-            <h4 className="text-base font-bold text-slate-900 mb-1">Tốc Độ Tuyển Dụng</h4>
+            <h4 className="text-base font-bold text-slate-900 mb-1">
+              {t("master.landing.saas.valueRoi.stat2Label")}
+            </h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Rút ngắn chu kỳ tuyển dụng từ 32 ngày xuống còn 9 ngày trung bình cho mỗi vị trí nhân sự.
+              {t("master.landing.saas.valueRoi.stat2Desc")}
             </p>
           </div>
 
@@ -401,9 +445,11 @@ export function SaasLandingPage() {
               <UserCheck className="w-6 h-6" />
             </div>
             <div className="text-4xl font-extrabold text-slate-900 mb-2">99.2%</div>
-            <h4 className="text-base font-bold text-slate-900 mb-1">Chính Xác & Khách Quan</h4>
+            <h4 className="text-base font-bold text-slate-900 mb-1">
+              {t("master.landing.saas.valueRoi.stat3Label")}
+            </h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Loại bỏ thiên vị cảm tính trong vòng lọc hồ sơ nhờ chuẩn hóa tiêu chí và số liệu đo lường.
+              {t("master.landing.saas.valueRoi.stat3Desc")}
             </p>
           </div>
 
@@ -412,9 +458,11 @@ export function SaasLandingPage() {
               <DollarSign className="w-6 h-6" />
             </div>
             <div className="text-4xl font-extrabold text-slate-900 mb-2">45%</div>
-            <h4 className="text-base font-bold text-slate-900 mb-1">Tiết Kiệm Chi Phí</h4>
+            <h4 className="text-base font-bold text-slate-900 mb-1">
+              {t("master.landing.saas.valueRoi.stat4Label")}
+            </h4>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Giảm thiểu chi phí nhân lực sàng lọc sơ cấp và thời gian phỏng vấn không hiệu quả của Tech Lead.
+              {t("master.landing.saas.valueRoi.stat4Desc")}
             </p>
           </div>
         </div>
@@ -424,22 +472,22 @@ export function SaasLandingPage() {
             to="/roi"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-100 text-slate-800 font-semibold text-xs sm:text-sm hover:bg-slate-200 transition-colors"
           >
-            <span>Xem Chi Tiết Bài Toán Kinh Tế & Phân Tích ROI</span>
+            <span>{t("master.landing.saas.valueRoi.ctaLink")}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </section>
 
-      {/* SECURITY TEASER SECTION - STYLE REFINED PER SHOWCASE CARD (IMAGE 2) */}
+      {/* SECURITY TEASER SECTION */}
       <section className="py-12 sm:py-16 max-w-7xl mx-auto px-6">
         <div data-reveal="scale-up" className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
-          {/* Ambient Warm Gradient (Top-Right per Image 2) */}
+          {/* Ambient Warm Gradient */}
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-orange-300/30 via-rose-200/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-          {/* Ambient Lavender/Cool Tint (Bottom-Left per Image 2) */}
+          {/* Ambient Lavender/Cool Tint */}
           <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-gradient-to-tr from-blue-200/25 via-indigo-100/20 to-transparent rounded-full blur-2xl pointer-events-none" />
 
-          {/* Faint Tech Ring Watermark (Bottom-Left per Image 2) */}
+          {/* Faint Tech Ring Watermark */}
           <svg
             className="absolute -bottom-12 -left-12 w-72 h-72 text-indigo-900/[0.035] pointer-events-none"
             viewBox="0 0 200 200"
@@ -458,72 +506,78 @@ export function SaasLandingPage() {
             {/* Left Column: Heading + Checklist + Buttons */}
             <div data-reveal="slide-left" className="lg:col-span-6 xl:col-span-6">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-6">
-                <span className="text-[#f05123] font-bold">Bảo Vệ Dữ Liệu Nhân Sự</span>{" "}
+                <span className="text-[#f05123] font-bold">
+                  {t("master.landing.saas.security.titleHighlight")}
+                </span>{" "}
                 <br className="hidden sm:inline" />
-                & Danh Tiếng Doanh Nghiệp
+                {t("master.landing.saas.security.titleRest")}
               </h2>
 
               <div className="space-y-3 mb-8">
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    Cô lập dữ liệu tuyệt đối cho từng doanh nghiệp
+                    {t("master.landing.saas.security.check1")}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    Mã hóa toàn diện chuẩn AES-256 & TLS 1.3
+                    {t("master.landing.saas.security.check2")}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    Tuân thủ Nghị định 13/2023/NĐ-CP & cam kết NDA
+                    {t("master.landing.saas.security.check3", {
+                      law: LEGAL_POLICY_META.lawLabel,
+                    })}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2.5">
                   <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
                   <span className="text-sm text-slate-700">
-                    Tích hợp SSO doanh nghiệp & cam kết SLA 99.9%
+                    {t("master.landing.saas.security.check4")}
                   </span>
                 </div>
               </div>
 
-              {/* Action Buttons styled exactly per Image 2 */}
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-4">
                 <Link
-                  to="/demo?tier=T%C6%B0+V%E1%BA%A5n+Gi%E1%BA%A3i+Ph%C3%A1p+Doanh+Nghi%E1%BB%87p&type=DEMO"
+                  to={`/demo?${new URLSearchParams({
+                    tier: t("master.landing.shared.consultTier"),
+                    type: "DEMO",
+                  }).toString()}`}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4d2e] to-[#f05123] hover:from-[#f04121] hover:to-[#e03a18] text-white font-semibold text-sm shadow-md shadow-orange-500/20 active:scale-98 transition-all inline-flex items-center justify-center cursor-pointer"
                 >
-                  Dùng thử miễn phí
+                  {t("master.landing.saas.security.tryFreeBtn")}
                 </Link>
                 <Link
                   to="/security"
                   className="px-5 py-3 rounded-xl border border-[#f05123] text-[#f05123] hover:bg-orange-50/60 font-semibold text-sm inline-flex items-center gap-1.5 active:scale-98 transition-all"
                 >
-                  <span>Tìm hiểu thêm</span>
+                  <span>{t("master.landing.saas.security.learnMoreBtn")}</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
 
-            {/* Right Column: White framed media card per Image 2 */}
+            {/* Right Column: White framed media card */}
             <div data-reveal="slide-right" style={{ transitionDelay: "100ms" }} className="lg:col-span-6 xl:col-span-6">
               <div className="bg-white rounded-3xl p-3 sm:p-4 shadow-xl shadow-slate-200/60 border border-slate-100">
                 <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-slate-100">
                   <img
                     src="/security_showcase.jpg"
-                    alt="Bảo mật an toàn SmartHire-AI"
+                    alt={t("master.landing.saas.security.imageAlt")}
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  {/* Translucent Dark Badge per Image 2 */}
                   <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 px-4 sm:px-5 py-2 rounded-lg bg-black/75 backdrop-blur-md text-white text-xs sm:text-sm font-medium shadow-lg whitespace-nowrap">
-                    Trải nghiệm ngay SmartHire-AI Security
+                    {t("master.landing.saas.security.imageBadge")}
                   </div>
                 </div>
               </div>
@@ -536,24 +590,26 @@ export function SaasLandingPage() {
       <section className="py-20 max-w-7xl mx-auto px-6">
         <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-12">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-            Gói Giải Pháp Doanh Nghiệp
+            {t("master.landing.plans.badge")}
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
-            Linh Hoạt Theo Quy Mô & Mục Tiêu Tuyển Dụng
+            {t("master.landing.plans.title")}
           </h2>
           <p className="text-slate-600 text-base">
-            Chúng tôi đồng hành cùng quý doanh nghiệp qua từng bước tư vấn chuyên sâu, thử nghiệm thực tế và ký kết hợp đồng rõ ràng.
+            {t("master.landing.plans.subtitle")}
           </p>
         </div>
 
         {/* SMALL INTRO / CTA */}
         <div data-reveal="fade-up" className="flex flex-wrap items-center justify-center gap-3 mb-10">
-          <span className="italic text-slate-900 font-medium text-lg">Nếu Doanh nghiệp có quy mô khác</span>
+          <span className="italic text-slate-900 font-medium text-lg">
+            {t("master.landing.plans.customPrompt")}
+          </span>
           <button
-            onClick={() => openDemoModal("Gói Tùy Biến Chuyên Sâu", "CONTRACT_QUOTE")}
+            onClick={() => openDemoModal(t("master.landing.shared.customTier"), "CONTRACT_QUOTE")}
             className="px-5 py-2 rounded-full bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-bold text-sm transition-all shadow-sm flex items-center gap-2"
           >
-            Báo giá 1-1
+            {t("master.landing.plans.quote1on1Btn")}
           </button>
         </div>
 
@@ -564,7 +620,7 @@ export function SaasLandingPage() {
             ))
           ) : plans.length === 0 ? (
             <div className="col-span-3 py-20 text-center text-slate-500">
-              Không có gói cước nào khả dụng.
+              {t("master.landing.plans.empty")}
             </div>
           ) : (
             plans.map((plan, index) => {
@@ -583,7 +639,7 @@ export function SaasLandingPage() {
                 >
                   {isHighlighted && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold px-4 py-1 rounded-full shadow-sm tracking-wide whitespace-nowrap">
-                      Lựa Chọn Phổ Biến Nhất
+                      {t("master.landing.plans.mostPopular")}
                     </div>
                   )}
 
@@ -595,11 +651,15 @@ export function SaasLandingPage() {
                           isHighlighted ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {index === 0 ? "Doanh nghiệp nhỏ" : index === 1 ? "Doanh nghiệp vừa" : "Doanh nghiệp lớn"}
+                        {index === 0
+                          ? t("master.landing.plans.tierSmall")
+                          : index === 1
+                            ? t("master.landing.plans.tierMedium")
+                            : t("master.landing.plans.tierLarge")}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mb-6 min-h-[32px]">
-                      {plan.description || "Tối ưu cho doanh nghiệp có nhu cầu chuẩn hóa quy trình tuyển dụng."}
+                      {plan.description || t("master.landing.plans.defaultDescription")}
                     </p>
 
                     <div
@@ -608,10 +668,14 @@ export function SaasLandingPage() {
                       }`}
                     >
                       <span className={`text-xs block mb-1 ${isHighlighted ? "text-blue-700 font-semibold" : "text-slate-500"}`}>
-                        Quy mô phù hợp
+                        {t("master.landing.plans.suitableScale")}
                       </span>
                       <span className="text-sm font-semibold text-slate-900">
-                        {index === 0 ? "Dưới 50 nhân sự" : index === 1 ? "Từ 50 - 200 nhân sự" : "Từ 200+ nhân sự"}
+                        {index === 0
+                          ? t("master.landing.plans.scaleUnder50")
+                          : index === 1
+                            ? t("master.landing.plans.scale50To200")
+                            : t("master.landing.plans.scaleOver200")}
                       </span>
                     </div>
 
@@ -620,53 +684,24 @@ export function SaasLandingPage() {
                         {plan.priceYearly > 0 ? (
                           <>
                             <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
-                              {plan.priceYearly.toLocaleString("vi-VN")} đ
+                              {formatNumber(plan.priceYearly, undefined, locale)} {t("master.landing.shared.currencyVnd")}
                             </span>
-                            <span className="text-xs text-slate-500 font-medium">/ năm</span>
+                            <span className="text-xs text-slate-500 font-medium">
+                              / {t("master.landing.plans.perYear")}
+                            </span>
                           </>
                         ) : (
                           <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
-                            Liên hệ báo giá
+                            {t("master.landing.plans.contactQuote")}
                           </span>
                         )}
                       </div>
                       <div className="mt-1.5 text-xs text-slate-500 font-medium">
-                        Bản quyền sử dụng trọn gói theo năm
+                        {t("master.landing.plans.annualLicenseNote")}
                       </div>
                     </div>
 
-                    <ul className="space-y-3 text-sm text-slate-600 mb-8">
-                      <li className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>Cơ sở dữ liệu riêng biệt & bảo mật</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>{plan.maxJobs > 0 ? plan.maxJobs : "Không giới hạn"}</strong> vị trí tuyển dụng
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>
-                          Sàng lọc <strong>{plan.maxCvParses > 0 ? plan.maxCvParses.toLocaleString() : "Không giới hạn"} CVs / tháng</strong>
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>
-                          Trợ lý phỏng vấn AI <strong>{plan.maxAiInterviewHours ? `${plan.maxAiInterviewHours}h` : "Không giới hạn"}</strong>
-                        </span>
-                      </li>
-                      {isEnterprise && (
-                        <li className="flex items-start gap-2.5">
-                          <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                          <span>
-                            Hỗ trợ tích hợp <strong>SSO SAML / OIDC</strong>
-                          </span>
-                        </li>
-                      )}
-                    </ul>
+                    <PlanFeatureList plan={plan} isEnterprise={isEnterprise} locale={locale} />
                   </div>
 
                   <div className="flex gap-2.5 mt-auto">
@@ -674,14 +709,14 @@ export function SaasLandingPage() {
                       onClick={() => openDemoModal(plan.name, "CONTRACT_QUOTE")}
                       className="flex-[1.2] py-3.5 px-2 rounded-full bg-[#00bda5] hover:bg-[#00a893] active:scale-95 text-white font-bold text-[13px] transition-all flex items-center justify-center shadow-md whitespace-nowrap"
                     >
-                      Tư vấn báo giá 1:1
+                      {t("master.landing.plans.consultQuoteBtn")}
                     </button>
                     {plan.priceYearly > 0 && (
                       <button
                         onClick={() => navigate(`/checkout/${plan.code}`)}
                         className="flex-1 py-3.5 px-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 active:scale-95 text-white font-bold text-[13px] transition-all flex items-center justify-center gap-1.5 shadow-md whitespace-nowrap"
                       >
-                        <span>Mua ngay</span>
+                        <span>{t("master.landing.plans.buyNowBtn")}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
@@ -697,7 +732,7 @@ export function SaasLandingPage() {
             to="/pricing"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-50 text-blue-700 font-semibold text-xs sm:text-sm hover:bg-blue-100 transition-colors"
           >
-            <span>Xem Bảng So Sánh Tính Năng Đầy Đủ</span>
+            <span>{t("master.landing.saas.pricingViewAllBtn")}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -708,13 +743,13 @@ export function SaasLandingPage() {
         <div className="max-w-4xl mx-auto px-6">
           <div data-reveal="fade-up" className="text-center mb-14">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-              Hỏi Đáp Thường Gặp
+              {t("master.landing.saas.faq.badge")}
             </span>
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 mt-4 mb-3">
-              Giải Đáp Thắc Mắc Về Nền Tảng
+              {t("master.landing.saas.faq.title")}
             </h2>
             <p className="text-slate-600 text-sm">
-              Những câu hỏi doanh nghiệp quan tâm hàng đầu trước khi tiến hành triển khai giải pháp.
+              {t("master.landing.saas.faq.subtitle")}
             </p>
           </div>
 
@@ -759,27 +794,27 @@ export function SaasLandingPage() {
         <div data-reveal="fade-up" className="max-w-5xl mx-auto px-6 text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-sky-400 text-xs font-semibold mb-6 border border-slate-700">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Chuyển Đổi Số Tuyển Dụng</span>
+            <span>{t("master.landing.saas.bottomCta.badge")}</span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-6">
-            Sẵn Sàng Nâng Tầm Năng Lực Tuyển Dụng Của Doanh Nghiệp?
+            {t("master.landing.saas.bottomCta.title")}
           </h2>
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Trải nghiệm buổi trao đổi chuyên sâu và theo dõi trực tiếp quy trình AI hoạt động trên chính bài toán tuyển dụng thực tế của bạn.
+            {t("master.landing.saas.bottomCta.subtitle")}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => openDemoModal("Tư Vấn Giải Pháp Doanh Nghiệp")}
+              onClick={() => openDemoModal(t("master.landing.shared.consultTier"))}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-xl shadow-blue-600/25 transition-all flex items-center justify-center gap-2"
             >
-              <span>Đặt Lịch Tư Vấn 1:1 Cùng Chuyên Gia</span>
+              <span>{t("master.landing.saas.bottomCta.primaryBtn")}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
             <button
               onClick={openWorkspaceModal}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 border border-slate-700 transition-all"
             >
-              Vào Không Gian Làm Việc
+              {t("master.landing.saas.bottomCta.secondaryBtn")}
             </button>
           </div>
         </div>

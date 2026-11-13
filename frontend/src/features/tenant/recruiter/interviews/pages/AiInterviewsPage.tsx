@@ -1,6 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -39,6 +39,7 @@ import { companyApi } from "@/api/tenant/companyApi";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { TableSkeleton } from "@/components/ux/Skeleton";
+import { formatDate, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
 import { AiInterviewErrorBoundary } from "../components/AiInterviewErrorBoundary";
 import { AiInterviewSubNav, type AiInterviewTab } from "../components/AiInterviewSubNav";
@@ -46,12 +47,11 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
-import { AiInterviewDetailDrawer } from "../components/AiInterviewDetailDrawer";
 import {
   AI_INTERVIEW_STATUSES,
   AiStatusBadge,
-  aiStatusLabel,
   formatDateTime,
+  getAiStatusLabel,
 } from "../components/aiInterviewUi";
 import { CreateAiInterviewDialog } from "../components/CreateAiInterviewDialog";
 import { useJobAiInterviews, type AiInterviewRow } from "../hooks/useJobAiInterviews";
@@ -94,33 +94,59 @@ function initials(name?: string | null) {
   );
 }
 
-function candidateName(row: AiInterviewRow) {
-  return row.application?.candidateName ?? `Ứng viên #${row.candidateId ?? "?"}`;
+function candidateName(row: AiInterviewRow, t: TranslateFn) {
+  return (
+    row.application?.candidateName ??
+    t("recruiter.interviews.ai.sessions.candidateFallback", { id: row.candidateId ?? "?" })
+  );
 }
 
-function scheduleOf(row: AiInterviewRow) {
-  if (row.completedAt) return { label: formatDateTime(row.completedAt), hint: "Hoàn tất phiên" };
-  if (row.startedAt) return { label: formatDateTime(row.startedAt), hint: "Đã bắt đầu" };
-  return { label: formatDateTime(row.createdAt), hint: "Ngày tạo phiên" };
+function scheduleOf(row: AiInterviewRow, t: TranslateFn, locale: Locale) {
+  if (row.completedAt) {
+    return {
+      label: formatDateTime(row.completedAt, locale),
+      hint: t("recruiter.interviews.ai.sessions.completedHint"),
+    };
+  }
+  if (row.startedAt) {
+    return {
+      label: formatDateTime(row.startedAt, locale),
+      hint: t("recruiter.interviews.ai.sessions.startedHint"),
+    };
+  }
+  return {
+    label: formatDateTime(row.createdAt, locale),
+    hint: t("recruiter.interviews.ai.sessions.createdHint"),
+  };
 }
 
-function exportCsv(rows: AiInterviewRow[], jobTitle: string) {
+function exportCsv(rows: AiInterviewRow[], jobTitle: string, t: TranslateFn, locale: Locale) {
   if (rows.length === 0) {
-    toast.warning("Không có dữ liệu phiên phỏng vấn để xuất");
+    toast.warning(t("recruiter.interviews.ai.sessions.exportEmptyWarning"));
     return;
   }
-  const headers = ["Mã phiên", "Ứng viên", "Email", "Mã đơn", "Trạng thái", "Điểm AI", "Ngày tạo", "Bắt đầu", "Hoàn tất"];
+  const headers = [
+    t("recruiter.interviews.ai.sessions.csvHeaderId"),
+    t("recruiter.interviews.ai.sessions.csvHeaderCandidate"),
+    t("recruiter.interviews.ai.sessions.csvHeaderEmail"),
+    t("recruiter.interviews.ai.sessions.csvHeaderAppId"),
+    t("recruiter.interviews.ai.sessions.csvHeaderStatus"),
+    t("recruiter.interviews.ai.sessions.csvHeaderScore"),
+    t("recruiter.interviews.ai.sessions.csvHeaderCreated"),
+    t("recruiter.interviews.ai.sessions.csvHeaderStarted"),
+    t("recruiter.interviews.ai.sessions.csvHeaderCompleted"),
+  ];
   const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = rows.map((r) => [
     `AI-${r.id}`,
-    candidateName(r),
+    candidateName(r, t),
     r.application?.candidateEmail ?? "",
     r.applicationId,
-    aiStatusLabel[r.status] ?? r.status,
+    getAiStatusLabel(r.status, t),
     r.overallScore != null ? r.overallScore : "",
-    r.createdAt ? new Date(r.createdAt).toLocaleDateString("vi-VN") : "",
-    r.startedAt ? new Date(r.startedAt).toLocaleDateString("vi-VN") : "",
-    r.completedAt ? new Date(r.completedAt).toLocaleDateString("vi-VN") : "",
+    r.createdAt ? formatDate(r.createdAt, undefined, locale) : "",
+    r.startedAt ? formatDate(r.startedAt, undefined, locale) : "",
+    r.completedAt ? formatDate(r.completedAt, undefined, locale) : "",
   ].map(escape).join(","));
 
   const csvContent = "\uFEFF" + [headers.join(","), ...lines].join("\n");
@@ -128,20 +154,32 @@ function exportCsv(rows: AiInterviewRow[], jobTitle: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `Danh_sach_phong_van_AI_${jobTitle.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `${t("recruiter.interviews.ai.sessions.exportFilenamePrefix")}_${jobTitle.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
-  toast.success("Xuất file CSV thành công", `Đã xuất ${rows.length} phiên phỏng vấn`);
+  toast.success(
+    t("recruiter.interviews.ai.sessions.exportSuccessTitle"),
+    t("recruiter.interviews.ai.sessions.exportSuccessDesc", { count: rows.length }),
+  );
 }
 
 function ScoreCell({ row }: { row: AiInterviewRow }) {
+  const t = useT();
   if (row.status === "SCORING") {
-    return <span className="text-xs italic text-blue-600 dark:text-blue-400">Đang tổng hợp điểm...</span>;
+    return (
+      <span className="text-xs italic text-[var(--color-primary)]">
+        {t("recruiter.interviews.ai.sessions.scoringInline")}
+      </span>
+    );
   }
   const scoreNum = Number(row.overallScore);
   const hasValidScore = row.overallScore != null && !isNaN(scoreNum);
   if (!hasValidScore) {
-    return <span className="text-xs italic text-slate-400 dark:text-slate-500">Chưa có điểm</span>;
+    return (
+      <span className="text-xs italic text-slate-400 dark:text-slate-500">
+        {t("recruiter.interviews.ai.sessions.noScoreInline")}
+      </span>
+    );
   }
   const pct = Math.min(Math.max(scoreNum, 0), 100);
   const isPassed = row.passingScore != null ? scoreNum >= Number(row.passingScore) : scoreNum >= 50;
@@ -160,7 +198,9 @@ function ScoreCell({ row }: { row: AiInterviewRow }) {
               : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
           )}
         >
-          {isPassed ? "Đạt" : "Chưa đạt"}
+          {isPassed
+            ? t("recruiter.interviews.ai.sessions.passedBadge")
+            : t("recruiter.interviews.ai.sessions.failedBadge")}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -230,13 +270,18 @@ function ActionMenu({
 }
 
 export function AiInterviewsPage() {
+  const t = useT();
+  const locale = useLocale();
   const job = useRecruitmentJob();
+  const navigate = useNavigate();
+  const location = useLocation();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [params, setParams] = useSearchParams();
   const { interviews, applicants, rows } = useJobAiInterviews(job.id);
 
   const activeSubNavTab = (params.get("tab") as AiInterviewTab) || "sessions";
+  const [subNavDir, setSubNavDir] = useState<"left" | "right">("right");
 
   const [tab, setTab] = useState<QuickTab>("ALL");
   const [query, setQuery] = useState("");
@@ -249,7 +294,6 @@ export function AiInterviewsPage() {
   const [jumpVal, setJumpVal] = useState("");
   const [isTableTransitioning, setIsTableTransitioning] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<"status" | "time" | "export" | null>(null);
   const [trackingSearch, setTrackingSearch] = useState("");
@@ -259,24 +303,33 @@ export function AiInterviewsPage() {
     setExpandedCandidates((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const openSessionDetail = (interviewId: number) => {
+    navigate(`/recruiter/jobs/${job.id}/ai-interviews/${interviewId}`, {
+      state: { backSearch: location.search },
+    });
+  };
+
   const subQuery = useQuery({
     queryKey: ["tenant-subscription-quota"],
     queryFn: companyApi.getSubscription,
   });
   const sub = subQuery.data?.data;
 
-  // Sync direct URL parameters (e.g. from RankingDetail)
+  // Redirect direct URL parameters (e.g. from RankingDetail) to the dedicated detail page
   useEffect(() => {
     const appId = params.get("applicationId");
     const intId = params.get("interviewId");
+    if (intId && /^\d+$/.test(intId)) {
+      navigate(`/recruiter/jobs/${job.id}/ai-interviews/${intId}`, { replace: true });
+      return;
+    }
     if (appId && rows.length > 0) {
       const match = rows.find((r) => String(r.applicationId) === appId);
-      if (match) setDetailId(match.id);
-    } else if (intId && rows.length > 0) {
-      const match = rows.find((r) => String(r.id) === intId);
-      if (match) setDetailId(match.id);
+      if (match) {
+        navigate(`/recruiter/jobs/${job.id}/ai-interviews/${match.id}`, { replace: true });
+      }
     }
-  }, [params, rows]);
+  }, [params, rows, job.id, navigate]);
 
   // Click outside listener for dropdowns
   useEffect(() => {
@@ -319,13 +372,13 @@ export function AiInterviewsPage() {
       if (since && new Date(row.createdAt).getTime() < since) return false;
       if (!q) return true;
       return (
-        candidateName(row).toLowerCase().includes(q) ||
+        candidateName(row, t).toLowerCase().includes(q) ||
         (row.application?.candidateEmail ?? "").toLowerCase().includes(q) ||
         `ai-${row.id}`.includes(q.replace("#", "")) ||
         String(row.applicationId) === q
       );
     });
-  }, [rows, tab, statusFilter, timeRange, query]);
+  }, [rows, tab, statusFilter, timeRange, query, t]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -336,8 +389,6 @@ export function AiInterviewsPage() {
     [filtered, startIndex, pageSize],
   );
   const pageItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
-
-  const detailRow = rows.find((r) => r.id === detailId);
 
   const candidateCompletedGroups = useMemo(() => {
     const completedRows = rows.filter(
@@ -379,7 +430,7 @@ export function AiInterviewsPage() {
         key,
         applicationId: latest.applicationId,
         candidateId: latest.candidateId ?? null,
-        candidateName: candidateName(latest),
+        candidateName: candidateName(latest, t),
         candidateEmail: latest.application?.candidateEmail ?? "—",
         attempts: groupRows,
         latestAttempt: latest,
@@ -393,7 +444,7 @@ export function AiInterviewsPage() {
     });
 
     return groups;
-  }, [rows]);
+  }, [rows, t]);
 
   const filteredTrackingGroups = useMemo(() => {
     if (!trackingSearch.trim()) return candidateCompletedGroups;
@@ -405,7 +456,6 @@ export function AiInterviewsPage() {
         String(g.applicationId).includes(q)
     );
   }, [candidateCompletedGroups, trackingSearch]);
-
   const triggerTableTransition = (action: () => void) => {
     setIsTableTransitioning(true);
     action();
@@ -444,23 +494,23 @@ export function AiInterviewsPage() {
 
   const confirmDelete = (row: AiInterviewRow) =>
     askConfirm({
-      title: `Xoá phiên #AI-${row.id}?`,
-      description: "Toàn bộ câu hỏi, câu trả lời và feedback của phiên sẽ bị xoá vĩnh viễn.",
-      confirmLabel: "Xoá phiên",
+      title: t("recruiter.interviews.ai.sessions.deleteTitle", { id: row.id }),
+      description: t("recruiter.interviews.ai.sessions.deleteDesc"),
+      confirmLabel: t("recruiter.interviews.ai.sessions.deleteConfirm"),
       danger: true,
       onConfirm: async () => {
         await aiInterviewApi.remove(row.id);
         await client.invalidateQueries({ queryKey: queryKeys.aiInterviews.byJob(job.id) });
-        toast.success("Đã xoá phiên phỏng vấn AI");
+        toast.success(t("recruiter.interviews.ai.sessions.deleteToast"));
       },
     });
 
   const tabsConfig: { id: QuickTab; label: string; count: number; live?: boolean }[] = [
-    { id: "ALL", label: "Tất cả", count: counts.all },
-    { id: "QUESTIONS_READY", label: "Đã có câu hỏi", count: counts.ready },
-    { id: "IN_PROGRESS", label: "Đang diễn ra", count: counts.live, live: true },
-    { id: "SCORING", label: "Đang chấm", count: counts.scoring },
-    { id: "SCORED", label: "Đã chấm xong", count: counts.scored },
+    { id: "ALL", label: t("recruiter.interviews.ai.sessions.tabAll"), count: counts.all },
+    { id: "QUESTIONS_READY", label: t("recruiter.interviews.ai.sessions.tabReady"), count: counts.ready },
+    { id: "IN_PROGRESS", label: t("recruiter.interviews.ai.sessions.tabLive"), count: counts.live, live: true },
+    { id: "SCORING", label: t("recruiter.interviews.ai.sessions.tabScoring"), count: counts.scoring },
+    { id: "SCORED", label: t("recruiter.interviews.ai.sessions.tabScored"), count: counts.scored },
   ];
 
   const handleSubNavChange = (nextTab: AiInterviewTab) => {
@@ -480,6 +530,7 @@ export function AiInterviewsPage() {
         jobId={job.id}
         activeTab={activeSubNavTab}
         onTabChange={handleSubNavChange}
+        onDirectionChange={setSubNavDir}
       />
 
       {/* Subscription Alert Warning */}
@@ -489,17 +540,26 @@ export function AiInterviewsPage() {
           <p className="text-xs sm:text-sm">
             {!sub.aiInterviewEnabled ? (
               <>
-                Gói dịch vụ hiện tại (<strong>{sub.planName}</strong>) không bao gồm tính năng{" "}
-                <strong>Phỏng vấn AI Voice (0 giờ/tháng)</strong>. Vui lòng nâng cấp lên gói{" "}
-                <strong>Professional</strong> hoặc <strong>Enterprise</strong> để mở khóa.
+                {t("recruiter.interviews.ai.sessions.subDisabledLead")}
+                <strong>{sub.planName}</strong>
+                {t("recruiter.interviews.ai.sessions.subDisabledMid")}
+                <strong>{t("recruiter.interviews.ai.sessions.subDisabledFeature")}</strong>
+                {t("recruiter.interviews.ai.sessions.subDisabledMid2")}
+                <strong>Professional</strong>
+                {t("recruiter.interviews.ai.sessions.subDisabledOr")}
+                <strong>Enterprise</strong>
+                {t("recruiter.interviews.ai.sessions.subDisabledEnd")}
               </>
             ) : (
               <>
-                Workspace đã sử dụng hết 100% hạn mức thời lượng Phỏng vấn AI Voice trong tháng (
+                {t("recruiter.interviews.ai.sessions.subQuotaLead")}
                 <strong>
-                  {(sub.usedAiInterviewSeconds / 3600).toFixed(1)}/{sub.maxAiInterviewHours} giờ
+                  {t("recruiter.interviews.ai.sessions.subQuotaHours", {
+                    used: (sub.usedAiInterviewSeconds / 3600).toFixed(1),
+                    max: sub.maxAiInterviewHours,
+                  })}
                 </strong>
-                ). Vui lòng nâng cấp gói dịch vụ để tiếp tục tạo phiên phỏng vấn mới.
+                {t("recruiter.interviews.ai.sessions.subQuotaEnd")}
               </>
             )}
           </p>
@@ -511,45 +571,48 @@ export function AiInterviewsPage() {
 
       {/* TAB CONTENT: CẤU HÌNH (CONFIG) */}
       {activeSubNavTab === "config" && (
-        <div className="animate-in fade-in-50 duration-200">
+        <div key="config" className={subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right"}>
           <AiInterviewErrorBoundary fallbackTitle="Không thể hiển thị cấu hình phỏng vấn AI">
-            <AiInterviewConfigPanel jobId={job.id} onOpenDetail={(id) => setDetailId(id)} />
+            <AiInterviewConfigPanel jobId={job.id} onOpenDetail={openSessionDetail} />
           </AiInterviewErrorBoundary>
         </div>
       )}
 
       {/* TAB CONTENT: THEO DÕI KẾT QUẢ / NỘP BÀI (TRACKING) */}
       {activeSubNavTab === "tracking" && (
-        <div className="flex flex-col gap-4 animate-in fade-in-50 duration-200">
+        <div key="tracking" className={cn("flex flex-col gap-4", subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right")}>
           {/* Subscription Usage Card if available */}
           {sub && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400">
+                <div className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
                   <Bot className="size-5" />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    Hạn mức thời lượng AI Voice · Gói {sub.planName}
+                    {t("recruiter.interviews.ai.sessions.quotaTitle", { plan: sub.planName })}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {!sub.aiInterviewEnabled
-                      ? "Gói dịch vụ không bao gồm AI Voice"
+                      ? t("recruiter.interviews.ai.sessions.quotaNotIncluded")
                       : sub.maxAiInterviewHours < 0
-                      ? "Hạn mức phỏng vấn AI không giới hạn"
-                      : `Đã sử dụng ${(sub.usedAiInterviewSeconds / 3600).toFixed(1)} / ${sub.maxAiInterviewHours} giờ`}
+                        ? t("recruiter.interviews.ai.sessions.quotaUnlimited")
+                        : t("recruiter.interviews.ai.sessions.quotaUsed", {
+                            used: (sub.usedAiInterviewSeconds / 3600).toFixed(1),
+                            max: sub.maxAiInterviewHours,
+                          })}
                   </p>
                 </div>
               </div>
               {sub.aiInterviewEnabled && sub.maxAiInterviewHours > 0 && (
                 <div className="w-full sm:w-60">
                   <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    <span>Thời lượng đã dùng</span>
+                    <span>{t("recruiter.interviews.ai.sessions.quotaProgressLabel")}</span>
                     <span>{Math.round(((sub.usedAiInterviewSeconds / 3600) / sub.maxAiInterviewHours) * 100)}%</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
-                      className="h-full rounded-full bg-[#0066FF] transition-all"
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all"
                       style={{
                         width: `${Math.min(100, Math.round(((sub.usedAiInterviewSeconds / 3600) / sub.maxAiInterviewHours) * 100))}%`,
                       }}
@@ -566,14 +629,14 @@ export function AiInterviewsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Kết quả phỏng vấn ứng viên đã hoàn tất
+                    {t("recruiter.interviews.ai.sessions.trackingTitle")}
                   </h3>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                    {candidateCompletedGroups.length} ứng viên
+                    {t("recruiter.interviews.ai.sessions.trackingCandidatesCount", { count: candidateCompletedGroups.length })}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Mỗi ứng viên hiển thị điểm số lần phỏng vấn gần nhất. Nhấn vào điểm hoặc nút phiên để xem chi tiết từng lần làm.
+                  {t("recruiter.interviews.ai.sessions.trackingSubtitle")}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -584,12 +647,13 @@ export function AiInterviewsPage() {
                       type="text"
                       value={trackingSearch}
                       onChange={(e) => setTrackingSearch(e.target.value)}
-                      placeholder="Tìm ứng viên..."
-                      className="h-8 w-44 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      placeholder={t("recruiter.interviews.ai.sessions.trackingSearchPlaceholder")}
+                      className="h-8 w-44 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                     />
                     {trackingSearch && (
                       <button
                         type="button"
+                        aria-label={t("recruiter.interviews.ai.sessions.clearSearchAria")}
                         onClick={() => setTrackingSearch("")}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                       >
@@ -601,9 +665,9 @@ export function AiInterviewsPage() {
                 <button
                   type="button"
                   onClick={() => handleSubNavChange("sessions")}
-                  className="text-xs font-semibold text-[#0066FF] hover:underline cursor-pointer shrink-0"
+                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer shrink-0"
                 >
-                  Xem toàn bộ phiên →
+                  {t("recruiter.interviews.ai.sessions.viewAllSessions")}
                 </button>
               </div>
             </div>
@@ -611,11 +675,11 @@ export function AiInterviewsPage() {
             <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
               {candidateCompletedGroups.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                  Chưa có phiên phỏng vấn nào hoàn tất và được chấm điểm.
+                  {t("recruiter.interviews.ai.sessions.trackingEmpty")}
                 </div>
               ) : filteredTrackingGroups.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                  Không tìm thấy ứng viên phù hợp với từ khóa "{trackingSearch}".
+                  {t("recruiter.interviews.ai.sessions.trackingSearchEmpty", { query: trackingSearch })}
                 </div>
               ) : (
                 filteredTrackingGroups.map((group) => {
@@ -628,7 +692,7 @@ export function AiInterviewsPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                         {/* Candidate Info */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                             {initials(group.candidateName)}
                           </div>
                           <div className="min-w-0">
@@ -640,16 +704,16 @@ export function AiInterviewsPage() {
                                 <button
                                   type="button"
                                   onClick={() => toggleExpandCandidate(group.key)}
-                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.5 text-[10px] font-bold text-[#0066FF] hover:bg-blue-100 transition-colors cursor-pointer dark:bg-blue-950 dark:text-blue-300"
-                                  title="Nhấn để xem các phiên và điểm của từng lần"
+                                  className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
+                                  title={t("recruiter.interviews.ai.sessions.expandAttemptsTitle")}
                                 >
-                                  <span>{group.attempts.length} lần phỏng vấn</span>
+                                  <span>{t("recruiter.interviews.ai.sessions.attemptsBadge", { count: group.attempts.length })}</span>
                                   <ChevronDown className={cn("size-3 transition-transform duration-200", isExpanded && "rotate-180")} />
                                 </button>
                               )}
                             </div>
                             <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
-                              {group.candidateEmail} • Đơn #{group.applicationId}
+                              {group.candidateEmail} • {t("recruiter.interviews.ai.sessions.applicationTag", { id: group.applicationId })}
                             </p>
                           </div>
                         </div>
@@ -662,10 +726,12 @@ export function AiInterviewsPage() {
                               hasMultipleAttempts && "cursor-pointer group/score"
                             )}
                             onClick={() => hasMultipleAttempts && toggleExpandCandidate(group.key)}
-                            title={hasMultipleAttempts ? "Nhấn để xem các phiên và điểm của từng lần" : undefined}
+                            title={hasMultipleAttempts ? t("recruiter.interviews.ai.sessions.expandAttemptsTitle") : undefined}
                           >
                             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">
-                              {hasMultipleAttempts ? "Điểm gần nhất" : "Điểm phỏng vấn"}
+                              {hasMultipleAttempts
+                                ? t("recruiter.interviews.ai.sessions.latestScoreLabel")
+                                : t("recruiter.interviews.ai.sessions.interviewScoreLabel")}
                             </span>
                             <ScoreCell row={latest} />
                           </div>
@@ -678,12 +744,12 @@ export function AiInterviewsPage() {
                                 className={cn(
                                   "inline-flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-semibold transition-all cursor-pointer",
                                   isExpanded
-                                    ? "border-blue-300 bg-blue-100/80 text-[#0066FF] dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
-                                    : "border-blue-200 bg-blue-50/70 text-[#0066FF] hover:bg-blue-100/70 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300"
+                                    ? "border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
+                                    : "border-[var(--color-primary)]/25 bg-[var(--color-primary-subtle)] text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
                                 )}
                               >
                                 <History className="size-3.5" />
-                                <span className="hidden sm:inline">Các phiên</span>
+                                <span className="hidden sm:inline">{t("recruiter.interviews.ai.sessions.attemptsBtn")}</span>
                                 <span>({group.attempts.length})</span>
                                 <ChevronDown className={cn("size-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
                               </button>
@@ -691,11 +757,15 @@ export function AiInterviewsPage() {
 
                             <button
                               type="button"
-                              onClick={() => setDetailId(latest.id)}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                              onClick={() => openSessionDetail(latest.id)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                             >
-                              <Eye className="size-3.5 text-slate-400" />
-                              <span>{hasMultipleAttempts ? "Báo cáo gần nhất" : "Xem báo cáo"}</span>
+                              <Eye className="size-3.5 text-[var(--color-primary)]" />
+                              <span>
+                                {hasMultipleAttempts
+                                  ? t("recruiter.interviews.ai.sessions.latestReportBtn")
+                                  : t("recruiter.interviews.ai.sessions.viewReportBtn")}
+                              </span>
                             </button>
                           </div>
                         </div>
@@ -706,16 +776,16 @@ export function AiInterviewsPage() {
                         <div className="border-t border-slate-100 bg-slate-50/60 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/40 animate-in fade-in-50 duration-150">
                           <div className="mb-2.5 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <History className="size-3.5 text-[#0066FF]" />
+                              <History className="size-3.5 text-[var(--color-primary)]" />
                               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                Lịch sử các phiên phỏng vấn của {group.candidateName}
+                                {t("recruiter.interviews.ai.sessions.historyTitle", { name: group.candidateName })}
                               </span>
                               <span className="rounded-full bg-slate-200/70 dark:bg-slate-700 px-2 py-0.2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                {group.attempts.length} phiên
+                                {t("recruiter.interviews.ai.sessions.historySessionsCount", { count: group.attempts.length })}
                               </span>
                             </div>
                             <span className="text-[11px] text-slate-400 hidden sm:inline">
-                              Xếp theo thứ tự từ mới nhất đến cũ nhất
+                              {t("recruiter.interviews.ai.sessions.historyOrderHint")}
                             </span>
                           </div>
 
@@ -734,17 +804,21 @@ export function AiInterviewsPage() {
                                     <div>
                                       <div className="flex items-center gap-2">
                                         <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
-                                          Phiên #AI-{attempt.id}
+                                          {t("recruiter.interviews.ai.sessions.sessionLabel", { id: attempt.id })}
                                         </span>
                                         {isLatest && (
-                                          <span className="rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.2 text-[10px] font-bold text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
-                                            Lần làm gần nhất
+                                          <span className="rounded-full bg-[var(--color-primary-soft)] border border-[var(--color-primary)]/25 px-2 py-0.2 text-[10px] font-bold text-[var(--color-primary-hover)]">
+                                            {t("recruiter.interviews.ai.sessions.latestAttemptBadge")}
                                           </span>
                                         )}
                                         <AiStatusBadge status={attempt.status} />
                                       </div>
                                       <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                        Hoàn tất lúc: {attempt.completedAt ? formatDateTime(attempt.completedAt) : formatDateTime(attempt.createdAt)}
+                                        {t("recruiter.interviews.ai.sessions.completedAtLabel", {
+                                          time: attempt.completedAt
+                                            ? formatDateTime(attempt.completedAt, locale)
+                                            : formatDateTime(attempt.createdAt, locale),
+                                        })}
                                       </p>
                                     </div>
                                   </div>
@@ -753,11 +827,11 @@ export function AiInterviewsPage() {
                                     <ScoreCell row={attempt} />
                                     <button
                                       type="button"
-                                      onClick={() => setDetailId(attempt.id)}
-                                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                      onClick={() => openSessionDetail(attempt.id)}
+                                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-subtle)] transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                     >
-                                      <Eye className="size-3 text-slate-400" />
-                                      <span>Xem báo cáo</span>
+                                      <Eye className="size-3 text-[var(--color-primary)]" />
+                                      <span>{t("recruiter.interviews.ai.sessions.viewReportBtn")}</span>
                                     </button>
                                   </div>
                                 </div>
@@ -777,21 +851,23 @@ export function AiInterviewsPage() {
 
       {/* TAB CONTENT: PHIÊN PHỎNG VẤN (SESSIONS) */}
       {activeSubNavTab === "sessions" && (
-        <>
+        <div key="sessions" className={cn("flex flex-col gap-3.5", subNavDir === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right")}>
           {/* Multi-Select Floating / Top Batch Action Bar */}
           {selected.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#213145] px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
                   {selected.length}
                 </span>
-                <span className="font-medium">Đã chọn {selected.length} phiên phỏng vấn</span>
+                <span className="font-medium">
+                  {t("recruiter.interviews.ai.sessions.selectedBannerCount", { count: selected.length })}
+                </span>
                 <button
                   type="button"
-                  className="text-xs text-sky-200 hover:underline cursor-pointer"
+                  className="text-xs text-[var(--color-primary)] hover:underline cursor-pointer"
                   onClick={() => setSelected(pageRows.map((row) => row.id))}
                 >
-                  Chọn toàn bộ {pageRows.length} phiên trên trang
+                  {t("recruiter.interviews.ai.sessions.selectAllOnPage", { count: pageRows.length })}
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -799,18 +875,19 @@ export function AiInterviewsPage() {
                   type="button"
                   onClick={() => {
                     const selectedRows = filtered.filter((r) => selected.includes(r.id));
-                    exportCsv(selectedRows, job.title);
+                    exportCsv(selectedRows, job.title, t, locale);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors cursor-pointer"
                 >
-                  <Download className="size-3.5" /> Xuất file CSV ({selected.length})
+                  <Download className="size-3.5" />{" "}
+                  {t("recruiter.interviews.ai.sessions.exportSelectedCsvBtn", { count: selected.length })}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelected([])}
                   className="inline-flex items-center gap-1 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
                 >
-                  <X className="size-3.5" /> Bỏ chọn
+                  <X className="size-3.5" /> {t("recruiter.interviews.ai.sessions.clearSelection")}
                 </button>
               </div>
             </div>
@@ -834,7 +911,7 @@ export function AiInterviewsPage() {
                       className={cn(
                         "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
                         active
-                          ? "bg-white font-semibold text-[#0066FF] shadow-xs dark:bg-slate-900 dark:text-blue-400"
+                          ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                           : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                       )}
                     >
@@ -846,7 +923,7 @@ export function AiInterviewsPage() {
                         className={cn(
                           "rounded-full px-1.5 py-0.2 text-[10px] font-mono",
                           active
-                            ? "bg-blue-50 text-[#0066FF] dark:bg-blue-950/80 dark:text-blue-300"
+                            ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                             : "bg-slate-200/70 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400"
                         )}
                       >
@@ -869,10 +946,10 @@ export function AiInterviewsPage() {
                         ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-slate-100"
                         : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
                     )}
-                    aria-label="Xem dạng bảng"
+                    aria-label={t("recruiter.interviews.ai.sessions.tableAria")}
                   >
-                    <LayoutList className="size-3.5 text-[#0066FF]" aria-hidden="true" />
-                    <span>Bảng</span>
+                    <LayoutList className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                    <span>{t("recruiter.interviews.ai.sessions.tableLabel")}</span>
                   </button>
                   <button
                     type="button"
@@ -883,10 +960,10 @@ export function AiInterviewsPage() {
                         ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-slate-100"
                         : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
                     )}
-                    aria-label="Xem dạng Kanban"
+                    aria-label={t("recruiter.interviews.ai.sessions.kanbanAria")}
                   >
                     <Kanban className="size-3.5 text-slate-500" aria-hidden="true" />
-                    <span>Kanban</span>
+                    <span>{t("recruiter.interviews.ai.sessions.kanbanLabel")}</span>
                   </button>
                 </div>
               </div>
@@ -899,8 +976,8 @@ export function AiInterviewsPage() {
                 <div className="relative min-w-[220px] max-w-sm flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                   <input
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
-                    placeholder="Tìm theo ứng viên, email, mã #AI-..."
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                    placeholder={t("recruiter.interviews.ai.sessions.searchPlaceholder")}
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -910,7 +987,7 @@ export function AiInterviewsPage() {
                   {query && (
                     <button
                       type="button"
-                      aria-label="Xóa tìm kiếm"
+                      aria-label={t("recruiter.interviews.ai.sessions.clearSearchAria")}
                       onClick={() => {
                         setQuery("");
                         setPage(1);
@@ -930,14 +1007,16 @@ export function AiInterviewsPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       statusFilter !== "all"
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "status"}
                   >
                     <Filter className="size-3.5 text-slate-400" />
                     <span>
-                      {statusFilter === "all" ? "Tất cả trạng thái" : aiStatusLabel[statusFilter]}
+                      {statusFilter === "all"
+                        ? t("recruiter.interviews.ai.sessions.allStatuses")
+                        : getAiStatusLabel(statusFilter, t)}
                     </span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "status" && "rotate-180")} />
                   </button>
@@ -945,7 +1024,7 @@ export function AiInterviewsPage() {
                   {activeDropdown === "status" && (
                     <div className="absolute left-0 top-full mt-1.5 z-40 w-56 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Lọc theo trạng thái
+                        {t("recruiter.interviews.ai.sessions.filterByStatusTitle")}
                       </p>
                       <button
                         type="button"
@@ -957,11 +1036,11 @@ export function AiInterviewsPage() {
                         className={cn(
                           "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                           statusFilter === "all"
-                            ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                            ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                         )}
                       >
-                        <span>Tất cả trạng thái</span>
+                        <span>{t("recruiter.interviews.ai.sessions.allStatuses")}</span>
                         <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
                           {counts.all}
                         </span>
@@ -980,19 +1059,19 @@ export function AiInterviewsPage() {
                             className={cn(
                               "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                               statusFilter === s
-                                ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                                ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                             )}
                           >
                             <div className="flex items-center gap-2">
                               <span className={cn("size-2 rounded-full", s === "SCORED" || s === "PASSED" ? "bg-emerald-500" : s === "IN_PROGRESS" ? "bg-sky-500" : s === "QUESTIONS_READY" ? "bg-amber-500" : s === "FAILED" || s === "ERROR" ? "bg-rose-500" : "bg-slate-400")} />
-                              <span>{aiStatusLabel[s]}</span>
+                              <span>{getAiStatusLabel(s, t)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
                                 {rowCount}
                               </span>
-                              {statusFilter === s && <Check className="size-3.5 text-[#0066FF]" />}
+                              {statusFilter === s && <Check className="size-3.5 text-[var(--color-primary)]" />}
                             </div>
                           </button>
                         );
@@ -1009,13 +1088,19 @@ export function AiInterviewsPage() {
                     className={cn(
                       "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
                       timeRange !== "all"
-                        ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                        ? "border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                         : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
                     )}
                     aria-expanded={activeDropdown === "time"}
                   >
                     <span>
-                      {timeRange === "all" ? "Tất cả thời gian" : timeRange === "7" ? "7 ngày qua" : timeRange === "30" ? "30 ngày qua" : "90 ngày qua"}
+                      {timeRange === "all"
+                        ? t("recruiter.interviews.ai.sessions.timeAll")
+                        : timeRange === "7"
+                          ? t("recruiter.interviews.ai.sessions.time7")
+                          : timeRange === "30"
+                            ? t("recruiter.interviews.ai.sessions.time30")
+                            : t("recruiter.interviews.ai.sessions.time90")}
                     </span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "time" && "rotate-180")} />
                   </button>
@@ -1023,13 +1108,13 @@ export function AiInterviewsPage() {
                   {activeDropdown === "time" && (
                     <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
                       <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        Thời gian tạo phiên
+                        {t("recruiter.interviews.ai.sessions.timeCreatedTitle")}
                       </p>
                       {[
-                        { value: "all", label: "Tất cả thời gian" },
-                        { value: "7", label: "7 ngày qua" },
-                        { value: "30", label: "30 ngày qua" },
-                        { value: "90", label: "90 ngày qua" },
+                        { value: "all", label: t("recruiter.interviews.ai.sessions.timeAll") },
+                        { value: "7", label: t("recruiter.interviews.ai.sessions.time7") },
+                        { value: "30", label: t("recruiter.interviews.ai.sessions.time30") },
+                        { value: "90", label: t("recruiter.interviews.ai.sessions.time90") },
                       ].map((item) => (
                         <button
                           key={item.value}
@@ -1042,12 +1127,12 @@ export function AiInterviewsPage() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
                             timeRange === item.value
-                              ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                              ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary-hover)]"
                               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                           )}
                         >
                           <span>{item.label}</span>
-                          {timeRange === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                          {timeRange === item.value && <Check className="size-3.5 text-[var(--color-primary)]" />}
                         </button>
                       ))}
                     </div>
@@ -1065,7 +1150,7 @@ export function AiInterviewsPage() {
                     aria-expanded={activeDropdown === "export"}
                   >
                     <Download className="size-3.5 text-slate-500" />
-                    <span>Xuất file</span>
+                    <span>{t("recruiter.interviews.ai.sessions.exportBtn")}</span>
                     <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "export" && "rotate-180")} />
                   </button>
 
@@ -1074,15 +1159,17 @@ export function AiInterviewsPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          exportCsv(filtered, job.title);
+                          exportCsv(filtered, job.title, t, locale);
                           setActiveDropdown(null);
                         }}
                         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                       >
                         <Download className="size-4 text-emerald-600" />
                         <div className="text-left">
-                          <p className="font-semibold">Xuất toàn bộ bộ lọc</p>
-                          <p className="text-[10px] text-slate-400">{filtered.length} phiên</p>
+                          <p className="font-semibold">{t("recruiter.interviews.ai.sessions.exportAllFiltered")}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {t("recruiter.interviews.ai.sessions.sessionsCount", { count: filtered.length })}
+                          </p>
                         </div>
                       </button>
                       {selected.length > 0 && (
@@ -1090,15 +1177,17 @@ export function AiInterviewsPage() {
                           type="button"
                           onClick={() => {
                             const selectedRows = filtered.filter((r) => selected.includes(r.id));
-                            exportCsv(selectedRows, job.title);
+                            exportCsv(selectedRows, job.title, t, locale);
                             setActiveDropdown(null);
                           }}
                           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
                         >
-                          <Download className="size-4 text-blue-600" />
+                          <Download className="size-4 text-[var(--color-primary)]" />
                           <div className="text-left">
-                            <p className="font-semibold">Xuất phiên đã chọn</p>
-                            <p className="text-[10px] text-slate-400">{selected.length} phiên đã chọn</p>
+                            <p className="font-semibold">{t("recruiter.interviews.ai.sessions.exportSelected")}</p>
+                            <p className="text-[10px] text-slate-400">
+                              {t("recruiter.interviews.ai.sessions.selectedSessionsCount", { count: selected.length })}
+                            </p>
                           </div>
                         </button>
                       )}
@@ -1112,9 +1201,9 @@ export function AiInterviewsPage() {
                   disabled={Boolean(sub && !sub.aiInterviewAllowed)}
                   title={
                     sub && !sub.aiInterviewEnabled
-                      ? `Gói ${sub.planName} không bao gồm tính năng Phỏng vấn AI Voice`
+                      ? t("recruiter.interviews.ai.sessions.tooltipPlanDisabled", { plan: sub.planName })
                       : sub && !sub.aiInterviewAllowed
-                      ? "Đã hết hạn mức thời lượng Phỏng vấn AI Voice trong tháng"
+                      ? t("recruiter.interviews.ai.sessions.tooltipQuotaExceeded")
                       : undefined
                   }
                   onClick={() => setCreating(true)}
@@ -1122,18 +1211,22 @@ export function AiInterviewsPage() {
                     "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer",
                     sub && !sub.aiInterviewAllowed
                       ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none dark:bg-slate-800 dark:text-slate-400"
-                      : "bg-[#0066FF] text-white hover:bg-blue-700"
+                      : "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
                   )}
                 >
                   {sub && !sub.aiInterviewAllowed ? (
                     <>
                       <Ban className="size-3.5" aria-hidden="true" />
-                      <span>{!sub.aiInterviewEnabled ? "Khóa theo gói" : "Hết hạn mức"}</span>
+                      <span>
+                        {!sub.aiInterviewEnabled
+                          ? t("recruiter.interviews.ai.sessions.lockedByPlan")
+                          : t("recruiter.interviews.ai.sessions.quotaExceeded")}
+                      </span>
                     </>
                   ) : (
                     <>
                       <PlusCircle className="size-3.5" aria-hidden="true" />
-                      <span>Tạo phỏng vấn mới</span>
+                      <span>{t("recruiter.interviews.ai.sessions.createNewBtn")}</span>
                     </>
                   )}
                 </button>
@@ -1143,54 +1236,56 @@ export function AiInterviewsPage() {
             {/* Active Filter Chips Bar */}
             {(query || statusFilter !== "all" || timeRange !== "all" || tab !== "ALL") && (
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
-                <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
+                <span className="font-medium text-slate-400">{t("recruiter.interviews.ai.sessions.activeFiltersLabel")}</span>
                 {query && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
-                    Từ khóa: "{query}"
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    {t("recruiter.interviews.ai.sessions.chipKeyword", { query })}
                     <button
                       type="button"
                       onClick={() => setQuery("")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
-                      aria-label="Xóa từ khóa tìm kiếm"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label={t("recruiter.interviews.ai.sessions.chipClearKeywordAria")}
                     >
                       <X className="size-3" />
                     </button>
                   </span>
                 )}
                 {statusFilter !== "all" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
-                    Trạng thái: {aiStatusLabel[statusFilter]}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    {t("recruiter.interviews.ai.sessions.chipStatus", { status: getAiStatusLabel(statusFilter, t) })}
                     <button
                       type="button"
                       onClick={() => setStatusFilter("all")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
-                      aria-label="Xóa lọc trạng thái"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label={t("recruiter.interviews.ai.sessions.chipClearStatusAria")}
                     >
                       <X className="size-3" />
                     </button>
                   </span>
                 )}
                 {timeRange !== "all" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
-                    Thời gian: {timeRange} ngày qua
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    {t("recruiter.interviews.ai.sessions.chipTime", { days: timeRange })}
                     <button
                       type="button"
                       onClick={() => setTimeRange("all")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
-                      aria-label="Xóa lọc thời gian"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label={t("recruiter.interviews.ai.sessions.chipClearTimeAria")}
                     >
                       <X className="size-3" />
                     </button>
                   </span>
                 )}
                 {tab !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
-                    Tab: {tabsConfig.find((t) => t.id === tab)?.label}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] px-2.5 py-0.5 text-xs font-medium">
+                    {t("recruiter.interviews.ai.sessions.chipTab", {
+                      tab: tabsConfig.find((item) => item.id === tab)?.label ?? "",
+                    })}
                     <button
                       type="button"
                       onClick={() => setTab("ALL")}
-                      className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
-                      aria-label="Về tab tất cả"
+                      className="rounded-full p-0.5 hover:bg-[var(--color-primary)]/15 cursor-pointer"
+                      aria-label={t("recruiter.interviews.ai.sessions.chipClearTabAria")}
                     >
                       <X className="size-3" />
                     </button>
@@ -1199,9 +1294,9 @@ export function AiInterviewsPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="ml-auto text-xs font-semibold text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+                  className="ml-auto text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
                 >
-                  Xóa tất cả bộ lọc
+                  {t("recruiter.interviews.ai.sessions.clearAllFilters")}
                 </button>
               </div>
             )}
@@ -1216,27 +1311,29 @@ export function AiInterviewsPage() {
             {/* Empty state */}
             {interviews.isSuccess && !pageRows.length && (
               <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-                <div className="grid size-12 place-items-center rounded-2xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-400 shadow-2xs">
+                <div className="grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)] shadow-2xs">
                   <Bot className="size-6" aria-hidden="true" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-slate-100">
-                    {rows.length === 0 ? "Chưa có phiên phỏng vấn AI nào" : "Không có phiên phù hợp bộ lọc"}
+                    {rows.length === 0
+                      ? t("recruiter.interviews.ai.sessions.emptyNoSessionsTitle")
+                      : t("recruiter.interviews.ai.sessions.emptyNoMatchTitle")}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-sm">
                     {rows.length === 0
-                      ? "Tạo phiên phỏng vấn tự động cho ứng viên đã qua vòng lọc CV."
-                      : "Thử thay đổi từ khóa tìm kiếm hoặc đặt lại các bộ lọc."}
+                      ? t("recruiter.interviews.ai.sessions.emptyNoSessionsDesc")
+                      : t("recruiter.interviews.ai.sessions.emptyNoMatchDesc")}
                   </p>
                 </div>
                 {rows.length === 0 && (
                   <button
                     type="button"
                     onClick={() => setCreating(true)}
-                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0066FF] px-4 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
+                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition-colors cursor-pointer"
                   >
                     <PlusCircle className="size-4" aria-hidden="true" />
-                    Tạo phỏng vấn mới
+                    {t("recruiter.interviews.ai.sessions.createNewBtn")}
                   </button>
                 )}
               </div>
@@ -1258,26 +1355,26 @@ export function AiInterviewsPage() {
                           <th className="w-10 px-3 py-2 text-center">
                             <input
                               type="checkbox"
-                              className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                              className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                               checked={allPageSelected}
                               onChange={toggleAllPage}
-                              aria-label="Chọn tất cả phiên trên trang"
+                              aria-label={t("recruiter.interviews.ai.sessions.selectAllPageAria")}
                             />
                           </th>
-                          <th className="px-4 py-2">Phiên &amp; Mã</th>
-                          <th className="px-4 py-2">Ứng viên</th>
-                          <th className="px-4 py-2">Vị trí</th>
-                          <th className="px-4 py-2">Hình thức AI</th>
-                          <th className="px-4 py-2">Thời gian</th>
-                          <th className="px-4 py-2">Trạng thái</th>
-                          <th className="px-4 py-2">Đánh giá AI</th>
-                          <th className="px-4 py-2 text-right">Thao tác</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colSession")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colCandidate")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colPosition")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colFormat")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colTime")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colStatus")}</th>
+                          <th className="px-4 py-2">{t("recruiter.interviews.ai.sessions.colScore")}</th>
+                          <th className="px-4 py-2 text-right">{t("recruiter.interviews.ai.sessions.colActions")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                         {pageRows.map((row) => {
-                          const schedule = scheduleOf(row);
-                          const name = candidateName(row);
+                          const schedule = scheduleOf(row, t, locale);
+                          const name = candidateName(row, t);
                           const isRowSelected = selected.includes(row.id);
 
                           return (
@@ -1286,39 +1383,43 @@ export function AiInterviewsPage() {
                               className={cn(
                                 "group transition-colors",
                                 isRowSelected
-                                  ? "bg-blue-50/50 dark:bg-blue-950/30"
+                                  ? "bg-[var(--color-primary-subtle)]/50"
                                   : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                               )}
                             >
                               <td className="w-10 px-3 py-3 text-center">
                                 <input
                                   type="checkbox"
-                                  className="size-4 cursor-pointer accent-[#0066FF] rounded"
+                                  className="size-4 cursor-pointer accent-[var(--color-primary)] rounded"
                                   checked={isRowSelected}
                                   onChange={() => toggleOne(row.id)}
-                                  aria-label={`Chọn phiên ${row.id}`}
+                                  aria-label={t("recruiter.interviews.ai.sessions.selectSessionAria", { id: row.id })}
                                 />
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-col gap-0.5">
                                   <button
                                     type="button"
-                                    onClick={() => setDetailId(row.id)}
-                                    className="text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-[#0066FF] dark:text-slate-100 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-[var(--color-primary)] dark:text-slate-100 transition-colors cursor-pointer"
                                   >
-                                    AI Interview · {job.title}
+                                    {t("recruiter.interviews.ai.sessions.sessionTitle", { jobTitle: job.title })}
                                   </button>
                                   <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 dark:text-slate-500">
                                     <Tag className="size-3" aria-hidden="true" />
                                     <span>#AI-{row.id}</span>
                                     <span>•</span>
-                                    <span>Đạt {row.passingScore ?? "—"}/100</span>
+                                    <span>
+                                      {t("recruiter.interviews.ai.sessions.passingThresholdMeta", {
+                                        score: row.passingScore ?? "—",
+                                      })}
+                                    </span>
                                   </div>
                                 </div>
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 shadow-2xs">
+                                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25 shadow-2xs">
                                     {initials(name)}
                                   </div>
                                   <div className="flex flex-col min-w-0">
@@ -1328,9 +1429,9 @@ export function AiInterviewsPage() {
                                     <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
                                       {row.application?.candidateEmail ?? "—"}
                                     </span>
-                                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[#0066FF] dark:text-blue-400">
+                                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-primary-hover)]">
                                       <FileText className="size-2.5" aria-hidden="true" />
-                                      Đơn #{row.applicationId}
+                                      {t("recruiter.interviews.ai.sessions.applicationTag", { id: row.applicationId })}
                                     </span>
                                   </div>
                                 </div>
@@ -1349,7 +1450,7 @@ export function AiInterviewsPage() {
                               <td className="px-4 py-3">
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                                   <Type className="size-3 text-slate-400" aria-hidden="true" />
-                                  Văn bản
+                                  {t("recruiter.interviews.ai.sessions.formatText")}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
@@ -1368,16 +1469,20 @@ export function AiInterviewsPage() {
                                 <div className="relative flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => setDetailId(row.id)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-xl bg-blue-50 px-2.5 text-xs font-semibold text-[#0066FF] hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                    onClick={() => openSessionDetail(row.id)}
+                                    className="inline-flex h-8 items-center gap-1 rounded-xl bg-[var(--color-primary-soft)] px-2.5 text-xs font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-subtle)] transition-colors cursor-pointer"
                                   >
-                                    <span>{row.status === "SCORED" || row.status === "PASSED" || row.status === "FAILED" ? "Xem feedback" : "Chi tiết"}</span>
+                                    <span>
+                                      {row.status === "SCORED" || row.status === "PASSED" || row.status === "FAILED"
+                                        ? t("recruiter.interviews.ai.sessions.viewFeedback")
+                                        : t("recruiter.interviews.ai.sessions.viewDetails")}
+                                    </span>
                                     <ArrowRight className="size-3.5" aria-hidden="true" />
                                   </button>
                                   <button
                                     type="button"
                                     className="flex size-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                                    aria-label="Thêm thao tác"
+                                    aria-label={t("recruiter.interviews.ai.sessions.moreActionsAria")}
                                     onClick={() => setMenuId(menuId === row.id ? null : row.id)}
                                   >
                                     <MoreVertical className="size-4" aria-hidden="true" />
@@ -1387,19 +1492,19 @@ export function AiInterviewsPage() {
                                     onClose={() => setMenuId(null)}
                                     items={[
                                       {
-                                        label: "Sao chép mã phiên",
+                                        label: t("recruiter.interviews.ai.sessions.copySessionCode"),
                                         icon: Copy,
                                         onClick: () => {
                                           void navigator.clipboard.writeText(`AI-${row.id}`);
-                                          toast.success("Đã sao chép mã phiên");
+                                          toast.success(t("recruiter.interviews.ai.sessions.copiedSessionCodeToast"));
                                         },
                                       },
                                       {
-                                        label: "Xoá phiên này",
+                                        label: t("recruiter.interviews.ai.sessions.deleteSessionMenu"),
                                         icon: Ban,
                                         danger: true,
                                         disabled: !!row.startedAt || !["CREATED", "QUESTIONS_READY", "ERROR"].includes(row.status),
-                                        title: "Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi.",
+                                        title: t("recruiter.interviews.ai.sessions.deleteDisabledTitle"),
                                         onClick: () => confirmDelete(row),
                                       },
                                     ]}
@@ -1417,18 +1522,19 @@ export function AiInterviewsPage() {
                   <div className="flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex flex-wrap items-center gap-2">
                       <span>
-                        Hiển thị{" "}
+                        {t("recruiter.interviews.ai.sessions.showingRangeLead")}
                         <strong className="text-slate-900 dark:text-slate-100 font-semibold">
                           {totalItems === 0 ? 0 : startIndex + 1} - {Math.min(startIndex + pageSize, totalItems)}
-                        </strong>{" "}
-                        trên{" "}
-                        <strong className="text-slate-900 dark:text-slate-100 font-semibold">{totalItems}</strong> phiên
+                        </strong>
+                        {t("recruiter.interviews.ai.sessions.showingRangeMid")}
+                        <strong className="text-slate-900 dark:text-slate-100 font-semibold">{totalItems}</strong>
+                        {t("recruiter.interviews.ai.sessions.showingRangeEnd")}
                       </span>
                       <span className="text-slate-300 dark:text-slate-700">•</span>
                       <div className="flex items-center gap-1.5">
-                        <span>Dòng mỗi trang:</span>
+                        <span>{t("recruiter.interviews.ai.sessions.rowsPerPage")}</span>
                         <select
-                          className="h-8 rounded-lg border border-slate-200 bg-slate-50/60 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-[#0066FF] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                          className="h-8 rounded-lg border border-slate-200 bg-slate-50/60 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
                           value={pageSize}
                           onChange={(e) => {
                             const newSize = Number(e.target.value);
@@ -1447,7 +1553,7 @@ export function AiInterviewsPage() {
                     <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-auto">
                       <button
                         type="button"
-                        aria-label="Về trang đầu"
+                        aria-label={t("recruiter.interviews.ai.sessions.firstPageAria")}
                         onClick={() => goToPage(1)}
                         disabled={currentPage <= 1}
                         className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
@@ -1456,7 +1562,7 @@ export function AiInterviewsPage() {
                       </button>
                       <button
                         type="button"
-                        aria-label="Trang trước"
+                        aria-label={t("recruiter.interviews.ai.sessions.prevPageAria")}
                         onClick={() => goToPage(currentPage - 1)}
                         disabled={currentPage <= 1}
                         className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
@@ -1482,7 +1588,7 @@ export function AiInterviewsPage() {
                               className={cn(
                                 "flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                                 isCurrent
-                                  ? "bg-[#0066FF] text-white shadow-2xs"
+                                  ? "bg-[var(--color-primary)] text-white shadow-2xs"
                                   : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                               )}
                             >
@@ -1494,7 +1600,7 @@ export function AiInterviewsPage() {
 
                       <button
                         type="button"
-                        aria-label="Trang sau"
+                        aria-label={t("recruiter.interviews.ai.sessions.nextPageAria")}
                         onClick={() => goToPage(currentPage + 1)}
                         disabled={currentPage >= totalPages}
                         className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
@@ -1503,7 +1609,7 @@ export function AiInterviewsPage() {
                       </button>
                       <button
                         type="button"
-                        aria-label="Đến trang cuối"
+                        aria-label={t("recruiter.interviews.ai.sessions.lastPageAria")}
                         onClick={() => goToPage(totalPages)}
                         disabled={currentPage >= totalPages}
                         className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
@@ -1512,7 +1618,7 @@ export function AiInterviewsPage() {
                       </button>
 
                       <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700">
-                        <span className="text-[11px] text-slate-400">Nhảy tới:</span>
+                        <span className="text-[11px] text-slate-400">{t("recruiter.interviews.ai.sessions.jumpTo")}</span>
                         <input
                           type="number"
                           min={1}
@@ -1529,7 +1635,7 @@ export function AiInterviewsPage() {
                             }
                           }}
                           placeholder={String(currentPage)}
-                          className="h-8 w-12 rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-center text-xs outline-none focus:border-[#0066FF] dark:border-slate-700 dark:bg-slate-800"
+                          className="h-8 w-12 rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-center text-xs outline-none focus:border-[var(--color-primary)] dark:border-slate-700 dark:bg-slate-800"
                         />
                       </div>
                     </div>
@@ -1539,8 +1645,12 @@ export function AiInterviewsPage() {
             ) : (
               <div className="p-12 text-center">
                 <ListFilter className="mx-auto size-8 text-slate-300 dark:text-slate-600" aria-hidden="true" />
-                <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Chế độ Kanban</p>
-                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Chế độ Kanban đang được phát triển — hãy chuyển sang dạng Bảng để quản lý phiên.</p>
+                <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  {t("recruiter.interviews.ai.sessions.kanbanTitle")}
+                </p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  {t("recruiter.interviews.ai.sessions.kanbanDesc")}
+                </p>
               </div>
             )}
           </div>
@@ -1550,24 +1660,44 @@ export function AiInterviewsPage() {
             <div className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-center">
               <div className="flex max-w-md flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
                     <Sparkles className="size-4" aria-hidden="true" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Quy trình thiết lập phỏng vấn AI
+                    {t("recruiter.interviews.ai.sessions.workflowTitle")}
                   </h3>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Tạo phiên cho hồ sơ đạt vòng CV, sinh câu hỏi chuyên biệt và tự cập nhật trạng thái. AI phỏng vấn giọng nói/văn bản, tự chấm điểm và chuyển vòng.
+                  {t("recruiter.interviews.ai.sessions.workflowDesc")}
                 </p>
               </div>
 
               <div className="grid w-full flex-1 grid-cols-2 gap-2.5 sm:grid-cols-4 lg:w-auto">
                 {[
-                  { n: 1, icon: Upload, title: "Chọn hồ sơ ứng tuyển", desc: job.title },
-                  { n: 2, icon: SlidersHorizontal, title: "Sinh câu hỏi AI", desc: "Tự động hoặc tùy chỉnh" },
-                  { n: 3, icon: Inbox, title: "Ứng viên trả lời", desc: "Lưu bản ghi & transcript" },
-                  { n: 4, icon: Verified, title: "Feedback & chuyển vòng", desc: "AI đánh giá & phân loại" },
+                  {
+                    n: 1,
+                    icon: Upload,
+                    title: t("recruiter.interviews.ai.sessions.step1Title"),
+                    desc: job.title,
+                  },
+                  {
+                    n: 2,
+                    icon: SlidersHorizontal,
+                    title: t("recruiter.interviews.ai.sessions.step2Title"),
+                    desc: t("recruiter.interviews.ai.sessions.step2Desc"),
+                  },
+                  {
+                    n: 3,
+                    icon: Inbox,
+                    title: t("recruiter.interviews.ai.sessions.step3Title"),
+                    desc: t("recruiter.interviews.ai.sessions.step3Desc"),
+                  },
+                  {
+                    n: 4,
+                    icon: Verified,
+                    title: t("recruiter.interviews.ai.sessions.step4Title"),
+                    desc: t("recruiter.interviews.ai.sessions.step4Desc"),
+                  },
                 ].map((step) => {
                   const StepIcon = step.icon;
                   return (
@@ -1576,10 +1706,10 @@ export function AiInterviewsPage() {
                       className="flex flex-col gap-1 rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                        <span className="flex size-5 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
                           {step.n}
                         </span>
-                        <StepIcon className="size-3.5 text-[#0066FF] dark:text-blue-400" aria-hidden="true" />
+                        <StepIcon className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
                       </div>
                       <span className="mt-1 text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {step.title}
@@ -1593,10 +1723,10 @@ export function AiInterviewsPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Dialogs & Drawers */}
+      {/* Dialogs */}
       {creating && (
         <CreateAiInterviewDialog
           jobId={job.id}
@@ -1605,17 +1735,8 @@ export function AiInterviewsPage() {
           onClose={() => setCreating(false)}
           onCreated={(created) => {
             setCreating(false);
-            setDetailId(created.id);
+            openSessionDetail(created.id);
           }}
-        />
-      )}
-
-      {detailId != null && (
-        <AiInterviewDetailDrawer
-          interviewId={detailId}
-          jobId={job.id}
-          candidateName={detailRow ? candidateName(detailRow) : `Phiên #AI-${detailId}`}
-          onClose={() => setDetailId(null)}
         />
       )}
     </section>

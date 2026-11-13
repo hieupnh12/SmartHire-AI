@@ -3,7 +3,7 @@ import {
   codingAuthoringValue,
   QuestionContentFields,
   AiRubricCriteriaEditor,
-  ESSAY_ARCHETYPES,
+  getEssayArchetypes,
 } from "../components/QuestionContentFields";
 import { MonacoCodeEditor } from "../components/MonacoCodeEditor";
 import { CodingTestVerification } from "../components/CodingTestVerification";
@@ -29,12 +29,13 @@ import {
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ux/Button";
 import { DetailDialog } from "@/components/ux/DetailDialog";
+import { t as globalT, useT, type TranslateFn } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 import {
-  DICTIONARY_ROWS,
-  QUESTION_TYPE_OPTIONS,
   blankQuestion,
+  getDictionaryRows,
+  getQuestionTypeOptions,
   isChoiceKind,
   isSubjectiveKind,
   typeMeta,
@@ -87,14 +88,15 @@ function toneFromDifficulty(value: string): BankQuestion["difficultyTone"] {
   return "medium";
 }
 
-function parseKind(raw: string, fallback: QuestionKind): QuestionKind {
+function parseKind(raw: string, fallback: QuestionKind, translate: TranslateFn = globalT): QuestionKind {
   const trimmed = raw.trim();
   if (!trimmed) return fallback;
-  const byLabel = QUESTION_TYPE_OPTIONS.find((item) => item.label.toUpperCase() === trimmed.toUpperCase());
+  const typeOptions = getQuestionTypeOptions(translate);
+  const byLabel = typeOptions.find((item) => item.label.toUpperCase() === trimmed.toUpperCase());
   if (byLabel) return byLabel.value;
   const value = trimmed.toUpperCase().replace(/\s+/g, "_");
   const ascii = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const direct = QUESTION_TYPE_OPTIONS.find((item) => item.value === value || item.value === ascii);
+  const direct = typeOptions.find((item) => item.value === value || item.value === ascii);
   if (direct) return direct.value;
   if (ascii.includes("NHIEU") || ascii.includes("MULTI") || value.includes("NHIỀU")) {
     return "NHIEU_DAP_AN";
@@ -151,25 +153,26 @@ function parseClipboardHtmlTable(html: string): string[][] | null {
   return rows.length > 0 ? rows : null;
 }
 
-function isKnownTypeLabel(value: string): boolean {
+function isKnownTypeLabel(value: string, translate: TranslateFn = globalT): boolean {
   const trimmed = value.trim();
   if (!trimmed) return false;
-  if (QUESTION_TYPE_OPTIONS.some((item) => item.label.toLowerCase() === trimmed.toLowerCase())) return true;
+  const typeOptions = getQuestionTypeOptions(translate);
+  if (typeOptions.some((item) => item.label.toLowerCase() === trimmed.toLowerCase())) return true;
   if (/^(tự\s*luận|tu\s*luan|essay)$/i.test(trimmed)) return true;
   const ascii = trimmed
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "_");
-  if (QUESTION_TYPE_OPTIONS.some((item) => item.value === ascii)) return true;
+  if (typeOptions.some((item) => item.value === ascii)) return true;
   return /TRAC.?NGHIEM|NHIEU.?DAP|TU.?LUAN|LY.?THUYET|TINH.?HUONG|THEORY|^SINGLE$|^MULTI$|CODE|SYSTEM|^ESSAY$/i.test(ascii);
 }
 
 /** Extra aliases users type/paste (matched after longer official labels). */
 const TYPE_LABEL_ALIASES = ["Tự luận lý thuyết", "Tự luận code", "Tự luận", "Tu luan", "Essay", "ESSAY"];
 
-function typeLabelMatchers(): string[] {
-  return [...QUESTION_TYPE_OPTIONS]
+function typeLabelMatchers(translate: TranslateFn = globalT): string[] {
+  return [...getQuestionTypeOptions(translate)]
     .flatMap((item) => [item.label, item.value, item.value.replace(/_/g, " "), item.shortLabel])
     .concat(TYPE_LABEL_ALIASES)
     .filter(Boolean)
@@ -628,9 +631,9 @@ function cloneQuestions(rows: BankQuestion[]): BankQuestion[] {
   }));
 }
 
-function makeBlankRows(count: number, startFrom: number, kind: QuestionKind): BankQuestion[] {
+function makeBlankRows(count: number, startFrom: number, kind: QuestionKind, translate: TranslateFn = globalT): BankQuestion[] {
   return Array.from({ length: count }, (_, offset) => {
-    const row = blankQuestion(kind);
+    const row = blankQuestion(kind, translate);
     row.id = questionIdForIndex(startFrom + offset);
     return row;
   });
@@ -659,17 +662,25 @@ function typeBadgeClass(kind: QuestionKind) {
   return "bg-amber-50 text-amber-800";
 }
 
-function detailPreview(row: BankQuestion) {
+function detailPreview(row: BankQuestion, translate: TranslateFn = globalT) {
   if (isChoiceKind(row.kind)) {
-    return row.answer ? `Đáp án: ${row.answer}` : "Chưa có đáp án";
+    return row.answer
+      ? translate("recruiter.assessments.excel.detailPreviewAnswer", { answer: row.answer })
+      : translate("recruiter.assessments.excel.detailPreviewNoAnswer");
   }
-  if (row.sample.trim()) {
-    return `Đáp án mẫu: ${row.sample.trim().slice(0, 80)}${row.sample.trim().length > 80 ? "…" : ""}`;
+  const trimmed = row.sample.trim();
+  if (trimmed) {
+    const sample = `${trimmed.slice(0, 80)}${trimmed.length > 80 ? "…" : ""}`;
+    return translate("recruiter.assessments.excel.detailPreviewSample", { sample });
   }
   if (row.kind === "TU_LUAN_CODE") {
-    return row.snippet ? `Khung code (tuỳ chọn): ${row.snippet.split("\n")[0]}…` : "Thiếu đáp án mẫu";
+    return row.snippet
+      ? translate("recruiter.assessments.excel.detailPreviewCodeOptional", { line: row.snippet.split("\n")[0] })
+      : translate("recruiter.assessments.excel.detailPreviewMissingSample");
   }
-  return row.snippet ? `Khung lý thuyết (tuỳ chọn)` : "Thiếu đáp án mẫu";
+  return row.snippet
+    ? translate("recruiter.assessments.excel.detailPreviewTheoryOptional")
+    : translate("recruiter.assessments.excel.detailPreviewMissingSample");
 }
 
 function Cell({ children, title, className }: { children: ReactNode; title?: string; className?: string }) {
@@ -699,6 +710,7 @@ function EditCell({
   className?: string;
   title?: string;
 }) {
+  const t = useT();
   return (
     <td
       className={cn(
@@ -707,7 +719,7 @@ function EditCell({
         selected && "bg-white ring-2 ring-inset ring-[var(--color-primary)]",
         className,
       )}
-      title={selected ? "Đang sửa ô này · Ctrl+V dán · Ctrl+C sao chép" : title}
+      title={selected ? t("recruiter.assessments.excel.cellEditTitle") : title}
       onClick={onSelect}
     >
       {selected ? (
@@ -717,7 +729,7 @@ function EditCell({
           onChange={(event) => onChange(event.target.value)}
           onPaste={onPaste}
           className="w-full bg-transparent text-[11px] text-[var(--color-on-surface)] outline-none"
-          aria-label="Sửa nội dung ô"
+          aria-label={t("recruiter.assessments.excel.cellEditInputAria")}
         />
       ) : (
         children
@@ -757,6 +769,8 @@ function TypeSelect({
   value: QuestionKind;
   onChange: (kind: QuestionKind) => void;
 }) {
+  const t = useT();
+  const options = getQuestionTypeOptions(t);
   return (
     <select
       value={value}
@@ -765,9 +779,9 @@ function TypeSelect({
         "w-full max-w-full cursor-pointer rounded-full border-0 px-1.5 py-0.5 text-[10px] font-semibold outline-none focus:ring-2 focus:ring-[var(--color-primary)]",
         typeBadgeClass(value),
       )}
-      aria-label="Chọn loại câu hỏi"
+      aria-label={t("recruiter.assessments.excel.selectKindAria")}
     >
-      {QUESTION_TYPE_OPTIONS.map((option) => (
+      {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
         </option>
@@ -793,6 +807,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   job?: { id: number; title: string; skills?: Array<{ name: string }> };
   generalBank?: GeneralBankEditor;
 }) {
+  const t = useT();
+  const dictionaryRows = useMemo(() => getDictionaryRows(t), [t]);
   const jobId = job?.id ?? 0;
   const basePath = generalBank ? "/recruiter" : `/recruiter/jobs/${jobId}/assessments`;
   const bankPath = generalBank ? "/recruiter/question-bank" : `${basePath}/question-bank`;
@@ -810,7 +826,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   const [questions, setQuestions] = useState<BankQuestion[]>(() => {
     const draft = generalBank ? generalBank.initialQuestions : loadExcelQuestionDraft(jobId);
     if (draft?.length) return withAutoQuestionIds(draft);
-    const row = blankQuestion("TRAC_NGHIEM_DON");
+    const row = blankQuestion("TRAC_NGHIEM_DON", t);
     row.id = questionIdForIndex(0);
     return [row];
   });
@@ -818,7 +834,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>({ rowIndex: 0, field: "content" });
   const [activeCell, setActiveCell] = useState("A2");
   const [savedNote, setSavedNote] = useState(() =>
-    (generalBank ? generalBank.initialQuestions?.length : hasExcelQuestionDraft(jobId)) ? "Đã khôi phục bản nháp đã lưu tạm." : "",
+    (generalBank ? generalBank.initialQuestions?.length : hasExcelQuestionDraft(jobId)) ? t("recruiter.assessments.excel.draftRestoredNote") : "",
   );
   const [rowDrag, setRowDrag] = useState<RowDragState | null>(null);
   const [capacityNote, setCapacityNote] = useState("");
@@ -834,15 +850,15 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   function undoQuestions() {
     const previous = undoStackRef.current.pop();
     if (!previous) {
-      setCapacityNote("Không còn thao tác để hoàn tác.");
-      toast.info("Không còn thao tác để hoàn tác");
+      setCapacityNote(t("recruiter.assessments.excel.noUndoNote"));
+      toast.info(t("recruiter.assessments.excel.noUndoNote"));
       return;
     }
     editSessionRef.current = null;
     setQuestions(previous);
     setSavedNote("");
-    setCapacityNote("Đã hoàn tác (Ctrl+Z).");
-    toast.info("Đã hoàn tác thay đổi gần nhất (Ctrl+Z)");
+    setCapacityNote(t("recruiter.assessments.excel.undoneNote"));
+    toast.info(t("recruiter.assessments.excel.undoneToast"));
   }
 
   const counts = useMemo(
@@ -913,7 +929,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             const selectedEnd = Math.min(Math.max(prev.anchorIndex, prev.currentIndex), MAX_QUESTIONS - 1);
             setQuestions((rows) => {
               if (rows.length >= needed) {
-                setCapacityNote(`Đã chọn ${Math.abs(prev.currentIndex - prev.anchorIndex) + 1} dòng.`);
+                setCapacityNote(t("recruiter.assessments.excel.dragSelectedRowsNote", { count: Math.abs(prev.currentIndex - prev.anchorIndex) + 1 }));
                 return withAutoQuestionIds(rows);
               }
               pushUndo(rows);
@@ -925,11 +941,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     ? "TU_LUAN_CODE"
                     : "TRAC_NGHIEM_DON";
               const added = needed - rows.length;
-              const grown = withAutoQuestionIds([...rows, ...makeBlankRows(added, rows.length, kind)]);
+              const grown = withAutoQuestionIds([...rows, ...makeBlankRows(added, rows.length, kind, t)]);
               setCapacityNote(
                 needed >= MAX_QUESTIONS
-                  ? `Đã đạt giới hạn ${MAX_QUESTIONS} câu.`
-                  : `Đã thêm ${added} dòng trống bằng kéo chuột.`,
+                  ? t("recruiter.assessments.excel.maxQuestionsNote", { max: MAX_QUESTIONS })
+                  : t("recruiter.assessments.excel.dragAddedRowsNote", { count: added }),
               );
               return grown;
             });
@@ -1028,7 +1044,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     }
 
     if (mode === "SUBJECTIVE") {
-      const kind = parseKind(cells[1] ?? "", isSubjectiveKind(fallbackKind) ? fallbackKind : "TU_LUAN_CODE");
+      const kind = parseKind(cells[1] ?? "", isSubjectiveKind(fallbackKind) ? fallbackKind : "TU_LUAN_CODE", t);
       const rubricText = cells[3] ?? "";
       const levels = ["excellent", "pass", "fail"] as const;
       const rubric = rubricText
@@ -1039,7 +1055,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
         : row.rubric;
       return {
         ...row,
-        ...blankQuestion(kind),
+        ...blankQuestion(kind, t),
         id: row.id,
         kind,
         content: cells[0] ?? row.content,
@@ -1057,11 +1073,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     }
 
     if (mode === "ALL") {
-      const kind = parseKind(cells[1] ?? "", fallbackKind);
+      const kind = parseKind(cells[1] ?? "", fallbackKind, t);
       if (isSubjectiveKind(kind)) {
         return {
           ...row,
-          ...blankQuestion(kind),
+          ...blankQuestion(kind, t),
           id: row.id,
           kind,
           content: cells[0] ?? row.content,
@@ -1118,11 +1134,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       pushUndo(rows);
       editSessionRef.current = null;
       const next =
-        rows.length < cappedNeeded ? [...rows, ...makeBlankRows(cappedNeeded - rows.length, rows.length, kind)] : [...rows];
+        rows.length < cappedNeeded ? [...rows, ...makeBlankRows(cappedNeeded - rows.length, rows.length, kind, t)] : [...rows];
       rowsToApply.forEach((cells, offset) => {
         const index = start + offset;
         if (index >= MAX_QUESTIONS) return;
-        next[index] = applyRowFromCells(next[index] ?? blankQuestion(kind), cells, typeFilter);
+        next[index] = applyRowFromCells(next[index] ?? blankQuestion(kind, t), cells, typeFilter);
       });
       return withAutoQuestionIds(next);
     });
@@ -1132,8 +1148,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     setActiveCell(`A${start + 2}`);
     setCapacityNote(
       needed > MAX_QUESTIONS
-        ? `Đã dán ${rowsToApply.length} câu (cắt vì giới hạn ${MAX_QUESTIONS}).`
-        : `Đã dán ${rowsToApply.length} câu từ clipboard.`,
+        ? t("recruiter.assessments.excel.pastedTruncatedNote", { count: rowsToApply.length, max: MAX_QUESTIONS })
+        : t("recruiter.assessments.excel.pastedRowsNote", { count: rowsToApply.length }),
     );
     setTypeFilter("ALL");
     setView("all");
@@ -1185,7 +1201,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     if (values && values.length > 1) {
       event.preventDefault();
       applyChoiceSequenceToRow(selectedIndex, startField, values);
-      setCapacityNote(`Đã dán ${values.length} ô option/đáp án theo hàng ngang.`);
+      setCapacityNote(t("recruiter.assessments.excel.pastedHorizontalNote", { count: values.length }));
       return;
     }
 
@@ -1194,7 +1210,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     if (!plain) return;
     event.preventDefault();
     applyChoiceSequenceToRow(selectedIndex, startField, [plain]);
-    setCapacityNote("Đã dán vào ô đang chọn.");
+    setCapacityNote(t("recruiter.assessments.excel.pastedActiveCellNote"));
   }
 
   function handleTablePaste(event: ClipboardEvent<HTMLElement>) {
@@ -1216,7 +1232,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     ) {
       event.preventDefault();
       patchQuestion(selectedIndex, { sample: stripSamplePrefix(plainTrim) });
-      setCapacityNote("Đã dán đáp án mẫu.");
+      setCapacityNote(t("recruiter.assessments.excel.pastedSampleNote"));
       return;
     }
 
@@ -1240,7 +1256,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
         startField as "optionA" | "optionB" | "optionC" | "optionD" | "answer" | "explanation" | "policyNote",
         sequence,
       );
-      setCapacityNote(`Đã dán ${sequence.length} ô option/đáp án theo hàng ngang từ ô đang chọn.`);
+      setCapacityNote(t("recruiter.assessments.excel.pastedHorizontalFromActiveNote", { count: sequence.length }));
       return;
     }
 
@@ -1257,7 +1273,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
         event.preventDefault();
         const pasted = usable.map((row) => row[0] ?? "").join("\n");
         applyEdit(activeEdit.field === "sample" ? stripSamplePrefix(pasted) : pasted);
-        setCapacityNote("Đã dán văn bản vào ô đang chọn.");
+        setCapacityNote(t("recruiter.assessments.excel.pastedActiveCellNote"));
         return;
       }
 
@@ -1268,7 +1284,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       if (editingOptionCell && !hasFullQuestionRows) {
         event.preventDefault();
         applyEdit((usable[0] ?? []).join("\t"));
-        setCapacityNote("Đã dán vào ô đang chọn.");
+        setCapacityNote(t("recruiter.assessments.excel.pastedActiveCellNote"));
         return;
       }
 
@@ -1282,7 +1298,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     const value = usable[0]?.[0] ?? "";
     event.preventDefault();
     applyEdit(activeEdit.field === "sample" ? stripSamplePrefix(value) : value);
-    setCapacityNote("Đã dán vào ô đang chọn.");
+    setCapacityNote(t("recruiter.assessments.excel.pastedActiveCellNote"));
   }
 
   function handleCopyActiveCell(event: KeyboardEvent) {
@@ -1302,8 +1318,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     if (!text) return;
     event.preventDefault();
     void navigator.clipboard.writeText(text).then(() => {
-      setCapacityNote("Đã sao chép ô đang chọn.");
-      toast.success("Đã sao chép vào bộ nhớ tạm");
+      setCapacityNote(t("recruiter.assessments.excel.copiedCellNote"));
+      toast.success(t("recruiter.assessments.common.actions.copiedToClipboard"));
     });
   }
 
@@ -1339,7 +1355,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   function changeKind(rowIndex: number, kind: QuestionKind) {
     const current = questions[rowIndex];
     if (!current || current.kind === kind) return;
-    const defaults = blankQuestion(kind);
+    const defaults = blankQuestion(kind, t);
     patchQuestion(rowIndex, {
       kind,
       score: current.score || defaults.score,
@@ -1360,17 +1376,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
   function addQuestion(kind: QuestionKind = "TRAC_NGHIEM_DON") {
     if (questions.length >= MAX_QUESTIONS) {
-      setCapacityNote(`Đã đạt giới hạn ${MAX_QUESTIONS} câu.`);
+      setCapacityNote(t("recruiter.assessments.excel.maxQuestionsNote", { max: MAX_QUESTIONS }));
       return;
     }
-    const next = blankQuestion(kind);
+    const next = blankQuestion(kind, t);
     if (kind === "TU_LUAN_CODE") next.codingJsonText = codingAuthoringValue(undefined, next.language, next.snippet);
     if (kind === "TINH_HUONG_SYSTEM") {
       next.rubricJsonText = JSON.stringify(
         {
           category: "ESSAY_CONCEPTUAL",
           referenceAnswer: "",
-          criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+          criteria: getEssayArchetypes(t).ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
         },
         null,
         2
@@ -1408,21 +1424,21 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     try {
       if (generalBank) generalBank.onSaveDraft(questions);
       else saveExcelQuestionDraft(jobId, questions);
-      setSavedNote("Đã lưu tạm vào trình duyệt.");
-      toast.success("Đã lưu nội dung bản nháp thành công");
+      setSavedNote(t("recruiter.assessments.excel.draftSavedNote"));
+      toast.success(t("recruiter.assessments.excel.draftSavedToast"));
     } catch {
-      setValidation(["Chưa lưu được trên trình duyệt. Nội dung đang soạn vẫn giữ trên trang."]);
-      toast.error("Không thể lưu bản nháp vào bộ nhớ trình duyệt");
+      setValidation([t("recruiter.assessments.excel.draftSaveErrorNote")]);
+      toast.error(t("recruiter.assessments.excel.draftSaveErrorToast"));
     }
     setCapacityNote("");
   }
 
 
   const filterTabs: { id: TypeFilter; label: string; count: number }[] = [
-    { id: "ALL", label: "Tất cả câu hỏi", count: counts.all },
-    { id: "TRAC_NGHIEM_DON", label: "Trắc nghiệm đơn", count: counts.single },
-    { id: "NHIEU_DAP_AN", label: "Nhiều đáp án", count: counts.multi },
-    { id: "SUBJECTIVE", label: "Tự luận code & lý thuyết", count: counts.subjective },
+    { id: "ALL", label: t("recruiter.assessments.excel.filterTabs.all"), count: counts.all },
+    { id: "TRAC_NGHIEM_DON", label: t("recruiter.assessments.excel.filterTabs.single"), count: counts.single },
+    { id: "NHIEU_DAP_AN", label: t("recruiter.assessments.excel.filterTabs.multi"), count: counts.multi },
+    { id: "SUBJECTIVE", label: t("recruiter.assessments.excel.filterTabs.subjective"), count: counts.subjective },
   ];
 
   const showAllColumns = typeFilter === "ALL";
@@ -1435,7 +1451,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       ? COL_LETTERS
       : (["A", "B", "C", "D", "E", "F", "G"] as const);
 
-  if (reviewingImport && (job || generalBank)) return <ExcelImportReview questions={questions} jobId={job?.id ?? 0} jobTitle={job?.title ?? "Ngân hàng câu hỏi chung"}
+  if (reviewingImport && (job || generalBank)) return <ExcelImportReview questions={questions} jobId={job?.id ?? 0} jobTitle={job?.title ?? t("recruiter.assessments.excel.generalBankTitleFallback")}
     generalBank={generalBank}
     onBack={() => setReviewingImport(false)}
     onEdit={index => {
@@ -1454,14 +1470,14 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           <Link
             to={bankPath}
             className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-            title="Quay lại Ngân hàng câu hỏi"
-            aria-label="Quay lại Ngân hàng câu hỏi"
+            title={t("recruiter.assessments.excel.backToBankTitle")}
+            aria-label={t("recruiter.assessments.excel.backToBankTitle")}
           >
             <ArrowLeft className="size-4" />
           </Link>
           <div className="min-w-0">
             <h1 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">
-              Soạn câu hỏi trên bảng
+              {t("recruiter.assessments.excel.pageTitle")}
             </h1>
             {job?.title && (
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -1473,27 +1489,27 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
-            <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-            Hướng dẫn & Phím tắt
+            <HelpCircle className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+            {t("recruiter.assessments.excel.helpShortcutsBtn")}
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
             <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-            Kiểm tra
+            {t("recruiter.assessments.excel.validateBtn")}
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={handleSaveDraft}>
             <Save className="size-3.5" aria-hidden="true" />
-            Lưu bản nháp
+            {t("recruiter.assessments.excel.saveDraftBtn")}
           </Button>
           <Button type="button" size="sm" onClick={handleValidate}>
             <CloudUpload className="size-3.5" aria-hidden="true" />
-            {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
+            {generalBank ? t("recruiter.assessments.excel.saveToBankBtn") : t("recruiter.assessments.excel.createAssessmentBtn")}
           </Button>
         </div>
       </header>
 
       {generalBank && (
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          Tạo câu hỏi dùng chung theo kỹ năng. Kiểm tra và xem trước câu hỏi trước khi lưu vào ngân hàng của doanh nghiệp.
+          {t("recruiter.assessments.excel.generalBankHint")}
         </p>
       )}
 
@@ -1507,27 +1523,27 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 font-semibold">
               <AlertTriangle className="size-4 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-              Cần kiểm tra lại nội dung ({validation.length} lưu ý)
+              {t("recruiter.assessments.excel.validationAlertTitle", { count: validation.length })}
             </p>
             <button
               type="button"
               onClick={() => setValidation([])}
               className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 dark:text-rose-400"
             >
-              Đóng
+              {t("recruiter.assessments.common.actions.close")}
             </button>
           </div>
           <ul className="mt-2 list-inside list-disc space-y-1">
             {validation.map((message, index) => (
               <li key={index}>
                 {message}
-                {/^Dòng \d+:/.test(message) && (
+                {/^(?:Dòng|Row|行)\s*\d+:/.test(message) && (
                   <button
                     type="button"
                     className="ml-2 font-medium underline text-rose-700 hover:text-rose-900 dark:text-rose-300"
                     onClick={() => {
-                      const rowIndex = Number(message.match(/^Dòng (\d+):/)?.[1]) - 2;
-                      const field = message.includes("kỹ năng") ? "skill" : message.includes("Độ khó") ? "difficulty" : "content";
+                      const rowIndex = Number(message.match(/^(?:Dòng|Row|行)\s*(\d+):/)?.[1]) - 2;
+                      const field = message.includes("kỹ năng") || message.toLowerCase().includes("skill") || message.includes("スキル") ? "skill" : message.includes("Độ khó") || message.toLowerCase().includes("difficulty") || message.includes("難易度") ? "difficulty" : "content";
                       setView("all");
                       setTypeFilter(questions[rowIndex] && isSubjectiveKind(questions[rowIndex].kind) ? "SUBJECTIVE" : "ALL");
                       setSelectedIndex(rowIndex);
@@ -1535,7 +1551,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       setActiveCell(`${field === "skill" ? "E" : field === "difficulty" ? "D" : "A"}${rowIndex + 2}`);
                     }}
                   >
-                    Sửa dòng này
+                    {t("recruiter.assessments.excel.fixRowBtn")}
                   </button>
                 )}
               </li>
@@ -1570,7 +1586,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                     active
-                      ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                      ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-2xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
                   )}
                 >
@@ -1579,7 +1595,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     className={cn(
                       "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
                       active
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                        ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                         : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
                     )}
                   >
@@ -1595,20 +1611,20 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                 view === "schema"
-                  ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                  ? "bg-white font-semibold text-[var(--color-primary-hover)] shadow-2xs dark:bg-slate-900 dark:text-[var(--color-primary)]"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
               )}
             >
-              Từ điển Schema
+              {t("recruiter.assessments.excel.schemaDictTab")}
               <span
                 className={cn(
                   "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
                   view === "schema"
-                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                    ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
                     : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
                 )}
               >
-                {DICTIONARY_ROWS.length} cột
+                {t("recruiter.assessments.excel.schemaColumnsCount", { count: dictionaryRows.length })}
               </span>
             </button>
           </div>
@@ -1619,10 +1635,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               size="sm"
               className="text-xs text-slate-600 hover:text-slate-900 dark:text-slate-400"
               onClick={() => setShowHelpModal(true)}
-              title="Xem cẩm nang dán Excel & phím tắt (?)"
+              title={t("recruiter.assessments.excel.guideTooltip")}
             >
-              <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-              <span className="hidden sm:inline">Cẩm nang</span>
+              <HelpCircle className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              <span className="hidden sm:inline">{t("recruiter.assessments.excel.guideShortBtn")}</span>
             </Button>
             {view === "all" && (
               <Button
@@ -1640,7 +1656,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 }
               >
                 <Plus className="size-3.5" aria-hidden="true" />
-                Thêm câu
+                {t("recruiter.assessments.excel.addRowBtn")}
               </Button>
             )}
           </div>
@@ -1650,28 +1666,28 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           <>
             {typeFilter !== "SUBJECTIVE" && <>
                 <div className="flex items-center gap-2.5 border-b border-slate-200/80 bg-slate-50/50 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900/40">
-                  <div className="flex h-7 min-w-14 items-center justify-center rounded-md border border-blue-200/80 bg-blue-50/80 px-2 font-mono text-xs font-bold text-blue-700 shadow-2xs dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+                  <div className="flex h-7 min-w-14 items-center justify-center rounded-md border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-2 font-mono text-xs font-bold text-[var(--color-primary-hover)] shadow-2xs">
                     {activeCell}
                   </div>
                   <span className="select-none font-mono text-xs font-bold italic text-slate-400">fx</span>
                   <input
-                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-blue-400 dark:disabled:bg-slate-800"
+                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-[var(--color-primary)] dark:disabled:bg-slate-800"
                     value={formula}
                     onChange={(event) => applyEdit(event.target.value)}
                     onPasteCapture={handleTablePaste}
                     disabled={!activeEdit}
-                    placeholder="Chọn một ô để sửa · Ctrl+C sao chép · Ctrl+V dán từ Excel..."
-                    aria-label="Thanh sửa nội dung ô"
+                    placeholder={t("recruiter.assessments.excel.formulaPlaceholder")}
+                    aria-label={t("recruiter.assessments.excel.formulaInputAria")}
                   />
                   <div className="flex shrink-0 items-center gap-2">
                     {savedNote && (
                       <span className="hidden items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 sm:inline-flex">
                         <Check className="size-3" aria-hidden="true" />
-                        Bản nháp tự lưu
+                        {t("recruiter.assessments.excel.autoDraftSavedBadge")}
                       </span>
                     )}
                     <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {questions.length}/{MAX_QUESTIONS} câu
+                      {t("recruiter.assessments.excel.totalSlashMax", { count: questions.length, max: MAX_QUESTIONS })}
                     </span>
                   </div>
                 </div>
@@ -1703,7 +1719,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         <HeaderCell label="score" highlight="answer" />
                         <HeaderCell label="difficulty" />
                         <HeaderCell label="skill" />
-                        <HeaderCell label="chi tiết theo type" />
+                        <HeaderCell label={t("recruiter.assessments.excel.colDetailsByType")} />
                       </>
                     )}
                     {showChoiceColumns && (
@@ -1725,8 +1741,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       <>
                         <HeaderCell label="content / scenario *" highlight="primary" />
                         <HeaderCell label="type *" />
-                        <HeaderCell label="khung (tuỳ chọn)" />
-                        <HeaderCell label="rubric 3 mức *" />
+                        <HeaderCell label={t("recruiter.assessments.excel.colFrameOptional")} />
+                        <HeaderCell label={t("recruiter.assessments.excel.colRubric3Levels")} />
                         <HeaderCell label="max_score" highlight="answer" />
                         <HeaderCell label="time" />
                         <HeaderCell label="skill" />
@@ -1778,7 +1794,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                               });
                             }}
                           >
-                            Kéo chuột tới dòng này để thêm câu hỏi trống (tối đa {MAX_QUESTIONS})
+                            {t("recruiter.assessments.excel.ghostRowPrompt", { max: MAX_QUESTIONS })}
                           </td>
                         </tr>
                       );
@@ -1804,7 +1820,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                             rowActive && "bg-[var(--color-primary)] text-white",
                             inDragRange && "bg-[var(--color-primary)] text-white",
                           )}
-                          title="Kéo chuột lên/xuống để chọn nhiều dòng và thêm dòng trống"
+                          title={t("recruiter.assessments.excel.rowHandleTitle")}
                           onMouseDown={(event) => {
                             event.preventDefault();
                             setSelectedIndex(rowIndex);
@@ -1828,7 +1844,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                           onChange={applyEdit}
                           title={row.content}
                         >
-                          {row.content || <span className="italic text-[var(--color-outline)]">Nhập câu hỏi...</span>}
+                          {row.content || <span className="italic text-[var(--color-outline)]">{t("recruiter.assessments.excel.contentPlaceholder")}</span>}
                         </EditCell>
 
                         <td className="px-1.5 py-1.5 align-middle">
@@ -1848,11 +1864,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                                   ? "bg-[var(--color-surface-container-low)] text-[10px] italic text-[var(--color-on-surface-variant)] cursor-not-allowed"
                                   : "font-semibold"
                               )}
-                              title={isSubjectiveKind(row.kind) ? "Điểm được áp dụng tự động theo Cấu hình bài tập" : undefined}
+                              title={isSubjectiveKind(row.kind) ? t("recruiter.assessments.excel.scoreAutoTooltip") : undefined}
                             >
                               {isSubjectiveKind(row.kind) ? (
                                 <span className="rounded bg-[var(--color-surface-container)] px-1 py-0.5 text-[9px] font-medium text-[var(--color-on-surface-variant)]">
-                                  Theo cấu hình
+                                  {t("recruiter.assessments.excel.scoreByConfigBadge")}
                                 </span>
                               ) : (
                                 row.score
@@ -1880,8 +1896,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                             >
                               {row.skill || <span className="italic text-[var(--color-outline)]">--</span>}
                             </EditCell>
-                            <Cell title={detailPreview(row)} className="text-[var(--color-on-surface-variant)]">
-                              {detailPreview(row)}
+                            <Cell title={detailPreview(row, t)} className="text-[var(--color-on-surface-variant)]">
+                              {detailPreview(row, t)}
                             </Cell>
                           </>
                         )}
@@ -1967,7 +1983,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                                 {warn ? (
                                   <span className="inline-flex items-center gap-1 italic">
                                     <AlertTriangle className="size-3 shrink-0 text-amber-500" aria-hidden="true" />
-                                    Thiếu rubric
+                                    {t("recruiter.assessments.excel.missingRubricBadge")}
                                   </span>
                                 ) : (
                                   row.explanation || <span className="italic text-[var(--color-outline)]">--</span>
@@ -2051,14 +2067,14 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", typeBadgeClass(selectedQuestion.kind))}>
-                      Phương án cho Câu {selectedIndex + 1} ({typeMeta(selectedQuestion.kind).label})
+                      {t("recruiter.assessments.excel.choicePanelBadge", { index: selectedIndex + 1, label: typeMeta(selectedQuestion.kind, t).label })}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Chỉnh sửa trực tiếp 4 lựa chọn A–D và đáp án đúng
+                      {t("recruiter.assessments.excel.choicePanelSubtitle")}
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-400">
-                    Đổi loại câu ở cột Loại nếu muốn chuyển sang Tự luận
+                    {t("recruiter.assessments.excel.choicePanelSwitchHint")}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-6">
@@ -2077,15 +2093,15 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                           onChange={(event) => patchQuestion(selectedIndex, { [field]: event.target.value })}
                           onPasteCapture={(event) => handleChoiceFormPaste(field, event)}
                           className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
-                          placeholder={`Lựa chọn ${letter}...`}
-                          aria-label={`Phương án ${letter}`}
+                          placeholder={t("recruiter.assessments.excel.optionPlaceholder", { letter })}
+                          aria-label={t("recruiter.assessments.excel.optionAria", { letter })}
                         />
                       </div>
                     );
                   })}
                   <div className="flex items-center rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/40">
                     <span className="mr-2 flex h-5 shrink-0 items-center justify-center rounded bg-emerald-200 px-1 font-mono text-[10px] font-bold text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200">
-                      Đ.Án *
+                      {t("recruiter.assessments.excel.answerShortTag")}
                     </span>
                     <input
                       value={selectedQuestion.answer}
@@ -2093,12 +2109,12 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       onPasteCapture={(event) => handleChoiceFormPaste("answer", event)}
                       className="min-w-0 flex-1 bg-transparent text-center font-mono text-xs font-bold text-emerald-900 outline-none placeholder:text-emerald-500 dark:text-emerald-200"
                       placeholder={selectedQuestion.kind === "NHIEU_DAP_AN" ? "A,C" : "A"}
-                      aria-label="Đáp án đúng"
+                      aria-label={t("recruiter.assessments.excel.correctAnswerAria")}
                     />
                   </div>
                   <div className="flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-700 dark:bg-slate-900">
                     <span className="mr-2 shrink-0 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                      {selectedQuestion.kind === "NHIEU_DAP_AN" ? "Policy" : "Giải thích"}
+                      {selectedQuestion.kind === "NHIEU_DAP_AN" ? t("recruiter.assessments.excel.policyLabel") : t("recruiter.assessments.excel.explanationLabel")}
                     </span>
                     <input
                       value={
@@ -2116,8 +2132,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       }
                       onPasteCapture={(event) => handleChoiceFormPaste("detail", event)}
                       className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
-                      placeholder="Ghi chú / giải thích..."
-                      aria-label="Chi tiết chấm điểm"
+                      placeholder={t("recruiter.assessments.excel.detailPlaceholder")}
+                      aria-label={t("recruiter.assessments.excel.detailAria")}
                     />
                   </div>
                 </div>
@@ -2125,22 +2141,22 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             )}
 
             </>}
-            {typeFilter === "SUBJECTIVE" && <section className="space-y-4 border-b border-[var(--color-border-default)] p-4 sm:p-6" aria-label="Soạn câu tự luận và lý thuyết">
+            {typeFilter === "SUBJECTIVE" && <section className="space-y-4 border-b border-[var(--color-border-default)] p-4 sm:p-6" aria-label={t("recruiter.assessments.excel.subjectiveSectionAria")}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="font-semibold">Biên soạn câu hỏi tự luận & lý thuyết</h2><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Chọn câu hỏi để chỉnh sửa hoặc thêm câu mới theo từng loại.</p></div>
+                <div><h2 className="font-semibold">{t("recruiter.assessments.excel.subjectiveHeading")}</h2><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.subjectiveSubtitle")}</p></div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => addQuestion("TINH_HUONG_SYSTEM")}><Plus className="size-4" aria-hidden="true" />Thêm câu lý thuyết</Button>
-                  <Button size="sm" onClick={() => addQuestion("TU_LUAN_CODE")}><Code2 className="size-4" aria-hidden="true" />Thêm câu tự luận code</Button>
+                  <Button variant="secondary" size="sm" onClick={() => addQuestion("TINH_HUONG_SYSTEM")}><Plus className="size-4" aria-hidden="true" />{t("recruiter.assessments.excel.addTheoryBtn")}</Button>
+                  <Button size="sm" onClick={() => addQuestion("TU_LUAN_CODE")}><Code2 className="size-4" aria-hidden="true" />{t("recruiter.assessments.excel.addCodingBtn")}</Button>
                 </div>
               </div>
               <div className="overflow-x-auto rounded-xl border border-[var(--color-border-default)]">
                 <table className="w-full min-w-[600px] text-left text-xs">
-                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
+                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">{t("recruiter.assessments.excel.colIndex")}</th><th className="p-3">{t("recruiter.assessments.excel.colContent")}</th><th className="p-3">{t("recruiter.assessments.excel.colType")}</th><th className="p-3">{t("recruiter.assessments.excel.colDifficulty")}</th><th className="p-3">{t("recruiter.assessments.excel.colSkill")}</th></tr></thead>
                   <tbody>{questions.map((question, index) => isSubjectiveKind(question.kind) && <tr key={question.id} className={cn("border-t border-[var(--color-border-default)]", selectedIndex === index && "bg-[var(--color-primary-subtle)]")}>
-                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
+                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || t("recruiter.assessments.excel.untitledQuestion")}</button></td><td className="p-3">{typeMeta(question.kind, t).label}</td><td className="p-3">{question.difficulty || t("recruiter.assessments.common.dash")}</td><td className="p-3">{question.skill || t("recruiter.assessments.common.dash")}</td>
                   </tr>)}</tbody>
                 </table>
-                {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có câu hỏi. Chọn loại câu phía trên để bắt đầu biên soạn.</p>}
+                {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.emptySubjective")}</p>}
               </div>
             </section>}
             {typeFilter === "SUBJECTIVE" && selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
@@ -2149,26 +2165,26 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-subtle)] px-3 py-2 text-xs font-semibold text-[var(--color-primary)]">
                       <Code2 className="size-3.5" aria-hidden="true" />
-                      {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tự luận lý thuyết"}
+                      {selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.codingFormBadge") : t("recruiter.assessments.excel.theoryFormBadge")}
                     </span>
                     <div>
                       <h2 className="text-base font-semibold text-[var(--color-on-surface)]">
-                        {selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}
+                        {selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.codingFormHeading") : t("recruiter.assessments.excel.theoryFormHeading")}
                       </h2>
-                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập nội dung, hướng dẫn trả lời và tiêu chuẩn chấm điểm.</p>
+                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.subjectiveFormDesc")}</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px]">
                     <label className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs">
-                      <span className="text-[var(--color-on-surface-variant)]">Đổi loại câu:</span>
+                      <span className="text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.switchTypeLabel")}</span>
                       <select
-                        aria-label="Thay đổi loại câu hỏi"
+                        aria-label={t("recruiter.assessments.excel.switchTypeAria")}
                         value={selectedQuestion.kind}
                         onChange={(e) => changeKind(selectedIndex, e.target.value as QuestionKind)}
                         className="rounded bg-transparent font-semibold text-[var(--color-primary)] outline-none cursor-pointer"
                       >
-                        <option value="TINH_HUONG_SYSTEM">Tự luận lý thuyết</option>
-                        <option value="TU_LUAN_CODE">Tự luận code</option>
+                        <option value="TINH_HUONG_SYSTEM">{t("recruiter.assessments.common.questionTypes.essayTheory")}</option>
+                        <option value="TU_LUAN_CODE">{t("recruiter.assessments.common.questionTypes.codingEssay")}</option>
                       </select>
                     </label>
                     <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 ring-1 ring-[var(--color-border-default)]">
@@ -2184,50 +2200,50 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">01</span>
                       <div>
                         <h3 className="text-sm font-semibold">
-                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Thông tin bài toán lập trình" : "Đề bài & Thông tin câu hỏi"}
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.step01CodeHeading") : t("recruiter.assessments.excel.step01TheoryHeading")}
                         </h3>
                         <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Nội dung bài toán, kỹ năng và mức độ khó." : "Đề bài, kỹ năng kiểm tra và mức độ khó."}
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.step01CodeDesc") : t("recruiter.assessments.excel.step01TheoryDesc")}
                         </p>
                       </div>
                     </div>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài (Markdown)</span>
+                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.promptMarkdownLabel")}</span>
                       <textarea
                         value={selectedQuestion.content}
                         onChange={(event) => patchQuestion(selectedIndex, { content: event.target.value })}
                         rows={4}
-                        placeholder={selectedQuestion.kind === "TU_LUAN_CODE" ? "Mô tả bài toán, yêu cầu input/output và ràng buộc..." : "Nhập câu hỏi tự luận hoặc tình huống cần phân tích..."}
+                        placeholder={selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.promptCodePlaceholder") : t("recruiter.assessments.excel.promptTheoryPlaceholder")}
                         className="resize-y rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                       />
                     </label>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Kỹ năng</span>
+                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.colSkill")}</span>
                         <input
                           value={selectedQuestion.skill}
                           onChange={(event) => patchQuestion(selectedIndex, { skill: event.target.value })}
-                          placeholder="Ví dụ: Java, SQL, System Design"
+                          placeholder={t("recruiter.assessments.excel.skillPlaceholder")}
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Độ khó</span>
+                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.colDifficulty")}</span>
                         <select
                           value={selectedQuestion.difficulty}
                           onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })}
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         >
-                          <option value="">Chọn độ khó</option>
-                          <option value="Easy">Dễ (Easy)</option>
-                          <option value="Medium">Trung bình (Medium)</option>
-                          <option value="Hard">Khó (Hard)</option>
+                          <option value="">{t("recruiter.assessments.excel.selectDifficultyOption")}</option>
+                          <option value="Easy">{t("recruiter.assessments.common.difficulty.easyLabel")}</option>
+                          <option value="Medium">{t("recruiter.assessments.common.difficulty.mediumLabel")}</option>
+                          <option value="Hard">{t("recruiter.assessments.common.difficulty.hardLabel")}</option>
                         </select>
                       </label>
                     </div>
 
                     <p className="mt-1 text-[11px] italic text-[var(--color-on-surface-variant)]">
-                      * Điểm số và tỷ trọng chấm của câu hỏi sẽ được thiết lập tự động trong mục <strong>Cấu hình bài tập</strong>.
+                      {t("recruiter.assessments.excel.autoScoringNoticePrefix")}<strong>{t("recruiter.assessments.excel.autoScoringNoticeHighlight")}</strong>{t("recruiter.assessments.excel.autoScoringNoticeSuffix")}
                     </p>
                   </div>
 
@@ -2250,21 +2266,21 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                           <div>
                             <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
                               <Code2 className="size-4 shrink-0" aria-hidden="true" />
-                              Gợi ý dàn ý / Khung trả lời cho ứng viên (Tuỳ chọn)
+                              {t("recruiter.assessments.excel.theoryOutlineTitle")}
                             </p>
-                            <p className="mt-0.5 text-[11px] text-slate-400">Hiển thị sẵn trong khung làm bài của ứng viên để định hướng cách trả lời.</p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">{t("recruiter.assessments.excel.theoryOutlineDesc")}</p>
                           </div>
                           <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
                             Markdown
                           </span>
                         </div>
                         <textarea
-                          aria-label="Khung gợi ý dàn ý cho ứng viên"
+                          aria-label={t("recruiter.assessments.excel.theoryOutlineAria")}
                           value={selectedQuestion.snippet}
                           onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
                           rows={6}
                           spellCheck={false}
-                          placeholder={"Ví dụ định hướng cho ứng viên:\n1. Khái niệm & Nguyên lý cốt lõi...\n2. Phân tích ưu nhược điểm & Sự đánh đổi (Trade-offs)...\n3. Giải pháp thực tế & Xử lý tình huống..."}
+                          placeholder={t("recruiter.assessments.excel.theoryOutlinePlaceholder")}
                           className="min-h-36 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                         />
                       </div>
@@ -2274,12 +2290,12 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       <div className="border-b border-slate-700 pb-3">
                         <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
                           <ShieldCheck className="size-4 shrink-0 text-emerald-400" aria-hidden="true" />
-                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Lời giải mẫu chuẩn (Model Solution) *" : "Đáp án tham khảo chuẩn (Reference Answer) *"}
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? t("recruiter.assessments.excel.modelSolutionTitle") : t("recruiter.assessments.excel.referenceAnswerTitle")}
                         </span>
                         <p className="mt-0.5 text-[11px] text-slate-400">
                           {selectedQuestion.kind === "TU_LUAN_CODE"
-                            ? "Bắt buộc — Lời giải chuẩn để chạy kiểm thử với bộ testcase qua Sandbox (ẩn với ứng viên)."
-                            : "Bắt buộc — Văn bản đối chiếu chuẩn để AI và người chấm đối chiếu ngữ nghĩa (ẩn với ứng viên)."}
+                            ? t("recruiter.assessments.excel.modelSolutionDesc")
+                            : t("recruiter.assessments.excel.referenceAnswerDesc")}
                         </p>
                       </div>
                       {selectedQuestion.kind === "TU_LUAN_CODE" ? (
@@ -2288,7 +2304,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                           language={selectedQuestion.language || "java"}
                           value={selectedQuestion.sample}
                           onChange={(val) => patchQuestion(selectedIndex, { sample: val })}
-                          placeholder="// Dán code lời giải hoàn chỉnh bằng ngôn ngữ chính để verify test cases..."
+                          placeholder={t("recruiter.assessments.excel.modelSolutionPlaceholder")}
                         />
                       ) : (
                         <textarea
@@ -2299,10 +2315,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                             if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
                             event.preventDefault();
                             patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
-                            setCapacityNote("Đã dán đáp án mẫu.");
+                            setCapacityNote(t("recruiter.assessments.excel.pastedSampleNote"));
                           }}
                           rows={5}
-                          placeholder="Nhập nội dung câu trả lời chuẩn mực cần đạt..."
+                          placeholder={t("recruiter.assessments.excel.referenceAnswerPlaceholder")}
                           className="min-h-36 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                         />
                       )}
@@ -2315,8 +2331,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
                       <div>
-                        <h3 className="text-sm font-semibold">Cấu hình thực thi & Bộ kiểm thử (Test cases)</h3>
-                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output và chương trình kiểm thử Sandbox. Điểm số và tỷ trọng Sandbox / AI Review được thiết lập tự động trong Cấu hình bài tập.</p>
+                        <h3 className="text-sm font-semibold">{t("recruiter.assessments.excel.step02CodeHeading")}</h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.excel.step02CodeDesc")}</p>
                       </div>
                     </div>
                     <QuestionContentFields
@@ -2340,10 +2356,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       </span>
                       <div>
                         <h3 className="text-sm font-semibold">
-                          Cấu hình tiêu chí & Mẫu Rubric AI (Rubric Archetypes)
+                          {t("recruiter.assessments.excel.step02TheoryHeading")}
                         </h3>
                         <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                          Chọn mẫu tiêu chuẩn phù hợp với loại câu hỏi để tự động thiết lập các tiêu chí đối chiếu ngữ nghĩa và tỷ trọng chấm của AI.
+                          {t("recruiter.assessments.excel.step02TheoryDesc")}
                         </p>
                       </div>
                     </div>
@@ -2354,7 +2370,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                           {
                             category: "ESSAY_CONCEPTUAL",
                             referenceAnswer: selectedQuestion.sample,
-                            criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+                            criteria: getEssayArchetypes(t).ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
                           },
                           null,
                           2
@@ -2370,7 +2386,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-5">
                   <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
                     <CheckCircle2 className="size-4 text-emerald-600" />
-                    <span>Dữ liệu form đang được tự động cập nhật vào <strong>Câu {selectedIndex + 1}</strong> trong bảng danh sách phía trên.</span>
+                    <span>{t("recruiter.assessments.excel.autoSyncHintPrefix")}<strong>{t("recruiter.assessments.excel.autoSyncHintQuestion", { index: selectedIndex + 1 })}</strong>{t("recruiter.assessments.excel.autoSyncHintSuffix")}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -2383,7 +2399,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-30 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
                     >
                       <Trash2 className="size-3.5" />
-                      Xóa câu này
+                      {t("recruiter.assessments.excel.deleteThisQuestionBtn")}
                     </button>
                     <Button
                       type="button"
@@ -2392,7 +2408,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       onClick={handleSaveDraft}
                     >
                       <Save className="size-3.5" />
-                      Lưu nội dung bản nháp
+                      {t("recruiter.assessments.excel.saveDraftLongBtn")}
                     </Button>
                     <Button
                       type="button"
@@ -2400,7 +2416,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       onClick={handleValidate}
                     >
                       <CloudUpload className="size-3.5" />
-                      {generalBank ? "Lưu vào ngân hàng câu hỏi" : "Tạo bài đánh giá"}
+                      {generalBank ? t("recruiter.assessments.excel.saveToBankLongBtn") : t("recruiter.assessments.excel.createAssessmentBtn")}
                     </Button>
                   </div>
                 </div>
@@ -2423,17 +2439,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 </tr>
                 <tr className="h-8 bg-[var(--color-surface-container)] text-[10px] font-semibold">
                   <th className="bg-[var(--color-surface-container-high)] text-center font-mono text-[10px]">1</th>
-                  <HeaderCell label="Cột" />
-                  <HeaderCell label="Trường Schema" />
-                  <HeaderCell label="Trạng thái" />
-                  <HeaderCell label="Kiểu" />
-                  <HeaderCell label="Giá trị hợp lệ" />
-                  <HeaderCell label="Quy tắc" highlight="primary" />
-                  <HeaderCell label="Ví dụ đúng / sai" />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.column")} />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.field")} />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.status")} />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.type")} />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.validValues")} />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.rule")} highlight="primary" />
+                  <HeaderCell label={t("recruiter.assessments.excel.schemaHeaders.examples")} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-surface-container)]">
-                {DICTIONARY_ROWS.map((row, index) => {
+                {dictionaryRows.map((row, index) => {
                   const statusClass = {
                     optional: "bg-emerald-50 text-emerald-700",
                     required: "bg-red-100 text-red-800",
@@ -2479,42 +2495,48 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
               <span>
                 {view === "schema"
-                  ? "Từ điển dữ liệu Schema cột A–K"
-                  : capacityNote || (savedNote ? "Bản nháp đã lưu tự động" : "Sẵn sàng soạn thảo")}
+                  ? t("recruiter.assessments.excel.footerSchemaStatus")
+                  : capacityNote || (savedNote ? t("recruiter.assessments.excel.footerDraftStatus") : t("recruiter.assessments.excel.footerReadyStatus"))}
               </span>
             </span>
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <div className="hidden items-center gap-2 md:flex">
               <span className="inline-flex items-center gap-1">
                 <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+C</kbd>
-                <span>Sao chép</span>
+                <span>{t("recruiter.assessments.excel.shortcutCopyLabel")}</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+V</kbd>
-                <span>Dán từ Excel</span>
+                <span>{t("recruiter.assessments.excel.shortcutPasteLabel")}</span>
               </span>
               <span className="inline-flex items-center gap-1">
                 <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+Z</kbd>
-                <span>Hoàn tác</span>
+                <span>{t("recruiter.assessments.excel.shortcutUndoLabel")}</span>
               </span>
               <span className="inline-flex items-center gap-1">
-                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Kéo STT</kbd>
-                <span>Thêm dòng</span>
+                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">{t("recruiter.assessments.excel.shortcutDragKey")}</kbd>
+                <span>{t("recruiter.assessments.excel.shortcutDragLabel")}</span>
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="font-mono text-[11px]">
-              Tổng: <strong className="text-slate-800 dark:text-slate-200">{questions.length}</strong>/{MAX_QUESTIONS} câu (Đơn: {counts.single} · Nhiều: {counts.multi} · Tự luận: {counts.subjective})
+              {t("recruiter.assessments.excel.footerTotalSummary", {
+                total: questions.length,
+                max: MAX_QUESTIONS,
+                single: counts.single,
+                multi: counts.multi,
+                subjective: counts.subjective,
+              })}
             </span>
             <button
               type="button"
               onClick={() => setShowHelpModal(true)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
             >
               <HelpCircle className="size-3.5" aria-hidden="true" />
-              Cẩm nang & Phím tắt (?)
+              {t("recruiter.assessments.excel.guideModalBtn")}
             </button>
           </div>
         </div>
@@ -2523,24 +2545,24 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       <DetailDialog
         open={showHelpModal}
         onClose={() => setShowHelpModal(false)}
-        title="Cẩm nang biên soạn câu hỏi kiểu Excel"
+        title={t("recruiter.assessments.excel.guideModalTitle")}
         size="wide"
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 text-[var(--color-primary)]">
               <ListChecks className="size-4" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Dán dữ liệu từ Excel</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.excel.helpCard1Title")}</h3>
             </div>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Dán trực tiếp:</strong> Dán vào đúng ô đang chọn. Clipboard có ký tự tab hoặc sao chép từ Excel/Google Sheets sẽ tự động phân tách các cột <em>content / type / score / difficulty / skill</em>.
+                <strong className="text-slate-800 dark:text-slate-200">{t("recruiter.assessments.excel.helpCard1Item1Title")}</strong> {t("recruiter.assessments.excel.helpCard1Item1Body")}
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Chuỗi dính liền:</strong> Nếu chuỗi văn bản chứa loại câu (vd: <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400">...Authorization.Tự luận3.0MediumSecurity</span>), hệ thống sẽ tự động tách cột thông minh.
+                <strong className="text-slate-800 dark:text-slate-200">{t("recruiter.assessments.excel.helpCard1Item2Title")}</strong> {t("recruiter.assessments.excel.helpCard1Item2BodyPrefix")}<span className="font-mono text-[11px] text-[var(--color-primary-hover)] dark:text-[var(--color-primary)]">...Authorization.Tự luận3.0MediumSecurity</span>{t("recruiter.assessments.excel.helpCard1Item2BodySuffix")}
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Tự luận & Đáp án mẫu:</strong> Dán thêm dòng chứa <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">Đáp án mẫu: ...</span> để hệ thống tự động đưa vào lời giải chuẩn.
+                <strong className="text-slate-800 dark:text-slate-200">{t("recruiter.assessments.excel.helpCard1Item3Title")}</strong> {t("recruiter.assessments.excel.helpCard1Item3BodyPrefix")}<span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">{t("recruiter.assessments.excel.helpCard1Item3BodySample")}</span>{t("recruiter.assessments.excel.helpCard1Item3BodySuffix")}
               </li>
             </ul>
           </div>
@@ -2548,41 +2570,41 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <Code2 className="size-4" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Tiêu chuẩn Rubric 3 mức</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.excel.helpCard2Title")}</h3>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-[11px] leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-              [Xuất sắc 9-10đ] · [Đạt 6-8đ] · [Chưa đạt 0-5đ]
+              {t("recruiter.assessments.excel.helpCard2Banner")}
             </div>
             <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
               <li>
-                <strong className="text-emerald-700 dark:text-emerald-300">Xuất sắc:</strong> Trả lời toàn diện, chuẩn kiến trúc, giải quyết triệt để vấn đề và xử lý corner-case.
+                <strong className="text-emerald-700 dark:text-emerald-300">{t("recruiter.assessments.excel.helpCard2ExcellentTitle")}</strong> {t("recruiter.assessments.excel.helpCard2ExcellentBody")}
               </li>
               <li>
-                <strong className="text-amber-700 dark:text-amber-300">Đạt:</strong> Nắm vững nguyên lý cốt lõi, giải pháp khả thi, có thể thiếu sót nhỏ.
+                <strong className="text-amber-700 dark:text-amber-300">{t("recruiter.assessments.excel.helpCard2PassTitle")}</strong> {t("recruiter.assessments.excel.helpCard2PassBody")}
               </li>
               <li>
-                <strong className="text-rose-700 dark:text-rose-300">Chưa đạt:</strong> Sai lệch nguyên lý cơ bản, chưa hoàn thiện giải pháp.
+                <strong className="text-rose-700 dark:text-rose-300">{t("recruiter.assessments.excel.helpCard2FailTitle")}</strong> {t("recruiter.assessments.excel.helpCard2FailBody")}
               </li>
             </ul>
           </div>
 
           <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+            <div className="flex items-center gap-2 text-[var(--color-primary)]">
               <ShieldCheck className="size-4" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">AI Tự động Kiểm tra</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t("recruiter.assessments.excel.helpCard3Title")}</h3>
             </div>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
               <li className="flex items-start gap-1.5">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                <span>Phát hiện và cảnh báo đáp án trắc nghiệm rỗng hoặc sai cú pháp quy định.</span>
+                <span>{t("recruiter.assessments.excel.helpCard3Item1")}</span>
               </li>
               <li className="flex items-start gap-1.5">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                <span>Cảnh báo câu hỏi tự luận thiếu tiêu chí rubric hoặc thiếu lời giải mẫu đối chiếu.</span>
+                <span>{t("recruiter.assessments.excel.helpCard3Item2")}</span>
               </li>
               <li className="flex items-start gap-1.5">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                <span>Kiểm tra cú pháp code và bộ test cases sandbox trước khi xuất bản bài test.</span>
+                <span>{t("recruiter.assessments.excel.helpCard3Item3")}</span>
               </li>
             </ul>
           </div>
@@ -2590,24 +2612,24 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
         <div className="mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
           <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Bảng phím tắt thao tác nhanh
+            {t("recruiter.assessments.excel.shortcutTableHeading")}
           </h4>
           <div className="grid grid-cols-2 gap-2.5 text-xs sm:grid-cols-4">
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
-              <span className="text-slate-600 dark:text-slate-300">Sao chép ô</span>
+              <span className="text-slate-600 dark:text-slate-300">{t("recruiter.assessments.excel.shortcutCellCopy")}</span>
               <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+C</kbd>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
-              <span className="text-slate-600 dark:text-slate-300">Dán từ Excel</span>
+              <span className="text-slate-600 dark:text-slate-300">{t("recruiter.assessments.excel.shortcutPasteLabel")}</span>
               <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+V</kbd>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
-              <span className="text-slate-600 dark:text-slate-300">Hoàn tác</span>
+              <span className="text-slate-600 dark:text-slate-300">{t("recruiter.assessments.excel.shortcutUndoLabel")}</span>
               <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+Z</kbd>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
-              <span className="text-slate-600 dark:text-slate-300">Kéo STT thêm dòng</span>
-              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Kéo chuột</kbd>
+              <span className="text-slate-600 dark:text-slate-300">{t("recruiter.assessments.excel.shortcutCellDrag")}</span>
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">{t("recruiter.assessments.excel.shortcutDragValue")}</kbd>
             </div>
           </div>
         </div>

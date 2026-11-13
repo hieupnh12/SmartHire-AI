@@ -55,11 +55,11 @@ public class Contract {
 
     @Builder.Default
     @Column(name = "party_a_tax_code", nullable = false)
-    String partyATaxCode = "0110889988";
+    String partyATaxCode = "0110888999";
 
     @Builder.Default
     @Column(name = "party_a_address", nullable = false)
-    String partyAAddress = "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Phường Mễ Trì, Quận Nam Từ Liêm, TP. Hà Nội";
+    String partyAAddress = "Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng";
 
     @Builder.Default
     @Column(name = "party_a_representative", nullable = false)
@@ -71,23 +71,23 @@ public class Contract {
 
     @Builder.Default
     @Column(name = "party_a_phone", nullable = false)
-    String partyAPhone = "1900 6868";
+    String partyAPhone = "0988.888.888";
 
     @Builder.Default
     @Column(name = "party_a_email", nullable = false)
-    String partyAEmail = "legal@smarthire.top";
+    String partyAEmail = "support@smarthire.top";
 
     @Builder.Default
     @Column(name = "party_a_bank_name", nullable = false)
-    String partyABankName = "Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank)";
+    String partyABankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
 
     @Builder.Default
     @Column(name = "party_a_bank_account", nullable = false)
-    String partyABankAccount = "190388889999";
+    String partyABankAccount = "07744348801";
 
     @Builder.Default
     @Column(name = "party_a_bank_branch", nullable = false)
-    String partyABankBranch = "Chi nhánh Hà Nội";
+    String partyABankBranch = "Chi nhánh Đà Nẵng";
 
     // --- BÊN B: ĐƠN VỊ KHÁCH HÀNG DOANH NGHIỆP ---
     @Column(name = "party_b_name")

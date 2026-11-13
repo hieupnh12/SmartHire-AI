@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   PhoneCall,
@@ -8,27 +8,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ArrowLeft,
-  BrainCircuit,
 } from "lucide-react";
 import { consultationApi } from "@/api/master/consultationApi";
-
-/* ─────────────────────────────────────────────
-   Job-title options
-───────────────────────────────────────────── */
-const JOB_TITLE_OPTIONS = [
-  "Giám Đốc Nhân Sự",
-  "Trưởng Phòng Nhân Sự",
-  "Trưởng Phòng Tuyển Dụng",
-  "Chuyên Viên Tuyển Dụng",
-  "Giám Đốc Điều Hành",
-  "Giám Đốc Công Nghệ",
-  "Trưởng Nhóm Kỹ Thuật",
-  "Quản Lý Dự Án",
-  "Giám Đốc Vận Hành",
-  "Chủ Doanh Nghiệp",
-  "Trưởng Phòng Hành Chính",
-  "Quản Lý Phát Triển Kinh Doanh",
-];
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { useT } from "@/i18n";
 
 /* ─────────────────────────────────────────────
    Custom Combobox component
@@ -40,10 +24,29 @@ function JobTitleCombobox({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const jobTitleOptions = useMemo(
+    () => [
+      t("master.landing.demoPage.jobTitles.chro"),
+      t("master.landing.demoPage.jobTitles.hrManager"),
+      t("master.landing.demoPage.jobTitles.taManager"),
+      t("master.landing.demoPage.jobTitles.recruiter"),
+      t("master.landing.demoPage.jobTitles.ceo"),
+      t("master.landing.demoPage.jobTitles.cto"),
+      t("master.landing.demoPage.jobTitles.techLead"),
+      t("master.landing.demoPage.jobTitles.pm"),
+      t("master.landing.demoPage.jobTitles.coo"),
+      t("master.landing.demoPage.jobTitles.founder"),
+      t("master.landing.demoPage.jobTitles.adminManager"),
+      t("master.landing.demoPage.jobTitles.bdManager"),
+    ],
+    [t],
+  );
 
   // Close on outside click
   useEffect(() => {
@@ -67,10 +70,10 @@ function JobTitleCombobox({
 
   const filtered =
     query.trim() === ""
-      ? JOB_TITLE_OPTIONS
-      : JOB_TITLE_OPTIONS.filter((o) =>
-        o.toLowerCase().includes(query.toLowerCase())
-      );
+      ? jobTitleOptions
+      : jobTitleOptions.filter((o) =>
+          o.toLowerCase().includes(query.toLowerCase()),
+        );
 
   const handleSelect = (label: string) => {
     onChange(label);
@@ -87,10 +90,11 @@ function JobTitleCombobox({
   return (
     <div ref={containerRef} className="relative">
       <div
-        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 transition-colors cursor-text ${open
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 transition-colors cursor-text ${
+          open
             ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
-          }`}
+        }`}
         onClick={() => {
           setQuery("");
           setOpen(true);
@@ -106,12 +110,13 @@ function JobTitleCombobox({
             setQuery("");
             setOpen(true);
           }}
-          placeholder="Chọn hoặc nhập chức vụ..."
+          placeholder={t("master.landing.demoPage.jobTitlePlaceholder")}
           className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm text-slate-900 placeholder:text-slate-400"
         />
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${open ? "rotate-180" : ""
-            }`}
+          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${
+            open ? "rotate-180" : ""
+          }`}
         />
       </div>
 
@@ -123,7 +128,9 @@ function JobTitleCombobox({
                 onMouseDown={() => handleSelect(query.trim())}
                 className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 cursor-pointer font-medium"
               >
-                Sử dụng &quot;{query.trim()}&quot;
+                {t("master.landing.demoPage.useCustomJobTitle", {
+                  title: query.trim(),
+                })}
               </li>
             ) : (
               filtered.map((title) => {
@@ -132,10 +139,11 @@ function JobTitleCombobox({
                   <li
                     key={title}
                     onMouseDown={() => handleSelect(title)}
-                    className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs ${isSelected
+                    className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs ${
+                      isSelected
                         ? "bg-blue-50 text-blue-700 font-semibold"
                         : "hover:bg-slate-50 text-slate-700"
-                      }`}
+                    }`}
                   >
                     <span className="flex-1 truncate">{title}</span>
                     {isSelected && (
@@ -152,28 +160,19 @@ function JobTitleCombobox({
   );
 }
 
-/* ─────────────────────────────────────────────
-   Company size options
-───────────────────────────────────────────── */
-const COMPANY_SIZE_OPTIONS: { value: string; label: string }[] = [
-  { value: "50-100", label: "Dưới 100 nhân sự" },
-  { value: "100-500", label: "100 – 500 nhân sự" },
-  { value: "500-2000", label: "500 – 2.000 nhân sự" },
-  { value: "2000+", label: "Trên 2.000 nhân sự" },
-];
-
 /* Generic styled dropdown for fixed option lists */
 function CustomDropdown({
   value,
   onChange,
   options,
-  placeholder = "Chọn...",
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   placeholder?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -188,23 +187,26 @@ function CustomDropdown({
   }, []);
 
   const selected = options.find((o) => o.value === value);
+  const resolvedPlaceholder = placeholder ?? t("master.landing.demoPage.selectPlaceholder");
 
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm transition-colors ${open
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm transition-colors ${
+          open
             ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
-          }`}
+        }`}
       >
         <span className={`flex-1 text-left truncate ${selected ? "text-slate-900" : "text-slate-400"}`}>
-          {selected ? selected.label : placeholder}
+          {selected ? selected.label : resolvedPlaceholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${open ? "rotate-180" : ""
-            }`}
+          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${
+            open ? "rotate-180" : ""
+          }`}
         />
       </button>
 
@@ -221,10 +223,11 @@ function CustomDropdown({
                     onChange(opt.value);
                     setOpen(false);
                   }}
-                  className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs select-none ${isSelected
+                  className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs select-none ${
+                    isSelected
                       ? "bg-blue-50 text-blue-700 font-semibold"
                       : "hover:bg-slate-50 text-slate-700"
-                    }`}
+                  }`}
                 >
                   <span className="flex-1 truncate">{opt.label}</span>
                   {isSelected && (
@@ -258,18 +261,28 @@ interface DemoRequestForm {
    Page component
 ───────────────────────────────────────────── */
 export function DemoRequestPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const initialTier =
-    searchParams.get("tier") || "Tư Vấn Giải Pháp Doanh Nghiệp";
+  const tierParam = searchParams.get("tier");
+  const selectedTier = tierParam || t("master.landing.shared.consultTier");
   const initialType =
     (searchParams.get("type") as "DEMO" | "CONTRACT_QUOTE") || "DEMO";
 
   const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">(
-    initialType
+    initialType,
   );
-  const [selectedTier] = useState(initialTier);
+
+  const companySizeOptions = useMemo(
+    () => [
+      { value: "50-100", label: t("master.landing.demoPage.sizeUnder100") },
+      { value: "100-500", label: t("master.landing.demoPage.size100To500") },
+      { value: "500-2000", label: t("master.landing.demoPage.size500To2000") },
+      { value: "2000+", label: t("master.landing.demoPage.size2000Plus") },
+    ],
+    [t],
+  );
 
   const [formData, setFormData] = useState<DemoRequestForm>({
     companyName: "",
@@ -278,7 +291,7 @@ export function DemoRequestPage() {
     workEmail: "",
     phoneNumber: "",
     companySize: "100-500",
-    primaryNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
+    primaryNeed: "",
     notes: "",
   });
 
@@ -300,7 +313,7 @@ export function DemoRequestPage() {
         companySize: formData.companySize,
         requestType,
         planTier: selectedTier,
-        primaryNeed: formData.primaryNeed,
+        primaryNeed: formData.primaryNeed || t("master.landing.demoPage.defaultNeed"),
         notes: formData.notes,
       });
       setDemoSubmitted(true);
@@ -310,22 +323,22 @@ export function DemoRequestPage() {
         typeof err.response.data.errors === "object"
       ) {
         const firstErrMsg = Object.values(
-          err.response.data.errors
+          err.response.data.errors,
         )[0] as string;
         setSubmitError(
           firstErrMsg ||
-          err.response.data.message ||
-          "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại."
+            err.response.data.message ||
+            t("master.landing.demoPage.invalidData"),
         );
       } else if (err?.response?.data?.message) {
         setSubmitError(err.response.data.message);
       } else if (err?.message === "Network Error" || !err?.response) {
-        setSubmitError(
-          "Không thể kết nối đến máy chủ Backend (Port 8080). Vui lòng đảm bảo dịch vụ Backend đang chạy."
-        );
+        setSubmitError(t("master.landing.demoPage.backendError"));
       } else {
         setSubmitError(
-          "Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.top"
+          t("master.landing.demoPage.submitFailed", {
+            email: LEGAL_POLICY_META.supportEmail,
+          }),
         );
       }
     } finally {
@@ -334,22 +347,30 @@ export function DemoRequestPage() {
   };
 
   return (
-    <div className="h-screen w-screen bg-slate-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto sm:overflow-hidden">
-      <div className="w-full max-w-2xl my-auto">
+    <div className="relative min-h-screen w-full bg-[#eef4ff] flex items-center justify-center p-3 sm:p-5 overflow-x-hidden overflow-y-auto">
+      {/* Layered 3D architectural glass depth background */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden"
+      >
+        <img
+          src="/demo-bg-depth.jpg"
+          alt=""
+          className="w-full h-full object-cover object-center scale-[1.02]"
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.28)_0%,rgba(239,246,255,0.12)_55%,rgba(15,23,42,0.14)_100%)]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-2xl my-auto">
         {!demoSubmitted ? (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 sm:p-6 lg:p-7">
+          <div className="bg-white/90 backdrop-blur-xl border border-white/85 ring-1 ring-slate-900/5 rounded-2xl shadow-[0_28px_70px_-16px_rgba(30,58,138,0.22),0_10px_25px_-8px_rgba(15,23,42,0.08)] p-5 sm:p-6 lg:p-7">
             {/* Top Navigation & Brand Header */}
-            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-200/70">
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors group"
+                className="inline-flex items-center text-slate-600 hover:text-blue-600 transition-colors group"
               >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-                  <BrainCircuit className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-base font-bold tracking-tight text-slate-900 font-display">
-                  SmartHire<span className="text-blue-600">.AI</span>
-                </span>
+                <SmartHireLogo className="h-8" />
               </Link>
 
               <div className="flex items-center gap-2">
@@ -361,7 +382,7 @@ export function DemoRequestPage() {
                   className="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 transition-colors ml-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Trang chủ</span>
+                  <span className="hidden sm:inline">{t("master.landing.demoPage.backHome")}</span>
                 </Link>
               </div>
             </div>
@@ -377,14 +398,14 @@ export function DemoRequestPage() {
                   )}
                   <span>
                     {requestType === "DEMO"
-                      ? "Đăng Ký Trải Nghiệm Demo 1:1"
-                      : "Tư Vấn Báo Giá & Hợp Đồng"}
+                      ? t("master.landing.demoPage.demoTitle")
+                      : t("master.landing.demoPage.quoteTitle")}
                   </span>
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {requestType === "DEMO"
-                    ? "Chuyên viên giải pháp sẽ liên hệ trong 2h để chuẩn bị nội dung demo phù hợp."
-                    : "Đội ngũ chuyên trách Enterprise sẽ liên hệ chi tiết bảng giá và thỏa thuận SLA."}
+                    ? t("master.landing.demoPage.demoSubtitle")
+                    : t("master.landing.demoPage.quoteSubtitle")}
                 </p>
               </div>
             </div>
@@ -394,22 +415,24 @@ export function DemoRequestPage() {
               <button
                 type="button"
                 onClick={() => setRequestType("DEMO")}
-                className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "DEMO"
+                className={`flex-1 py-1.5 rounded-md transition-all ${
+                  requestType === "DEMO"
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-500 hover:text-slate-900"
-                  }`}
+                }`}
               >
-                Đặt Lịch Demo 1:1
+                {t("master.landing.demoPage.demoTab")}
               </button>
               <button
                 type="button"
                 onClick={() => setRequestType("CONTRACT_QUOTE")}
-                className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "CONTRACT_QUOTE"
+                className={`flex-1 py-1.5 rounded-md transition-all ${
+                  requestType === "CONTRACT_QUOTE"
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-500 hover:text-slate-900"
-                  }`}
+                }`}
               >
-                Báo Giá & Hợp Đồng Enterprise
+                {t("master.landing.demoPage.quoteTab")}
               </button>
             </div>
 
@@ -420,16 +443,16 @@ export function DemoRequestPage() {
             )}
 
             <form onSubmit={handleDemoSubmit} className="space-y-3">
-              {/* Row 1: Tên Doanh Nghiệp + Quy Mô Nhân Sự */}
+              {/* Row 1: Company Name + Company Size */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Tên Doanh Nghiệp / Tổ Chức <span className="text-red-500">*</span>
+                    {t("master.landing.demoPage.companyLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Tập đoàn Công nghệ..."
+                    placeholder={t("master.landing.demoPage.companyPlaceholder")}
                     value={formData.companyName}
                     onChange={(e) =>
                       setFormData({ ...formData, companyName: e.target.value })
@@ -440,27 +463,27 @@ export function DemoRequestPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Quy Mô Nhân Sự Doanh Nghiệp
+                    {t("master.landing.demoPage.companySizeLabel")}
                   </label>
                   <CustomDropdown
                     value={formData.companySize}
                     onChange={(v) => setFormData({ ...formData, companySize: v })}
-                    options={COMPANY_SIZE_OPTIONS}
-                    placeholder="Chọn quy mô..."
+                    options={companySizeOptions}
+                    placeholder={t("master.landing.demoPage.companySizePlaceholder")}
                   />
                 </div>
               </div>
 
-              {/* Row 2: Họ và Tên + Chức Vụ */}
+              {/* Row 2: Contact Name + Job Title */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Họ và Tên Người Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landing.demoPage.contactNameLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Nguyễn Văn A"
+                    placeholder={t("master.landing.demoPage.contactNamePlaceholder")}
                     value={formData.contactName}
                     onChange={(e) =>
                       setFormData({
@@ -474,7 +497,7 @@ export function DemoRequestPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Chức Vụ <span className="text-red-500">*</span>
+                    {t("master.landing.demoPage.jobTitleLabel")} <span className="text-red-500">*</span>
                   </label>
                   <JobTitleCombobox
                     value={formData.jobTitle}
@@ -485,16 +508,16 @@ export function DemoRequestPage() {
                 </div>
               </div>
 
-              {/* Row 3: Email + Số Điện Thoại */}
+              {/* Row 3: Email + Phone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Email Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landing.demoPage.workEmailLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
                     required
-                    placeholder="name@company.com hoặc name@gmail.com"
+                    placeholder={t("master.landing.demoPage.workEmailPlaceholder")}
                     value={formData.workEmail}
                     onChange={(e) =>
                       setFormData({ ...formData, workEmail: e.target.value })
@@ -505,12 +528,12 @@ export function DemoRequestPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    Số Điện Thoại Liên Hệ <span className="text-red-500">*</span>
+                    {t("master.landing.demoPage.phoneLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
                     required
-                    placeholder="0912 345 678"
+                    placeholder={t("master.landing.demoPage.phonePlaceholder")}
                     value={formData.phoneNumber}
                     onChange={(e) =>
                       setFormData({
@@ -523,14 +546,14 @@ export function DemoRequestPage() {
                 </div>
               </div>
 
-              {/* Row 4: Nhu cầu / Ghi chú */}
+              {/* Row 4: Notes */}
               <div>
                 <label className="block text-xs font-semibold text-slate-800 mb-1">
-                  Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)
+                  {t("master.landing.demoPage.notesLabel")}
                 </label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: Tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT..."
+                  placeholder={t("master.landing.demoPage.notesPlaceholder")}
                   value={formData.notes}
                   onChange={(e) =>
                     setFormData({ ...formData, notes: e.target.value })
@@ -548,15 +571,15 @@ export function DemoRequestPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang gửi thông tin...</span>
+                    <span>{t("master.landing.demoPage.submitting")}</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
                     <span>
                       {requestType === "DEMO"
-                        ? "Gửi Yêu Cầu Đặt Lịch Demo"
-                        : "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng"}
+                        ? t("master.landing.demoPage.submitDemo")
+                        : t("master.landing.demoPage.submitQuote")}
                     </span>
                   </>
                 )}
@@ -565,21 +588,24 @@ export function DemoRequestPage() {
           </div>
         ) : (
           /* Success Card */
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 sm:p-10 text-center max-w-lg mx-auto">
+          <div className="bg-white/90 backdrop-blur-xl border border-white/85 ring-1 ring-slate-900/5 rounded-2xl shadow-[0_28px_70px_-16px_rgba(30,58,138,0.22),0_10px_25px_-8px_rgba(15,23,42,0.08)] p-8 sm:p-10 text-center max-w-lg mx-auto">
             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
-              Đã Tiếp Nhận Thông Tin!
+              {t("master.landing.demoPage.receivedTitle")}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed max-w-md mx-auto">
-              Cảm ơn Quý doanh nghiệp <strong>{formData.companyName}</strong>. Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trực tiếp qua email <strong>{formData.workEmail}</strong> và số điện thoại <strong>{formData.phoneNumber}</strong> trong vòng 2 giờ làm việc.
+              {t("master.landing.demoPage.receivedDescBefore")} <strong>{formData.companyName}</strong>
+              {t("master.landing.demoPage.receivedDescMiddle")} <strong>{formData.workEmail}</strong>{" "}
+              {t("master.landing.demoPage.receivedDescAnd")} <strong>{formData.phoneNumber}</strong>{" "}
+              {t("master.landing.demoPage.receivedDescAfter")}
             </p>
             <button
               onClick={() => navigate("/")}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
             >
-              Về Trang Chủ
+              {t("master.landing.demoPage.goHomeBtn")}
             </button>
           </div>
         )}

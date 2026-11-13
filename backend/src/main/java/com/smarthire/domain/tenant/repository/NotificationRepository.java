@@ -7,6 +7,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     org.springframework.data.domain.Page<Notification> findByUser_IdOrderByIdDesc(
             Long userId, org.springframework.data.domain.Pageable pageable);
     java.util.Optional<Notification> findByIdAndUser_Id(Long id, Long userId);
+    boolean existsByUser_IdAndTypeAndCreatedAtAfter(Long userId, String type, java.time.Instant createdAfter);
 
     @org.springframework.data.jpa.repository.Query(
             value = "SELECT * FROM notifications n WHERE n.user_id = :userId AND JSON_EXTRACT(n.payload_json, '$.jobId') = :jobId ORDER BY n.id DESC",

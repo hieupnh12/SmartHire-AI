@@ -16,6 +16,7 @@ export const extraRoleFeatures = [
   {
     featureCode: "JOBS_ALL",
     labelKey: "nav.jobsAll",
+    descriptionKey: "recruiter.ops.nav.jobsAllDescription",
     description: "Xem tất cả tin tuyển dụng toàn công ty (không chỉ tin phụ trách/tạo)",
   },
 ] as const;

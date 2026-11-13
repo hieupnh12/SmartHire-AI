@@ -1,5 +1,6 @@
 package com.smarthire.domain.tenant.repository;
 
+import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.User;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,5 +12,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailIgnoreCase(String email);
     boolean existsByEmailIgnoreCase(String email);
     boolean existsByRole(String role);
+    java.util.List<User> findByRoleInAndStatus(java.util.Collection<String> roles, com.smarthire.domain.enums.UserStatus status);
+    long countByRoleAndStatus(String role, UserStatus status);
 }
 

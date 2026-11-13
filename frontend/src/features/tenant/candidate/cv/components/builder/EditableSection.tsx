@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
 import type { CvBuilderSection } from "@/api/types/cv";
+import { useT } from "@/i18n";
 import { useUiStore } from "@/stores/uiStore";
 import { useCvBuilderStore } from "../../stores/useCvBuilderStore";
 import { ControlButton } from "./ControlButton";
@@ -17,6 +18,7 @@ export function EditableSection({ section, prevId, nextId, headingClassName, inv
   table?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const ref = useRef<HTMLElement>(null);
   const askConfirm = useUiStore((s) => s.askConfirm);
   const swapSections = useCvBuilderStore((s) => s.swapSections);
@@ -28,9 +30,11 @@ export function EditableSection({ section, prevId, nextId, headingClassName, inv
   const drop = useDropTarget(SECTION_DRAG_TYPE, (draggedId, position) => moveSectionTo(draggedId, section.id, position));
 
   const confirmRemove = () => askConfirm({
-    title: "Xóa mục này khỏi CV?",
-    description: `Toàn bộ nội dung trong “${section.title || "mục này"}” sẽ bị xóa.`,
-    confirmLabel: "Xóa mục",
+    title: t("candidate.cv.sectionControls.deleteConfirmTitle"),
+    description: t("candidate.cv.sectionControls.deleteConfirmDesc", {
+      title: section.title || t("candidate.cv.sectionControls.untitledSection"),
+    }),
+    confirmLabel: t("candidate.cv.sectionControls.deleteConfirmButton"),
     danger: true,
     onConfirm: () => removeSection(section.id),
   });
@@ -46,21 +50,26 @@ export function EditableSection({ section, prevId, nextId, headingClassName, inv
         <span
           draggable
           onDragStart={(event) => startDrag(event, SECTION_DRAG_TYPE, section.id, ref.current)}
-          title="Kéo để sắp xếp mục"
+          title={t("candidate.cv.sectionControls.dragToReorder")}
           aria-hidden="true"
           className="grid size-7 cursor-grab place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-[var(--color-primary)] active:cursor-grabbing"
         >
           <GripVertical className="size-3.5" />
         </span>
-        <ControlButton label="Chuyển mục lên" icon={ArrowUp} disabled={!prevId} onClick={() => prevId && swapSections(section.id, prevId)} />
-        <ControlButton label="Chuyển mục xuống" icon={ArrowDown} disabled={!nextId} onClick={() => nextId && swapSections(section.id, nextId)} />
-        <ControlButton label={section.visible ? "Ẩn mục khi xuất CV" : "Hiện mục"} icon={section.visible ? EyeOff : Eye} onClick={() => toggleSectionVisibility(section.id)} />
-        <ControlButton label="Thêm nội dung" icon={Plus} onClick={() => addItem(section.id)} />
-        <ControlButton label="Xóa mục" icon={Trash2} danger onClick={confirmRemove} />
+        <ControlButton label={t("candidate.cv.sectionControls.moveUp")} icon={ArrowUp} disabled={!prevId} onClick={() => prevId && swapSections(section.id, prevId)} />
+        <ControlButton label={t("candidate.cv.sectionControls.moveDown")} icon={ArrowDown} disabled={!nextId} onClick={() => nextId && swapSections(section.id, nextId)} />
+        <ControlButton label={section.visible ? t("candidate.cv.sectionControls.hideOnExport") : t("candidate.cv.sectionControls.show")} icon={section.visible ? EyeOff : Eye} onClick={() => toggleSectionVisibility(section.id)} />
+        <ControlButton label={t("candidate.cv.sectionControls.addItem")} icon={Plus} onClick={() => addItem(section.id)} />
+        <ControlButton label={t("candidate.cv.sectionControls.deleteSection")} icon={Trash2} danger onClick={confirmRemove} />
       </div>
       <h2 data-cv-block="keep" className={headingClassName}>
-        <EditableText value={section.title} onChange={(title) => updateSection(section.id, { title })} placeholder="Tên mục" label="Tên mục" />
-        {!section.visible && <span className="cv-print-hidden ml-2 rounded bg-slate-200 px-1.5 py-0.5 align-middle text-[10px] font-semibold normal-case tracking-normal text-slate-600">Đã ẩn</span>}
+        <EditableText
+          value={section.title}
+          onChange={(title) => updateSection(section.id, { title })}
+          placeholder={t("candidate.cv.sectionControls.sectionTitlePlaceholder")}
+          label={t("candidate.cv.sectionControls.sectionTitlePlaceholder")}
+        />
+        {!section.visible && <span className="cv-print-hidden ml-2 rounded bg-slate-200 px-1.5 py-0.5 align-middle text-[10px] font-semibold normal-case tracking-normal text-slate-600">{t("candidate.cv.sectionControls.hiddenBadge")}</span>}
       </h2>
       <div className="space-y-2">
         {section.items.map((item, itemIndex) => (
@@ -68,7 +77,7 @@ export function EditableSection({ section, prevId, nextId, headingClassName, inv
         ))}
         {section.items.length === 0 && (
           <button type="button" onClick={() => addItem(section.id)} className="cv-print-hidden inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--color-primary)] hover:bg-[color-mix(in_srgb,var(--color-primary)_8%,white)]">
-            <Plus className="size-3.5" aria-hidden="true" />Thêm nội dung
+            <Plus className="size-3.5" aria-hidden="true" />{t("candidate.cv.sectionControls.addItem")}
           </button>
         )}
       </div>

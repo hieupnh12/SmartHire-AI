@@ -1,27 +1,34 @@
 import React, { createContext, useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface LandingModalContextType {
-  showDemoModal: boolean;
   showWorkspaceModal: boolean;
   showOrderLookupModal: boolean;
-  selectedTier: string;
-  requestType: "DEMO" | "CONTRACT_QUOTE";
   openDemoModal: (tierName?: string, type?: "DEMO" | "CONTRACT_QUOTE") => void;
-  closeDemoModal: () => void;
   openWorkspaceModal: () => void;
   closeWorkspaceModal: () => void;
   openOrderLookupModal: () => void;
   closeOrderLookupModal: () => void;
 }
 
+function buildDemoPath(
+  tierName?: string,
+  type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
+) {
+  const params = new URLSearchParams();
+  if (tierName?.trim()) {
+    params.set("tier", tierName);
+  }
+  params.set("type", type);
+  return `/demo?${params.toString()}`;
+}
+
 const defaultContextValue: LandingModalContextType = {
-  showDemoModal: false,
   showWorkspaceModal: false,
   showOrderLookupModal: false,
-  selectedTier: "Gói Doanh Nghiệp (Enterprise)",
-  requestType: "DEMO",
-  openDemoModal: () => {},
-  closeDemoModal: () => {},
+  openDemoModal: (tierName, type) => {
+    window.location.assign(buildDemoPath(tierName, type));
+  },
   openWorkspaceModal: () => {},
   closeWorkspaceModal: () => {},
   openOrderLookupModal: () => {},
@@ -31,25 +38,16 @@ const defaultContextValue: LandingModalContextType = {
 const LandingModalContext = createContext<LandingModalContextType>(defaultContextValue);
 
 export function LandingModalProvider({ children }: { children: React.ReactNode }) {
-  const [showDemoModal, setShowDemoModal] = useState(false);
+  const navigate = useNavigate();
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showOrderLookupModal, setShowOrderLookupModal] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<string>("Gói Doanh Nghiệp (Enterprise)");
-  const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">("DEMO");
 
   // Navigate to the dedicated /demo page instead of opening a popup modal.
   const openDemoModal = (
-    tierName: string = "Tư Vấn Giải Pháp Doanh Nghiệp",
-    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO"
+    tierName?: string,
+    type: "DEMO" | "CONTRACT_QUOTE" = "DEMO",
   ) => {
-    setSelectedTier(tierName);
-    setRequestType(type);
-    const params = new URLSearchParams({ tier: tierName, type });
-    window.location.href = `/demo?${params.toString()}`;
-  };
-
-  const closeDemoModal = () => {
-    setShowDemoModal(false);
+    navigate(buildDemoPath(tierName, type));
   };
 
   const openWorkspaceModal = () => {
@@ -71,13 +69,9 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
   return (
     <LandingModalContext.Provider
       value={{
-        showDemoModal,
         showWorkspaceModal,
         showOrderLookupModal,
-        selectedTier,
-        requestType,
         openDemoModal,
-        closeDemoModal,
         openWorkspaceModal,
         closeWorkspaceModal,
         openOrderLookupModal,

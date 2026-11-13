@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
   CheckCircle2,
   Copy,
@@ -19,15 +19,24 @@ import {
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { toast } from "@/stores/toastStore";
+import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 import { LegalPolicyModal, type LegalPolicyTab } from "../components/modals/LegalPolicyModal";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatQuotaLimit } from "@/lib/quotaFormatters";
 
-const CURRENT_POLICY_VERSION = "v2026.10";
+const CURRENT_POLICY_VERSION = LEGAL_POLICY_META.version;
 
 export function CheckoutPage() {
+  const navigate = useNavigate();
+  const t = useT();
+  const locale = useLocale();
   const { planCode } = useParams<{ planCode: string }>();
   const [searchParams] = useSearchParams();
   const invoiceParam = searchParams.get("invoice") || searchParams.get("invoiceId") || searchParams.get("invoiceNumber");
-  // Wizard Step: 1 = Đặt hàng, 2 = Thanh toán, 3 = Kích hoạt
+  // Wizard Step: 1 = Order, 2 = Payment, 3 = Activate
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>(
@@ -81,7 +90,7 @@ export function CheckoutPage() {
           setCurrentStep(3);
           window.scrollTo({ top: 0, behavior: "smooth" });
         } else if (statusRes && statusRes.status === "CANCELLED") {
-          setErrorMsg("Đơn hàng này đã quá hạn thanh toán 7 ngày và đã bị hủy. Tên miền phụ (subdomain) đã được giải phóng để người dùng khác có thể đăng ký.");
+          setErrorMsg(t("master.commerce.checkout.errors.expiredCancelled"));
         }
       } catch (err) {
         console.debug("Status polling check...", err);
@@ -89,7 +98,7 @@ export function CheckoutPage() {
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [currentStep, orderResult?.invoiceId]);
+  }, [currentStep, orderResult?.invoiceId, t]);
 
   // If invoiceId or invoice is provided in URL (e.g. from Order Lookup), load the pending order directly into Step 2
   useEffect(() => {
@@ -102,11 +111,24 @@ export function CheckoutPage() {
           if (data.planCode) {
             setSelectedPlanCode(data.planCode.toUpperCase());
           }
+          if (data.quantity && data.quantity > 0) {
+            setQuantity(data.quantity);
+          }
+          if (data.workspaceName) setWorkspaceName(data.workspaceName);
+          if (data.adminFullName) setAdminFullName(data.adminFullName);
+          if (data.adminEmail) setAdminEmail(data.adminEmail);
+          if (data.adminPhone) setAdminPhone(data.adminPhone);
+          if (data.taxCode || data.companyLegalName || data.billingAddress) {
+            setNeedCompanyInvoice(true);
+            if (data.taxCode) setTaxCode(data.taxCode);
+            if (data.companyLegalName) setCompanyLegalName(data.companyLegalName);
+            if (data.billingAddress) setBillingAddress(data.billingAddress);
+          }
           if (data.status === "PAID") {
             setCurrentStep(3);
           } else if (data.status === "CANCELLED") {
             setCurrentStep(2);
-            setErrorMsg("Đơn hàng này đã quá hạn thanh toán 7 ngày và đã bị hủy. Tên miền phụ (subdomain) đã được giải phóng để người dùng khác có thể đăng ký.");
+            setErrorMsg(t("master.commerce.checkout.errors.expiredCancelled"));
           } else {
             setCurrentStep(2);
           }
@@ -114,10 +136,10 @@ export function CheckoutPage() {
       })
       .catch((err) => {
         console.error("Failed to load invoice order details", err);
-        setErrorMsg("Không tìm thấy thông tin đơn hàng này hoặc đơn hàng không tồn tại.");
+        setErrorMsg(t("master.commerce.checkout.errors.orderNotFound"));
       })
       .finally(() => setLoading(false));
-  }, [invoiceParam]);
+  }, [invoiceParam, t]);
 
   // Fetch public plans
   useEffect(() => {
@@ -133,11 +155,11 @@ export function CheckoutPage() {
         console.warn("Could not fetch dynamic plans, using defaults", err);
       });
   }, [planCode]);
-  const defaultFallbackPlans: PublicSubscriptionPlan[] = [
+  const defaultFallbackPlans = useMemo<PublicSubscriptionPlan[]>(() => [
     {
       id: 1,
       code: "STARTER",
-      name: "Gói Khởi Đầu (Starter)",
+      name: t("master.commerce.checkout.fallbackPlans.starter"),
       priceYearly: 12000000,
       maxJobs: 5,
       maxCvParses: 200,
@@ -147,7 +169,7 @@ export function CheckoutPage() {
     {
       id: 2,
       code: "PROFESSIONAL",
-      name: "Gói Chuyên Nghiệp (Professional)",
+      name: t("master.commerce.checkout.fallbackPlans.professional"),
       priceYearly: 36000000,
       maxJobs: 25,
       maxCvParses: 2500,
@@ -157,28 +179,28 @@ export function CheckoutPage() {
     {
       id: 3,
       code: "ENTERPRISE",
-      name: "Gói Doanh Nghiệp (Enterprise)",
+      name: t("master.commerce.checkout.fallbackPlans.enterprise"),
       priceYearly: 99000000,
       maxJobs: 100,
       maxCvParses: 15000,
       maxAiInterviewHours: 150,
       status: "ACTIVE",
     },
-  ];
+  ], [t]);
   const currentPlan = useMemo(() => {
     const pool = plans.length > 0 ? plans : defaultFallbackPlans;
     return pool.find((p) => p.code.toUpperCase() === selectedPlanCode) || pool[1];
-  }, [plans, selectedPlanCode]);
+  }, [plans, defaultFallbackPlans, selectedPlanCode]);
   const currentAmountVnd = useMemo(() => {
     if (!currentPlan) return 0;
-    const basePrice = currentPlan.priceYearly || 36000000;
+    const basePrice = currentPlan.priceYearly ?? 0;
     return basePrice * quantity;
   }, [currentPlan, quantity]);
   // Realtime Subdomain Check
   const handleCheckSubdomain = async () => {
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSub || cleanSub.length < 3) {
-      alert("Subdomain phải có ít nhất 3 ký tự (chữ thường, số, gạch ngang).");
+      toast.warning(t("master.commerce.checkout.errors.subdomainMinLength"));
       return;
     }
     setSubdomainStatus("CHECKING");
@@ -198,12 +220,18 @@ export function CheckoutPage() {
     const start = dateStr ? new Date(dateStr) : new Date();
     const end = new Date(start);
     end.setFullYear(start.getFullYear() + years);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const fmt = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-    return `${years} Năm (${fmt(start)} - ${fmt(end)})`;
+    return t("master.commerce.checkout.usagePeriod", {
+      years,
+      start: formatDate(start, undefined, locale),
+      end: formatDate(end, undefined, locale),
+    });
   };
   const handleDownloadQr = async () => {
-    const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
+    const qrSource = orderResult?.qrUrl;
+    if (!qrSource) {
+      toast.error(t("master.commerce.checkout.errors.qrMissing"));
+      return;
+    }
     try {
       const res = await fetch(qrSource);
       const blob = await res.blob();
@@ -228,15 +256,15 @@ export function CheckoutPage() {
     }
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSub || cleanSub.length < 2) {
-      setErrorMsg("Vui lòng nhập Subdomain hợp lệ (mycompany).");
+      setErrorMsg(t("master.commerce.checkout.errors.subdomainInvalid"));
       return;
     }
     if (!workspaceName.trim()) {
-      setErrorMsg("Vui lòng nhập Tên Không gian làm việc.");
+      setErrorMsg(t("master.commerce.checkout.errors.workspaceRequired"));
       return;
     }
     if (!adminFullName.trim() || !adminEmail.trim() || !adminPhone.trim()) {
-      setErrorMsg("Vui lòng điền đầy đủ Họ tên, Email và Số điện thoại quản trị viên.");
+      setErrorMsg(t("master.commerce.checkout.errors.adminFieldsRequired"));
       return;
     }
     if (!isTermsAccepted) {
@@ -274,7 +302,7 @@ export function CheckoutPage() {
       setCurrentStep(2);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại.";
+      const msg = err.response?.data?.message || t("master.commerce.checkout.errors.createOrderFailed");
       setErrorMsg(msg);
     } finally {
       setLoading(false);
@@ -293,10 +321,10 @@ export function CheckoutPage() {
       if (res && res.paymentUrl) {
         window.location.href = res.paymentUrl;
       } else {
-        setErrorMsg("Không nhận được đường dẫn thanh toán từ cổng VNPay.");
+        setErrorMsg(t("master.commerce.checkout.errors.vnpayMissingUrl"));
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Không thể kết nối tới cổng thanh toán VNPay. Vui lòng thử lại.";
+      const msg = err.response?.data?.message || t("master.commerce.checkout.errors.vnpayConnectFailed");
       setErrorMsg(msg);
     } finally {
       setVnpayLoading(false);
@@ -312,10 +340,11 @@ export function CheckoutPage() {
     <div className="min-h-screen bg-[#F0F2F4] text-slate-800 font-sans antialiased pb-24">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <img src="/logo-smarthrie.png" alt="SmartHire AI" className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center group">
+            <SmartHireLogo className="h-9 sm:h-10" />
           </Link>
+          <LanguageSwitcher variant="icon" />
         </div>
       </header>
       {/* 3-STEP PROGRESS WIZARD STEPPER */}
@@ -341,7 +370,7 @@ export function CheckoutPage() {
                       : "text-slate-400"
                 }
               >
-                Đặt hàng
+                {t("master.commerce.checkout.steps.order")}
               </span>
             </div>
             {/* Connector 1-2 */}
@@ -370,7 +399,7 @@ export function CheckoutPage() {
                       : "text-slate-400"
                 }
               >
-                Thanh toán
+                {t("master.commerce.checkout.steps.payment")}
               </span>
             </div>
             {/* Connector 2-3 */}
@@ -395,7 +424,7 @@ export function CheckoutPage() {
                     : "text-slate-400"
                 }
               >
-                Kích hoạt
+                {t("master.commerce.checkout.steps.activate")}
               </span>
             </div>
           </div>
@@ -409,127 +438,158 @@ export function CheckoutPage() {
             <span>{errorMsg}</span>
           </div>
         )}
+        {invoiceParam && loading && !orderResult && (
+          <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        )}
         {/* ======================================================== */}
-        {/* BƯỚC 1: THÔNG TIN ĐẶT HÀNG                               */}
+        {/* STEP 1: ORDER INFORMATION                                */}
         {/* ======================================================== */}
-        {currentStep === 1 && (
+        {currentStep === 1 && !(invoiceParam && loading) && (
           <div className="animate-fade-in">
             <div className="mb-5">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                Thông tin đặt hàng
+                {t("master.commerce.checkout.step1.title")}
               </h1>
             </div>
             <form onSubmit={handleProceedToPayment} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Left Column: Gói hàng, Đơn vị sử dụng, Xuất hóa đơn (8 cols) */}
+              {/* Left Column */}
               <div className="lg:col-span-8 space-y-6">
-                {/* 1. GÓI HÀNG (Thông tin gói mua) */}
+                {/* 1. SELECTED PLAN */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-3.5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h2 className="text-sm font-bold text-slate-900">Gói Dịch Vụ Đã Chọn</h2>
+                    <h2 className="text-sm font-bold text-slate-900">{t("master.commerce.checkout.step1.selectedPlanTitle")}</h2>
                     <Link
                       to="/pricing"
                       className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 shrink-0"
                     >
-                      Đổi gói cước
+                      {t("master.commerce.checkout.step1.changePlan")}
                     </Link>
                   </div>
 
-                  {/* Thông tin chi tiết xếp theo dạng dòng gọn gàng, không icon */}
                   <div className="divide-y divide-slate-100 text-xs">
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Tên gói cước:</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.planNameLabel")}</span>
                       <span className="font-bold text-slate-900 text-sm">{currentPlan.name}</span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Chu kỳ thanh toán:</span>
-                      <span className="font-medium text-slate-800">Hàng năm</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.billingCycleLabel")}</span>
+                      <span className="font-medium text-slate-800">{t("master.commerce.checkout.step1.billingCycleYearly")}</span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Đơn giá niêm yết:</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.listPriceLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ / năm
+                        {currentPlan.priceYearly > 0
+                          ? t("master.commerce.checkout.step1.pricePerYear", {
+                              price: formatNumber(currentPlan.priceYearly, undefined, locale),
+                            })
+                          : t("master.commerce.checkout.step1.contactQuote")}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Vị trí tuyển dụng:</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.jobsLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxJobs > 0 ? `${currentPlan.maxJobs} vị trí` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxJobs, t("master.commerce.checkout.step1.jobsUnit"), {
+                          locale,
+                          monthly: false,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Sàng lọc CV AI:</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.cvScreeningLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxCvParses > 0 ? `${currentPlan.maxCvParses.toLocaleString()} CVs / tháng` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxCvParses, t("master.commerce.checkout.step1.cvUnit"), {
+                          locale,
+                          monthly: true,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between py-2">
-                      <span className="text-slate-500">Phỏng vấn trợ lý AI:</span>
+                      <span className="text-slate-500">{t("master.commerce.checkout.step1.aiInterviewLabel")}</span>
                       <span className="font-semibold text-slate-900">
-                        {currentPlan.maxAiInterviewHours && currentPlan.maxAiInterviewHours > 0 ? `${currentPlan.maxAiInterviewHours} giờ` : "Không giới hạn"}
+                        {formatQuotaLimit(currentPlan.maxAiInterviewHours, t("master.commerce.checkout.step1.aiUnit"), {
+                          locale,
+                          monthly: true,
+                          unlimitedLabel: t("master.commerce.common.unlimited"),
+                          unsupportedLabel: t("master.commerce.common.unsupported"),
+                          monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                        })}
                       </span>
                     </div>
                   </div>
 
-                  {/* Dòng Thời hạn bản quyền & Tính tiền (nhỏ gọn) */}
+                  {/* License Duration Stepper */}
                   <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                    {/* Left: Stepper nhỏ */}
                     <div className="flex items-center gap-2.5">
-                      <span className="font-bold text-slate-700">Thời hạn bản quyền:</span>
+                      <span className="font-bold text-slate-700">{t("master.commerce.checkout.step1.licenseTermLabel")}</span>
                       <div className="flex items-center h-7 border border-slate-200 rounded-md bg-white overflow-hidden shadow-2xs">
                         <button
                           type="button"
                           onClick={() => setQuantity(q => Math.max(1, q - 1))}
                           disabled={quantity <= 1}
                           className="w-7 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors font-bold text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Giảm 1 năm"
+                          title={t("master.commerce.checkout.step1.decreaseYearTitle")}
+                          aria-label={t("master.commerce.checkout.step1.decreaseYearTitle")}
                         >
                           -
                         </button>
                         <div className="px-2.5 h-full flex items-center justify-center font-bold text-xs text-slate-900 border-x border-slate-100 min-w-[55px]">
-                          {quantity} Năm
+                          {t("master.commerce.checkout.step1.yearsCount", { count: quantity })}
                         </div>
                         <button
                           type="button"
                           onClick={() => setQuantity(q => Math.min(10, q + 1))}
                           disabled={quantity >= 10}
                           className="w-7 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors font-bold text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Tăng 1 năm"
+                          title={t("master.commerce.checkout.step1.increaseYearTitle")}
+                          aria-label={t("master.commerce.checkout.step1.increaseYearTitle")}
                         >
                           +
                         </button>
                       </div>
                     </div>
 
-                    {/* Right: Phép tính & Thành tiền */}
                     <div className="flex items-center gap-1.5 sm:justify-end">
                       <span className="text-slate-500 text-[11px]">
-                        {quantity > 1 ? `${quantity} x ${(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ =` : "Thành tiền:"}
+                        {quantity > 1
+                          ? t("master.commerce.checkout.step1.calcPrefix", {
+                              count: quantity,
+                              price: formatNumber(currentPlan.priceYearly ?? 0, undefined, locale),
+                            })
+                          : t("master.commerce.checkout.step1.subtotalLabel")}
                       </span>
                       <span className="text-base font-extrabold text-slate-900">
-                        {currentAmountVnd.toLocaleString('vi-VN')}
+                        {formatNumber(currentAmountVnd, undefined, locale)}
                       </span>
-                      <span className="text-xs font-bold text-slate-700">VNĐ</span>
+                      <span className="text-xs font-bold text-slate-700">{t("master.commerce.common.vnd")}</span>
                     </div>
                   </div>
                 </div>
-                {/* 2. THÔNG TIN ĐƠN VỊ SỬ DỤNG */}
+                {/* 2. ORGANIZATION INFO */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="pb-3 border-b border-slate-100">
-                    <h2 className="text-base font-bold text-slate-900">Thông Tin Đơn Vị Sử Dụng</h2>
+                    <h2 className="text-base font-bold text-slate-900">{t("master.commerce.checkout.step1.unitSectionTitle")}</h2>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Tên Doanh Nghiệp / Tổ Chức
+                      {t("master.commerce.checkout.step1.companyNameLabel")}
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder=" Công Ty Cổ Phần Công Nghệ Acme"
+                      placeholder={t("master.commerce.checkout.step1.companyNamePlaceholder")}
                       value={workspaceName}
                       onChange={(e) => setWorkspaceName(e.target.value)}
                       className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-medium text-slate-800"
@@ -537,7 +597,7 @@ export function CheckoutPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Địa Chỉ Subdomain Độc Lập
+                      {t("master.commerce.checkout.step1.subdomainLabel")}
                     </label>
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
@@ -563,31 +623,31 @@ export function CheckoutPage() {
                         disabled={!subdomain || subdomainStatus === "CHECKING"}
                         className="px-4 py-3 text-sm font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shrink-0 disabled:opacity-50"
                       >
-                        {subdomainStatus === "CHECKING" ? "Đang check..." : "Kiểm tra"}
+                        {subdomainStatus === "CHECKING" ? t("master.commerce.checkout.step1.subdomainChecking") : t("master.commerce.checkout.step1.subdomainCheckBtn")}
                       </button>
                     </div>
                     {subdomainStatus === "AVAILABLE" && (
                       <p className="text-[11px] font-semibold text-emerald-600 mt-1.5 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Subdomain khả dụng: https://{subdomain}.smarthire.top</span>
+                        <span>{t("master.commerce.checkout.step1.subdomainAvailable", { subdomain })}</span>
                       </p>
                     )}
                     {subdomainStatus === "TAKEN" && (
                       <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Subdomain này đã có đơn vị sử dụng. Vui lòng chọn tên khác.</span>
+                        <span>{t("master.commerce.checkout.step1.subdomainTaken")}</span>
                       </p>
                     )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Họ và Tên Admin Quản Trị
+                        {t("master.commerce.checkout.step1.adminNameLabel")}
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="Nguyễn Văn A"
+                        placeholder={t("master.commerce.checkout.step1.adminNamePlaceholder")}
                         value={adminFullName}
                         onChange={(e) => setAdminFullName(e.target.value)}
                         className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
@@ -595,7 +655,7 @@ export function CheckoutPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Số Điện Thoại Liên Hệ
+                        {t("master.commerce.checkout.step1.adminPhoneLabel")}
                       </label>
                       <input
                         type="tel"
@@ -609,7 +669,7 @@ export function CheckoutPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Email Nhận Hóa Đơn &amp; Liên Kết Kích Hoạt
+                      {t("master.commerce.checkout.step1.adminEmailLabel")}
                     </label>
                     <input
                       type="email"
@@ -621,10 +681,10 @@ export function CheckoutPage() {
                     />
                   </div>
                 </div>
-                {/* 3. THÔNG TIN XUẤT HÓA ĐƠN DOANH NGHIỆP */}
+                {/* 3. B2B INVOICE DETAILS */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h2 className="text-base font-bold text-slate-900">Thông Tin Xuất Hóa Đơn Doanh Nghiệp (Tùy chọn)</h2>
+                    <h2 className="text-base font-bold text-slate-900">{t("master.commerce.checkout.step1.invoiceSectionTitle")}</h2>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
@@ -645,11 +705,11 @@ export function CheckoutPage() {
                     <div className="space-y-4 pt-1 animate-fade-in">
                       <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                          Tên Pháp Nhân Doanh Nghiệp
+                          {t("master.commerce.checkout.step1.legalNameLabel")}
                         </label>
                         <input
                           type="text"
-                          placeholder="CÔNG TY CỔ PHẦN CÔNG NGHỆ ACME VIỆT NAM"
+                          placeholder={t("master.commerce.checkout.step1.legalNamePlaceholder")}
                           value={companyLegalName}
                           onChange={(e) => setCompanyLegalName(e.target.value)}
                           className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
@@ -658,7 +718,7 @@ export function CheckoutPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                            Mã Số Thuế (MST)
+                            {t("master.commerce.checkout.step1.taxCodeLabel")}
                           </label>
                           <input
                             type="text"
@@ -671,7 +731,7 @@ export function CheckoutPage() {
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <label className="block text-sm font-bold text-slate-700">
-                              Địa Chỉ Trụ Sở ĐKKD
+                              {t("master.commerce.checkout.step1.addressLabel")}
                             </label>
                             <button
                               type="button"
@@ -681,35 +741,35 @@ export function CheckoutPage() {
                                     async (position) => {
                                       try {
                                         const { latitude, longitude } = position.coords;
-                                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=vi`);
+                                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${locale}`);
                                         const data = await res.json();
                                         if (data && data.display_name) {
                                           setBillingAddress(data.display_name);
                                         } else {
                                           setBillingAddress(`${latitude}, ${longitude}`);
                                         }
-                                      } catch (error) {
+                                      } catch {
                                         setBillingAddress(`${position.coords.latitude}, ${position.coords.longitude}`);
                                       }
                                     },
                                     () => {
-                                      alert("Không thể lấy vị trí hiện tại. Vui lòng cấp quyền truy cập vị trí.");
+                                      toast.warning(t("master.commerce.checkout.errors.geoDenied"));
                                     }
                                   );
                                 } else {
-                                  alert("Trình duyệt không hỗ trợ lấy vị trí.");
+                                  toast.warning(t("master.commerce.checkout.errors.geoUnsupported"));
                                 }
                               }}
                               className="text-blue-600 hover:text-blue-700 p-1 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-1 text-[11px] font-semibold"
-                              title="Lấy vị trí hiện tại"
+                              title={t("master.commerce.checkout.step1.getLocationTitle")}
                             >
                               <MapPin className="w-3.5 h-3.5" />
-                              Lấy vị trí
+                              {t("master.commerce.checkout.step1.getLocationBtn")}
                             </button>
                           </div>
                           <input
                             type="text"
-                            placeholder="Số 10 Phạm Hùng, Cầu Giấy, Hà Nội"
+                            placeholder={t("master.commerce.checkout.step1.addressPlaceholder")}
                             value={billingAddress}
                             onChange={(e) => setBillingAddress(e.target.value)}
                             className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
@@ -720,11 +780,11 @@ export function CheckoutPage() {
                   )}
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                      Ghi chú đơn hàng (nếu có)
+                      {t("master.commerce.checkout.step1.notesLabel")}
                     </label>
                     <textarea
                       rows={3}
-                      placeholder="Lưu ý khi xuất hóa đơn hoặc triển khai..."
+                      placeholder={t("master.commerce.checkout.step1.notesPlaceholder")}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800 resize-none"
@@ -732,13 +792,12 @@ export function CheckoutPage() {
                   </div>
                 </div>
               </div>
-              {/* Right Column: Phương thức thanh toán & Tóm tắt chi phí (4 cols) */}
+              {/* Right Column */}
               <div className="lg:col-span-4 space-y-6">
-                {/* 1. PHƯƠNG THỨC THANH TOÁN (Cuộn bình thường) */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
-                  <h2 className="text-base font-bold text-slate-900">Phương thức thanh toán</h2>
+                  <h2 className="text-base font-bold text-slate-900">{t("master.commerce.checkout.step1.paymentMethodTitle")}</h2>
                   <div className="space-y-2.5 pt-1">
-                    {/* Chuyển khoản */}
+                    {/* Transfer */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("TRANSFER");
@@ -768,10 +827,10 @@ export function CheckoutPage() {
                           : "text-slate-800 font-medium"
                           }`}
                       >
-                        Chuyển khoản VietQR
+                        {t("master.commerce.checkout.step1.methodTransfer")}
                       </span>
                     </div>
-                    {/* Thẻ ATM nội địa */}
+                    {/* Domestic ATM */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("ATM");
@@ -799,10 +858,10 @@ export function CheckoutPage() {
                           : "text-slate-800 font-medium"
                           }`}
                       >
-                        Thẻ ATM nội địa
+                        {t("master.commerce.checkout.step1.methodAtm")}
                       </span>
                     </div>
-                    {/* Thẻ quốc tế */}
+                    {/* International Card */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("INTERNATIONAL");
@@ -832,10 +891,10 @@ export function CheckoutPage() {
                           : "text-slate-800 font-medium"
                           }`}
                       >
-                        Thẻ quốc tế (Visa/Master)
+                        {t("master.commerce.checkout.step1.methodIntl")}
                       </span>
                     </div>
-                    {/* Ví điện tử */}
+                    {/* E-Wallet */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("E_WALLET");
@@ -863,61 +922,65 @@ export function CheckoutPage() {
                           : "text-slate-800 font-medium"
                           }`}
                       >
-                        Ví điện tử
+                        {t("master.commerce.checkout.step1.methodEwallet")}
                       </span>
                     </div>
                   </div>
                 </div>
-                {/* 2. CHI TIẾT ĐƠN HÀNG (CẮT TÁCH: Phần chi tiết cuộn bình thường, Chỉ khối Tổng Tiền & Nút Thanh Toán là Sticky) */}
+                {/* 2. ORDER SUMMARY */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <h2 className="text-base font-bold text-slate-900">Chi Tiết Đơn Hàng</h2>
+                    <h2 className="text-base font-bold text-slate-900">{t("master.commerce.checkout.step1.orderDetailsTitle")}</h2>
                     <span className="text-xs font-semibold text-slate-500">
-                      {`Bản quyền ${quantity} Năm`}
+                      {t("master.commerce.checkout.step1.licenseBadge", { count: quantity })}
                     </span>
                   </div>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between text-slate-500">
-                      <span>Gói dịch vụ:</span>
+                      <span>{t("master.commerce.checkout.step1.detailPlanLabel")}</span>
                       <span className="font-semibold text-slate-800">{currentPlan.name}</span>
                     </div>
                     <div className="flex justify-between text-slate-500">
-                      <span>Chu kỳ thanh toán:</span>
+                      <span>{t("master.commerce.checkout.step1.detailCycleLabel")}</span>
                       <span className="font-semibold text-slate-800">
-                        Hàng năm
+                        {t("master.commerce.checkout.step1.billingCycleYearly")}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-500">
-                      <span>Thời hạn bản quyền:</span>
+                      <span>{t("master.commerce.checkout.step1.detailTermLabel")}</span>
                       <span className="font-semibold text-blue-600">
-                        {quantity} Năm
+                        {t("master.commerce.checkout.step1.yearsCount", { count: quantity })}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-500">
-                      <span>Đơn giá niêm yết:</span>
+                      <span>{t("master.commerce.checkout.step1.detailListPriceLabel")}</span>
                       <span className="font-medium text-slate-700">
-                        {(currentPlan.priceYearly || 0).toLocaleString("vi-VN")} đ / năm
+                        {t("master.commerce.checkout.step1.pricePerYear", {
+                          price: formatNumber(currentPlan.priceYearly || 0, undefined, locale),
+                        })}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-500">
-                      <span>Tạm tính:</span>
+                      <span>{t("master.commerce.checkout.step1.detailSubtotalLabel")}</span>
                       <span className="font-medium text-slate-700">
-                        {currentAmountVnd.toLocaleString("vi-VN")} đ
+                        {t("master.commerce.checkout.step1.detailSubtotalValue", {
+                          amount: formatNumber(currentAmountVnd, undefined, locale),
+                        })}
                       </span>
                     </div>
 
                   </div>
                 </div>
-                {/* KHỐI TỔNG TIỀN & NÚT THANH TOÁN (STICKY ĐÁY MÀN HÌNH CHỈ RIÊNG PHẦN NÀY) */}
+                {/* STICKY TOTAL & PAY CTA */}
                 <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 p-5 shadow-xl space-y-3.5 sticky bottom-4 z-30 ring-1 ring-slate-900/5">
                   <div className="flex justify-between items-baseline text-base font-extrabold text-slate-900">
-                    <span>Tổng thanh toán:</span>
+                    <span>{t("master.commerce.checkout.step1.totalPaymentLabel")}</span>
                     <span className="text-slate-900 text-xl font-black">
-                      {currentAmountVnd.toLocaleString("vi-VN")} <span className="text-xs font-bold text-slate-600">VNĐ</span>
+                      {formatNumber(currentAmountVnd, undefined, locale)} <span className="text-xs font-bold text-slate-600">{t("master.commerce.common.vnd")}</span>
                     </span>
                   </div>
 
-                  {/* Click-wrap Legal Consent Checkbox (Explicit Opt-in) */}
+                  {/* Click-wrap Legal Consent Checkbox */}
                   <div
                     className={`p-3 rounded-xl border transition-all ${termsError && !isTermsAccepted
                       ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-100"
@@ -945,30 +1008,42 @@ export function CheckoutPage() {
                         className={`text-xs leading-relaxed cursor-pointer select-none ${termsError && !isTermsAccepted ? "text-rose-700 font-medium" : "text-slate-600"
                           }`}
                       >
-                        Tôi đồng ý với{" "}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPolicyModalTab("TOS");
-                          }}
-                          className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
-                        >
-                          Thỏa thuận mua hàng
-                        </button>{" "}
-                        và{" "}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPolicyModalTab("PRIVACY_ND13");
-                          }}
-                          className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
-                        >
-                          Chính sách bảo vệ dữ liệu cá nhân
-                        </button>
+                        {t("master.commerce.checkout.step1.consentAgreement", {
+                          tos: "__TOS_LINK__",
+                          privacy: "__PRIVACY_LINK__",
+                        })
+                          .split(/(__TOS_LINK__|__PRIVACY_LINK__)/g)
+                          .map((part, idx) =>
+                            part === "__TOS_LINK__" ? (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setPolicyModalTab("TOS");
+                                }}
+                                className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                              >
+                                {t("master.commerce.checkout.step1.consentTosLink")}
+                              </button>
+                            ) : part === "__PRIVACY_LINK__" ? (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setPolicyModalTab("PRIVACY_2025");
+                                }}
+                                className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                              >
+                                {t("master.commerce.checkout.step1.consentPrivacyLink")}
+                              </button>
+                            ) : (
+                              part
+                            ),
+                          )}
                       </label>
                     </div>
                   </div>
@@ -986,11 +1061,11 @@ export function CheckoutPage() {
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Đang khởi tạo đơn hàng...</span>
+                        <span>{t("master.commerce.checkout.step1.submittingOrderBtn")}</span>
                       </>
                     ) : (
                       <>
-                        <span>Thanh Toán</span>
+                        <span>{t("master.commerce.checkout.step1.payBtn")}</span>
                       </>
                     )}
                   </button>
@@ -998,7 +1073,7 @@ export function CheckoutPage() {
                   {termsError && !isTermsAccepted && (
                     <p className="text-xs font-semibold text-rose-600 flex items-center gap-1.5 animate-fade-in">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                      <span>Vui lòng tích chọn đồng ý với Điều khoản dịch vụ trước khi thanh toán.</span>
+                      <span>{t("master.commerce.checkout.errors.termsRequired")}</span>
                     </p>
                   )}
                 </div>
@@ -1007,18 +1082,18 @@ export function CheckoutPage() {
           </div>
         )}
         {/* ======================================================== */}
-        {/* BƯỚC 2: THANH TOÁN (CỔNG THANH TOÁN & VIETQR CHÍNH THỨC) */}
+        {/* STEP 2: PAYMENT                                          */}
         {/* ======================================================== */}
         {currentStep === 2 && orderResult && (
           <div className="animate-fade-in max-w-5xl mx-auto">
             <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 p-6 sm:p-8 lg:p-10 shadow-sm">
-              {/* Header: ← Thông tin thanh toán */}
+              {/* Header */}
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     if (invoiceParam) {
-                      window.location.href = "/pricing";
+                      navigate("/pricing");
                     } else {
                       setCurrentStep(1);
                     }
@@ -1026,35 +1101,34 @@ export function CheckoutPage() {
                   className="inline-flex items-center gap-2.5 text-lg sm:text-xl font-bold text-slate-900 hover:text-blue-600 transition-colors group"
                 >
                   <ArrowLeft className="w-5 h-5 text-slate-800 group-hover:-translate-x-0.5 transition-transform" />
-                  <span>{invoiceParam ? "Quay lại Bảng giá" : "Thông tin thanh toán"}</span>
+                  <span>{invoiceParam ? t("master.commerce.checkout.step2.backToPricing") : t("master.commerce.checkout.step2.paymentInfoTitle")}</span>
                 </button>
 
                 {invoiceParam && (
                   <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full font-medium inline-flex items-center gap-1.5 self-start sm:self-auto">
                     <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                    Đang thanh toán đơn hàng #{orderResult?.invoiceNumber}
+                    {t("master.commerce.checkout.step2.payingOrderBadge", { invoiceNumber: orderResult?.invoiceNumber ?? "" })}
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
 
-                {/* CỘT TRÁI: PHƯƠNG THỨC & THÔNG TIN THANH TOÁN (7 cols) */}
+                {/* LEFT COLUMN: PAYMENT METHODS */}
                 <div className="lg:col-span-7 space-y-4">
-                  {/* Dòng Phương thức thanh toán - Số tiền */}
                   <div className="flex items-center justify-between text-sm sm:text-base min-h-[28px]">
-                    <span className="font-bold text-slate-900">Phương thức thanh toán</span>
+                    <span className="font-bold text-slate-900">{t("master.commerce.checkout.step2.paymentMethodHeading")}</span>
                     <span className="text-slate-700">
-                      Số tiền:{" "}
+                      {t("master.commerce.checkout.step2.amountPrefix")}{" "}
                       <span className="font-bold text-[#059669]">
-                        {orderResult.amountVnd.toLocaleString("vi-VN")} VND
+                        {formatNumber(orderResult.amountVnd, undefined, locale)} {t("master.commerce.common.vndCode")}
                       </span>
                     </span>
                   </div>
 
-                  {/* 4 Nút Chọn Phương Thức (Grid 2x2) */}
+                  {/* 4 Payment Tab Buttons (Grid 2x2) */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
-                    {/* 1. Chuyển khoản */}
+                    {/* 1. Transfer */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1067,10 +1141,10 @@ export function CheckoutPage() {
                         }`}
                     >
                       <ArrowLeftRight className="w-4 h-4" />
-                      <span>Chuyển khoản</span>
+                      <span>{t("master.commerce.checkout.step2.tabTransfer")}</span>
                     </button>
 
-                    {/* 2. Thẻ nội địa */}
+                    {/* 2. Domestic Card */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1083,10 +1157,10 @@ export function CheckoutPage() {
                         }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Thẻ nội địa</span>
+                      <span>{t("master.commerce.checkout.step2.tabDomesticCard")}</span>
                     </button>
 
-                    {/* 3. Thẻ quốc tế */}
+                    {/* 3. International Card */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1099,7 +1173,7 @@ export function CheckoutPage() {
                         }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Thẻ quốc tế</span>
+                      <span>{t("master.commerce.checkout.step2.tabIntlCard")}</span>
                     </button>
 
                     {/* 4. QR Code */}
@@ -1115,157 +1189,184 @@ export function CheckoutPage() {
                         }`}
                     >
                       <QrCode className="w-4 h-4" />
-                      <span>QR Code</span>
+                      <span>{t("master.commerce.checkout.step2.tabQrCode")}</span>
                     </button>
                   </div>
 
-                  {/* CHI TIẾT THEO TAB ĐƯỢC CHỌN */}
+                  {/* TAB DETAILS */}
                   {activePaymentTab === "TRANSFER" && (
                     <div className="space-y-4 pt-4">
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-                        {/* Cột trái: QR Code to hơn + Lưu mã QR */}
                         <div className="sm:col-span-6 flex flex-col items-center justify-center shrink-0">
-                          <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
-                            <img
-                              src={orderResult?.qrUrl || "/sepay_qr.png"}
-                              alt="VietQR Chuyển Khoản SePay"
-                              className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleDownloadQr}
-                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Lưu mã QR</span>
-                          </button>
+                          {orderResult?.qrUrl ? (
+                            <>
+                              <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
+                                <img
+                                  src={orderResult.qrUrl}
+                                  alt={t("master.commerce.checkout.step2.qrAlt")}
+                                  className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleDownloadQr}
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
+                              </button>
+                            </>
+                          ) : (
+                            <div className="w-52 h-52 sm:w-60 sm:h-60 rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                              <AlertCircle className="w-6 h-6 text-amber-600 mb-2" />
+                              <span className="font-semibold">
+                                {t("master.commerce.checkout.step2.qrUnavailableTitle")}
+                              </span>
+                              <span className="text-[11px] text-amber-700 mt-1">
+                                {t("master.commerce.checkout.step2.qrUnavailableDesc")}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Cột phải: Danh sách thông tin tài khoản nhỏ gọn hơn */}
                         <div className="sm:col-span-6 space-y-2 text-xs sm:text-[13px]">
-                          {/* Số tài khoản */}
+                          {/* Account No */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Số tài khoản:
+                              {t("master.commerce.checkout.step2.accountNumberLabel")}
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.accountNumber || "07744348801"}
+                              {orderResult.accountNumber || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountNumber || "07744348801", "acc")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép số tài khoản"
-                            >
-                              {copiedField === "acc" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountNumber && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountNumber, "acc")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyAccountTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyAccountTitle")}
+                              >
+                                {copiedField === "acc" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
-                          {/* Tên tài khoản */}
+                          {/* Account Holder */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Tên tài khoản:
+                              {t("master.commerce.checkout.step2.accountNameLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.accountName || "NGUYEN NHAT SINH"}
+                              {orderResult.accountName || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(orderResult.accountName || "NGUYEN NHAT SINH", "name")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép tên tài khoản"
-                            >
-                              {copiedField === "name" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.accountName && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.accountName, "name")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyNameTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyNameTitle")}
+                              >
+                                {copiedField === "name" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
-                          {/* Ngân hàng */}
+                          {/* Bank */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Ngân hàng:
+                              {t("master.commerce.checkout.step2.bankLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              {orderResult.bankName || "Ngân hàng TMCP Tiên Phong (TPBank)"}
+                              {orderResult.bankName || "—"}
                             </span>
                           </div>
 
-                          {/* Chi nhánh */}
+                          {/* Branch */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Chi nhánh:
+                              {t("master.commerce.checkout.step2.branchLabel")}
                             </span>
                             <span className="font-semibold text-slate-900 text-xs sm:text-[13px]">
-                              Hà Nội
+                              {orderResult.bankBranch || "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy("Hà Nội", "branch")}
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép chi nhánh"
-                            >
-                              {copiedField === "branch" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.bankBranch && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(orderResult.bankBranch!, "branch")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyBranchTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyBranchTitle")}
+                              >
+                                {copiedField === "branch" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
-                          {/* Số tiền */}
+                          {/* Amount */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Số tiền:
+                              {t("master.commerce.checkout.step2.amountLabel")}
                             </span>
                             <span className="font-bold text-slate-900 text-xs sm:text-[13px]">
-                              {(orderResult.amountVnd || 36000000).toLocaleString("vi-VN")} VND
+                              {orderResult.amountVnd != null
+                                ? `${formatNumber(orderResult.amountVnd, undefined, locale)} ${t("master.commerce.common.vndCode")}`
+                                : "—"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy((orderResult.amountVnd || 36000000).toString(), "amount")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép số tiền"
-                            >
-                              {copiedField === "amount" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {orderResult.amountVnd != null && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(String(orderResult.amountVnd), "amount")}
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyAmountTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyAmountTitle")}
+                              >
+                                {copiedField === "amount" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
 
-                          {/* Nội dung */}
+                          {/* Reference */}
                           <div className="flex items-baseline gap-1.5">
                             <span className="w-24 sm:w-26 text-slate-500 font-normal shrink-0 text-xs sm:text-[13px]">
-                              Nội dung:
+                              {t("master.commerce.checkout.step2.contentLabel")}
                             </span>
                             <span className="font-bold text-slate-900 font-mono text-xs sm:text-[13px]">
-                              {orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`}
+                              {orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber || "INV-202609-5499"}`, "syntax")
-                              }
-                              className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
-                              title="Sao chép nội dung"
-                            >
-                              {copiedField === "syntax" ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            {(orderResult.transferSyntax || orderResult.invoiceNumber) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopy(orderResult.transferSyntax || `SH ${orderResult.invoiceNumber}`, "syntax")
+                                }
+                                className="text-blue-600 hover:text-blue-800 p-0.5 ml-1 transition-colors"
+                                title={t("master.commerce.checkout.step2.copyContentTitle")}
+                                aria-label={t("master.commerce.checkout.step2.copyContentTitle")}
+                              >
+                                {copiedField === "syntax" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1278,9 +1379,9 @@ export function CheckoutPage() {
                         <CreditCard className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-900 text-base">Thanh toán Thẻ nội địa (Napas / VNPay)</h4>
+                        <h4 className="font-bold text-slate-900 text-base">{t("master.commerce.checkout.step2.domesticTitle")}</h4>
                         <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                          Hỗ trợ thanh toán qua thẻ ATM của hơn 40 ngân hàng tại Việt Nam (Vietcombank, BIDV, Techcombank, ACB,...).
+                          {t("master.commerce.checkout.step2.domesticDesc")}
                         </p>
                       </div>
                       <button
@@ -1292,12 +1393,12 @@ export function CheckoutPage() {
                         {vnpayLoading ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Đang kết nối cổng VNPay...</span>
+                            <span>{t("master.commerce.checkout.step2.vnpayConnecting")}</span>
                           </>
                         ) : (
                           <>
                             <ExternalLink className="w-4 h-4" />
-                            <span>Tiến Hành Thanh Toán VNPay</span>
+                            <span>{t("master.commerce.checkout.step2.vnpayProceedBtn")}</span>
                           </>
                         )}
                       </button>
@@ -1307,9 +1408,9 @@ export function CheckoutPage() {
                   {activePaymentTab === "INTL_CARD" && (
                     <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 pt-6">
                       <div className="text-center">
-                        <h4 className="font-bold text-slate-900 text-base">Thanh toán Thẻ Quốc Tế (Visa, Master, JCB, PayPal)</h4>
+                        <h4 className="font-bold text-slate-900 text-base">{t("master.commerce.checkout.step2.intlTitle")}</h4>
                         <p className="text-xs text-slate-500 mt-1">
-                          Thanh toán an toàn tiêu chuẩn quốc tế qua cổng PayPal.
+                          {t("master.commerce.checkout.step2.intlDesc")}
                         </p>
                       </div>
                       <div className="flex justify-center w-full z-0 relative min-h-[160px] pt-2">
@@ -1345,20 +1446,20 @@ export function CheckoutPage() {
                                       setCurrentStep(3);
                                       window.scrollTo({ top: 0, behavior: "smooth" });
                                     } else {
-                                      setErrorMsg(res.message || "Xác thực PayPal thất bại");
+                                      setErrorMsg(res.message || t("master.commerce.checkout.errors.paypalVerifyFailed"));
                                     }
                                   } else {
-                                    setErrorMsg("Thanh toán PayPal chưa hoàn tất: " + details.status);
+                                    setErrorMsg(t("master.commerce.checkout.errors.paypalNotCompleted", { status: details.status ?? "" }));
                                   }
                                 } catch (err: any) {
-                                  setErrorMsg(err?.response?.data?.message || "Lỗi khi xác thực PayPal");
+                                  setErrorMsg(err?.response?.data?.message || t("master.commerce.checkout.errors.paypalVerifyError"));
                                 } finally {
                                   setPaypalVerifying(false);
                                 }
                               }
                             }}
                             onError={(err) => {
-                              setErrorMsg("Lỗi khi tải hoặc thực hiện thanh toán PayPal. Vui lòng thử lại.");
+                              setErrorMsg(t("master.commerce.checkout.errors.paypalSdkError"));
                               console.error(err);
                             }}
                           />
@@ -1370,118 +1471,140 @@ export function CheckoutPage() {
                   {activePaymentTab === "QR_CODE" && (
                     <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl bg-blue-50/40 border border-blue-100 pt-6">
                       <div className="flex flex-col items-center shrink-0">
-                        <img
-                          src={orderResult?.qrUrl || "/sepay_qr.png"}
-                          alt="VietQR Chuyển Khoản SePay"
-                          className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleDownloadQr}
-                          className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Lưu mã QR</span>
-                        </button>
+                        {orderResult?.qrUrl ? (
+                          <>
+                            <img
+                              src={orderResult.qrUrl}
+                              alt={t("master.commerce.checkout.step2.qrAlt")}
+                              className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleDownloadQr}
+                              className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>{t("master.commerce.checkout.step2.saveQrBtn")}</span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="w-44 h-44 rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-3 flex flex-col items-center justify-center text-center text-xs text-amber-900">
+                            <AlertCircle className="w-5 h-5 text-amber-600 mb-1.5" />
+                            <span className="font-semibold">
+                              {t("master.commerce.checkout.step2.qrShortUnavailableTitle")}
+                            </span>
+                            <span className="text-[11px] text-amber-700 mt-1">
+                              {t("master.commerce.checkout.step2.qrShortUnavailableDesc")}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2 text-xs sm:text-sm">
-                        <div className="font-bold text-slate-900 text-base">Mã QR Thanh Toán Tự Động</div>
+                        <div className="font-bold text-slate-900 text-base">{t("master.commerce.checkout.step2.autoQrTitle")}</div>
                         <p className="text-slate-600 text-xs leading-relaxed">
-                          Sử dụng bất kỳ ứng dụng ngân hàng hoặc ví điện tử có hỗ trợ VietQR để quét mã. Số tiền và nội dung chuyển khoản đã được mã hóa tự động chính xác 100%.
+                          {t("master.commerce.checkout.step2.autoQrDesc")}
                         </p>
                         <div className="pt-2 text-xs text-slate-700 space-y-1">
-                          <div>• Số tiền: <strong className="text-emerald-600 font-bold">{orderResult.amountVnd.toLocaleString("vi-VN")} VND</strong></div>
-                          <div>• Nội dung: <strong className="font-mono text-blue-700 font-bold">{orderResult.transferSyntax}</strong></div>
+                          <div>
+                            {t("master.commerce.checkout.step2.autoQrAmount")}{" "}
+                            <strong className="text-emerald-600 font-bold">
+                              {orderResult.amountVnd != null
+                                ? `${formatNumber(orderResult.amountVnd, undefined, locale)} ${t("master.commerce.common.vndCode")}`
+                                : "—"}
+                            </strong>
+                          </div>
+                          <div>
+                            {t("master.commerce.checkout.step2.autoQrContent")}{" "}
+                            <strong className="font-mono text-blue-700 font-bold">
+                              {orderResult.transferSyntax || (orderResult.invoiceNumber ? `SH ${orderResult.invoiceNumber}` : "—")}
+                            </strong>
+                          </div>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* CỘT PHẢI: THÔNG TIN NGƯỜI MUA & HÓA ĐƠN (5 cols) */}
+                {/* RIGHT COLUMN: BUYER & INVOICE SUMMARY */}
                 <div className="lg:col-span-5 space-y-6">
-                  {/* Thông tin đơn hàng */}
                   <div>
                     <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-3 min-h-[28px] flex items-center">
-                      Thông tin đơn hàng
+                      {t("master.commerce.checkout.step2.orderInfoTitle")}
                     </h3>
                     <div className="space-y-2 text-xs sm:text-[13px]">
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Mã đơn hàng:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.orderCodeLabel")}</span>
                         <span className="font-bold text-blue-700 font-mono">#{orderResult.invoiceNumber}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Gói bản quyền:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.orderPlanLabel")}</span>
                         <span className="font-medium text-slate-900">{orderResult.planName}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Thời hạn:</span>
-                        <span className="font-medium text-blue-600">{quantity} Năm</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.orderTermLabel")}</span>
+                        <span className="font-medium text-blue-600">{t("master.commerce.checkout.step1.yearsCount", { count: quantity })}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Tên miền hệ thống:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.orderDomainLabel")}</span>
                         <span className="font-mono font-medium text-slate-900">{orderResult.subdomain}.smarthire.top</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Thông tin người mua hàng thực tế */}
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 mb-3">Thông tin người mua hàng</h3>
+                    <h3 className="text-base font-bold text-slate-900 mb-3">{t("master.commerce.checkout.step2.buyerInfoTitle")}</h3>
                     <div className="space-y-2 text-xs sm:text-[13px]">
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Họ và tên:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.buyerNameLabel")}</span>
                         <span className="font-medium text-slate-900">{adminFullName || "—"}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Số điện thoại:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.buyerPhoneLabel")}</span>
                         <span className="font-medium text-slate-900">{adminPhone || "—"}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Email:</span>
+                        <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.buyerEmailLabel")}</span>
                         <span className="font-medium text-slate-900 break-all">{adminEmail || "—"}</span>
                       </div>
                       {workspaceName && (
                         <div className="flex items-baseline gap-2">
-                          <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Đơn vị:</span>
+                          <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.buyerOrgLabel")}</span>
                           <span className="font-medium text-slate-900">{workspaceName}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Thông tin xuất hóa đơn (CHỈ HIỂN THỊ KHI NGƯỜI DÙNG CÓ YÊU CẦU XUẤT HÓA ĐƠN DOANH NGHIỆP) */}
                   {needCompanyInvoice && (taxCode || companyLegalName || billingAddress) ? (
                     <div>
-                      <h3 className="text-base font-bold text-slate-900 mb-3">Thông tin xuất hóa đơn</h3>
+                      <h3 className="text-base font-bold text-slate-900 mb-3">{t("master.commerce.checkout.step2.invoiceInfoTitle")}</h3>
                       <div className="space-y-2 text-xs sm:text-[13px]">
                         {taxCode && (
                           <div className="flex items-baseline gap-2">
-                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Mã số thuế:</span>
+                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.invoiceTaxLabel")}</span>
                             <span className="font-medium text-slate-900">{taxCode}</span>
                           </div>
                         )}
                         {companyLegalName && (
                           <div className="flex items-baseline gap-2">
-                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Tên đơn vị:</span>
+                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.invoiceOrgLabel")}</span>
                             <span className="font-medium text-slate-900">{companyLegalName}</span>
                           </div>
                         )}
                         {billingAddress && (
                           <div className="flex items-baseline gap-2">
-                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Địa chỉ:</span>
+                            <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.invoiceAddrLabel")}</span>
                             <span className="font-medium text-slate-900">{billingAddress}</span>
                           </div>
                         )}
                         <div className="flex items-baseline gap-2">
-                          <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">Email nhận HĐ:</span>
+                          <span className="w-24 sm:w-28 text-slate-500 font-normal shrink-0">{t("master.commerce.checkout.step2.invoiceEmailLabel")}</span>
                           <span className="font-medium text-slate-900 break-all">{adminEmail || "—"}</span>
                         </div>
                       </div>
                     </div>
                   ) : null}
 
-                  {/* Nút hành động cho VNPay / PayPal nếu được chọn */}
                   {(activePaymentTab === "DOMESTIC_CARD" || activePaymentTab === "INTL_CARD") && (
                     <div className="pt-4 border-t border-slate-100 space-y-3">
                       {activePaymentTab === "DOMESTIC_CARD" ? (
@@ -1494,19 +1617,19 @@ export function CheckoutPage() {
                           {vnpayLoading ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Đang kết nối VNPay...</span>
+                              <span>{t("master.commerce.checkout.step2.vnpayActionConnecting")}</span>
                             </>
                           ) : (
                             <>
                               <CreditCard className="w-4 h-4" />
-                              <span>Thanh Toán Thẻ ATM Qua VNPay</span>
+                              <span>{t("master.commerce.checkout.step2.vnpayActionBtn")}</span>
                               <ExternalLink className="w-3.5 h-3.5" />
                             </>
                           )}
                         </button>
                       ) : (
                         <div className="text-xs text-slate-500 text-center py-2 font-medium">
-                          {paypalVerifying ? "Đang xác thực thanh toán PayPal..." : "Vui lòng chọn nút PayPal ở khung bên trái"}
+                          {paypalVerifying ? t("master.commerce.checkout.step2.paypalVerifying") : t("master.commerce.checkout.step2.paypalPrompt")}
                         </div>
                       )}
                     </div>
@@ -1519,7 +1642,7 @@ export function CheckoutPage() {
           </div>
         )}
         {/* ======================================================== */}
-        {/* BƯỚC 3: KÍCH HOẠT (THÔNG BÁO, BẢN QUYỀN & TÀI NGUYÊN)    */}
+        {/* STEP 3: ACTIVATED                                        */}
         {/* ======================================================== */}
         {currentStep === 3 && orderResult && (
           <div className="animate-fade-in max-w-2xl mx-auto space-y-6 pb-20">
@@ -1528,34 +1651,34 @@ export function CheckoutPage() {
                 <CheckCircle2 className="w-10 h-10" />
               </div>
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 inline-block mb-3">
-                Thanh Toán Thành Công
+                {t("master.commerce.checkout.step3.badge")}
               </span>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Workspace Đã Được Kích Hoạt!
+                {t("master.commerce.checkout.step3.title")}
               </h1>
 
               <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto">
-                Cảm ơn quý doanh nghiệp. Giao dịch đã được hệ thống xác nhận thanh toán thành công và tự động kích hoạt dịch vụ.
+                {t("master.commerce.checkout.step3.subtitle")}
               </p>
               <div className="mt-8 p-6 rounded-2xl bg-slate-50 border border-slate-200/80 text-left space-y-4">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
-                  <span className="text-sm font-semibold text-slate-700">Mã đơn hàng</span>
+                  <span className="text-sm font-semibold text-slate-700">{t("master.commerce.checkout.step3.orderNumberLabel")}</span>
                   <span className="font-mono font-bold text-slate-900">{orderResult.invoiceNumber}</span>
                 </div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
-                  <span className="text-sm font-semibold text-slate-700">Gói dịch vụ</span>
+                  <span className="text-sm font-semibold text-slate-700">{t("master.commerce.checkout.step3.planLabel")}</span>
                   <span className="font-bold text-blue-600">{orderResult.planName}</span>
                 </div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
-                  <span className="text-sm font-semibold text-slate-700">Thời hạn sử dụng</span>
+                  <span className="text-sm font-semibold text-slate-700">{t("master.commerce.checkout.step3.usageTermLabel")}</span>
                   <span className="font-semibold text-slate-900">
                     {formatUsagePeriod(quantity, orderResult.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập Workspace</span>
+                  <span className="text-sm font-semibold text-slate-700">{t("master.commerce.checkout.step3.workspaceUrlLabel")}</span>
                   <span className="font-mono font-bold text-blue-600">
                     {orderResult.subdomain}.{baseDomain}
                   </span>
@@ -1564,8 +1687,9 @@ export function CheckoutPage() {
               <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex items-start gap-3">
                 <Mail className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{adminEmail}</strong>.
-                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
+                  {t("master.commerce.checkout.step3.magicLinkBefore")}
+                  <strong>{adminEmail}</strong>
+                  {t("master.commerce.checkout.step3.magicLinkAfter")}
                 </p>
               </div>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -1575,7 +1699,7 @@ export function CheckoutPage() {
                   rel="noreferrer"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
                 >
-                  <span>Truy Cập Workspace</span>
+                  <span>{t("master.commerce.checkout.step3.accessWorkspaceBtn")}</span>
                   <ExternalLink className="w-4 h-4" />
                 </a>
                 <button
@@ -1584,14 +1708,14 @@ export function CheckoutPage() {
                   className="w-full sm:w-auto px-5 py-3.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <Printer className="w-4 h-4 text-slate-500" />
-                  <span>In Hóa Đơn</span>
+                  <span>{t("master.commerce.checkout.step3.printInvoiceBtn")}</span>
                 </button>
-                <a
-                  href="/"
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block"
+                <Link
+                  to="/"
+                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block text-center"
                 >
-                  Về Trang Chủ
-                </a>
+                  {t("master.commerce.checkout.step3.backHomeBtn")}
+                </Link>
               </div>
             </div>
           </div>
@@ -1599,7 +1723,8 @@ export function CheckoutPage() {
       </main>
       <LegalPolicyModal
         openTab={policyModalTab}
-        policyVersion="15/06/2026"
+        policyVersion={CURRENT_POLICY_VERSION}
+        effectiveDate={LEGAL_POLICY_META.effectiveDate}
         onClose={() => setPolicyModalTab(null)}
         onSwitchTab={(tab) => setPolicyModalTab(tab)}
         isAccepted={isTermsAccepted}

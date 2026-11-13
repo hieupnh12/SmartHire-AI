@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Clock3, Expand, Send, Sparkles } from "lucide-re
 import { Button } from "@/components/ux/Button";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentMuted as muted } from "@/components/ux/assessmentUi";
+import { useT } from "@/i18n";
 import { useUiStore } from "@/stores/uiStore";
 import { AssessmentResult } from "../components/AssessmentResult";
 import { AssessmentAnswerInput } from "../components/AssessmentAnswerInput";
@@ -25,12 +26,14 @@ function formatTimer(seconds: number) {
 }
 
 export function TakeAssessmentPage() {
+  const t = useT();
   const { submissionId } = useParams();
   const id = Number(submissionId);
-  return Number.isSafeInteger(id) && id > 0 ? <SubmissionRoom key={id} id={id} /> : <p role="alert">Mã bài làm không hợp lệ.</p>;
+  return Number.isSafeInteger(id) && id > 0 ? <SubmissionRoom key={id} id={id} /> : <p role="alert">{t("candidate.assess.take.invalidSubmissionId")}</p>;
 }
 
 function SubmissionRoom({ id }: { id: number }) {
+  const t = useT();
   const navigate = useNavigate();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const room = useSubmission(id);
@@ -123,9 +126,9 @@ function SubmissionRoom({ id }: { id: number }) {
       return;
     }
     askConfirm({
-      title: "Nộp bài?",
-      description: `Bạn đã trả lời ${answered}/${submission.questions.length} câu. Sau khi nộp không thể sửa.`,
-      confirmLabel: "Nộp bài",
+      title: t("candidate.assess.take.submitTitle"),
+      description: t("candidate.assess.take.submitDesc", { answered, total: submission.questions.length }),
+      confirmLabel: t("candidate.assess.take.submitConfirm"),
       onConfirm: async () => {
         await finishExam(false);
       },
@@ -134,9 +137,9 @@ function SubmissionRoom({ id }: { id: number }) {
 
   const confirmRetake = () => {
     askConfirm({
-      title: "Làm lại từ đầu?",
-      description: "Bạn sẽ quay lại lời mời để đồng ý quy chế và kiểm tra thiết bị trước khi làm lại.",
-      confirmLabel: "Đến lời mời",
+      title: t("candidate.assess.take.retakeTitle"),
+      description: t("candidate.assess.take.retakeDesc"),
+      confirmLabel: t("candidate.assess.take.retakeConfirm"),
       onConfirm: async () => {
         navigate(invite);
       },
@@ -145,9 +148,9 @@ function SubmissionRoom({ id }: { id: number }) {
 
   const confirmCompleteObjective = () => {
     askConfirm({
-      title: "Chốt phần trắc nghiệm & tự luận?",
-      description: "Sau khi chốt bạn sẽ chuyển sang phần lập trình và không thể sửa phần này.",
-      confirmLabel: "Chốt phần 1",
+      title: t("candidate.assess.take.completeObjTitle"),
+      description: t("candidate.assess.take.completeObjDesc"),
+      confirmLabel: t("candidate.assess.take.completeObjConfirm"),
       onConfirm: async () => {
         await room.completeObjective();
         setIndex(0);
@@ -163,7 +166,7 @@ function SubmissionRoom({ id }: { id: number }) {
           <div className="flex-1 space-y-4 p-6" role="status" aria-busy="true">
             <Skeleton className="h-8 w-64" />
             <SkeletonCard className="h-72" />
-            <span className="sr-only">Đang tải kết quả…</span>
+            <span className="sr-only">{t("candidate.assess.take.loadingResults")}</span>
           </div>
         )}
         {submission && (
@@ -176,18 +179,18 @@ function SubmissionRoom({ id }: { id: number }) {
   }
 
   const saveLabel = room.submitting
-    ? "Đang nộp bài…"
+    ? t("candidate.assess.take.statusSubmitting")
     : room.saving
-      ? "Đang lưu…"
+      ? t("candidate.assess.take.statusSaving")
       : room.unsaved
-        ? "Chưa lưu hết thay đổi"
-        : "Đã lưu";
+        ? t("candidate.assess.take.statusUnsaved")
+        : t("candidate.assess.take.statusSaved");
 
   if (!proctor) {
     return (
       <main className="grid min-h-dvh place-items-center bg-[var(--color-surface-alt)] p-4 text-[var(--color-on-surface)]">
         <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
-          Đang chuyển về lời mời để kiểm tra thiết bị…
+          {t("candidate.assess.take.redirectingToInvite")}
         </p>
       </main>
     );
@@ -199,9 +202,9 @@ function SubmissionRoom({ id }: { id: number }) {
         <main className="grid h-full min-h-0 flex-1 place-items-center bg-[var(--color-surface-alt)] p-6 text-[var(--color-on-surface)]">
           <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
             <Expand className="size-9 text-[var(--color-primary)]" aria-hidden="true" />
-            <h1 className="mt-3 text-xl font-semibold">Mở toàn màn hình để làm bài</h1>
+            <h1 className="mt-3 text-xl font-semibold">{t("candidate.assess.take.fullscreenHeading")}</h1>
             <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Bài kiểm tra yêu cầu làm ở chế độ toàn màn hình. Hãy bấm nút bên dưới để mở toàn màn hình và tiếp tục.
+              {t("candidate.assess.take.fullscreenDesc")}
             </p>
             <ExamFullscreenButton />
           </div>
@@ -212,7 +215,7 @@ function SubmissionRoom({ id }: { id: number }) {
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] bg-white px-4 py-2.5 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             <span className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary)] shrink-0">
-              <Sparkles className="size-3" /> {submission.title || "BÀI ĐÁNH GIÁ CHÍNH THỨC"}
+              <Sparkles className="size-3" /> {submission.title || t("candidate.assess.take.officialTitleFallback")}
             </span>
             <ExamStepper
               quizCount={quiz.length}
@@ -226,7 +229,7 @@ function SubmissionRoom({ id }: { id: number }) {
             <ExamMonitor />
             <div
               role="timer"
-              aria-label="Thời gian còn lại"
+              aria-label={t("candidate.assess.take.timerAria")}
               className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 font-semibold tabular-nums shadow-xs ${
                 seconds < 60
                   ? "border-[var(--color-status-danger)] bg-[var(--color-error-container)] text-[var(--color-status-danger)] animate-pulse"
@@ -246,7 +249,7 @@ function SubmissionRoom({ id }: { id: number }) {
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)]/70 bg-white px-4 py-2 sm:px-6 shadow-2xs">
             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none max-w-full">
               <span className="mr-1 text-xs font-semibold text-[var(--color-on-surface-variant)] shrink-0">
-                {inCoding ? "Bài toán:" : "Danh sách câu:"}
+                {inCoding ? t("candidate.assess.take.codingNavLabel") : t("candidate.assess.take.quizNavLabel")}
               </span>
               {visible.map((q, idx) => {
                 const isAnswered = hasAnswer(room.choices[q.id]);
@@ -264,7 +267,7 @@ function SubmissionRoom({ id }: { id: number }) {
                         ? "bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200"
                         : "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)] border border-[var(--color-border-default)] hover:bg-slate-200"
                     }`}
-                    title={`Câu ${idx + 1} · ${q.points} điểm`}
+                    title={t("candidate.assess.take.questionTitle", { index: idx + 1, points: q.points })}
                   >
                     {idx + 1}
                   </button>
@@ -273,9 +276,12 @@ function SubmissionRoom({ id }: { id: number }) {
             </div>
 
             <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-on-surface-variant)]">
-              <span className="hidden sm:inline">Tiến độ:</span>
+              <span className="hidden sm:inline">{t("candidate.assess.take.progressLabel")}</span>
               <span className="font-bold text-emerald-700">
-                {visible.filter((q) => hasAnswer(room.choices[q.id])).length} / {visible.length} câu đã trả lời
+                {t("candidate.assess.take.progressCount", {
+                  answered: visible.filter((q) => hasAnswer(room.choices[q.id])).length,
+                  total: visible.length,
+                })}
               </span>
             </div>
           </div>
@@ -291,12 +297,12 @@ function SubmissionRoom({ id }: { id: number }) {
                 <Skeleton className="h-full rounded-2xl lg:col-span-8" />
                 <Skeleton className="h-full rounded-2xl lg:col-span-4" />
               </div>
-              <span className="sr-only">Đang tải bài làm…</span>
+              <span className="sr-only">{t("candidate.assess.take.loadingExam")}</span>
             </div>
           )}
           {inCoding ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              {!question && <p>Không có câu lập trình. Bạn có thể nộp bài.</p>}
+              {!question && <p>{t("candidate.assess.take.noCodingQuestions")}</p>}
               {question && (
                 <div className="h-full min-h-0 flex-1">
                   <AssessmentAnswerInput
@@ -316,7 +322,7 @@ function SubmissionRoom({ id }: { id: number }) {
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               {!question && (
-                <p>Không có câu hỏi phần trắc nghiệm &amp; tự luận. Bạn có thể chuyển sang phần lập trình.</p>
+                <p>{t("candidate.assess.take.noQuizQuestions")}</p>
               )}
               {question && question.questionType === "ESSAY" && (
                 <div className="h-full min-h-0 flex-1">
@@ -338,13 +344,15 @@ function SubmissionRoom({ id }: { id: number }) {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="rounded-lg bg-[var(--color-primary-subtle)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary)]">
-                          Câu {safeIndex + 1} / {quiz.length}
+                          {t("candidate.assess.take.questionCounter", { current: safeIndex + 1, total: quiz.length })}
                         </span>
                         <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          {question.points} điểm
+                          {t("candidate.assess.common.points", { count: question.points })}
                         </span>
                         <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                          {question.questionType === "MULTIPLE_CHOICE" ? "Chọn nhiều đáp án" : "Trắc nghiệm một đáp án"}
+                          {question.questionType === "MULTIPLE_CHOICE"
+                            ? t("candidate.assess.take.questionTypeMultiple")
+                            : t("candidate.assess.take.questionTypeSingle")}
                         </span>
                       </div>
                     </div>
@@ -378,50 +386,66 @@ function SubmissionRoom({ id }: { id: number }) {
                   <>
                     <Button variant="secondary" disabled={safeIndex === 0} onClick={() => setIndex(Math.max(0, safeIndex - 1))}>
                       <ArrowLeft className="size-4" aria-hidden="true" />
-                      Bài trước
+                      {t("candidate.assess.take.prevProblem")}
                     </Button>
                     <Button
                       variant="secondary"
                       disabled={safeIndex >= coding.length - 1}
                       onClick={() => setIndex(safeIndex + 1)}
                     >
-                      Bài tiếp
+                      {t("candidate.assess.take.nextProblem")}
                       <ArrowRight className="size-4" aria-hidden="true" />
                     </Button>
                   </>
                 )}
                 <p role="status" className={muted}>
-                  {saveLabel} · {answered}/{submission.questions.length} câu đã trả lời
+                  {t("candidate.assess.take.footerProgress", {
+                    saveLabel,
+                    answered,
+                    total: submission.questions.length,
+                  })}
                 </p>
               </div>
               <Button disabled={room.submitting} onClick={confirmSubmit} className="gap-2 bg-emerald-600 hover:bg-emerald-700 font-bold">
                 <Send className="size-4" aria-hidden="true" />
-                {room.submitting ? "Đang nộp…" : seconds === 0 ? "Hoàn tất bài" : "Nộp bài thi"}
+                {room.submitting
+                  ? t("candidate.assess.take.submittingButton")
+                  : seconds === 0
+                    ? t("candidate.assess.take.finishButton")
+                    : t("candidate.assess.take.submitExamButton")}
               </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button variant="secondary" disabled={safeIndex === 0} onClick={() => setIndex(Math.max(0, safeIndex - 1))}>
                 <ArrowLeft className="size-4" aria-hidden="true" />
-                Câu trước
+                {t("candidate.assess.take.prevQuestion")}
               </Button>
               <p role="status" className={muted}>
-                {room.saving ? "Đang lưu…" : room.unsaved ? "Chưa lưu hết thay đổi" : "Đã lưu"}
+                {room.saving
+                  ? t("candidate.assess.take.statusSaving")
+                  : room.unsaved
+                    ? t("candidate.assess.take.statusUnsaved")
+                    : t("candidate.assess.take.statusSaved")}
               </p>
               {safeIndex < quiz.length - 1 ? (
                 <Button onClick={() => setIndex(safeIndex + 1)}>
-                  Câu tiếp theo
+                  {t("candidate.assess.take.nextQuestion")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Button>
               ) : coding.length > 0 ? (
                 <Button disabled={locked} onClick={confirmCompleteObjective} className="gap-2 bg-emerald-600 hover:bg-emerald-700 font-bold">
-                  Hoàn thành phần 1 &amp; Sang phần Lập trình
+                  {t("candidate.assess.take.completePart1Button")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Button>
               ) : (
                 <Button disabled={room.submitting} onClick={confirmSubmit} className="gap-2 bg-emerald-600 hover:bg-emerald-700 font-bold">
                   <Send className="size-4" aria-hidden="true" />
-                  {room.submitting ? "Đang nộp…" : seconds === 0 ? "Hoàn tất bài" : "Nộp bài thi"}
+                  {room.submitting
+                    ? t("candidate.assess.take.submittingButton")
+                    : seconds === 0
+                      ? t("candidate.assess.take.finishButton")
+                      : t("candidate.assess.take.submitExamButton")}
                 </Button>
               )}
             </div>

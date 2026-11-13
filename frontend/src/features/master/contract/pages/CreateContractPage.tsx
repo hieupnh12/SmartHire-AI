@@ -7,8 +7,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { contractApi } from "@/api/master/contractApi";
 import { consultationApi } from "@/api/master/consultationApi";
+import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { formatNumber, useLocale, useT } from "@/i18n";
 
 export function CreateContractPage() {
+  const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get("leadId");
@@ -17,16 +21,15 @@ export function CreateContractPage() {
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
   const setContracts = (updater: any) => queryClient.setQueryData(masterQueryKeys.contracts(), updater);
-  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [contractTenantId, setContractTenantId] = useState<number | "">("");
   const [contractPlanId, setContractPlanId] = useState<number | "">("");
-  const [contractTitle, setContractTitle] = useState("Hợp Đồng Cung Cấp Dịch Vụ Phần Mềm Tuyển Dụng AI & Hạ Tầng Cơ Sở Dữ Liệu Độc Lập");
+  const [contractTitle, setContractTitle] = useState(() => t("master.commerce.createContract.defaults.title"));
   const [contractPartyBName, setContractPartyBName] = useState("");
   const [contractPartyBTaxCode, setContractPartyBTaxCode] = useState("");
   const [contractPartyBAddress, setContractPartyBAddress] = useState("");
   const [contractPartyBRepresentative, setContractPartyBRepresentative] = useState("");
-  const [contractPartyBPosition, setContractPartyBPosition] = useState("Tổng Giám Đốc / Đại diện pháp luật");
+  const [contractPartyBPosition, setContractPartyBPosition] = useState(() => t("master.commerce.createContract.defaults.position"));
   const [contractPartyBPhone, setContractPartyBPhone] = useState("");
   const [contractPartyBEmail, setContractPartyBEmail] = useState("");
   const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState("");
@@ -34,11 +37,9 @@ export function CreateContractPage() {
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
-  const [contractTerms, setContractTerms] = useState(`3.1. Cam kết chất lượng (SLA): Bên A cam kết độ sẵn sàng của hạ tầng hệ thống (Uptime SLA) đạt tối thiểu 99.5%/tháng, thực hiện sao lưu dữ liệu tự động định kỳ hàng ngày.
-3.2. Tuân thủ Nghị định 13/2023/NĐ-CP:
-- Bên B xác nhận là Bên Kiểm soát Dữ liệu Cá nhân và chịu trách nhiệm thu thập sự đồng ý hợp pháp của Ứng viên trước khi đưa thông tin vào phần mềm.
-- Bên A đóng vai trò là Bên Xử lý Dữ liệu Cá nhân theo ủy quyền; cam kết bảo mật tuyệt đối và không sử dụng dữ liệu riêng của Bên B để huấn luyện mô hình AI công cộng hoặc chia sẻ cho bên thứ ba.
-3.3. Giới hạn trách nhiệm AI: Các tính năng đánh giá tự động của AI đóng vai trò là công cụ hỗ trợ sàng lọc; Bên B giữ toàn quyền và chịu hoàn toàn trách nhiệm đối với các quyết định tuyển dụng nhân sự cuối cùng.`);
+  const [contractTerms, setContractTerms] = useState(() =>
+    t("master.commerce.createContract.defaults.terms", { law: LEGAL_POLICY_META.lawLabel }),
+  );
   const [contractNotes, setContractNotes] = useState("");
   
   const [creatingContract, setCreatingContract] = useState(false);
@@ -106,9 +107,9 @@ export function CreateContractPage() {
           if (lead.phoneNumber) setContractPartyBPhone(lead.phoneNumber);
           if (lead.notes) setContractNotes(lead.notes);
 
-          // Tự động match Tenant nếu đã cấp phát (dựa theo tên)
+          // Auto-match Tenant by company name if provisioned
           if (tenants && tenants.length > 0) {
-            const matched = tenants.find(t => t.name.toLowerCase() === lead.companyName.toLowerCase());
+            const matched = tenants.find((item) => item.name.toLowerCase() === lead.companyName.toLowerCase());
             if (matched) {
               setContractTenantId(matched.id);
               applyTenantPartyB(matched, false);
@@ -150,10 +151,10 @@ export function CreateContractPage() {
       };
       const res = await contractApi.create(payload as any);
       setContracts((prev: any[] = []) => [res, ...prev]);
-      triggerNotification("Tạo hợp đồng B2B thành công!");
-      navigate("/admin/contracts"); // go back to list
+      toast.success(t("master.commerce.createContract.createdToast"));
+      navigate("/admin/contracts");
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Đã xảy ra lỗi khi tạo hợp đồng.");
+      toast.error(err?.response?.data?.message || t("master.commerce.createContract.createErrorToast"));
     } finally {
       setCreatingContract(false);
     }
@@ -164,6 +165,7 @@ export function CreateContractPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate(-1)}
+          aria-label={t("master.commerce.createContract.backAria")}
           className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -171,10 +173,10 @@ export function CreateContractPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <FileSignature className="w-6 h-6 text-indigo-600" />
-            Soạn Thảo Hợp Đồng Dịch Vụ
+            {t("master.commerce.createContract.title")}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Khởi tạo hợp đồng dịch vụ AI, Dedicated DB và bảo vệ dữ liệu PDPD
+            {t("master.commerce.createContract.subtitle")}
           </p>
         </div>
       </div>
@@ -191,14 +193,17 @@ export function CreateContractPage() {
           <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-200 space-y-4">
             <div className="font-bold text-indigo-900 text-sm uppercase flex items-center gap-2">
               <Building2 className="w-5 h-5 text-indigo-600" />
-              <span>1. Thông Tin Doanh Nghiệp & Gói Cước</span>
+              <span>{t("master.commerce.createContract.section1Title")}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {(!leadId || contractTenantId !== "") && (
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Khách Hàng (Workspace) <span className="font-normal text-slate-500 text-xs ml-1">{leadId ? "(Đã liên kết)" : "(Có thể để trống)"}</span>
+                    {t("master.commerce.createContract.workspaceLabel")}{" "}
+                    <span className="font-normal text-slate-500 text-xs ml-1">
+                      {leadId ? t("master.commerce.createContract.workspaceLinked") : t("master.commerce.createContract.workspaceOptional")}
+                    </span>
                   </label>
                   <select
                     disabled={!!leadId}
@@ -214,28 +219,26 @@ export function CreateContractPage() {
                     }
                     const tId = Number(rawVal);
                     setContractTenantId(tId);
-                    const selectedT = tenants.find((t) => t.id === tId);
+                    const selectedT = tenants.find((item) => item.id === tId);
                     if (selectedT) {
-                      // Nếu đi từ trang Lead (có leadId) thì ưu tiên giữ data của Lead, không ghi đè.
-                      // Chỉ điền bổ sung từ dữ liệu thật của Tenant, không tự bịa email/địa chỉ.
                       applyTenantPartyB(selectedT, !leadId);
                     }
                   }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
                 >
-                  <option value="">-- Chọn doanh nghiệp ký hợp đồng --</option>
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.code} - {t.subdomain}.smarthire.top)
+                  <option value="">{t("master.commerce.createContract.workspacePlaceholder")}</option>
+                  {tenants.map((tenant) => (
+                    <option key={tenant.id} value={tenant.id}>
+                      {tenant.name} ({tenant.code} - {tenant.subdomain}.smarthire.top)
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">Hệ thống sẽ tự động liên kết nếu tìm thấy dữ liệu.</p>
+                <p className="text-xs text-slate-500 mt-1">{t("master.commerce.createContract.workspaceHint")}</p>
               </div>
               )}
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Gói Dịch Vụ SaaS Tuyển Dụng</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.planLabel")}</label>
                 <select
                   value={contractPlanId}
                   onChange={(e) => {
@@ -249,10 +252,10 @@ export function CreateContractPage() {
                   }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
                 >
-                  <option value="">-- Chọn gói cước (hoặc Tùy biến) --</option>
+                  <option value="">{t("master.commerce.createContract.planPlaceholder")}</option>
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - {p.priceYearly ? `${p.priceYearly.toLocaleString('vi-VN')} đ/năm` : '0 đ/năm'}
+                      {p.name} - {p.priceYearly ? t("master.commerce.createContract.planPricePerYear", { price: formatNumber(p.priceYearly, undefined, locale) }) : t("master.commerce.createContract.planZeroPerYear")}
                     </option>
                   ))}
                 </select>
@@ -260,39 +263,39 @@ export function CreateContractPage() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Tiêu Đề Hợp Đồng *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.contractTitleLabel")}</label>
               <input
                 type="text"
                 required
                 value={contractTitle}
                 onChange={(e) => setContractTitle(e.target.value)}
-                placeholder="Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI"
+                placeholder={t("master.commerce.createContract.contractTitlePlaceholder")}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium"
               />
             </div>
           </div>
 
-          {/* SECTION 2: BÊN B LEGAL DETAILS */}
+          {/* SECTION 2: PARTY B LEGAL DETAILS */}
           <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-200 space-y-4">
             <div className="font-bold text-slate-900 text-sm uppercase flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-slate-600" />
-              <span>2. Thông Tin Pháp Nhân Bên B (Khách Hàng Ký Kết)</span>
+              <span>{t("master.commerce.createContract.section2Title")}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Tên Công Ty Bên B *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBNameLabel")}</label>
                 <input
                   type="text"
                   required
                   value={contractPartyBName}
                   onChange={(e) => setContractPartyBName(e.target.value)}
-                  placeholder="CÔNG TY CỔ PHẦN ABC..."
+                  placeholder={t("master.commerce.createContract.partyBNamePlaceholder")}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Mã Số Thuế (MST Bên B) *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBTaxCodeLabel")}</label>
                 <input
                   type="text"
                   required
@@ -305,42 +308,42 @@ export function CreateContractPage() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Địa Chỉ Đăng Ký Kinh Doanh *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBAddressLabel")}</label>
               <input
                 type="text"
                 required
                 value={contractPartyBAddress}
                 onChange={(e) => setContractPartyBAddress(e.target.value)}
-                placeholder="Số 123 Đường ABC, Quận XYZ, TP. Hà Nội"
+                placeholder={t("master.commerce.createContract.partyBAddressPlaceholder")}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Người Đại Diện Pháp Luật *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBRepLabel")}</label>
                 <input
                   type="text"
                   required
                   value={contractPartyBRepresentative}
                   onChange={(e) => setContractPartyBRepresentative(e.target.value)}
-                  placeholder="Nguyễn Văn A"
+                  placeholder={t("master.commerce.createContract.partyBRepPlaceholder")}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Chức Vụ *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBPositionLabel")}</label>
                 <input
                   type="text"
                   required
                   value={contractPartyBPosition}
                   onChange={(e) => setContractPartyBPosition(e.target.value)}
-                  placeholder="Tổng Giám Đốc"
+                  placeholder={t("master.commerce.createContract.partyBPositionPlaceholder")}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Số Điện Thoại</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBPhoneLabel")}</label>
                 <input
                   type="text"
                   value={contractPartyBPhone}
@@ -353,23 +356,23 @@ export function CreateContractPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Email Nhận Hợp Đồng & Ký Số *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBEmailLabel")}</label>
                 <input
                   type="email"
                   required
                   value={contractPartyBEmail}
                   onChange={(e) => setContractPartyBEmail(e.target.value)}
-                  placeholder="contact@company.com hoặc name@gmail.com"
+                  placeholder={t("master.commerce.createContract.partyBEmailPlaceholder")}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-indigo-700 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Tài Khoản Ngân Hàng Bên B (nếu có)</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.partyBBankLabel")}</label>
                 <input
                   type="text"
                   value={contractPartyBBankAccount}
                   onChange={(e) => setContractPartyBBankAccount(e.target.value)}
-                  placeholder="123456789 - Ngân hàng Vietcombank"
+                  placeholder={t("master.commerce.createContract.partyBBankPlaceholder")}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-indigo-600"
                 />
               </div>
@@ -380,12 +383,12 @@ export function CreateContractPage() {
           <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-200 space-y-4">
             <div className="font-bold text-slate-900 text-sm uppercase flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-emerald-600" />
-              <span>3. Giá Trị Hợp Đồng & Thanh Toán</span>
+              <span>{t("master.commerce.createContract.section3Title")}</span>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Giá Trị Hợp Đồng *</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.valueLabel")}</label>
                 <input
                   type="number"
                   required
@@ -396,7 +399,7 @@ export function CreateContractPage() {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Loại Tiền Tệ</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.currencyLabel")}</label>
                 <select
                   value={contractCurrency}
                   onChange={(e) => setContractCurrency(e.target.value)}
@@ -408,11 +411,11 @@ export function CreateContractPage() {
             </div>
 
             <div className="p-4 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-sm">
-              <span className="text-slate-500">Hình thức thanh toán: <strong className="text-slate-700">Chuyển khoản B2B (100% giá trị hợp đồng)</strong></span>
+              <span className="text-slate-500">{t("master.commerce.createContract.paymentSummaryPrefix")} <strong className="text-slate-700">{t("master.commerce.createContract.paymentSummaryMethod")}</strong></span>
               <div>
-                <span className="font-bold text-slate-900">Tổng giá trị hợp đồng: </span>
+                <span className="font-bold text-slate-900">{t("master.commerce.createContract.totalValueLabel")} </span>
                 <span className="font-mono font-bold text-emerald-600 text-lg ml-2">
-                  {contractValue.toLocaleString("vi-VN")} ₫
+                  {formatNumber(contractValue, undefined, locale)} ₫
                 </span>
               </div>
             </div>
@@ -421,7 +424,7 @@ export function CreateContractPage() {
           {/* SECTION 4: DATES & SLA */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 p-5 bg-slate-50/50 rounded-xl border border-slate-200">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Ngày Bắt Đầu Hiệu Lực *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.startDateLabel")}</label>
               <input
                 type="date"
                 required
@@ -431,7 +434,7 @@ export function CreateContractPage() {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Ngày Kết Thúc Hiệu Lực *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.endDateLabel")}</label>
               <input
                 type="date"
                 required
@@ -443,7 +446,7 @@ export function CreateContractPage() {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">Điều Khoản Dịch Vụ & Cam Kết SLA (Nghị Định 13/2023/NĐ-CP)</label>
+            <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.termsLabel")}</label>
             <textarea
               rows={4}
               value={contractTerms}
@@ -453,12 +456,12 @@ export function CreateContractPage() {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">Ghi Chú Nội Bộ (Tùy chọn)</label>
+            <label className="block font-semibold text-slate-700 mb-1.5">{t("master.commerce.createContract.notesLabel")}</label>
             <input
               type="text"
               value={contractNotes}
               onChange={(e) => setContractNotes(e.target.value)}
-              placeholder="Ghi chú thêm về điều khoản bổ sung hoặc mã ưu đãi..."
+              placeholder={t("master.commerce.createContract.notesPlaceholder")}
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-600 text-sm"
             />
           </div>
@@ -469,7 +472,7 @@ export function CreateContractPage() {
               onClick={() => navigate("/admin/contracts")}
               className="px-6 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold transition-colors"
             >
-              Hủy Bỏ
+              {t("master.commerce.common.cancelAction")}
             </button>
             <button
               type="submit"
@@ -477,7 +480,7 @@ export function CreateContractPage() {
               className="px-8 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition-colors"
             >
               {creatingContract ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-              <span>Tạo Hợp Đồng B2B</span>
+              <span>{t("master.commerce.createContract.submitBtn")}</span>
             </button>
           </div>
         </form>

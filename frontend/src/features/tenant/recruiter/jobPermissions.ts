@@ -11,9 +11,11 @@
  * When `currentUserRole` is null, treat the user as an admin (server returns null for admins).
  */
 
+import { t as globalT } from "@/i18n";
+
 export type JobRole = 'OWNER' | 'COLLABORATOR' | 'VIEWER' | 'HIRING_MANAGER';
 
-// ── Display labels (i18n: Vietnamese) ────────────────────────────────────────
+// ── Display labels (i18n: Vietnamese / localized via getJobRoleLabel) ────────
 
 export const JOB_ROLE_LABELS: Record<JobRole, string> = {
   OWNER: 'Chủ sở hữu',
@@ -28,6 +30,15 @@ export const JOB_ROLE_LABELS_EN: Record<JobRole, string> = {
   VIEWER: 'Viewer',
   HIRING_MANAGER: 'Hiring Manager',
 };
+
+export function getJobRoleLabel(
+  role: JobRole,
+  translate: (path: string) => string = globalT,
+): string {
+  const key = `recruiter.ops.jobRoles.${role}`;
+  const label = translate(key);
+  return label === key ? JOB_ROLE_LABELS[role] : label;
+}
 
 /** Badge color variants per role (maps to Tailwind / Shadcn badge variant names or custom). */
 export const JOB_ROLE_COLORS: Record<JobRole, { bg: string; text: string; border: string }> = {

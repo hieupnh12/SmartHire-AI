@@ -14,12 +14,12 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 
 ## Luồng hoạt động
 
-1. Recruiter gọi `GET /analytics/recruiter/workload` hoặc `GET /analytics/recruiter/performance` với `from`, `to`.
-2. Backend lấy recruiter từ phiên đăng nhập và giới hạn dữ liệu theo job/application được phân công.
+1. Recruiter gọi `GET /analytics/recruiter/job-overview`, `/workload`, `/pipeline`, `/quality`, `/performance`, hoặc `/job-insights` với `from`, `to` và tùy chọn `jobId`.
+2. Backend lấy recruiter từ phiên đăng nhập; khi có `jobId` thì xác thực quyền xem job (`CvAccess.requireJob`) và lọc toàn bộ số liệu theo `jobId` đó; khi không có `jobId` thì giới hạn theo phạm vi job/application được phân công.
 
 ## Business Rules
 
-- Scope theo org.
+- Scope theo org và theo `jobId` (khi truyền).
 - Candidate 403.
 
 ## API liên quan
@@ -28,8 +28,10 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 |---|---|
 | GET | `/api/v1/dashboard/summary` |
 | GET | `/api/v1/dashboard/action-items` |
+| GET | `/api/v1/analytics/recruiter/job-overview` |
 | GET | `/api/v1/analytics/recruiter/workload` |
 | GET | `/api/v1/analytics/recruiter/performance` |
+| GET | `/api/v1/analytics/recruiter/job-insights` |
 
 `summary` đếm trên bảng có sẵn, không cache Redis: `openJobs` là job `PUBLISHED` chưa xóa, `newApplicants` là đơn tạo trong 30 ngày (chưa lưu trữ, chưa rút), `interviewsScheduled` là lịch `PROPOSED` hoặc `CONFIRMED`. Candidate nhận 403. Hire rate và điểm trung bình chưa trả về.
 

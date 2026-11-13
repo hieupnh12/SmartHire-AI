@@ -31,6 +31,9 @@ public class ConsultationRequest {
     String requestType = "DEMO"; // "DEMO" or "CONTRACT_QUOTE"
 
     @Column(name = "plan_tier") String planTier;
+    @Column(name = "quoted_plan_id") Long quotedPlanId;
+    @Column(name = "proposed_code", length = 64) String proposedCode;
+    @Column(name = "proposed_subdomain", length = 128) String proposedSubdomain;
     @Column(name = "primary_need", columnDefinition = "TEXT") String primaryNeed;
     @Column(name = "notes", columnDefinition = "TEXT") String notes;
 

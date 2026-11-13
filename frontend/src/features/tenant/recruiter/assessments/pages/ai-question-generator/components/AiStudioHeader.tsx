@@ -3,8 +3,9 @@ import { ArrowLeft, CircleHelp, RefreshCw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
 import type { JobDetail } from "@/api/types/job";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { HELP, type DraftItem } from "../types";
+import { type DraftItem } from "../types";
 
 interface AiStudioHeaderProps {
   job: JobDetail | null | undefined;
@@ -36,6 +37,7 @@ export function AiStudioHeader({
   toggleSelectAll,
   clearAllDrafts,
 }: AiStudioHeaderProps) {
+  const t = useT();
   const hasDrafts = drafts.length > 0;
 
   return (
@@ -45,16 +47,16 @@ export function AiStudioHeader({
         <Link
           to={backPath}
           className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-          title="Quay lại Ngân hàng câu hỏi"
+          title={t("recruiter.assessments.aiStudio.backToBankTitle")}
         >
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white whitespace-nowrap">
-              Studio Sinh câu hỏi bằng AI
+              {t("recruiter.assessments.aiStudio.title")}
             </h1>
-            <Tooltip content={HELP} side="right">
+            <Tooltip content={t("recruiter.assessments.aiStudio.studioHelp")} side="right">
               <span className="cursor-help text-slate-400 hover:text-slate-600 transition-colors">
                 <CircleHelp className="size-4" aria-hidden="true" />
               </span>
@@ -82,23 +84,23 @@ export function AiStudioHeader({
                 }
                 onChange={toggleSelectAll}
                 disabled={filteredDrafts.length === 0 || isSaving}
-                className="size-3.5 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
+                className="size-3.5 rounded border-slate-300 accent-[var(--color-primary)]"
               />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                Chọn tất cả ({filteredDrafts.length})
+                {t("recruiter.assessments.aiStudio.selectAllCount", { count: filteredDrafts.length })}
               </span>
             </label>
           )}
 
           {/* Badge: Đã chọn x / y câu */}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap">
-            Đã chọn {selectedCount} / {drafts.length} câu
+          <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/20 whitespace-nowrap">
+            {t("recruiter.assessments.aiStudio.selectedRatio", { selected: selectedCount, total: drafts.length })}
           </span>
 
           {/* Trạng thái: Đã tự động lưu nháp */}
           <span className="hidden xl:inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Đã tự động lưu nháp
+            {t("recruiter.assessments.aiStudio.autoDraftSaved")}
           </span>
 
           {/* Bộ lọc loại câu (Filter Tabs) */}
@@ -114,9 +116,9 @@ export function AiStudioHeader({
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
                 )}
               >
-                Tất cả ({drafts.length})
+                {t("recruiter.assessments.aiStudio.filterAllCount", { count: drafts.length })}
               </button>
-              {["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"].map((type) => {
+              {(["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"] as const).map((type) => {
                 const c = drafts.filter((d) => d.question.questionType === type).length;
                 if (!c) return null;
                 return (
@@ -131,14 +133,7 @@ export function AiStudioHeader({
                         : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
                     )}
                   >
-                    {type === "MCQ"
-                      ? "Trắc nghiệm"
-                      : type === "MULTIPLE_CHOICE"
-                        ? "Nhiều ĐA"
-                        : type === "ESSAY"
-                          ? "Tự luận"
-                          : "Code"}{" "}
-                    ({c})
+                    {t(`recruiter.assessments.aiStudio.filterShort.${type}`)} ({c})
                   </button>
                 );
               })}
@@ -152,10 +147,10 @@ export function AiStudioHeader({
               disabled={isSaving}
               onClick={clearAllDrafts}
               className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors whitespace-nowrap cursor-pointer"
-              title="Xóa toàn bộ bản nháp hiện tại"
+              title={t("recruiter.assessments.aiStudio.clearDraftsTooltip")}
             >
               <Trash2 className="size-3.5" />
-              <span>Xóa nháp</span>
+              <span>{t("recruiter.assessments.aiStudio.clearDraftsBtn")}</span>
             </button>
           )}
 
@@ -171,12 +166,16 @@ export function AiStudioHeader({
             {isSaving ? (
               <>
                 <RefreshCw className="size-3.5 animate-spin" />
-                <span>Đang lưu...</span>
+                <span>{t("recruiter.assessments.common.actions.saving")}</span>
               </>
             ) : (
               <>
                 <Save className="size-3.5" />
-                <span>Lưu {selectedCount ? `${selectedCount} câu` : "vào Ngân hàng"}</span>
+                <span>
+                  {selectedCount
+                    ? t("recruiter.assessments.aiStudio.saveCountBtn", { count: selectedCount })
+                    : t("recruiter.assessments.aiStudio.saveIntoBankBtn")}
+                </span>
               </>
             )}
           </Button>

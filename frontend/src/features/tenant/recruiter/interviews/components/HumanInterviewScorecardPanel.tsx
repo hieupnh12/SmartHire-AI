@@ -1,57 +1,60 @@
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { HumanInterview } from "@/api/types/humanInterview";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { useT, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 /** Likert 1–5 → DB 0–100 (×20). */
 const SCORE_BY_RATING = [0, 20, 40, 60, 80, 100] as const;
-const ANCHORS = ["", "Dưới kỳ vọng rõ", "Chưa đạt", "Đạt kỳ vọng", "Vượt kỳ vọng", "Xuất sắc"] as const;
 
-const COMPETENCIES = [
-  { key: "technicalRating" as const, label: "Năng lực chuyên môn", hint: "Kiến thức, giải quyết vấn đề, độ sâu theo JD" },
-  { key: "communicationRating" as const, label: "Giao tiếp & làm việc nhóm", hint: "Diễn đạt, lắng nghe, cấu trúc câu trả lời" },
-  { key: "cultureRating" as const, label: "Phù hợp văn hóa & động lực", hint: "Ownership, học hỏi — tránh thiên kiến không liên quan công việc" },
-] as const;
+function createScorecardSchema(t: TranslateFn) {
+  const rating = () =>
+    z
+      .number({
+        required_error: t("recruiter.interviews.human.scorecard.schemaRating"),
+        invalid_type_error: t("recruiter.interviews.human.scorecard.schemaRating"),
+      })
+      .int()
+      .min(1)
+      .max(5);
 
-const RECOMMENDATIONS = [
-  { value: "STRONG_HIRE" as const, label: "Strong hire", desc: "Ưu tiên offer", on: "bg-emerald-600 text-white border-emerald-700" },
-  { value: "HIRE" as const, label: "Hire", desc: "Nên tuyển", on: "bg-emerald-50 text-emerald-900 border-emerald-300" },
-  { value: "NO_HIRE" as const, label: "No hire", desc: "Không tuyển", on: "bg-amber-50 text-amber-950 border-amber-300" },
-  { value: "STRONG_NO_HIRE" as const, label: "Strong no-hire", desc: "Loại rõ ràng", on: "bg-red-50 text-red-900 border-red-300" },
-] as const;
+  return z
+    .object({
+      technicalRating: rating(),
+      communicationRating: rating(),
+      cultureRating: rating(),
+      comments: z.string().max(4000),
+      recommendation: z.enum(["STRONG_HIRE", "HIRE", "NO_HIRE", "STRONG_NO_HIRE"], {
+        required_error: t("recruiter.interviews.human.scorecard.schemaRecommendation"),
+        invalid_type_error: t("recruiter.interviews.human.scorecard.schemaRecommendation"),
+      }),
+      finalizeDecision: z.boolean(),
+    })
+    .superRefine((v, ctx) => {
+      const text = v.comments.trim();
+      const reject = v.recommendation === "NO_HIRE" || v.recommendation === "STRONG_NO_HIRE";
+      if (!text) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["comments"],
+          message: t("recruiter.interviews.human.scorecard.schemaCommentsRequired"),
+        });
+      } else if ((reject || v.finalizeDecision) && text.length < 20) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["comments"],
+          message: reject
+            ? t("recruiter.interviews.human.scorecard.schemaRejectLength")
+            : t("recruiter.interviews.human.scorecard.schemaFinalizeLength"),
+        });
+      }
+    });
+}
 
-const rating = () =>
-  z.number({ required_error: "Chọn mức 1–5", invalid_type_error: "Chọn mức 1–5" }).int().min(1).max(5);
-
-const schema = z
-  .object({
-    technicalRating: rating(),
-    communicationRating: rating(),
-    cultureRating: rating(),
-    comments: z.string().max(4000),
-    recommendation: z.enum(["STRONG_HIRE", "HIRE", "NO_HIRE", "STRONG_NO_HIRE"], {
-      required_error: "Chọn đề xuất tuyển dụng",
-      invalid_type_error: "Chọn đề xuất tuyển dụng",
-    }),
-    finalizeDecision: z.boolean(),
-  })
-  .superRefine((v, ctx) => {
-    const text = v.comments.trim();
-    const reject = v.recommendation === "NO_HIRE" || v.recommendation === "STRONG_NO_HIRE";
-    if (!text) {
-      ctx.addIssue({ code: "custom", path: ["comments"], message: "Bắt buộc evidence / nhận xét có căn cứ." });
-    } else if ((reject || v.finalizeDecision) && text.length < 20) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["comments"],
-        message: reject ? "Lý do không tuyển cần ≥ 20 ký tự." : "Khi finalize, nhận xét cần ≥ 20 ký tự.",
-      });
-    }
-  });
-
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof createScorecardSchema>>;
 
 export type ScorecardFormValues = {
   technicalScore: number;
@@ -80,12 +83,16 @@ function RatingRow({
   hint,
   value,
   invalid,
+  anchors,
+  ratingGuide,
   onChange,
 }: {
   label: string;
   hint: string;
   value: number | undefined;
   invalid?: boolean;
+  anchors: readonly string[];
+  ratingGuide: string;
   onChange: (n: number) => void;
 }) {
   return (
@@ -99,7 +106,7 @@ function RatingRow({
             type="button"
             role="radio"
             aria-checked={value === n}
-            title={ANCHORS[n]}
+            title={anchors[n]}
             onClick={() => onChange(n)}
             className={cn(
               "min-h-10 min-w-10 rounded-lg border px-2 text-sm font-semibold",
@@ -116,12 +123,12 @@ function RatingRow({
       <p className="mt-1.5 text-[11px] text-[var(--color-on-surface-variant)]">
         {value != null ? (
           <>
-            <span className="font-medium text-[var(--color-on-surface)]">{ANCHORS[value]}</span>
+            <span className="font-medium text-[var(--color-on-surface)]">{anchors[value]}</span>
             {" · "}
             {SCORE_BY_RATING[value]}/100
           </>
         ) : (
-          "1 (yếu) → 5 (xuất sắc)"
+          ratingGuide
         )}
       </p>
     </fieldset>
@@ -129,6 +136,7 @@ function RatingRow({
 }
 
 export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: Props) {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const myRole = interview.participants.find((p) => p.userId === user?.id)?.role;
   const isLead = myRole === "LEAD";
@@ -137,6 +145,74 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
   const now = Date.now();
   const notStarted = new Date(interview.start).getTime() > now;
   const inProgress = !notStarted && new Date(interview.end).getTime() > now;
+
+  const anchors = useMemo(
+    () =>
+      [
+        "",
+        t("recruiter.interviews.human.scorecard.anchors.1"),
+        t("recruiter.interviews.human.scorecard.anchors.2"),
+        t("recruiter.interviews.human.scorecard.anchors.3"),
+        t("recruiter.interviews.human.scorecard.anchors.4"),
+        t("recruiter.interviews.human.scorecard.anchors.5"),
+      ] as const,
+    [t],
+  );
+
+  const competencies = useMemo(
+    () =>
+      [
+        {
+          key: "technicalRating" as const,
+          label: t("recruiter.interviews.human.scorecard.compTechnicalLabel"),
+          hint: t("recruiter.interviews.human.scorecard.compTechnicalHint"),
+        },
+        {
+          key: "communicationRating" as const,
+          label: t("recruiter.interviews.human.scorecard.compCommunicationLabel"),
+          hint: t("recruiter.interviews.human.scorecard.compCommunicationHint"),
+        },
+        {
+          key: "cultureRating" as const,
+          label: t("recruiter.interviews.human.scorecard.compCultureLabel"),
+          hint: t("recruiter.interviews.human.scorecard.compCultureHint"),
+        },
+      ] as const,
+    [t],
+  );
+
+  const recommendations = useMemo(
+    () =>
+      [
+        {
+          value: "STRONG_HIRE" as const,
+          label: t("recruiter.interviews.human.scorecard.recStrongHireLabel"),
+          desc: t("recruiter.interviews.human.scorecard.recStrongHireDesc"),
+          on: "bg-emerald-600 text-white border-emerald-700",
+        },
+        {
+          value: "HIRE" as const,
+          label: t("recruiter.interviews.human.scorecard.recHireLabel"),
+          desc: t("recruiter.interviews.human.scorecard.recHireDesc"),
+          on: "bg-emerald-50 text-emerald-900 border-emerald-300",
+        },
+        {
+          value: "NO_HIRE" as const,
+          label: t("recruiter.interviews.human.scorecard.recNoHireLabel"),
+          desc: t("recruiter.interviews.human.scorecard.recNoHireDesc"),
+          on: "bg-amber-50 text-amber-950 border-amber-300",
+        },
+        {
+          value: "STRONG_NO_HIRE" as const,
+          label: t("recruiter.interviews.human.scorecard.recStrongNoHireLabel"),
+          desc: t("recruiter.interviews.human.scorecard.recStrongNoHireDesc"),
+          on: "bg-red-50 text-red-900 border-red-300",
+        },
+      ] as const,
+    [t],
+  );
+
+  const schema = useMemo(() => createScorecardSchema(t), [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -165,7 +241,7 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
   if (myRole === "NOTE_TAKER") {
     return (
       <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-        Note-taker không nhập scorecard. Chỉ Lead / Co-interviewer được chấm.
+        {t("recruiter.interviews.human.scorecard.noteTakerInfo")}
       </p>
     );
   }
@@ -173,16 +249,20 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
   return (
     <div className="space-y-4 text-[var(--color-on-surface)]">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">Structured scorecard</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">
+          {t("recruiter.interviews.human.scorecard.headerLabel")}
+        </p>
         <p className="text-sm font-semibold">{interview.candidateName}</p>
         <p className="text-xs text-[var(--color-on-surface-variant)]">
           {interview.candidateEmail} · {interview.round}
-          {interview.configuration?.rubric ? ` · Rubric ${interview.configuration.rubric}` : ""}
+          {interview.configuration?.rubric
+            ? ` · ${t("recruiter.interviews.human.scorecard.rubricMeta", { rubric: interview.configuration.rubric })}`
+            : ""}
           {myRole ? ` · ${myRole.replaceAll("_", " ")}` : ""}
         </p>
         {inProgress && (
           <p className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
-            Đang trong buổi — lưu phiếu không đóng lịch cho đến hết giờ hoặc Lead finalize.
+            {t("recruiter.interviews.human.scorecard.inProgressNotice")}
           </p>
         )}
       </header>
@@ -190,11 +270,11 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
       {interview.evaluations.length > 0 && (
         <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]">
-            Hội đồng đã nộp ({interview.evaluations.length})
+            {t("recruiter.interviews.human.scorecard.submittedCount", { count: interview.evaluations.length })}
           </p>
           <ul className="mt-2 space-y-2">
             {interview.evaluations.map((e) => {
-              const rec = RECOMMENDATIONS.find((r) => r.value === e.recommendation);
+              const rec = recommendations.find((r) => r.value === e.recommendation);
               return (
                 <li key={e.id} className="text-sm">
                   <p className="font-semibold">
@@ -218,7 +298,9 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
 
       {closed || notStarted ? (
         <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          {closed ? "Lịch đã hủy — không thể nhập scorecard." : "Scorecard mở khi buổi bắt đầu."}
+          {closed
+            ? t("recruiter.interviews.human.scorecard.cancelledNotice")
+            : t("recruiter.interviews.human.scorecard.notStartedNotice")}
         </p>
       ) : (
         <form
@@ -234,26 +316,28 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
             }),
           )}
         >
-          {COMPETENCIES.map((c) => (
+          {competencies.map((c) => (
             <RatingRow
               key={c.key}
               label={c.label}
               hint={c.hint}
               value={values[c.key]}
               invalid={Boolean(errors[c.key])}
+              anchors={anchors}
+              ratingGuide={t("recruiter.interviews.human.scorecard.ratingGuide")}
               onChange={(n) => form.setValue(c.key, n, { shouldValidate: true, shouldDirty: true })}
             />
           ))}
           {(errors.technicalRating || errors.communicationRating || errors.cultureRating) && (
             <p role="alert" className="text-xs text-red-700">
-              Chấm đủ 3 năng lực (1–5).
+              {t("recruiter.interviews.human.scorecard.rateAllThreeError")}
             </p>
           )}
 
           <div>
-            <p className="mb-1.5 text-sm font-semibold">Đề xuất tuyển dụng</p>
+            <p className="mb-1.5 text-sm font-semibold">{t("recruiter.interviews.human.scorecard.recommendationTitle")}</p>
             <div className="grid grid-cols-2 gap-2">
-              {RECOMMENDATIONS.map((r) => {
+              {recommendations.map((r) => {
                 const selected = values.recommendation === r.value;
                 return (
                   <button
@@ -275,17 +359,17 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
             </div>
             {errors.recommendation && (
               <p role="alert" className="mt-1 text-xs text-red-700">
-                Chọn một mức đề xuất.
+                {t("recruiter.interviews.human.scorecard.selectRecommendationError")}
               </p>
             )}
           </div>
 
           <label className="block text-sm font-medium">
-            Evidence / nhận xét (bắt buộc)
+            {t("recruiter.interviews.human.scorecard.commentsLabel")}
             <textarea
               className="mt-1 min-h-28 w-full rounded-lg border border-[var(--color-border-default)] px-3 py-2 text-sm"
               maxLength={4000}
-              placeholder="Bằng chứng cụ thể: điểm mạnh, điểm yếu, ví dụ câu trả lời…"
+              placeholder={t("recruiter.interviews.human.scorecard.commentsPlaceholder")}
               {...form.register("comments")}
             />
             {errors.comments && (
@@ -297,34 +381,38 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
 
           {overall != null && values.recommendation && (
             <p className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-2 text-sm">
-              Tổng dự kiến: <strong>{overall}/100</strong>
+              {t("recruiter.interviews.human.scorecard.projectedTotal")} <strong>{overall}/100</strong>
               <span className="text-[var(--color-on-surface-variant)]">
                 {" "}
-                · {RECOMMENDATIONS.find((r) => r.value === values.recommendation)?.label}
+                · {recommendations.find((r) => r.value === values.recommendation)?.label}
               </span>
             </p>
           )}
 
           {isLead ? (
             <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/80 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-red-800">Hiring decision (Lead)</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-800">
+                {t("recruiter.interviews.human.scorecard.leadDecisionTitle")}
+              </p>
               <p className="text-xs text-red-900/80">
-                Nộp phiếu không đổi đơn. Tick để gắn Đậu → OFFER hoặc Trượt → REJECTED.
-                {inProgress ? " Nên finalize sau khi hội đồng thống nhất." : ""}
+                {t("recruiter.interviews.human.scorecard.leadDecisionDesc")}
+                {inProgress ? t("recruiter.interviews.human.scorecard.leadDecisionInProgressHint") : ""}
               </p>
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-0.5" {...form.register("finalizeDecision")} />
                 <span>
-                  <strong>Ra quyết định cuối trên hồ sơ</strong>
+                  <strong>{t("recruiter.interviews.human.scorecard.finalizeCheckboxLabel")}</strong>
                   <span className="mt-0.5 block text-xs text-red-900/70">
-                    {reject ? "Trượt → REJECTED." : "Đậu → OFFER."}
+                    {reject
+                      ? t("recruiter.interviews.human.scorecard.finalizeRejectHint")
+                      : t("recruiter.interviews.human.scorecard.finalizeHireHint")}
                   </span>
                 </span>
               </label>
             </div>
           ) : myRole ? (
             <p className="text-xs text-[var(--color-on-surface-variant)]">
-              Không phải Lead — chỉ nộp phiếu đề xuất.
+              {t("recruiter.interviews.human.scorecard.nonLeadHint")}
             </p>
           ) : null}
 
@@ -334,14 +422,14 @@ export function HumanInterviewScorecardPanel({ interview, pending, onSubmit }: P
             className="inline-flex h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
           >
             {pending
-              ? "Đang lưu…"
+              ? t("recruiter.interviews.human.scorecard.saving")
               : values.finalizeDecision && isLead
                 ? reject
-                  ? "Nộp phiếu & đánh Trượt"
-                  : "Nộp phiếu & đánh Đậu"
+                  ? t("recruiter.interviews.human.scorecard.submitFinalizeReject")
+                  : t("recruiter.interviews.human.scorecard.submitFinalizePass")
                 : mine
-                  ? "Cập nhật scorecard"
-                  : "Nộp scorecard"}
+                  ? t("recruiter.interviews.human.scorecard.submitUpdate")
+                  : t("recruiter.interviews.human.scorecard.submitCreate")}
           </button>
         </form>
       )}

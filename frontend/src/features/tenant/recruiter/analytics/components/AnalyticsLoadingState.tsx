@@ -1,8 +1,10 @@
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
+import { useT } from "@/i18n";
 
 export function AnalyticsLoadingState() {
+  const t = useT();
   return (
-    <LoadingState label="Đang tải dữ liệu phân tích" className="space-y-5">
+    <LoadingState label={t("recruiter.ops.analytics.loadingLabel")} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => <div key={index} className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-white p-4"><Skeleton className="size-10 rounded-xl" /><Skeleton className="mt-4 h-8 w-16" /><Skeleton className="mt-2 h-4 w-3/4" /></div>)}
       </div>

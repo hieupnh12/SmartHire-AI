@@ -75,11 +75,73 @@ public class TenantQuotaRedisService {
     @Autowired(required = false)
     private com.smarthire.master.notification.service.MasterNotificationService masterNotificationService;
 
+    @Autowired(required = false)
+    private com.smarthire.tenant.notification.service.TenantAdminNotificationService tenantAdminNotificationService;
+
     public static final List<String> OPERATIONAL_SUBSCRIPTION_STATUSES = List.of("ACTIVE", "TRIAL", "PAST_DUE");
     private static final String CACHE_KEY_STATUS = "sub:tenant:%s:status";
 
+    private void notifyQuotaBellIfNeeded(String tenantCode, QuotaType type, long used, long limit) {
+        if (tenantAdminNotificationService == null
+                || tenantCode == null
+                || !tenantCode.equals(com.smarthire.multitenancy.context.TenantContext.getCurrentTenant())) {
+            return;
+        }
+        try {
+            long percentage = Math.min(100L, Math.round(((double) used / limit) * 100));
+            String thresholdTier = percentage >= 100 ? "100" : "80";
+            String webDedupKey = String.format("web_notif:quota:%s:%s:%s", tenantCode, type.name(), thresholdTier);
+            boolean acquired = true;
+            if (redis != null && redis.opsForValue() != null) {
+                try {
+                    Boolean ok = redis.opsForValue().setIfAbsent(webDedupKey, "1", 24, TimeUnit.HOURS);
+                    acquired = Boolean.TRUE.equals(ok);
+                } catch (Exception ex) {
+                    log.debug("Redis quota web-notif dedup unavailable for {}: {}", tenantCode, ex.getMessage());
+                }
+            }
+            if (!acquired) {
+                return;
+            }
+            String label = switch (type) {
+                case CV_PARSE -> "Lượt phân tích CV AI";
+                case AI_VOICE_SECONDS -> "Thời lượng phỏng vấn AI";
+                case AI_TOKENS -> "Hạn ngạch AI Tokens";
+                case ACTIVE_JOBS -> "Tin tuyển dụng đang mở";
+                case MAX_SEATS -> "Tài khoản nhân sự";
+                case STORAGE_BYTES -> "Dung lượng lưu trữ";
+                case PROCTORING_SECONDS -> "Giám sát thi Proctoring";
+                case VIDEO_RETENTION_DAYS -> "Thời hạn lưu trữ Video";
+            };
+            String title = percentage >= 100
+                    ? "Đã chạm giới hạn gói: " + label
+                    : "Cảnh báo hạn mức gói (" + percentage + "%): " + label;
+            String body = percentage >= 100
+                    ? label + " đã đạt 100% hạn mức gói hiện tại. Vui lòng kiểm tra hoặc nâng cấp gói để tiếp tục sử dụng."
+                    : label + " đã sử dụng " + percentage + "% hạn mức gói hiện tại. Hãy cân nhắc nâng cấp sớm để không gián đoạn.";
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "path", "/internal/admin/billing",
+                    "quotaType", type.name(),
+                    "percentage", percentage
+            );
+            tenantAdminNotificationService.notifyCompanyAdmins(
+                    "QUOTA_WARNING",
+                    title,
+                    body,
+                    payload,
+                    Instant.now().minus(12, ChronoUnit.HOURS)
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to dispatch quota warning bell alert for tenant {} on {}: {}", tenantCode, type, ex.getMessage());
+        }
+    }
+
     private void notifyQuotaWarningIfNeeded(String tenantCode, QuotaType type, long used, long limit) {
-        if (masterNotificationService == null || limit <= 0L || used * 100L < limit * 80L) {
+        if (type == null || limit <= 0L || used * 100L < limit * 80L) {
+            return;
+        }
+        notifyQuotaBellIfNeeded(tenantCode, type, used, limit);
+        if (masterNotificationService == null) {
             return;
         }
         try {
@@ -710,7 +772,7 @@ public class TenantQuotaRedisService {
     private static SubscriptionPlan defaultStarterPlan() {
         return SubscriptionPlan.builder()
                 .code("STARTER")
-                .name("Gói Khởi Đầu (Starter)")
+                .name("Gói Khởi Đầu")
                 .description("Dành cho doanh nghiệp nhỏ và công ty khởi nghiệp có nhu cầu tự động hóa bước đầu.")
                 .priceYearly(BigDecimal.valueOf(12_000_000))
                 .maxJobs(5)

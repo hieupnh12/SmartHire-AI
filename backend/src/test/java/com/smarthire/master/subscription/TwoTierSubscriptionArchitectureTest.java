@@ -1,7 +1,13 @@
 package com.smarthire.master.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
+import com.smarthire.domain.master.entity.InvoiceLineItem;
+import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
+import com.smarthire.master.billing.dto.CheckoutResponse;
+import com.smarthire.tenant.company.dto.RenewSubscriptionRequest;
+import com.smarthire.tenant.company.dto.TenantSubscriptionQuotaResponse;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
@@ -13,6 +19,7 @@ import com.smarthire.domain.tenant.repository.AiAnswerRecordingRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.InterviewMessageRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
+import com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService;
 import com.smarthire.master.subscription.dto.CloneCustomPlanRequest;
 import com.smarthire.master.subscription.dto.SubscriptionPlanResponse;
 import com.smarthire.master.subscription.dto.UpdateSubscriptionPlanRequest;
@@ -57,6 +64,8 @@ class TwoTierSubscriptionArchitectureTest {
     private TenantInfoRepository tenantInfoRepository;
     @Mock
     private InvoiceRepository invoiceRepository;
+    @Mock
+    private InvoiceLineItemRepository invoiceLineItemRepository;
     @Mock
     private TenantQuotaRedisService quotaRedisService;
     @Mock
@@ -114,6 +123,7 @@ class TwoTierSubscriptionArchitectureTest {
                 aiAnswerRecordingRepository,
                 new ObjectMapper()
         );
+        ReflectionTestUtils.setField(tenantSubscriptionQuotaService, "invoiceLineItemRepository", invoiceLineItemRepository);
     }
 
     @AfterEach
@@ -312,24 +322,39 @@ class TwoTierSubscriptionArchitectureTest {
                 BigDecimal.valueOf(60_000_000L).subtract(upgradePreview.getProratedCreditAmount())
         );
 
-        // 2. Execute Upgrade -> creates new snapshot subscription + proration invoice
-        when(subscriptionRepository.save(any(TenantSubscription.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+        // 2. Execute Upgrade -> keeps currentSub ACTIVE & creates PENDING upgrade subscription + proration invoice
+        when(subscriptionRepository.save(any(TenantSubscription.class))).thenAnswer(inv -> {
+            TenantSubscription s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(501L);
+            return s;
+        });
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> {
+            Invoice i = inv.getArgument(0);
+            if (i.getId() == null) i.setId(901L);
+            return i;
+        });
 
         tenantSubscriptionQuotaService.executePlanChange(new SubscriptionChangeRequest("PRO", "Nâng cấp lên gói Pro"));
 
-        assertThat(currentSub.getStatus()).isEqualTo("CANCELED");
+        assertThat(currentSub.getStatus()).isEqualTo("ACTIVE");
         ArgumentCaptor<TenantSubscription> subCaptor = ArgumentCaptor.forClass(TenantSubscription.class);
-        verify(subscriptionRepository, times(2)).save(subCaptor.capture());
-        TenantSubscription upgradedSub = subCaptor.getAllValues().get(1);
+        verify(subscriptionRepository, times(1)).save(subCaptor.capture());
+        TenantSubscription upgradedSub = subCaptor.getValue();
+        assertThat(upgradedSub.getStatus()).isEqualTo("PENDING");
         assertThat(upgradedSub.getPlanId()).isEqualTo(2L);
         assertThat(upgradedSub.getPlanCodeSnapshot()).isEqualTo("PRO");
         assertThat(upgradedSub.getSnapshotMaxJobs()).isEqualTo(20);
         assertThat(upgradedSub.getUpgradedFromSubscriptionId()).isEqualTo(500L);
         assertThat(upgradedSub.getProratedCreditAmount()).isPositive();
 
+        ArgumentCaptor<Invoice> invCaptor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository, times(1)).save(invCaptor.capture());
+        assertThat(invCaptor.getValue().getStatus()).isEqualTo("PENDING");
+        assertThat(invCaptor.getValue().getAmount()).isEqualByComparingTo(upgradePreview.getNetAmountDue());
+
         // 3. Preview Downgrade from PRO (20 maxJobs) to STARTER (5 maxJobs) when 8 jobs are open
         upgradedSub.setId(501L);
+        upgradedSub.setStatus("ACTIVE");
         when(subscriptionRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(anyLong(), any()))
                 .thenReturn(Optional.of(upgradedSub));
         when(jobRepository.countByStatusInAndDeletedAtIsNull(any())).thenReturn(8L);
@@ -340,5 +365,126 @@ class TwoTierSubscriptionArchitectureTest {
         assertThat(downgradePreview.getProratedCreditAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(downgradePreview.getWarnings()).isNotEmpty();
         assertThat(downgradePreview.getWarnings().get(0)).contains("8 vị trí tuyển dụng");
+    }
+
+    @Test
+    void renewAndAutoRenewAndInvoiceSecurity_HandlesActiveAndFallbackStarterAndOwnership() {
+        TenantContext.setCurrentTenant("se37");
+
+        TenantInfo tenant = new TenantInfo();
+        tenant.setId(2L);
+        tenant.setCode("se37");
+        tenant.setSubdomain("se37");
+        tenant.setName("SE37 Corp");
+
+        SubscriptionPlan starter = SubscriptionPlan.builder()
+                .id(1L)
+                .code("STARTER")
+                .name("Starter")
+                .priceYearly(BigDecimal.valueOf(2000L))
+                .status("ACTIVE")
+                .build();
+
+        when(tenantInfoRepository.findByCode("se37")).thenReturn(Optional.of(tenant));
+        when(planRepository.findByCode("STARTER")).thenReturn(Optional.of(starter));
+
+        when(subscriptionRepository.findFirstByTenantIdAndStatusInOrderByCreatedAtDesc(anyLong(), any()))
+                .thenReturn(Optional.empty());
+        when(subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(anyLong(), any()))
+                .thenReturn(Optional.empty());
+        when(subscriptionRepository.save(any(TenantSubscription.class))).thenAnswer(inv -> {
+            TenantSubscription s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(77L);
+            return s;
+        });
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> {
+            Invoice i = inv.getArgument(0);
+            if (i.getId() == null) i.setId(88L);
+            return i;
+        });
+
+        // Auto-renew toggle on FALLBACK_STARTER is rejected cleanly
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tenantSubscriptionQuotaService.updateAutoRenew(false))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chưa có gói thuê bao trả phí");
+
+        // Renew 2 years on FALLBACK_STARTER creates PENDING sub + PENDING invoice of 4000 VND
+        TenantSubscriptionQuotaResponse res = tenantSubscriptionQuotaService.renewSubscription(new RenewSubscriptionRequest(2, "Gia hạn 2 năm"));
+        assertThat(res.getSubscriptionStatus()).isEqualTo("FALLBACK_STARTER");
+
+        ArgumentCaptor<Invoice> renewalInvCaptor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(renewalInvCaptor.capture());
+        assertThat(renewalInvCaptor.getValue().getAmount()).isEqualByComparingTo("4000");
+        assertThat(renewalInvCaptor.getValue().getStatus()).isEqualTo("PENDING");
+        assertThat(renewalInvCaptor.getValue().getSubscriptionId()).isEqualTo(77L);
+
+        // Tenant isolation: accessing another tenant's invoice returns FORBIDDEN
+        Invoice otherTenantInv = Invoice.builder().id(999L).tenantId(999L).invoiceNumber("INV-OTHER").build();
+        when(invoiceRepository.findById(999L)).thenReturn(Optional.of(otherTenantInv));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tenantSubscriptionQuotaService.getInvoiceCheckoutDetails(999L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Không có quyền");
+
+        // Valid invoice checkout details
+        Invoice ownedInv = Invoice.builder()
+                .id(88L)
+                .tenantId(2L)
+                .subscriptionId(77L)
+                .invoiceNumber("INV-202611-8888")
+                .amount(BigDecimal.valueOf(4000L))
+                .status("PENDING")
+                .build();
+        when(invoiceRepository.findById(88L)).thenReturn(Optional.of(ownedInv));
+        CheckoutResponse checkout = tenantSubscriptionQuotaService.getInvoiceCheckoutDetails(88L);
+        assertThat(checkout.getInvoiceNumber()).isEqualTo("INV-202611-8888");
+        assertThat(checkout.getAmountVnd()).isEqualByComparingTo("4000");
+        assertThat(checkout.getQrUrl()).contains("INV-202611-8888");
+
+        // Canceling PENDING invoice marks invoice CANCELLED and PENDING subscription CANCELED
+        TenantSubscription pendingSub = TenantSubscription.builder().id(77L).tenantId(2L).planId(1L).status("PENDING").build();
+        when(subscriptionRepository.findById(77L)).thenReturn(Optional.of(pendingSub));
+        tenantSubscriptionQuotaService.cancelPendingInvoice(88L);
+        assertThat(ownedInv.getStatus()).isEqualTo("CANCELLED");
+        assertThat(pendingSub.getStatus()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    void processSubscriptionLifecycleTransitions_NotifiesNewlyPastDueAndSuspendedSubscriptions() {
+        com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService lifecycleService =
+                org.mockito.Mockito.mock(com.smarthire.master.notification.service.SubscriptionLifecycleNotificationService.class);
+        ReflectionTestUtils.setField(masterSubscriptionService, "lifecycleNotificationService", lifecycleService);
+
+        TenantSubscription activeExpired = TenantSubscription.builder()
+                .id(601L)
+                .tenantId(10L)
+                .planId(2L)
+                .status("ACTIVE")
+                .endsAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+        TenantSubscription pastDueOverGrace = TenantSubscription.builder()
+                .id(602L)
+                .tenantId(11L)
+                .planId(2L)
+                .status("PAST_DUE")
+                .gracePeriodEndsAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+
+        when(subscriptionRepository.findByStatusInAndEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq(java.util.List.of("TRIAL", "ACTIVE")), any()))
+                .thenReturn(java.util.List.of(activeExpired));
+        when(subscriptionRepository.findByStatusAndGracePeriodEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq("PAST_DUE"), any()))
+                .thenReturn(java.util.List.of(pastDueOverGrace));
+        when(subscriptionRepository.findByStatusAndGracePeriodEndsAtBefore(
+                org.mockito.ArgumentMatchers.eq("SUSPENDED"), any()))
+                .thenReturn(java.util.List.of());
+        when(subscriptionRepository.save(any(TenantSubscription.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        int transitioned = masterSubscriptionService.processSubscriptionLifecycleTransitions();
+
+        assertThat(transitioned).isEqualTo(2);
+        assertThat(activeExpired.getStatus()).isEqualTo("PAST_DUE");
+        assertThat(pastDueOverGrace.getStatus()).isEqualTo("SUSPENDED");
+        verify(lifecycleService).notifySubscriptionsByIds(java.util.List.of(601L, 602L));
     }
 }

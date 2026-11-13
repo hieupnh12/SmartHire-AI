@@ -43,4 +43,6 @@ public class SendQuotationRequest {
 
     String pricingMode; // "TEMPLATE_ADDON" | "FROM_SCRATCH"
     String notes;
+    String proposedCode;
+    String proposedSubdomain;
 }

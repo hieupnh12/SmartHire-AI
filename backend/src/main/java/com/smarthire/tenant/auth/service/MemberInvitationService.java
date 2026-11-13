@@ -13,6 +13,7 @@ import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
+import com.smarthire.tenant.auth.dto.PendingInvitationResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
 import com.smarthire.tenant.company.service.CompanyEmailSettingService;
@@ -22,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -60,30 +62,97 @@ public class MemberInvitationService {
                     HttpStatus.CONFLICT, "EMAIL_EXISTS");
         }
 
-        String rawToken = UUID.randomUUID().toString();
-        Instant expiresAt = Instant.now().plus(expireHours, ChronoUnit.HOURS);
-
         MemberInvitation invitation = invitationRepository
                 .findFirstByEmailIgnoreCaseAndStatus(email, InvitationStatus.PENDING)
                 .orElseGet(MemberInvitation::new);
         invitation.setEmail(email);
         invitation.setFullName(request.getFullName().trim());
         invitation.setRole(role.getCode());
-        invitation.setTokenHash(sha256(rawToken));
         invitation.setStatus(InvitationStatus.PENDING);
+
+        return issueAndDeliver(invitation, role.getName());
+    }
+
+    @Transactional(readOnly = true)
+    public List<PendingInvitationResponse> list(String statusFilter) {
+        List<MemberInvitation> items;
+        if (statusFilter != null && !statusFilter.isBlank()) {
+            InvitationStatus status;
+            try {
+                status = InvitationStatus.valueOf(statusFilter.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException("Invalid invitation status: " + statusFilter,
+                        HttpStatus.BAD_REQUEST, "INVALID_STATUS");
+            }
+            items = invitationRepository.findByStatusOrderByCreatedAtDesc(status);
+        } else {
+            items = invitationRepository.findAllByOrderByCreatedAtDesc();
+        }
+        Instant now = Instant.now();
+        return items.stream()
+                .map(inv -> PendingInvitationResponse.builder()
+                        .id(inv.getId())
+                        .email(inv.getEmail())
+                        .fullName(inv.getFullName())
+                        .role(inv.getRole())
+                        .status(inv.getStatus().name())
+                        .expired(inv.getStatus() == InvitationStatus.PENDING && inv.getExpiresAt().isBefore(now))
+                        .expiresAt(inv.getExpiresAt())
+                        .createdAt(inv.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    @Transactional
+    public InviteMemberResponse resend(Long invitationId) {
+        MemberInvitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new BusinessException("Invitation not found",
+                        HttpStatus.NOT_FOUND, "INVITE_NOT_FOUND"));
+        if (invitation.getStatus() != InvitationStatus.PENDING) {
+            throw new BusinessException("Chỉ có thể gửi lại lời mời đang ở trạng thái chờ",
+                    HttpStatus.BAD_REQUEST, "INVITE_NOT_PENDING");
+        }
+        if (userRepository.existsByEmailIgnoreCase(invitation.getEmail())) {
+            throw new BusinessException("User with this email already exists in this tenant",
+                    HttpStatus.CONFLICT, "EMAIL_EXISTS");
+        }
+        TenantRole role = tenantRoleService.requireAssignable(invitation.getRole());
+        return issueAndDeliver(invitation, role.getName());
+    }
+
+    @Transactional
+    public void revoke(Long invitationId) {
+        MemberInvitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new BusinessException("Invitation not found",
+                        HttpStatus.NOT_FOUND, "INVITE_NOT_FOUND"));
+        if (invitation.getStatus() == InvitationStatus.ACCEPTED) {
+            throw new BusinessException("Không thể thu hồi lời mời đã được chấp nhận",
+                    HttpStatus.BAD_REQUEST, "INVITE_ALREADY_ACCEPTED");
+        }
+        if (invitation.getStatus() == InvitationStatus.REVOKED) {
+            return;
+        }
+        invitation.setStatus(InvitationStatus.REVOKED);
+        invitationRepository.save(invitation);
+    }
+
+    private InviteMemberResponse issueAndDeliver(MemberInvitation invitation, String roleName) {
+        String rawToken = UUID.randomUUID().toString();
+        Instant expiresAt = Instant.now().plus(expireHours, ChronoUnit.HOURS);
+        invitation.setTokenHash(sha256(rawToken));
         invitation.setExpiresAt(expiresAt);
         invitationRepository.save(invitation);
 
         String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
         String acceptUrl = publicUrls.path("/invite/accept?token=" + rawToken);
         String subject = "[" + brand + "] Lời mời tham gia đội ngũ & Thiết lập mật khẩu tài khoản";
-        String body = buildInviteEmailBody(brand, invitation.getFullName(), email, role.getName(), acceptUrl);
-        boolean emailSent = deliverInviteEmail(email, subject, body);
+        String body = buildInviteEmailBody(brand, invitation.getFullName(), invitation.getEmail(), roleName, acceptUrl);
+        boolean emailSent = deliverInviteEmail(invitation.getEmail(), subject, body);
 
         return InviteMemberResponse.builder()
-                .email(email)
+                .email(invitation.getEmail())
                 .fullName(invitation.getFullName())
-                .role(role.getCode())
+                .role(invitation.getRole())
                 .expiresAt(expiresAt)
                 .emailSent(emailSent)
                 .acceptUrl(acceptUrl)

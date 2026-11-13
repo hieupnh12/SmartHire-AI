@@ -21,6 +21,9 @@ public class ConsultationResponse {
     private String companySize;
     private String requestType;
     private String planTier;
+    private Long quotedPlanId;
+    private String proposedCode;
+    private String proposedSubdomain;
     private String primaryNeed;
     private String notes;
     private String status;
@@ -39,6 +42,9 @@ public class ConsultationResponse {
                 .companySize(entity.getCompanySize())
                 .requestType(entity.getRequestType())
                 .planTier(entity.getPlanTier())
+                .quotedPlanId(entity.getQuotedPlanId())
+                .proposedCode(entity.getProposedCode())
+                .proposedSubdomain(entity.getProposedSubdomain())
                 .primaryNeed(entity.getPrimaryNeed())
                 .notes(entity.getNotes())
                 .status(entity.getStatus())

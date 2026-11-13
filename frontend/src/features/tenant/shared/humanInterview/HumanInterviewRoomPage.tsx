@@ -5,6 +5,7 @@ import { ArrowLeft, ClipboardList, Mic, MicOff, PanelRightClose, PanelRightOpen,
 import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { HumanInterviewScorecardPanel } from "@/features/tenant/recruiter/interviews/components/HumanInterviewScorecardPanel";
+import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
@@ -27,12 +28,13 @@ function VideoTile({ stream, label, muted, mirror }: { stream: MediaStream | nul
 }
 
 export function HumanInterviewRoomPage() {
+  const t = useT();
   const { interviewId: rawId } = useParams<{ interviewId: string }>();
   const interviewId = rawId && /^\d+$/.test(rawId) ? Number(rawId) : NaN;
   const navigate = useNavigate();
   const client = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const displayName = user?.fullName?.trim() || user?.email || "SmartHire Guest";
+  const displayName = user?.fullName?.trim() || user?.email || t("candidate.assess.humanMeeting.guestFallback");
   const isCandidate = user?.role === "CANDIDATE";
   const engine = humanMeetingEngine();
   const [scorecardOpen, setScorecardOpen] = useState(!isCandidate);
@@ -57,7 +59,7 @@ export function HumanInterviewRoomPage() {
   const evaluate = useMutation({
     mutationFn: (body: Parameters<typeof humanInterviewApi.evaluate>[1]) => humanInterviewApi.evaluate(interviewId, body),
     onSuccess: async () => {
-      toast.success("Đã lưu phiếu đánh giá.");
+      toast.success(t("candidate.assess.humanMeeting.scorecardSaved"));
       await client.invalidateQueries({ queryKey: ["human-interview", interviewId] });
       await client.invalidateQueries({ queryKey: ["human-interviews"] });
     },
@@ -74,7 +76,7 @@ export function HumanInterviewRoomPage() {
   if (!Number.isFinite(interviewId)) {
     return (
       <div className="grid min-h-dvh place-items-center bg-slate-950 p-6 text-white">
-        <p>Link phòng họp không hợp lệ.</p>
+        <p>{t("candidate.assess.humanMeeting.invalidRoomLink")}</p>
       </div>
     );
   }
@@ -83,9 +85,9 @@ export function HumanInterviewRoomPage() {
     return (
       <div className="grid min-h-dvh place-items-center bg-slate-950 p-6 text-center text-white">
         <div className="max-w-md space-y-3">
-          <p className="text-lg font-semibold">Không vào được phòng họp</p>
+          <p className="text-lg font-semibold">{t("candidate.assess.humanMeeting.cannotJoinTitle")}</p>
           <p className="text-sm text-slate-300">{getApiErrorMessage(interview.error)}</p>
-          <Button variant="secondary" onClick={() => navigate(-1)}>Quay lại</Button>
+          <Button variant="secondary" onClick={() => navigate(-1)}>{t("candidate.assess.humanMeeting.backButton")}</Button>
         </div>
       </div>
     );
@@ -99,12 +101,12 @@ export function HumanInterviewRoomPage() {
       <div className="grid min-h-dvh place-items-center bg-slate-950 p-6 text-center text-white">
         <div className="max-w-md space-y-3">
           <p className="text-2xl">⏰</p>
-          <p className="text-lg font-semibold">Buổi phỏng vấn đã kết thúc</p>
+          <p className="text-lg font-semibold">{t("candidate.assess.humanMeeting.endedTitle")}</p>
           <p className="text-sm text-slate-300">
-            Lịch phỏng vấn này đã qua thời gian kết thúc. Phòng họp không còn hoạt động.
+            {t("candidate.assess.humanMeeting.endedDesc")}
           </p>
           <Button variant="secondary" onClick={() => navigate(backToExpired)}>
-            Quay lại danh sách
+            {t("candidate.assess.humanMeeting.backToList")}
           </Button>
         </div>
       </div>
@@ -122,16 +124,18 @@ export function HumanInterviewRoomPage() {
     <div className="flex h-dvh flex-col bg-slate-950 text-white">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">SmartHire Meeting</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">{t("candidate.assess.humanMeeting.eyebrow")}</p>
           {interview.isPending ? (
             <Skeleton className="mt-1 h-5 w-48 bg-white/20" />
           ) : (
             <h1 className="truncate text-sm font-semibold sm:text-base">
-              {row?.jobTitle ?? "Phỏng vấn trực tiếp"} · {row?.candidateName}
+              {row?.jobTitle ?? t("candidate.assess.humanMeeting.defaultRoomTitle")} · {row?.candidateName}
             </h1>
           )}
           <p className="mt-0.5 truncate text-[11px] text-slate-400">
-            {engine === "jitsi" ? `Jitsi · ${jitsiDomain()}` : meeting.status}
+            {engine === "jitsi"
+              ? t("candidate.assess.humanMeeting.jitsiProvider", { domain: jitsiDomain() })
+              : meeting.status}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -143,19 +147,19 @@ export function HumanInterviewRoomPage() {
             >
               {scorecardOpen ? <PanelRightClose className="size-3.5" /> : <PanelRightOpen className="size-3.5" />}
               <ClipboardList className="size-3.5" aria-hidden="true" />
-              Phiếu đánh giá
+              {t("candidate.assess.humanMeeting.scorecardButton")}
             </button>
           )}
           <span className="hidden items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] sm:inline-flex">
             <Video className="size-3.5" aria-hidden="true" />
-            Live · không ghi hình
+            {t("candidate.assess.humanMeeting.liveNoRecording")}
           </span>
           <Link
             to={backTo}
             className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white/10 px-3 text-xs font-semibold hover:bg-white/15"
           >
             <ArrowLeft className="size-3.5" aria-hidden="true" />
-            Thoát phòng
+            {t("candidate.assess.humanMeeting.exitRoom")}
           </Link>
         </div>
       </header>
@@ -166,25 +170,34 @@ export function HumanInterviewRoomPage() {
             {engine === "jitsi" ? (
               jitsiSrc ? (
                 <iframe
-                  title="Phòng phỏng vấn Jitsi"
+                  title={t("candidate.assess.humanMeeting.jitsiFrameTitle")}
                   src={jitsiSrc}
                   allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
                   className="h-full w-full rounded-xl border-0 bg-black"
                   allowFullScreen
                 />
               ) : (
-                <div className="grid h-full place-items-center text-sm text-slate-300">Đang mở Jitsi…</div>
+                <div className="grid h-full place-items-center text-sm text-slate-300">{t("candidate.assess.humanMeeting.openingJitsi")}</div>
               )
             ) : meeting.error ? (
               <div className="grid h-full place-items-center text-center">
                 <div className="max-w-md space-y-2">
-                  <p className="font-semibold text-red-300">Không kết nối được phòng họp</p>
+                  <p className="font-semibold text-red-300">{t("candidate.assess.humanMeeting.connectionErrorTitle")}</p>
                   <p className="text-sm text-slate-300">{meeting.error}</p>
                 </div>
               </div>
             ) : (
               <div className={cn("grid h-full gap-3", gridClass)}>
-                <VideoTile stream={meeting.localStream} label={`${displayName} (Bạn)${meeting.isHost ? " · mở phòng" : ""}`} muted mirror />
+                <VideoTile
+                  stream={meeting.localStream}
+                  label={
+                    meeting.isHost
+                      ? t("candidate.assess.humanMeeting.localTileHostLabel", { name: displayName })
+                      : t("candidate.assess.humanMeeting.localTileLabel", { name: displayName })
+                  }
+                  muted
+                  mirror
+                />
                 {meeting.remotes.map((remote) => (
                   <VideoTile key={remote.peerId} stream={remote.stream} label={remote.name} />
                 ))}
@@ -203,7 +216,7 @@ export function HumanInterviewRoomPage() {
                 )}
               >
                 {meeting.micOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
-                {meeting.micOn ? "Tắt mic" : "Bật mic"}
+                {meeting.micOn ? t("candidate.assess.humanMeeting.muteMic") : t("candidate.assess.humanMeeting.unmuteMic")}
               </button>
               <button
                 type="button"
@@ -214,7 +227,7 @@ export function HumanInterviewRoomPage() {
                 )}
               >
                 {meeting.camOn ? <Video className="size-4" /> : <VideoOff className="size-4" />}
-                {meeting.camOn ? "Tắt camera" : "Bật camera"}
+                {meeting.camOn ? t("candidate.assess.humanMeeting.turnOffCam") : t("candidate.assess.humanMeeting.turnOnCam")}
               </button>
             </footer>
           )}
@@ -224,11 +237,11 @@ export function HumanInterviewRoomPage() {
           <aside className="flex max-h-[45vh] w-full shrink-0 flex-col overflow-hidden border-t border-white/10 bg-white text-slate-900 lg:max-h-none lg:w-[380px] lg:border-l lg:border-t-0">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Scorecard live</p>
-                <p className="text-sm font-semibold">Chấm trong lúc phỏng vấn</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">{t("candidate.assess.humanMeeting.scorecardEyebrow")}</p>
+                <p className="text-sm font-semibold">{t("candidate.assess.humanMeeting.scorecardSubtitle")}</p>
               </div>
               <button type="button" className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100" onClick={() => setScorecardOpen(false)}>
-                Ẩn
+                {t("candidate.assess.humanMeeting.hideScorecard")}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">

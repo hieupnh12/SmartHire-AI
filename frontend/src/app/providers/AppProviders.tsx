@@ -7,6 +7,7 @@ import { useAppHotkeys } from "@/hooks/useAppHotkeys";
 import { ToastViewport } from "@/components/ux/ToastViewport";
 import { ShortcutsHelp } from "@/components/ux/ShortcutsHelp";
 import { ConfirmDialog } from "@/components/ux/ConfirmDialog";
+import { ErrorBoundary } from "@/components/ux/ErrorBoundary";
 import { useT } from "@/i18n";
 
 const queryClient = new QueryClient({
@@ -20,6 +21,23 @@ const queryClient = new QueryClient({
 
 function HotkeysBridge() {
   useAppHotkeys();
+  return null;
+}
+
+function CtrlWheelZoomGuard() {
+  useEffect(() => {
+    const preventCtrlWheelZoom = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("wheel", preventCtrlWheelZoom, { capture: true, passive: false });
+    return () => {
+      window.removeEventListener("wheel", preventCtrlWheelZoom, { capture: true });
+    };
+  }, []);
+
   return null;
 }
 
@@ -53,7 +71,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <LocaleBoot>
             <SkipLink />
             <HotkeysBridge />
-            {children}
+            <CtrlWheelZoomGuard />
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
             <ToastViewport />
             <ShortcutsHelp />
             <ConfirmDialog />

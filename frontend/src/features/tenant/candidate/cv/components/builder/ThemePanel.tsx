@@ -1,6 +1,15 @@
 import { Check } from "lucide-react";
 import type { CvBuilderTheme, CvFontKey, CvFontSize, CvLineHeight } from "@/api/types/cv";
-import { cvColorPresets, cvFonts, cvFontSizes, cvLineHeights } from "../../constants/cvTheme";
+import { useT } from "@/i18n";
+import {
+  cvColorPresets,
+  cvFonts,
+  cvFontSizes,
+  cvLineHeights,
+  getCvFontLabel,
+  getCvFontSizeLabel,
+  getCvLineHeightLabel,
+} from "../../constants/cvTheme";
 import { defaultCvTheme } from "../../utils/createDefaultCv";
 
 type PanelProps = { theme: CvBuilderTheme | undefined; onChange: (patch: Partial<CvBuilderTheme>) => void };
@@ -32,14 +41,15 @@ function Segmented<T extends string>({ label, options, value, onChange }: {
 }
 
 export function FontPanel({ theme, onChange }: PanelProps) {
+  const t = useT();
   const value = { ...defaultCvTheme, ...theme };
   const fonts: Array<{ key: CvFontKey | null; label: string; family: string }> = [
-    { key: null, label: "Theo mẫu CV", family: "inherit" },
-    ...(Object.keys(cvFonts) as CvFontKey[]).map((key) => ({ key, ...cvFonts[key] })),
+    { key: null, label: t("candidate.cv.theme.followTemplate"), family: "inherit" },
+    ...(Object.keys(cvFonts) as CvFontKey[]).map((key) => ({ key, label: getCvFontLabel(key, t), family: cvFonts[key].family })),
   ];
   return (
     <div className="space-y-4">
-      <ul className="space-y-1" aria-label="Phông chữ">
+      <ul className="space-y-1" aria-label={t("candidate.cv.theme.fontAria")}>
         {fonts.map((font) => (
           <li key={font.key ?? "template"}>
             <button
@@ -55,13 +65,24 @@ export function FontPanel({ theme, onChange }: PanelProps) {
           </li>
         ))}
       </ul>
-      <Segmented<CvFontSize> label="Cỡ chữ" options={(Object.keys(cvFontSizes) as CvFontSize[]).map((key) => ({ key, label: cvFontSizes[key].label }))} value={value.fontSize} onChange={(fontSize) => onChange({ fontSize })} />
-      <Segmented<CvLineHeight> label="Giãn dòng" options={(Object.keys(cvLineHeights) as CvLineHeight[]).map((key) => ({ key, label: cvLineHeights[key].label }))} value={value.lineHeight} onChange={(lineHeight) => onChange({ lineHeight })} />
+      <Segmented<CvFontSize>
+        label={t("candidate.cv.theme.fontSize")}
+        options={(Object.keys(cvFontSizes) as CvFontSize[]).map((key) => ({ key, label: getCvFontSizeLabel(key, t) }))}
+        value={value.fontSize}
+        onChange={(fontSize) => onChange({ fontSize })}
+      />
+      <Segmented<CvLineHeight>
+        label={t("candidate.cv.theme.lineHeight")}
+        options={(Object.keys(cvLineHeights) as CvLineHeight[]).map((key) => ({ key, label: getCvLineHeightLabel(key, t) }))}
+        value={value.lineHeight}
+        onChange={(lineHeight) => onChange({ lineHeight })}
+      />
     </div>
   );
 }
 
 export function ColorPanel({ theme, onChange }: PanelProps) {
+  const t = useT();
   const value = { ...defaultCvTheme, ...theme };
   const swatch = (color: string | null, title: string) => {
     const active = value.color === color;
@@ -83,14 +104,14 @@ export function ColorPanel({ theme, onChange }: PanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2.5">
-        {swatch(null, "Màu doanh nghiệp")}
+        {swatch(null, t("candidate.cv.theme.tenantColor"))}
         {cvColorPresets.map((color) => swatch(color, color))}
-        <label className="relative grid size-8 cursor-pointer place-items-center overflow-hidden rounded-full border border-dashed border-slate-300 text-xs font-bold text-slate-500" title="Chọn màu khác">
+        <label className="relative grid size-8 cursor-pointer place-items-center overflow-hidden rounded-full border border-dashed border-slate-300 text-xs font-bold text-slate-500" title={t("candidate.cv.theme.customColor")}>
           +
-          <input type="color" value={value.color ?? "#2563eb"} onChange={(event) => onChange({ color: event.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Chọn màu khác" />
+          <input type="color" value={value.color ?? "#2563eb"} onChange={(event) => onChange({ color: event.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label={t("candidate.cv.theme.customColor")} />
         </label>
       </div>
-      <button type="button" onClick={() => onChange(defaultCvTheme)} className="text-xs font-semibold text-slate-500 hover:text-[var(--color-primary)]">Khôi phục giao diện mặc định</button>
+      <button type="button" onClick={() => onChange(defaultCvTheme)} className="text-xs font-semibold text-slate-500 hover:text-[var(--color-primary)]">{t("candidate.cv.theme.resetTheme")}</button>
     </div>
   );
 }

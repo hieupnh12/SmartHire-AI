@@ -2,6 +2,7 @@ import { JobRecruitmentWorkspace } from "@/features/tenant/recruiter/jobs/compon
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { RouteSeoManager } from "@/app/RouteSeoManager";
 import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SolutionsPage } from "@/features/master/landing/pages/SolutionsPage";
 import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
@@ -39,11 +40,11 @@ import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
 import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
 import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
+import { SavedJobsPage } from "@/features/tenant/candidate/jobs/pages/SavedJobsPage";
 import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/components/CareerNavigationLayout";
 import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
 import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
 import { CvGuidePage } from "@/features/tenant/candidate/cv/pages/CvGuidePage";
-import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
@@ -53,6 +54,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
+import { SubscriptionBillingPage } from "@/features/tenant/admin/billing/pages/SubscriptionBillingPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
@@ -75,7 +77,9 @@ import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashb
 import { JobFormPage } from "@/features/tenant/recruiter/jobs/pages/JobFormPage";
 import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
+import { ApplicantDetailPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantDetailPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
+import { CvDetailPage } from "@/features/tenant/recruiter/cv-screening/pages/CvDetailPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
 import { RankingCandidateDetailPage } from "@/features/tenant/recruiter/matching/pages/RankingCandidateDetailPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
@@ -91,6 +95,7 @@ import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/
 import { AiQuestionGeneratorPage } from "@/features/tenant/recruiter/assessments/pages/AiQuestionGeneratorPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
+import { AiInterviewDetailPage as RecruiterAiInterviewDetailPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewDetailPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
@@ -126,7 +131,9 @@ function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
 
 export function AppRouter() {
   return (
-    <Routes>
+    <>
+      <RouteSeoManager />
+      <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
       <Route path="/solutions" element={<PublicMarketingRoute><SolutionsPage /></PublicMarketingRoute>} />
       <Route path="/preview" element={<PublicMarketingRoute><PreviewPage /></PublicMarketingRoute>} />
@@ -173,6 +180,7 @@ export function AppRouter() {
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
         <Route element={<CareerNavigationLayout />}>
+          <Route path="/saved-jobs" element={<SavedJobsPage />} />
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />
@@ -216,10 +224,12 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="APPLICANTS" />}>
             <Route path="jobs/:id/applicants" element={<ApplicantsPage />} />
+            <Route path="jobs/:id/applicants/:applicationId" element={<ApplicantDetailPage />} />
             <Route path="applicants" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
             <Route path="jobs/:id/cvs" element={<CvScreeningPage />} />
+            <Route path="jobs/:id/cvs/:cvId" element={<CvDetailPage />} />
             <Route path="cvs" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
@@ -259,6 +269,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>
             <Route path="jobs/:id/ai-interviews" element={<JobRecruitmentWorkspace><RecruiterAiInterviewsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/ai-interviews/:interviewId" element={<JobRecruitmentWorkspace><RecruiterAiInterviewDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="ai-interviews" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
@@ -286,18 +297,18 @@ export function AppRouter() {
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="landing-page" element={<LandingPageEditorPage />} />
+          <Route path="subscription" element={<Navigate to="/internal/admin/billing" replace />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="recruiter-assignments" element={<AssignmentsPage />} />
           <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="billing" element={<SubscriptionBillingPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>
       </Route>
       <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
-
-      <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
       </Route>
 
       <Route element={<MasterRoute />}>
@@ -330,5 +341,6 @@ export function AppRouter() {
       <Route path="/admin/login" element={<MasterLoginPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

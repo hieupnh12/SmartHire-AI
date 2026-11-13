@@ -10,7 +10,12 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| AI Interview RAG & Vector Evaluation 2026-11-12 | Master V37 (`V37__enable_pgvector_and_vector_store.sql`): kích hoạt extension `vector` và bảng `vector_store`. Tenant V60 (`V60__ai_interview_rag_evaluation.sql`) tạo bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`, 2 FK tới `ai_interviews` và `ai_questions`, 1 index `idx_rag_audit_interview`) lưu vết đánh giá ngữ nghĩa và độ tương đồng Cosine vector RAG |
+| AI Interview RAG & Vector Evaluation 2026-11-12 | Master V40 (`V40__enable_pgvector_and_vector_store.sql`): kích hoạt extension `vector` và bảng `vector_store`. Tenant V62 (`V62__ai_interview_rag_evaluation.sql`) tạo bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`, 2 FK tới `ai_interviews` và `ai_questions`, 1 index `idx_rag_audit_interview`) lưu vết đánh giá ngữ nghĩa và độ tương đồng Cosine vector RAG |
+| Nhật ký hệ thống Tenant thay thế audit log 2026-11-13 | Master V39 (`V39__tenant_system_logs.sql`) xóa `platform_audit_logs`, tạo `tenant_system_logs` (entity `TenantSystemLog`, 4 index) phục vụ System/Application Logs theo ngữ cảnh Tenant (`tenant_code`, `trace_id` SLF4J MDC, `category`, `endpoint`, `status_code`, `stack_trace`) |
+| Đa ngôn ngữ nội dung đánh giá AI 2026-11-13 | Tenant V61 (`V61__ai_localized_contents.sql`) tạo `ai_localized_contents` (entity `AiLocalizedContent`, UNIQUE `uk_ai_loc_content`, 1 index tra cứu `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + Tenant DB) cho nhận xét AI đa ngôn ngữ |
+| Lưu cấu hình báo giá trên Lead 2026-11-12 | Master V38 (`V38__consultation_proposed_tenant_slug.sql`) thêm `proposed_code` (`VARCHAR(64)`), `proposed_subdomain` (`VARCHAR(128)`), `quoted_plan_id` (`BIGINT`) nullable vào `consultation_requests` (entity `ConsultationRequest`) để giữ lại mã doanh nghiệp, subdomain và gói báo giá đã chỉnh sửa khi quay lại deal wizard. Không thêm bảng/entity/FK/UNIQUE/index |
+| Lưu việc làm & Thông báo việc làm mới 2026-11-12 | Tenant V60 (`V60__saved_jobs_and_job_alerts.sql`) tạo `saved_jobs` (entity `SavedJob`, 2 FK `ON DELETE CASCADE`, UNIQUE `(candidate_id, job_id)`, 2 index) và `job_alerts` (entity `JobAlert`, 1 FK `ON DELETE CASCADE`, 2 index), đồng thời bổ sung index `idx_rec_subject_target` trên `recommendations (subject_type, subject_id, target_type, score DESC)` |
+| Thống nhất pháp nhân Đà Nẵng, TPBank & Luật BVDLCN 2025 2026-11-11 | Master V37 (`V37__unify_da_nang_legal_entity_and_tpbank.sql`) cập nhật `DEFAULT` cho 7 cột Bên A trên `contracts` về cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và TPBank (`07744348801`, Chi nhánh Đà Nẵng); chuẩn hoá `policy_type` mới trên `master_consent_logs` sang `PRIVACY_POLICY_2025` (Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Bỏ thuế VAT trên hợp đồng & hoá đơn 2026-11-09 | Master V36 (`V36__remove_tax_columns.sql`) xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` (cùng field tương ứng trên entity `Contract`, `Invoice`). Giữ nguyên Mã số thuế doanh nghiệp (`tax_code`, `party_b_tax_code`, `billing_tax_code`). Không đổi số bảng/entity/FK/UNIQUE/index |
 | Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
@@ -47,13 +52,13 @@
 | Phân tích GitHub khi sàng CV 2026-10-21 | Tenant V54 tạo `github_analyses` (entity `GithubAnalysis`, 2 FK CASCADE, UNIQUE `(cv_id, job_id)`) và `github_repo_caches` (entity `GithubRepoCache`, không FK, UNIQUE repo+commit+fingerprint+strategy). Không lưu source code. Điểm GitHub tách khỏi `match_scores` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V57 | 71 bảng (70 sau V54 + `company_location_departments`); không tính Flyway history |
-| Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V57 bổ sung `CompanyLocationDepartment` |
-| Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
-| Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 87 (35 master + 52 tenant); V9 redesign nằm ngoài pipeline |
+| Bảng tenant sau V62 | 75 bảng (74 sau V61 + `ai_interview_rag_audits`); không tính Flyway history |
+| Entity JPA tenant | 70 class `@Entity` theo checkout hiện tại; V62 bổ sung `AiInterviewRagAudit` |
+| Khoá ngoại tenant | 98 (96 trước V62 + `fk_rag_audit_interview`, `fk_rag_audit_question` đều `ON DELETE CASCADE`) |
+| Ràng buộc UNIQUE tenant | V61 thêm `uk_ai_loc_content`. V60 thêm `uk_saved_jobs_candidate_job`. V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 97 (40 master + 57 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
+| Cập nhật lần cuối | Tenant `V62` (`ai_interview_rag_audits`), Master `V40` (`vector_store`), Tenant `V61` (`ai_localized_contents`), Master `V39` (`tenant_system_logs`), Master `V38` (`consultation_requests`), Tenant `V60` (`saved_jobs`, `job_alerts`), Master `V37` (`contracts`, `master_consent_logs`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -190,13 +195,13 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 08 | `ContractSignature` | `contract_signatures` | Legal & B2B | Chữ ký số của từng bên trên hợp đồng (V11, V26) |
 | 09 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tài nguyên tổng hợp theo ngày (V6) |
 | 10 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng (`WORKSPACE_ADMIN`) |
-| 11 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký hành động cấp nền tảng (V6) |
+| 11 | `TenantSystemLog` | `tenant_system_logs` | System / Debug | Nhật ký hệ thống & lỗi ứng dụng cấp Tenant (V39) |
 | 12 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn B2B từ landing page (V8, V23) |
 | 13 | `SystemSetting` | `system_settings` | System | Cấu hình hệ thống toàn sàn, PK tự nhiên `setting_key` (V14) |
 | 14 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Kho khóa API AI mã hóa AES-256-GCM (V14) |
 | 15 | `AiModelConfig` | `ai_model_configs` | AI Engine | Định tuyến Model AI theo tác vụ, chuỗi fallback đa cấp (V14, V24, V29, V30, V31, V32) |
 | 16 | `MasterNotificationLog` | `master_notification_logs` | Notification | Nhật ký gửi email/thông báo cấp nền tảng (V15, V23) |
-| 17 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) tại checkout (V25) |
+| 17 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_2025`; bản ghi cũ V25 dùng `PRIVACY_POLICY_ND13`) tại checkout |
 | 18 | `AiModelPricing` | `ai_model_pricings` | AI Metering & Catalog | Danh mục Model AI chuẩn hóa & Đơn giá USD/1M tokens (V28, V33) |
 | 19 | `TenantAiUsageDaily` | `tenant_ai_usage_daily` | AI Metering | Thống kê tiêu thụ token, độ trễ & chi phí USD theo ngày/tác vụ/model (V28) |
 
@@ -270,7 +275,10 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 64 | `GithubAnalysis` | `github_analyses` | CV & AI screening | Có |
 | 65 | `GithubRepoCache` | `github_repo_caches` | CV & AI screening | Có |
 | 66 | `CompanyLocationDepartment` | `company_location_departments` | Job & Skill | Có |
-| 67 | `AiInterviewRagAudit` | `ai_interview_rag_audits` | AI Interview RAG & Vector | Không |
+| 67 | `SavedJob` | `saved_jobs` | Job & Skill | Có |
+| 68 | `JobAlert` | `job_alerts` | Job & Skill | Có |
+| 69 | `AiLocalizedContent` | `ai_localized_contents` | Progressive AI Localization | Có |
+| 70 | `AiInterviewRagAudit` | `ai_interview_rag_audits` | AI Interview RAG & Vector | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -299,7 +307,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` (`CANDIDATE` chỉ dùng cho JWT claim / authority, không lưu trong bảng `users` từ V51) |
 | `UserStatus` | `users.status`, `candidates.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
-| `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
+| `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED`, `REVOKED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
 | `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `HUMAN_INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
 | `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
@@ -491,10 +499,11 @@ erDiagram
         varchar email UK
         varchar role
     }
-    platform_audit_logs {
+    tenant_system_logs {
         bigint id PK
         varchar tenant_code "tham chiếu mềm"
-        bigint platform_user_id "không có FK"
+        varchar level "ERROR/WARN/INFO"
+        varchar action
     }
     consultation_requests {
         bigint id PK
@@ -504,7 +513,7 @@ erDiagram
     }
 ```
 
-`platform_users`, `platform_audit_logs`, `master_notification_logs`, `system_settings`, `ai_provider_keys`, `ai_model_configs` và `ai_model_pricings` **không** có khoá ngoại — log và cấu hình nền tảng sống độc lập với vòng đời của từng tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
+`platform_users`, `tenant_system_logs`, `master_notification_logs`, `system_settings`, `ai_provider_keys`, `ai_model_configs` và `ai_model_pricings` **không** có khoá ngoại — log và cấu hình nền tảng sống độc lập với vòng đời của từng tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
 
 ### 4.2 Tenant DB — bản đồ tổng quan theo nhóm nghiệp vụ
 
@@ -522,6 +531,8 @@ flowchart LR
         skills
         job_skills
         recruitment_stages
+        saved_jobs
+        job_alerts
     end
     subgraph APP["Application pipeline · TRỤC XOAY"]
         applications
@@ -610,6 +621,9 @@ erDiagram
     applications ||--o{ candidate_rankings : "thứ hạng trong job"
     jobs ||--o{ candidate_rankings : "bảng xếp hạng của job"
     jobs ||--o| ranking_configs : "trọng số chấm điểm 1:1"
+    candidates ||--o{ saved_jobs : "đánh dấu lưu tin"
+    jobs ||--o{ saved_jobs : "được ứng viên lưu"
+    candidates ||--o{ job_alerts : "đăng ký thông báo việc mới"
 ```
 
 ### 4.5 Tenant — CV & AI screening
@@ -745,11 +759,11 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | `ContractSignature` | Chữ ký số của từng bên trên hợp đồng (V11, V26) | `contract_id`, `signer_name`, `signer_email`, `signer_title`, `external_signature_id`, `signed_at`, `client_ip`, `status` | `PENDING` → `SIGNED` / `REJECTED` / `DECLINED` |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
 | `PlatformUser` | Tài khoản quản trị nền tảng, tách hoàn toàn khỏi `users` của tenant | `email`, `password_hash`, `role` (mặc định `WORKSPACE_ADMIN`) | `ACTIVE` / khoá |
-| `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
+| `TenantSystemLog` | Nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) theo ngữ cảnh từng Tenant (V39) | `tenant_code`, `level`, `category`, `action`, `message`, `endpoint`, `method`, `status_code`, `trace_id`, `stack_trace`, `metadata_json` | Chỉ ghi thêm, không sửa |
 | `ConsultationRequest` | Lead demo/tư vấn B2B gửi từ landing page | `company_name`, `work_email`, `tenant_id`, `request_type`, `plan_tier`, `primary_need`, `status` | `PENDING` → `CONTACTED` → `PROVISIONED` / `REJECTED` |
 | `SystemSetting` | Tham số cấu hình toàn nền tảng SaaS (V14) | `setting_key` (PK), `setting_value`, `category`, `is_encrypted`, `updated_by` | Đọc/ghi bởi `WORKSPACE_ADMIN` |
 | `MasterNotificationLog` | Nhật ký gửi email/thông báo cấp nền tảng tới doanh nghiệp (V15, V23) | `tenant_code`, `type` (`INVOICE_CREATED`, `QUOTA_WARNING`, `SUBSCRIPTION_EXPIRY`), `to_email`, `status`, `error_message`, `sent_at` | Chỉ ghi thêm |
-| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) tại checkout (V25) | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
+| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_2025` — Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP; bản ghi lịch sử V25 giữ `PRIVACY_POLICY_ND13`) tại checkout | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
 | `AiProviderKey` | Kho khóa API tích hợp các nhà cung cấp AI (V14) | `provider`, `key_alias`, `api_key_encrypted` (AES-256-GCM), `endpoint_url`, `status`, `is_default`, `last_tested_at` | Thêm/sửa/xoá và kiểm tra kết nối trực tiếp |
 | `AiModelConfig` | Định tuyến Model AI theo tác vụ nghiệp vụ (V14, V24) | `task_type`, `provider`, `model_name`, `temperature`, `max_tokens`, `timeout_seconds`, `is_active` | Cấu hình động, cache Redis 6 giờ |
 | `AiModelPricing` | Bảng đơn giá USD/1M tokens theo nhà cung cấp và model (V28) | `provider`, `model_name`, `input_price_per_1m_tokens`, `output_price_per_1m_tokens`, `is_active` | Bảng tra cứu tính chi phí AI thực tế |
@@ -778,6 +792,9 @@ của màn assessment hiện tại.
 | `JobSkill` | Kỹ năng mà job yêu cầu | Bảng nối N-N, mang thêm `weight`, `required`, `min_level` để phục vụ chấm điểm khớp |
 | `RecruitmentStage` | Sáu vòng catalog cố định mỗi job (Applied→Hired); recruiter sắp xếp/ẩn vòng giữa | `stage_code`, `sort_order`, `active`, `is_terminal` |
 | `CompanyDirectoryEntry` | Danh mục phòng ban và địa điểm làm việc của tenant | `entry_type` phân biệt `DEPARTMENT`/`LOCATION`; tên không trùng trong cùng loại |
+| `SavedJob` | Việc làm ứng viên đã đánh dấu lưu (V60) | UNIQUE `(candidate_id, job_id)`; 2 FK `ON DELETE CASCADE` tới `candidates` và `jobs` |
+| `JobAlert` | Đăng ký nhận thông báo việc làm mới theo tiêu chí lọc (V60) | Hỗ trợ lọc `keyword`, `department`, `location`, `work_mode`, `employment_type` và kênh `web_enabled`/`email_enabled`; tự xoá khi xoá `candidates` |
+| `AiLocalizedContent` | Bộ nhớ đệm bản dịch đa ngôn ngữ cho nội dung đánh giá AI (CV screening, phỏng vấn, bài thi) (V61) | UNIQUE `(entity_type, entity_id, content_hash, locale)`; lưu JSON bản dịch và mã hash SHA-256 nội dung gốc |
 
 ### 5.4 Tenant — Application pipeline
 
@@ -1020,6 +1037,9 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 | `coding_problems` | `question_id` | `questions` | Có | 0..1:0..1 (UQ) | `fk_cp_question` (V53, RESTRICT) |
 | `answers` | `reviewed_by` | `users` | Có | N:1 | `fk_answer_reviewer` (V53, RESTRICT) |
+| `saved_jobs` | `candidate_id` | `candidates` | Không | N:1 | `fk_saved_jobs_candidate` (V60), DELETE CASCADE |
+| `saved_jobs` | `job_id` | `jobs` | Không | N:1 | `fk_saved_jobs_job` (V60), DELETE CASCADE |
+| `job_alerts` | `candidate_id` | `candidates` | Không | N:1 | `fk_job_alerts_candidate` (V60), DELETE CASCADE |
 
 V21 bỏ các FK cùng 19 bảng archive và xóa hai cột `ranking_sources.legacy_attempt_id` /
 `legacy_interview_id`. Không tạo FK thay thế dựa trên ID cũ; nguồn ranking hiện hành vẫn dùng
@@ -1036,8 +1056,7 @@ FK `submission_id` → `submissions` và `ai_interview_id` → `ai_interviews`.
 | Tenant | `application_status_history` | `changed_by` | `users.id` | Xoá user là mất dấu vết truy vết |
 | Tenant | `hiring_decisions` | `decided_by` | `users.id` | Như trên |
 | Tenant | `recommendations` | `subject_id`, `target_id` | đa hình theo `*_type` | Database không kiểm tra được gì |
-| Master | `platform_audit_logs` | `platform_user_id` | `platform_users.id` | Cố ý — log sống lâu hơn tài khoản |
-| Master | `platform_audit_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi, cố ý |
+| Master | `tenant_system_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi, cố ý để log sống lâu hơn tenant |
 | Master | `master_notification_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi để giữ lịch sử gửi email kể cả khi xoá tenant |
 
 ### 7.4 Hai đường đi từ CV về job
@@ -1118,6 +1137,8 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `company_location_departments` | `uk_company_loc_dept` | `(location_name, department_name)` | Một phòng ban chỉ gán 1 lần tại một địa điểm (V55) |
 | `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi nhân sự một cài đặt cho mỗi loại thông báo |
 | `notification_preferences` | `uk_notification_preference_candidate_category` | `(candidate_id, category)` | Mỗi ứng viên một cài đặt cho mỗi loại thông báo (V51) |
+| `saved_jobs` | `uk_saved_jobs_candidate_job` | `(candidate_id, job_id)` | Mỗi ứng viên chỉ lưu một tin tuyển dụng tối đa một lần (V60) |
+| `ai_localized_contents` | `uk_ai_loc_content` | `(entity_type, entity_id, content_hash, locale)` | Đảm bảo duy nhất một bản dịch cho mỗi tổ hợp nội dung và ngôn ngữ đích (V61) |
 
 ### 8.3 Máy trạng thái
 
@@ -1266,6 +1287,12 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Tenant | `github_repo_caches` | `idx_github_repo_cache_lookup` | `(repo_full_name, skill_fingerprint, strategy_version)` | Tìm cache cũ khi commit đổi (V54) |
 | Tenant | `company_location_departments` | `idx_cld_location` | `(location_name)` | Lọc phòng ban theo địa điểm (V55) |
 | Tenant | `company_location_departments` | `idx_cld_department` | `(department_name)` | Lọc địa điểm theo phòng ban (V55) |
+| Tenant | `saved_jobs` | `idx_saved_jobs_candidate` | `(candidate_id, created_at DESC)` | Lấy danh sách việc làm đã lưu theo thứ tự mới nhất (V60) |
+| Tenant | `saved_jobs` | `idx_saved_jobs_job` | `(job_id)` | Tra cứu bookmark theo job (V60) |
+| Tenant | `job_alerts` | `idx_job_alerts_candidate` | `(candidate_id)` | Lấy cấu hình thông báo việc làm của ứng viên (V60) |
+| Tenant | `job_alerts` | `idx_job_alerts_active` | `(active)` | Quét các đăng ký thông báo đang bật khi publish job mới (V60) |
+| Tenant | `recommendations` | `idx_rec_subject_target` | `(subject_type, subject_id, target_type, score DESC)` | Truy vấn snapshot gợi ý xếp hạng cao nhất theo đối tượng (V60) |
+| Tenant | `ai_localized_contents` | `idx_ai_loc_lookup` | `(entity_type, entity_id, locale)` | Tra cứu nhanh bản dịch theo loại thực thể, ID và ngôn ngữ đích (V61) |
 | Tenant | `candidates` | `idx_candidates_status` | `(status)` | Lọc ứng viên theo trạng thái tài khoản (V51) |
 | Tenant | `notifications` | `idx_notif_candidate` | `(candidate_id, created_at)` | Danh sách thông báo in-app của ứng viên (V51) |
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
@@ -1313,7 +1340,7 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Đáp án bài thi | `options.is_correct`, hidden test_cases, harness và rubric không trả thí sinh; chỉ test sample có input/expected_output công khai |
 | Migration lỗi | Không tự `repair`, không nuốt lỗi, đóng pool chưa khởi tạo xong; API không trả tên database/SQL nội bộ |
 | Dữ liệu cá nhân trong CV | `cvs.retain_until` đặt mốc xoá; `checksum_sha256` để phát hiện trùng file mà không cần đọc lại nội dung |
-| Truy vết | `platform_audit_logs` (cấp nền tảng) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
+| Truy vết | `tenant_system_logs` (cấp nền tảng/tenant) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
 | Secret | Không commit `.env`, `deploy/.env.production`, `TENANT_CREDENTIALS_KEY`, `JWT_SECRET`. Tài liệu này không chứa giá trị thật |
 
 ### 9.4 Rủi ro đã biết
@@ -1372,7 +1399,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
 | V23 | `V23__optimize_master_schema.sql` | Tối ưu schema master: liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log |
 | V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
-| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
+| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE` & chính sách DLCN — từ 2026-11-11 ghi nhận `PRIVACY_POLICY_2025` theo Luật BVDLCN 2025 & NĐ 356/2025/NĐ-CP; dữ liệu cũ dùng `PRIVACY_POLICY_ND13`) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
 | V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
 | V27 | `V27__two_tier_subscription_architecture.sql` | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng: thêm `version`, `parent_plan_id` (`fk_sp_parent_plan`), `is_custom`, `target_tenant_id` (`fk_sp_target_tenant`), `is_archived`, 2 index trên `subscription_plans`; thêm 11 cột snapshot hợp đồng (`plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`), `grace_period_ends_at`, `next_plan_id` (`fk_ts_next_plan`), `prorated_credit_amount`, `upgraded_from_subscription_id` (`fk_ts_upgraded_from`), `canceled_at`, `cancel_reason`, 2 index và backfill cho `tenant_subscriptions` |
 | V28 | `V28__ai_metering_and_model_pricing.sql` | AI Metering & Cost Tracking: tạo bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `(provider, model_name)`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, FK `fk_taud_tenant` `ON DELETE CASCADE`, UNIQUE `(tenant_id, usage_date, task_type, provider, model_name)`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) |
@@ -1384,7 +1411,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V34 | `V34__interview_speech_ai_tasks.sql` | Seed `ai_model_configs` cho `INTERVIEW_STT` (`gemini-3.1-flash-lite`) và `INTERVIEW_TTS` (`gemini-3.8-flash-tts`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V35 | `V35__question_gen_ai_task.sql` | Seed `ai_model_configs` cho tác vụ `QUESTION_GEN` (`gemini-2.0-flash`), `ON CONFLICT (task_type) DO NOTHING`; không đổi schema |
 | V36 | `V36__remove_tax_columns.sql` | Bỏ thuế VAT: xóa `contracts.tax_rate`, `contracts.tax_amount` và `invoices.tax_rate` |
-| V37 | `V37__enable_pgvector_and_vector_store.sql` | Kích hoạt extension `vector` (nếu có) và tạo bảng `vector_store` cho AI Interview RAG |
+| V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
+| V38 | `V38__consultation_proposed_tenant_slug.sql` | Thêm `proposed_code`, `proposed_subdomain`, `quoted_plan_id` (nullable) vào `consultation_requests` để lưu mã doanh nghiệp/subdomain đã chỉnh sửa khi báo giá và quay lại wizard |
+| V39 | `V39__tenant_system_logs.sql` | Xóa `platform_audit_logs`, tạo bảng `tenant_system_logs` (entity `TenantSystemLog`, 4 index) lưu nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) gắn ngữ cảnh `tenant_code`, `trace_id` (MDC) |
+| V40 | `V40__enable_pgvector_and_vector_store.sql` | Kích hoạt extension `vector` (nếu có) và tạo bảng `vector_store` cho AI Interview RAG |
 
 ### 10.3 Lịch sử migration — Tenant
 
@@ -1445,8 +1475,10 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V56 | `V56__coding_constraints_and_explanations.sql` | `coding_problems.constraints_text` TEXT nullable; `test_cases.explanation` TEXT nullable. Không thêm bảng/FK/UNIQUE/index |
 | V57 | `V57__company_location_departments.sql` | `company_location_departments` + entity `CompanyLocationDepartment` (UNIQUE `(location_name, department_name)`, 2 index). Backfill từ jobs. Đánh lại từ V55 vì trùng version |
 | V58 | `V58__test_origin.sql` | `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED`. Backfill `GENERATED` theo description đề bốc từ ngân hàng. Không thêm bảng/FK/UNIQUE |
-| V59 | `V59__test_auto_grading.sql` | `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE phục vụ tự động chốt điểm và gửi kết quả đề thi |
-| V60 | `V60__ai_interview_rag_evaluation.sql` | Bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`): lưu vết đánh giá ngữ nghĩa RAG, độ tương đồng vector, ngưỡng áp dụng và danh sách key points |
+| V59 | `V59__test_auto_grading.sql` | Thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (`JobTest.autoGradingEnabled`). Không thêm bảng/FK/UNIQUE |
+| V60 | `V60__saved_jobs_and_job_alerts.sql` | Tạo `saved_jobs` (`SavedJob`, 2 FK CASCADE, UNIQUE `(candidate_id, job_id)`, 2 index), `job_alerts` (`JobAlert`, 1 FK CASCADE, 2 index), và index `idx_rec_subject_target` trên `recommendations` |
+| V61 | `V61__ai_localized_contents.sql` | Tạo `ai_localized_contents` (`AiLocalizedContent`, UNIQUE `(entity_type, entity_id, content_hash, locale)`, index `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + DB) cho nội dung đánh giá AI |
+| V62 | `V62__ai_interview_rag_evaluation.sql` | Bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`): lưu vết đánh giá ngữ nghĩa RAG, độ tương đồng vector, ngưỡng áp dụng và danh sách key points |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

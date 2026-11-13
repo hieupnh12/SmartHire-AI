@@ -1,43 +1,42 @@
-import type { CvBuilderData, CvBuilderItem, CvBuilderSection, CvBuilderTheme, CvLanguage, CvSectionType } from "@/api/types/cv";
+import type { CvBuilderData, CvBuilderItem, CvBuilderSection, CvLanguage, CvSectionType } from "@/api/types/cv";
 import type { UserProfile } from "@/features/tenant/auth/types";
+import { t as globalT, useI18nStore, type Locale, type TranslateFn } from "@/i18n";
+import { candidateCvVi } from "@/i18n/locales/vi/candidateCv";
+import { candidateCvEn } from "@/i18n/locales/en/candidateCv";
 import { cvTemplates } from "@/features/tenant/candidate/shared/constants/cvTemplates";
+import {
+  createItem,
+  createSection,
+  cvDocByLanguage,
+  cvSectionLabelsByLanguage,
+  defaultCvTheme,
+} from "./cvDocPrimitives";
 import { createEnterpriseSampleCv } from "./enterpriseSampleCv";
 
-export const cvSectionLabels: Record<CvSectionType, string> = {
-  experience: "Kinh nghiệm làm việc",
-  education: "Học vấn",
-  projects: "Dự án",
-  skills: "Kỹ năng",
-  languages: "Ngoại ngữ",
-  certifications: "Chứng chỉ",
-  awards: "Giải thưởng",
-  activities: "Hoạt động",
-  interests: "Sở thích",
-  references: "Người tham chiếu",
-  custom: "Mục tùy chỉnh",
-};
+export { createItem, createSection, cvDocByLanguage, cvSectionLabelsByLanguage, defaultCvTheme };
 
-export const cvSectionLabelsByLanguage: Record<CvLanguage, Record<CvSectionType, string>> = {
-  vi: cvSectionLabels,
-  en: {
-    experience: "Work Experience",
-    education: "Education",
-    projects: "Projects",
-    skills: "Skills",
-    languages: "Languages",
-    certifications: "Certifications",
-    awards: "Awards",
-    activities: "Activities",
-    interests: "Interests",
-    references: "References",
-    custom: "Custom Section",
-  },
-};
+export const cvSectionTypes: readonly CvSectionType[] = [
+  "experience",
+  "education",
+  "projects",
+  "skills",
+  "languages",
+  "certifications",
+  "awards",
+  "activities",
+  "interests",
+  "references",
+  "custom",
+];
+
+export function getCvSectionLabel(type: CvSectionType, t: TranslateFn = globalT): string {
+  return t(`candidate.cv.sections.${type}`);
+}
 
 /** Fixed headings printed on the CV itself (not editable section titles). */
-export const cvFixedHeadings: Record<CvLanguage, { summary: string; contact: string; details: string; page: string }> = {
-  vi: { summary: "Giới thiệu", contact: "Liên hệ", details: "Thông tin cá nhân", page: "Trang" },
-  en: { summary: "Summary", contact: "Contact", details: "Personal Details", page: "Page" },
+export const cvFixedHeadings: Record<CvLanguage, { summary: string; contact: string; details: string; page: string; professionalSummary: string }> = {
+  vi: candidateCvVi.doc.fixedHeadings,
+  en: candidateCvEn.doc.fixedHeadings,
 };
 
 /**
@@ -46,15 +45,22 @@ export const cvFixedHeadings: Record<CvLanguage, { summary: string; contact: str
  */
 export function cvFooter(cv: CvBuilderData) {
   const language = cv.language ?? "vi";
+  const doc = cvDocByLanguage[language];
   const name = cv.personalInfo.fullName.trim() || "CV";
-  const pageLabel = cvFixedHeadings[language].page;
+  const pageLabel = doc.fixedHeadings.page;
   if (cvTemplates.find((item) => item.id === cv.templateId)?.layout === "table") {
-    return { text: language === "en" ? `${name}'s CV - Confidential` : `CV của ${name} - Bảo mật`, centered: true, pageLabel };
+    return {
+      text: doc.footer.confidential.replace("{name}", name),
+      centered: true,
+      pageLabel,
+    };
   }
-  return { text: `${name} – CV`, centered: false, pageLabel };
+  return {
+    text: doc.footer.standard.replace("{name}", name),
+    centered: false,
+    pageLabel,
+  };
 }
-
-export const cvSectionTypes = Object.keys(cvSectionLabels) as CvSectionType[];
 
 /** Section types whose items can carry a 1..5 level rating. */
 export const ratedSectionTypes = new Set<CvSectionType>(["skills", "languages"]);
@@ -62,32 +68,28 @@ export const ratedSectionTypes = new Set<CvSectionType>(["skills", "languages"])
 /** Short, list-like sections placed in the narrow column of two-column layouts. */
 export const sideSectionTypes = new Set<CvSectionType>(["skills", "education", "languages", "certifications", "interests", "references"]);
 
-export const defaultCvTheme: CvBuilderTheme = { color: null, font: null, fontSize: "md", lineHeight: "normal" };
-
 export const resolveTemplateId = (value: string | null | undefined) =>
   cvTemplates.some((item) => item.id === value) ? value! : cvTemplates[0].id;
 
-export function createItem(): CvBuilderItem {
-  return { id: crypto.randomUUID(), title: "", subtitle: "", date: "", description: "" };
-}
-
-export function createSection(type: CvSectionType, language: CvLanguage = "vi"): CvBuilderSection {
-  return { id: crypto.randomUUID(), type, title: cvSectionLabelsByLanguage[language][type], visible: true, items: [createItem()] };
-}
-
-const sample = (type: CvSectionType, item: Omit<CvBuilderItem, "id">): CvBuilderSection => ({
-  ...createSection(type),
+const sample = (type: CvSectionType, language: CvLanguage, item: Omit<CvBuilderItem, "id">): CvBuilderSection => ({
+  ...createSection(type, language),
   items: [{ id: crypto.randomUUID(), ...item }],
 });
 
-export function createDefaultCv(templateId: string | null, user: UserProfile | null): CvBuilderData {
+export function createDefaultCv(
+  templateId: string | null,
+  user: UserProfile | null,
+  t: TranslateFn = globalT,
+  locale: Locale = useI18nStore.getState().locale,
+): CvBuilderData {
   const resolvedId = resolveTemplateId(templateId);
   if (cvTemplates.find((item) => item.id === resolvedId)?.layout === "table") return createEnterpriseSampleCv(resolvedId, user);
+  const cvLanguage: CvLanguage = locale === "vi" ? "vi" : "en";
   return {
     templateId: resolvedId,
     accentColor: null,
     theme: defaultCvTheme,
-    language: "vi",
+    language: cvLanguage,
     personalInfo: {
       fullName: user?.fullName ?? "",
       title: user?.headline ?? "",
@@ -101,17 +103,38 @@ export function createDefaultCv(templateId: string | null, user: UserProfile | n
       linkedin: "",
     },
     sections: [
-      sample("experience", { title: "Tên công ty", subtitle: "Vị trí công việc", date: "01/2023 - Hiện tại", description: "<ul><li>Mô tả công việc, thành tựu nổi bật</li></ul>" }),
-      sample("projects", { title: "Tên dự án", subtitle: "Vai trò · Công nghệ sử dụng", date: "2024", description: "" }),
-      sample("education", { title: "Tên trường", subtitle: "Chuyên ngành", date: "2019 - 2023", description: "" }),
+      sample("experience", cvLanguage, {
+        title: t("candidate.cv.defaultCv.sampleCompany"),
+        subtitle: t("candidate.cv.defaultCv.sampleRole"),
+        date: t("candidate.cv.defaultCv.sampleExperienceDate"),
+        description: `<ul><li>${t("candidate.cv.defaultCv.sampleExperienceDesc")}</li></ul>`,
+      }),
+      sample("projects", cvLanguage, {
+        title: t("candidate.cv.defaultCv.sampleProject"),
+        subtitle: t("candidate.cv.defaultCv.sampleProjectRole"),
+        date: "2024",
+        description: "",
+      }),
+      sample("education", cvLanguage, {
+        title: t("candidate.cv.defaultCv.sampleSchool"),
+        subtitle: t("candidate.cv.defaultCv.sampleMajor"),
+        date: "2019 - 2023",
+        description: "",
+      }),
       {
-        ...createSection("skills"),
+        ...createSection("skills", cvLanguage),
         items: [
           { id: crypto.randomUUID(), title: "Backend", subtitle: "", date: "", description: "Java, Spring Boot, MySQL", level: 5 },
           { id: crypto.randomUUID(), title: "Frontend", subtitle: "", date: "", description: "React, TypeScript, TailwindCSS", level: 3 },
         ],
       },
-      sample("languages", { title: "Tiếng Anh", subtitle: "Đọc hiểu tài liệu chuyên ngành", date: "", description: "", level: 3 }),
+      sample("languages", cvLanguage, {
+        title: t("candidate.cv.defaultCv.sampleLanguage"),
+        subtitle: t("candidate.cv.defaultCv.sampleLanguageLevel"),
+        date: "",
+        description: "",
+        level: 3,
+      }),
     ],
   };
 }

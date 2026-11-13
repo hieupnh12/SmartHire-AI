@@ -5,110 +5,113 @@ import { AlertTriangle, Check, CheckCircle2, Cpu, Lightbulb, Minus, Sparkles, X 
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { AiInterviewEvaluationView, AssessmentEvaluationView, CandidateEvaluationView, CvEvaluationView } from "@/api/types/applicant";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { formatDateTime, formatNumber, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { localizeAiComment } from "@/features/tenant/candidate/assessments/utils/aiLocalization";
 
-const CRITERIA_LABELS: Record<string, string> = {
-  TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận",
-  COMMUNICATION: "Giao tiếp", PRACTICAL_EXPERIENCE: "Kinh nghiệm thực tế", BEHAVIORAL_SITUATIONAL: "Hành vi & tình huống",
-};
-
-const AI_STATUS: Record<string, string> = {
-  CREATED: "Đã mời", GENERATING: "Đang chuẩn bị", QUESTIONS_READY: "Sẵn sàng", IN_PROGRESS: "Đang làm",
-  SCORING: "Đang chấm", SCORED: "Đã chấm", ERROR: "Đang xử lý lại",
-};
-
-const TEST_STATUS: Record<string, string> = {
-  NOT_STARTED: "Chưa bắt đầu", IN_PROGRESS: "Đang làm", SUBMITTED: "Đang chờ chấm", PENDING: "Đang chờ chấm",
-  GRADING: "Đang chấm", COMPLETED: "Đã chấm", GRADED: "Đã chấm", FAILED: "Chấm thất bại", EXPIRED: "Hết hạn",
-};
-
 export type RoundKey = "cv" | "aiInterview" | "assessment";
 
-export const ROUND_TITLES: Record<RoundKey, string> = { cv: "Sàng lọc CV", aiInterview: "Phỏng vấn AI", assessment: "Bài đánh giá" };
-
 export function RoundEvaluation({ id, round, data }: { id: string; round: RoundKey; data: CandidateEvaluationView }) {
+  const t = useT();
   const content = round === "cv"
     ? data.cv && <CvEvaluation cv={data.cv} />
     : round === "aiInterview"
       ? data.aiInterviews.length > 0 && <ol className="space-y-3">{data.aiInterviews.map((row) => <li key={row.id}><InterviewAttempt row={row} total={data.aiInterviews.length} /></li>)}</ol>
       : data.assessments.length > 0 && <ol className="space-y-3">{data.assessments.map((row) => <li key={row.id}><AssessmentAttempt row={row} /></li>)}</ol>;
   return <section id={id} aria-labelledby={`${id}-title`} className="rounded-2xl border border-[var(--color-primary)]/30 bg-white p-5 shadow-[var(--shadow-card)]">
-    <h2 id={`${id}-title`} className="text-lg font-semibold">Chi tiết đánh giá · {ROUND_TITLES[round]}</h2>
-    <p className="mb-4 mt-1 text-sm text-[var(--color-on-surface-variant)]">Lý do của kết quả: điểm so với ngưỡng đạt và nhận xét của hệ thống.</p>
-    {content || <p className="text-sm text-[var(--color-on-surface-variant)]">Vòng này chưa diễn ra hoặc chưa có kết quả đánh giá.</p>}
+    <h2 id={`${id}-title`} className="text-lg font-semibold">
+      {t("candidate.core.applications.evaluation.heading", {
+        round: t(`candidate.core.applications.evaluation.rounds.${round}`),
+      })}
+    </h2>
+    <p className="mb-4 mt-1 text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.evaluation.subtitle")}</p>
+    {content || <p className="text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.evaluation.emptyRound")}</p>}
   </section>;
 }
 
-function candidateLearning(cv: CvEvaluationView) {
+function candidateLearning(cv: CvEvaluationView, t: TranslateFn) {
   const parts: string[] = [];
   if (cv.requiredMissingSkills.length > 0) {
-    parts.push(`CV chưa nêu rõ các kỹ năng bắt buộc: ${cv.requiredMissingSkills.join(", ")}. Lần nộp sau, hãy ghi cụ thể bạn đã dùng từng kỹ năng này ở dự án hoặc công việc nào.`);
+    parts.push(t("candidate.core.applications.evaluation.learning.missingRequired", { skills: cv.requiredMissingSkills.join(", ") }));
   }
   if (cv.partialSkills.length > 0) {
-    parts.push(`Một số kỹ năng mới khớp một phần (${cv.partialSkills.join(", ")}). Hãy bổ sung ví dụ, thời gian làm và kết quả để thấy mức độ thành thạo.`);
+    parts.push(t("candidate.core.applications.evaluation.learning.partialSkills", { skills: cv.partialSkills.join(", ") }));
   }
   if (cv.passed) {
-    parts.push("CV đã đáp ứng các yêu cầu chính. Bạn có thể làm rõ hơn kết quả đo được ở các kỹ năng đã khớp để hồ sơ nổi bật hơn.");
+    parts.push(t("candidate.core.applications.evaluation.learning.passed"));
   } else if (cv.requiredMissingSkills.length === 0) {
-    parts.push("Điểm sàng lọc chưa đạt yêu cầu của tin. Hãy đối chiếu mô tả công việc và bổ sung kinh nghiệm, học vấn hoặc kỹ năng còn thiếu.");
+    parts.push(t("candidate.core.applications.evaluation.learning.failedNoMissing"));
   }
   return parts.join(" ");
 }
 
 function CvEvaluation({ cv }: { cv: CvEvaluationView }) {
+  const t = useT();
   const optionalMissing = cv.missingSkills.filter((skill) => !cv.requiredMissingSkills.includes(skill));
-  const advice = cv.candidateAdvice?.trim() || candidateLearning(cv);
+  const advice = cv.candidateAdvice?.trim() || candidateLearning(cv, t);
   return <div className="space-y-4">
     <ScoreLine score={cv.score} threshold={cv.threshold} passed={cv.passed} />
-    {cv.passed === true && cv.threshold != null && cv.score < cv.threshold && <Reason title="Kết quả vòng">Điểm chưa đạt ngưỡng nhưng nhà tuyển dụng đã xem xét hồ sơ và duyệt cho bạn qua vòng này.</Reason>}
-    {cv.explanation && <Reason title="Nhận xét">{cv.explanation}</Reason>}
+    {cv.passed === true && cv.threshold != null && cv.score < cv.threshold && <Reason title={t("candidate.core.applications.evaluation.cv.roundOutcomeTitle")}>{t("candidate.core.applications.evaluation.cv.roundOutcomeApproved")}</Reason>}
+    {cv.explanation && <Reason title={t("candidate.core.applications.evaluation.cv.commentTitle")}>{cv.explanation}</Reason>}
     {advice && <div className="rounded-xl bg-[var(--color-primary-subtle)] p-4">
-      <h4 className="flex items-center gap-2 text-sm font-semibold"><Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />{cv.candidateAdvice?.trim() ? "Lời khuyên của AI" : "Gợi ý để rút kinh nghiệm"}</h4>
+      <h4 className="flex items-center gap-2 text-sm font-semibold"><Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />{cv.candidateAdvice?.trim() ? t("candidate.core.applications.evaluation.cv.aiAdviceTitle") : t("candidate.core.applications.evaluation.cv.learningAdviceTitle")}</h4>
       <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[var(--color-on-surface-variant)]">{advice}</p>
     </div>}
     <div className="space-y-2">
-      <h4 className="text-sm font-semibold">Kỹ năng so với yêu cầu công việc</h4>
+      <h4 className="text-sm font-semibold">{t("candidate.core.applications.evaluation.cv.skillsComparisonTitle")}</h4>
       <div className="flex flex-wrap gap-2">
         {cv.matchedSkills.map((skill) => <SkillChip key={`m-${skill}`} kind="match">{skill}</SkillChip>)}
         {cv.partialSkills.map((skill) => <SkillChip key={`p-${skill}`} kind="partial">{skill}</SkillChip>)}
-        {cv.requiredMissingSkills.map((skill) => <SkillChip key={`r-${skill}`} kind="missing">{skill} · bắt buộc</SkillChip>)}
+        {cv.requiredMissingSkills.map((skill) => <SkillChip key={`r-${skill}`} kind="missing">{t("candidate.core.applications.evaluation.cv.requiredSkill", { skill })}</SkillChip>)}
         {optionalMissing.map((skill) => <SkillChip key={`o-${skill}`} kind="missing">{skill}</SkillChip>)}
       </div>
-      {cv.matchedSkills.length + cv.partialSkills.length + cv.missingSkills.length === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">Công việc không khai báo kỹ năng cụ thể.</p>}
+      {cv.matchedSkills.length + cv.partialSkills.length + cv.missingSkills.length === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.evaluation.cv.noDeclaredSkills")}</p>}
     </div>
     {(cv.requiredYears != null || cv.requiredEducation) && <dl className="grid gap-2 text-sm sm:grid-cols-2">
-      {cv.requiredYears != null && <Fact label="Kinh nghiệm" value={`${cv.candidateYears ?? 0} năm`} hint={`Yêu cầu ${cv.requiredYears} năm`} ok={(cv.candidateYears ?? 0) >= cv.requiredYears} />}
-      {cv.requiredEducation && <Fact label="Học vấn" value={cv.candidateEducation ?? "Không xác định"} hint={`Yêu cầu ${cv.requiredEducation}`} />}
+      {cv.requiredYears != null && <Fact label={t("candidate.core.applications.evaluation.cv.experienceLabel")} value={t("candidate.core.applications.evaluation.cv.experienceYears", { years: cv.candidateYears ?? 0 })} hint={t("candidate.core.applications.evaluation.cv.experienceRequired", { years: cv.requiredYears })} ok={(cv.candidateYears ?? 0) >= cv.requiredYears} />}
+      {cv.requiredEducation && <Fact label={t("candidate.core.applications.evaluation.cv.educationLabel")} value={cv.candidateEducation ?? t("candidate.core.applications.evaluation.cv.educationUnknown")} hint={t("candidate.core.applications.evaluation.cv.educationRequired", { education: cv.requiredEducation })} />}
     </dl>}
   </div>;
 }
 
 function InterviewAttempt({ row, total }: { row: AiInterviewEvaluationView; total: number }) {
+  const t = useT();
+  const locale = useLocale();
   const criteria = Object.entries(row.criteria);
   const finished = row.score != null;
+  const aiStatusKey = `candidate.core.applications.evaluation.aiStatus.${row.status}`;
+  const aiStatusLabel = t(aiStatusKey);
   return <article className="space-y-3 rounded-xl bg-[var(--color-surface-alt)] p-4">
-    <AttemptHeader title={total > 1 ? `Lượt ${row.attemptNumber}` : "Kết quả"} date={row.completedAt} outcome={outcomePill(row.passed, AI_STATUS[row.status])} />
-    {finished ? <ScoreLine score={row.score!} threshold={row.passingScore} passed={row.passed} /> : <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có điểm cho lượt này.</p>}
-    {row.summary && <Reason title="Tổng quan">{row.summary}</Reason>}
+    <AttemptHeader
+      title={total > 1 ? t("candidate.core.applications.evaluation.interview.attemptTitle", { count: row.attemptNumber }) : t("candidate.core.applications.evaluation.interview.resultTitle")}
+      date={row.completedAt}
+      outcome={outcomePill(t, row.passed, aiStatusLabel === aiStatusKey ? row.status : aiStatusLabel)}
+    />
+    {finished ? <ScoreLine score={row.score!} threshold={row.passingScore} passed={row.passed} /> : <p className="text-sm text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.evaluation.interview.noScore")}</p>}
+    {row.summary && <Reason title={t("candidate.core.applications.evaluation.interview.summaryTitle")}>{row.summary}</Reason>}
     {(row.strengths || row.weaknesses) && <div className="grid gap-3 sm:grid-cols-2">
-      {row.strengths && <Reason title="Điểm mạnh">{row.strengths}</Reason>}
-      {row.weaknesses && <Reason title="Cần cải thiện">{row.weaknesses}</Reason>}
+      {row.strengths && <Reason title={t("candidate.core.applications.evaluation.interview.strengthsTitle")}>{row.strengths}</Reason>}
+      {row.weaknesses && <Reason title={t("candidate.core.applications.evaluation.interview.weaknessesTitle")}>{row.weaknesses}</Reason>}
     </div>}
     {criteria.length > 0 && <div className="space-y-2">
-      <h4 className="text-sm font-semibold">Điểm theo tiêu chí</h4>
-      <ul className="space-y-2">{criteria.map(([key, value]) => <li key={key} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm">
-        <span className="truncate text-[var(--color-on-surface-variant)]">{CRITERIA_LABELS[key] ?? key}</span>
-        <span className="h-2 overflow-hidden rounded-full bg-white" aria-hidden="true"><span className="block h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></span>
-        <span className="text-right font-semibold">{formatScore(value)}</span>
-      </li>)}</ul>
+      <h4 className="text-sm font-semibold">{t("candidate.core.applications.evaluation.interview.criteriaScoreTitle")}</h4>
+      <ul className="space-y-2">{criteria.map(([key, value]) => {
+        const critKey = `candidate.core.applications.evaluation.criteria.${key}`;
+        const critLabel = t(critKey);
+        return <li key={key} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm">
+          <span className="truncate text-[var(--color-on-surface-variant)]">{critLabel === critKey ? key : critLabel}</span>
+          <span className="h-2 overflow-hidden rounded-full bg-white" aria-hidden="true"><span className="block h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></span>
+          <span className="text-right font-semibold">{formatScore(value, locale)}</span>
+        </li>;
+      })}</ul>
     </div>}
-    {finished && <Link to={`/interviews/${row.id}`} className="inline-flex text-sm font-semibold text-[var(--color-primary)] hover:underline">Xem bài phỏng vấn</Link>}
+    {finished && <Link to={`/interviews/${row.id}`} className="inline-flex text-sm font-semibold text-[var(--color-primary)] hover:underline">{t("candidate.core.applications.evaluation.interview.viewInterview")}</Link>}
   </article>;
 }
 
 function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
+  const t = useT();
   const { data: submission } = useQuery({
     queryKey: queryKeys.assessments.submission(row.id),
     queryFn: ({ signal }) => assessmentApi.submission(row.id, signal),
@@ -127,23 +130,25 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
     );
 
   const finished = row.score != null;
+  const testStatusKey = `candidate.core.applications.evaluation.testStatus.${row.status}`;
+  const testStatusLabel = t(testStatusKey);
 
   return (
     <article className="space-y-3 rounded-xl bg-[var(--color-surface-alt)] p-4">
-      <AttemptHeader title={row.testTitle} date={row.submittedAt} outcome={outcomePill(row.passed, TEST_STATUS[row.status])} />
+      <AttemptHeader title={row.testTitle} date={row.submittedAt} outcome={outcomePill(t, row.passed, testStatusLabel === testStatusKey ? row.status : testStatusLabel)} />
       {row.score != null ? (
         <ScoreLine score={row.score} threshold={row.passingScore} passed={row.passed} />
       ) : (
         <p className="text-sm text-[var(--color-on-surface-variant)]">
           {row.status === "SUBMITTED" || row.status === "PENDING"
-            ? "Bài làm đang trong hàng đợi chấm tự động."
+            ? t("candidate.core.applications.evaluation.assessment.queued")
             : row.status === "GRADING"
-              ? "Hệ thống đang chạy test case và đánh giá AI..."
+              ? t("candidate.core.applications.evaluation.assessment.grading")
               : row.status === "FAILED"
-                ? "Chấm bài tự động thất bại. Nhà tuyển dụng sẽ hỗ trợ chấm điểm."
+                ? t("candidate.core.applications.evaluation.assessment.failed")
                 : row.status === "EXPIRED"
-                  ? "Bài làm đã hết thời gian trước khi nộp nên không được tính điểm."
-                  : "Chưa có điểm cho bài này."}
+                  ? t("candidate.core.applications.evaluation.assessment.expired")
+                  : t("candidate.core.applications.evaluation.assessment.noScore")}
         </p>
       )}
 
@@ -153,10 +158,10 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
               <Sparkles className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-              Đánh giá từ Trợ lý AI
+              {t("candidate.core.applications.evaluation.assessment.aiHeader")}
             </span>
             <span className="rounded-full bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
-              Hybrid AI Engine
+              {t("candidate.core.applications.evaluation.assessment.engineBadge")}
             </span>
           </div>
 
@@ -173,6 +178,11 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
               const cleanCode = codeReview.clean_code;
               const hardcodeFlag = evalData.hardcode_suspected || codeReview.hardcode_suspected;
               const criteria = Array.isArray(evalData.criteria_results) ? evalData.criteria_results : [];
+              const typeLabel = isCoding
+                ? t("candidate.core.applications.evaluation.assessment.typeCoding")
+                : isEssay
+                  ? t("candidate.core.applications.evaluation.assessment.typeEssay")
+                  : t("candidate.core.applications.evaluation.assessment.typeQuiz");
 
               return (
                 <div
@@ -181,11 +191,17 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-surface-variant)]">
-                      Câu {question?.questionOrder ?? 1} · {isCoding ? "Bài thi lập trình" : isEssay ? "Câu hỏi tự luận" : "Đánh giá trắc nghiệm"}
+                      {t("candidate.core.applications.evaluation.assessment.questionLabel", {
+                        order: question?.questionOrder ?? 1,
+                        type: typeLabel,
+                      })}
                     </span>
                     {(answer.score !== undefined || answer.suggestedScore !== undefined) && (
                       <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">
-                        {answer.score ?? answer.suggestedScore} / {question?.points ?? 0} đ
+                        {t("candidate.core.applications.evaluation.assessment.pointsShort", {
+                          score: answer.score ?? answer.suggestedScore ?? 0,
+                          max: question?.points ?? 0,
+                        })}
                       </span>
                     )}
                   </div>
@@ -196,18 +212,18 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
                       {testsPassed && (
                         <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                           <CheckCircle2 className="size-3" aria-hidden="true" />
-                          Kiểm thử: {testsPassed}
+                          {t("candidate.core.applications.evaluation.assessment.testsPassed", { ratio: testsPassed })}
                         </span>
                       )}
                       {timeComp && (
                         <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
                           <Cpu className="size-3" aria-hidden="true" />
-                          Thời gian: {timeComp}
+                          {t("candidate.core.applications.evaluation.assessment.timeComplexity", { value: String(timeComp) })}
                         </span>
                       )}
                       {spaceComp && (
                         <span className="inline-flex items-center gap-1 rounded bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
-                          Bộ nhớ: {spaceComp}
+                          {t("candidate.core.applications.evaluation.assessment.spaceComplexity", { value: String(spaceComp) })}
                         </span>
                       )}
                     </div>
@@ -217,16 +233,16 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
                   {hardcodeFlag && (
                     <div className="mt-2 flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
                       <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-                      <span>Phát hiện nghi vấn hardcode test case (áp trần 50% số điểm).</span>
+                      <span>{t("candidate.core.applications.evaluation.assessment.hardcodeWarning")}</span>
                     </div>
                   )}
 
                   {/* General Comment */}
                   {generalComment && (
                     <div className="mt-2 rounded border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-container-low)] p-2 text-xs text-[var(--color-on-surface-variant)]">
-                      <p className="font-semibold text-[var(--color-on-surface)]">Nhận xét của AI:</p>
-                      <p className="mt-0.5 leading-relaxed">{localizeAiComment(generalComment)}</p>
-                      {cleanCode && <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">• {localizeAiComment(cleanCode)}</p>}
+                      <p className="font-semibold text-[var(--color-on-surface)]">{t("candidate.core.applications.evaluation.assessment.aiCommentLabel")}</p>
+                      <p className="mt-0.5 leading-relaxed">{localizeAiComment(generalComment, t)}</p>
+                      {cleanCode && <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">• {localizeAiComment(cleanCode, t)}</p>}
                     </div>
                   )}
 
@@ -234,15 +250,15 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
                   {isEssay && criteria.length > 0 && (
                     <div className="mt-2 space-y-1 border-t border-[var(--color-border-default)]/70 pt-2">
                       <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
-                        Tiêu chí Rubric:
+                        {t("candidate.core.applications.evaluation.assessment.rubricCriteriaLabel")}
                       </p>
                       {criteria.map((c: any, idx: number) => (
                         <div key={idx} className="rounded bg-[var(--color-surface-container-low)] p-1.5 text-xs">
                           <div className="flex items-center justify-between font-medium">
-                            <span>{c.name || `Tiêu chí ${idx + 1}`}</span>
+                            <span>{c.name || t("candidate.core.applications.evaluation.assessment.criterionFallback", { index: idx + 1 })}</span>
                             <span className="font-semibold text-[var(--color-primary)]">{c.score_percent ?? 0}%</span>
                           </div>
-                          {c.feedback && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">{localizeAiComment(c.feedback)}</p>}
+                          {c.feedback && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">{localizeAiComment(c.feedback, t)}</p>}
                         </div>
                       ))}
                     </div>
@@ -257,7 +273,7 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
       {finished && (
         <div className="pt-1">
           <Link to={`/assessments/${row.id}/take`} className="inline-flex text-xs font-semibold text-[var(--color-primary)] hover:underline">
-            Xem toàn bộ kết quả bài làm →
+            {t("candidate.core.applications.evaluation.assessment.viewFullResults")}
           </Link>
         </div>
       )}
@@ -266,18 +282,23 @@ function AssessmentAttempt({ row }: { row: AssessmentEvaluationView }) {
 }
 
 function AttemptHeader({ title, date, outcome }: { title: string; date: string | null; outcome: ReactNode }) {
+  const locale = useLocale();
   return <div className="flex flex-wrap items-center justify-between gap-2">
-    <div className="min-w-0"><h3 className="truncate text-sm font-semibold">{title}</h3>{date && <time className="text-xs text-[var(--color-on-surface-variant)]" dateTime={date}>{new Date(date).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })}</time>}</div>
+    <div className="min-w-0"><h3 className="truncate text-sm font-semibold">{title}</h3>{date && <time className="text-xs text-[var(--color-on-surface-variant)]" dateTime={date}>{formatDateTime(date, undefined, locale)}</time>}</div>
     {outcome}
   </div>;
 }
 
 function ScoreLine({ score, threshold, passed }: { score: number; threshold: number | null; passed: boolean | null }) {
+  const t = useT();
+  const locale = useLocale();
   const gap = threshold == null ? null : score - threshold;
+  const formattedScore = formatScore(score, locale);
+  const [scoreBefore, scoreAfter] = t("candidate.core.applications.evaluation.scoreLine.scoreLabel", { score: "\0" }).split("\0");
   return <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-    <span>Điểm <strong className={cn("text-xl", gap != null && (gap < 0 ? "text-[var(--color-error)]" : "text-emerald-700"))}>{formatScore(score)}</strong></span>
-    {threshold != null && <span className="text-[var(--color-on-surface-variant)]">/ ngưỡng đạt {formatScore(threshold)}</span>}
-    {gap != null && passed === false && gap < 0 && <span className="font-medium text-[var(--color-error)]">thiếu {formatScore(-gap)} điểm</span>}
+    <span>{scoreBefore}<strong className={cn("text-xl", gap != null && (gap < 0 ? "text-[var(--color-error)]" : "text-emerald-700"))}>{formattedScore}</strong>{scoreAfter}</span>
+    {threshold != null && <span className="text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.evaluation.scoreLine.thresholdLabel", { threshold: formatScore(threshold, locale) })}</span>}
+    {gap != null && passed === false && gap < 0 && <span className="font-medium text-[var(--color-error)]">{t("candidate.core.applications.evaluation.scoreLine.shortBy", { gap: formatScore(-gap, locale) })}</span>}
   </p>;
 }
 
@@ -286,16 +307,22 @@ function Reason({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Fact({ label, value, hint, ok }: { label: string; value: string; hint: string; ok?: boolean }) {
+  const t = useT();
   return <div className="rounded-xl bg-[var(--color-surface-alt)] p-3">
     <dt className="text-xs text-[var(--color-on-surface-variant)]">{label}</dt>
-    <dd className="mt-0.5 font-semibold">{value}{ok === false && <span className="ml-2 text-xs font-medium text-[var(--color-error)]">chưa đủ</span>}</dd>
+    <dd className="mt-0.5 font-semibold">{value}{ok === false && <span className="ml-2 text-xs font-medium text-[var(--color-error)]">{t("candidate.core.applications.evaluation.fact.insufficient")}</span>}</dd>
     <dd className="text-xs text-[var(--color-on-surface-variant)]">{hint}</dd>
   </div>;
 }
 
 function SkillChip({ kind, children }: { kind: "match" | "partial" | "missing"; children: ReactNode }) {
+  const t = useT();
   const Icon = kind === "match" ? Check : kind === "partial" ? Minus : X;
-  const label = kind === "match" ? "Đáp ứng" : kind === "partial" ? "Đáp ứng một phần" : "Còn thiếu";
+  const label = kind === "match"
+    ? t("candidate.core.applications.evaluation.skillChip.match")
+    : kind === "partial"
+      ? t("candidate.core.applications.evaluation.skillChip.partial")
+      : t("candidate.core.applications.evaluation.skillChip.missing");
   return <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
     kind === "match" && "border-emerald-200 bg-emerald-50 text-emerald-800",
     kind === "partial" && "border-amber-200 bg-amber-50 text-amber-800",
@@ -304,12 +331,12 @@ function SkillChip({ kind, children }: { kind: "match" | "partial" | "missing"; 
   </span>;
 }
 
-function outcomePill(passed: boolean | null, pendingLabel?: string) {
-  if (passed === true) return <StatusPill status="PASSED" label="Đạt" />;
-  if (passed === false) return <StatusPill status="FAILED" label="Chưa đạt" />;
-  return <StatusPill status="PENDING" label={pendingLabel ?? "Đang xử lý"} />;
+function outcomePill(t: TranslateFn, passed: boolean | null, pendingLabel?: string) {
+  if (passed === true) return <StatusPill status="PASSED" label={t("candidate.core.applications.evaluation.outcome.passed")} />;
+  if (passed === false) return <StatusPill status="FAILED" label={t("candidate.core.applications.evaluation.outcome.failed")} />;
+  return <StatusPill status="PENDING" label={pendingLabel ?? t("candidate.core.applications.evaluation.outcome.pending")} />;
 }
 
-function formatScore(value: number) {
-  return value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+function formatScore(value: number, locale: Locale) {
+  return formatNumber(value, { maximumFractionDigits: 1 }, locale);
 }

@@ -47,7 +47,7 @@ class DropboxSignContractServiceTest {
     @Mock
     private ConsultationRequestRepository consultationRequestRepository;
     @Mock
-    private PlatformAuditLogRepository auditLogRepository;
+    private TenantSystemLogRepository auditLogRepository;
     @Mock
     private MasterBillingService masterBillingService;
     @Mock
@@ -93,7 +93,7 @@ class DropboxSignContractServiceTest {
                 .startDate(LocalDate.of(2026, 10, 1))
                 .endDate(LocalDate.of(2027, 10, 1))
                 .partyAName("CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM")
-                .partyATaxCode("0110889988")
+                .partyATaxCode("0110888999")
                 .partyBName("CÔNG TY TNHH FPT SOFTWARE")
                 .partyBTaxCode("0101248141")
                 .partyBRepresentative("Nguyễn Văn B")
@@ -553,7 +553,7 @@ class DropboxSignContractServiceTest {
                 .startDate(LocalDate.of(2026, 10, 9))
                 .endDate(LocalDate.of(2027, 10, 9))
                 .partyAName("CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM")
-                .partyATaxCode("0110889988")
+                .partyATaxCode("0110888999")
                 .partyARepresentative("Phan Nhật Hưng")
                 .partyAPosition("Tổng Giám Đốc")
                 .partyBName("CÔNG TY CỔ PHẦN DOANH NGHIỆP ĐỐI TÁC")

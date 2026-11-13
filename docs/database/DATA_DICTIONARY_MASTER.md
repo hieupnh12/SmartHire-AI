@@ -3,7 +3,7 @@
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
 **Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 19
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V36`
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V37`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -225,16 +225,16 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `currency` | VARCHAR(10) | | Không | `'VND'` | Đơn vị tiền tệ (mặc định VNĐ từ V23) |
 | `start_date` | DATE | | Không | — | Ngày bắt đầu hiệu lực |
 | `end_date` | DATE | | Không | — | Ngày kết thúc hiệu lực |
-| `party_a_name` | VARCHAR(255) | | Không | — | Snapshot Tên Bên A (SmartHire) |
-| `party_a_tax_code` | VARCHAR(50) | | Không | — | Snapshot MST Bên A |
-| `party_a_address` | VARCHAR(512) | | Không | — | Snapshot Địa chỉ Bên A |
-| `party_a_representative` | VARCHAR(255) | | Không | — | Người đại diện Bên A |
-| `party_a_position` | VARCHAR(255) | | Không | — | Chức vụ người đại diện Bên A |
-| `party_a_phone` | VARCHAR(50) | | Không | — | Số điện thoại Bên A |
-| `party_a_email` | VARCHAR(255) | | Không | — | Email Bên A |
-| `party_a_bank_name` | VARCHAR(255) | | Không | — | Ngân hàng Bên A |
-| `party_a_bank_account`| VARCHAR(100) | | Không | — | Số tài khoản Bên A |
-| `party_a_bank_branch` | VARCHAR(255) | | Không | — | Chi nhánh ngân hàng Bên A |
+| `party_a_name` | VARCHAR(255) | | Không | `'CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM'` | Snapshot Tên Bên A (SmartHire) |
+| `party_a_tax_code` | VARCHAR(50) | | Không | `'0110888999'` (V37) | Snapshot MST Bên A |
+| `party_a_address` | VARCHAR(512) | | Không | Tòa nhà FPT Đà Nẵng (V37) | Snapshot Địa chỉ Bên A |
+| `party_a_representative` | VARCHAR(255) | | Không | `'Phan Nhật Hưng'` | Người đại diện Bên A |
+| `party_a_position` | VARCHAR(255) | | Không | `'Tổng Giám Đốc'` | Chức vụ người đại diện Bên A |
+| `party_a_phone` | VARCHAR(50) | | Không | `'0988.888.888'` (V37) | Số điện thoại Bên A |
+| `party_a_email` | VARCHAR(255) | | Không | `'support@smarthire.top'` (V37) | Email Bên A |
+| `party_a_bank_name` | VARCHAR(255) | | Không | `'Ngân hàng TMCP Tiên Phong (TPBank)'` (V37) | Ngân hàng Bên A |
+| `party_a_bank_account`| VARCHAR(100) | | Không | `'07744348801'` (V37) | Số tài khoản Bên A |
+| `party_a_bank_branch` | VARCHAR(255) | | Không | `'Chi nhánh Đà Nẵng'` (V37) | Chi nhánh ngân hàng Bên A |
 | `party_b_name` | VARCHAR(255) | | Có | NULL | Tên pháp nhân Bên B (Khách hàng) |
 | `party_b_tax_code` | VARCHAR(50) | | Có | NULL | Mã số thuế Bên B |
 | `party_b_address` | VARCHAR(512) | | Có | NULL | Địa chỉ trụ sở Bên B |
@@ -333,24 +333,28 @@ Entity `PlatformUser`. Tách hoàn toàn khỏi bảng `users` của tenant — 
 
 ---
 
-## 11. `platform_audit_logs` — Nhật ký cấp nền tảng
+## 11. `tenant_system_logs` — Nhật ký hệ thống & lỗi ứng dụng cấp Tenant
 
-Entity `PlatformAuditLog`. Bảng chỉ ghi thêm, không sửa, không xoá. Cố ý **không** có khoá ngoại cứng để log
-sống lâu hơn tenant và tài khoản mà nó ghi nhận.
+Entity `TenantSystemLog`. Thay thế `platform_audit_logs` từ V39. Bảng chỉ ghi thêm, không sửa, không xoá, dùng để ghi vết lỗi kỹ thuật (HTTP 500, lỗi async worker, AI timeout, database error) và giám sát theo ngữ cảnh từng Tenant. Cố ý **không** có khoá ngoại cứng để log sống lâu hơn tenant mà nó ghi nhận.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `tenant_code` | VARCHAR(64) | IDX | Có | NULL | Tham chiếu mềm tới `tenants.code` |
-| `platform_user_id` | BIGINT | ref* | Có | NULL | Người thực hiện — **không có khoá ngoại** |
-| `action` | VARCHAR(64) | | Không | — | Mã hành động (vd: `PROVISION_TENANT`, `APPROVE_INVOICE`) |
-| `level` | VARCHAR(16) | | Không | `'INFO'` | Mức độ log (`INFO`, `WARN`, `ERROR`) |
-| `description` | TEXT | | Không | — | Mô tả chi tiết hành động |
+| `tenant_code` | VARCHAR(64) | IDX | Không | `'SYSTEM'` | Tham chiếu mềm tới `tenants.code` hoặc `'SYSTEM'` |
+| `level` | VARCHAR(16) | IDX | Không | `'ERROR'` | Mức độ log (`INFO`, `WARN`, `ERROR`) |
+| `category` | VARCHAR(64) | | Không | `'APPLICATION'` | Phân loại (`HTTP_API`, `ASYNC_WORKER`, `AI_CONFIG`, `BILLING`, `CONTRACT`) |
+| `action` | VARCHAR(64) | | Không | — | Mã hành động / loại lỗi (vd: `HTTP_500_ERROR`, `CV_PARSE_ERROR`, `AI_KEY_SAVED`) |
+| `message` | TEXT | | Không | — | Thông điệp lỗi / mô tả chi tiết sự kiện |
+| `endpoint` | VARCHAR(255) | | Có | NULL | Đường dẫn API HTTP phát sinh lỗi (vd: `/api/v1/tenant/cv/upload`) |
+| `method` | VARCHAR(16) | | Có | NULL | Phương thức HTTP (`GET`, `POST`, `PUT`, `DELETE`) |
+| `status_code` | INT | | Có | NULL | Mã trạng thái HTTP (vd: 500, 502, 400) |
 | `ip_address` | VARCHAR(64) | | Có | NULL | IP nguồn thực hiện |
+| `trace_id` | VARCHAR(64) | | Có | NULL | Mã Trace ID theo dõi luồng xử lý (SLF4J MDC) |
+| `stack_trace` | TEXT | | Có | NULL | Chi tiết vết ngăn xếp ngoại lệ phục vụ Debug |
 | `metadata_json` | JSONB | | Có | NULL | Dữ liệu bổ sung dạng JSON — **không ghi PII hoặc token** |
-| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm ghi log (có Index DESC từ V23) |
+| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm ghi log (có Index DESC từ V39) |
 
-**Index:** `idx_pal_tenant_code`, `idx_pal_created_at`
+**Index:** `idx_tsl_tenant_code`, `idx_tsl_level`, `idx_tsl_created_at`, `idx_tsl_tenant_created`
 
 ---
 
@@ -370,6 +374,9 @@ Entity `ConsultationRequest`. Lead từ landing page, có liên kết ngược s
 | `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | ID Tenant được tạo sau khi chốt deal (V23) |
 | `request_type` | VARCHAR(64) | | Không | `'DEMO'` | Loại yêu cầu (`DEMO` hoặc `CONTRACT_QUOTE`) |
 | `plan_tier` | VARCHAR(128) | | Có | NULL | Gói đang quan tâm |
+| `quoted_plan_id` | BIGINT | | Có | NULL | ID gói cước đã chọn khi gửi báo giá (V38) |
+| `proposed_code` | VARCHAR(64) | | Có | NULL | Mã doanh nghiệp đề xuất do Sales/Admin chỉnh sửa (V38) |
+| `proposed_subdomain` | VARCHAR(128) | | Có | NULL | Tên miền riêng đề xuất do Sales/Admin chỉnh sửa (V38) |
 | `primary_need` | TEXT | | Có | NULL | Nhu cầu chính |
 | `notes` | TEXT | | Có | NULL | Ghi chú nội bộ |
 | `status` | VARCHAR(32) | IDX | Không | `'PENDING'` | Trạng thái (`PENDING`, `CONTACTED`, `PROVISIONED`, `REJECTED`) |
@@ -460,9 +467,9 @@ Entity `MasterNotificationLog`. Ghi vết việc gửi email/thông báo cấp s
 
 ---
 
-## 17. `master_consent_logs` — Nhật ký đồng thuận pháp lý Click-wrap (ToS & NĐ 13/2023/NĐ-CP)
+## 17. `master_consent_logs` — Nhật ký đồng thuận pháp lý Click-wrap (ToS & Luật BVDLCN 2025)
 
-Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất biến khi khách hàng tự tay tích chọn đồng ý với Điều khoản Dịch vụ (`TERMS_OF_SERVICE`) và Chính sách Bảo vệ Dữ liệu Cá nhân (`PRIVACY_POLICY_ND13`) tại luồng Self-serve Checkout (V25).
+Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất biến khi khách hàng tự tay tích chọn đồng ý với Điều khoản Dịch vụ (`TERMS_OF_SERVICE`) và Chính sách Bảo vệ Dữ liệu Cá nhân (`PRIVACY_POLICY_2025` theo Luật Bảo vệ dữ liệu cá nhân 2025 & NĐ 356/2025/NĐ-CP; bản ghi cũ V25 mang `PRIVACY_POLICY_ND13`) tại luồng Self-serve Checkout.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
@@ -471,7 +478,7 @@ Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất bi
 | `invoice_id` | BIGINT | FK → `invoices.id`, IDX | Có | NULL | Đơn hàng / hóa đơn phát sinh (`ON DELETE SET NULL`) |
 | `actor_name` | VARCHAR(255) | | Không | — | Họ tên người đại diện thực hiện thao tác |
 | `actor_email` | VARCHAR(255) | IDX | Không | — | Email người đại diện thực hiện thao tác |
-| `policy_type` | VARCHAR(64) | | Không | — | Loại văn bản (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) |
+| `policy_type` | VARCHAR(64) | | Không | — | Loại văn bản (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_2025`; lịch sử V25 có thể chứa `PRIVACY_POLICY_ND13`) |
 | `policy_version` | VARCHAR(32) | | Không | — | Phiên bản điều khoản tại thời điểm tích chọn (vd: `v2026.10`) |
 | `is_accepted` | BOOLEAN | | Không | TRUE | Trạng thái đồng thuận (`TRUE`) |
 | `ip_address` | VARCHAR(64) | | Không | — | Địa chỉ IP thực của khách hàng do Backend trích xuất |

@@ -118,7 +118,7 @@ public class DynamicAiConfigProvider {
             RedisService redisService,
             ObjectMapper mapper,
             @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
+            @Value("${app.ai.models.cv-parsing:gemini-3.5-flash-lite}") String fallbackCvModel,
             @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
             @Value("${app.ai.interview.api-key:}") String interviewKey,
             @Value("${app.ai.interview.model:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}") String interviewModel,
@@ -219,14 +219,14 @@ public class DynamicAiConfigProvider {
                 ResolvedAiConfig resolved = new ResolvedAiConfig(
                         normalizedTask,
                         provider,
-                        config.getModelName(),
+                        sanitizeGithubModel(normalizedTask, provider, config.getModelName(), true),
                         apiKey,
                         endpointUrl,
                         config.getTemperature() != null ? config.getTemperature() : new BigDecimal("0.20"),
                         config.getMaxTokens() != null ? config.getMaxTokens() : 2048,
                         config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 30,
                         config.getFailoverProvider(),
-                        config.getFailoverModel(),
+                        sanitizeGithubModel(normalizedTask, config.getFailoverProvider() != null ? config.getFailoverProvider() : provider, config.getFailoverModel(), false),
                         config.getFallbackChain()
                 );
 
@@ -243,6 +243,13 @@ public class DynamicAiConfigProvider {
             log.error("Failed to query AI config from Master DB for task {}: {}", normalizedTask, ex.getMessage());
         }
 
+        if ("GITHUB_ANALYSIS".equals(normalizedTask)) {
+            ResolvedAiConfig githubDefault = resolveDefaultGithubConfig(cacheKey);
+            if (githubDefault != null) {
+                return githubDefault;
+            }
+        }
+
         if ("INTERVIEW_STT".equals(normalizedTask) || "INTERVIEW_TTS".equals(normalizedTask)
                 || "CODE_GRADING".equals(normalizedTask)) {
             return new ResolvedAiConfig(normalizedTask, null, null, "", null,
@@ -250,18 +257,96 @@ public class DynamicAiConfigProvider {
         }
         // Preserve environment fallback for existing interview and CV deployments.
         boolean interview = isInterview(normalizedTask);
+        String primaryModel = interview ? interviewModel : sanitizeGithubModel(normalizedTask, "GEMINI", fallbackCvModel, true);
         return new ResolvedAiConfig(
                 normalizedTask,
                 interview ? interviewProvider : "GEMINI",
-                interview ? interviewModel : fallbackCvModel,
+                primaryModel,
                 interview ? interviewKey : fallbackGeminiKey,
                 interview ? interviewEndpoint : null,
                 new BigDecimal("0.20"),
                 interview ? 8192 : 2048,
                 interview ? interviewTimeout : fallbackTimeout,
                 "GEMINI",
-                "gemini-1.5-flash"
+                "gemini-3.5-flash-lite"
         );
+    }
+
+    private ResolvedAiConfig resolveDefaultGithubConfig(String cacheKey) {
+        Optional<AiProviderKey> geminiKeyOpt = findActiveProviderKey("GEMINI");
+        String geminiKey = decryptOrFallbackKey(geminiKeyOpt, "GEMINI", "GITHUB_ANALYSIS");
+        if (geminiKey != null && !geminiKey.isBlank()) {
+            String endpointUrl = geminiKeyOpt.map(AiProviderKey::getEndpointUrl)
+                    .filter(u -> !u.isBlank())
+                    .orElse(null);
+            ResolvedAiConfig resolved = new ResolvedAiConfig(
+                    "GITHUB_ANALYSIS",
+                    "GEMINI",
+                    "gemini-2.5-flash",
+                    geminiKey,
+                    endpointUrl,
+                    new BigDecimal("0.20"),
+                    4096,
+                    Math.max(60, fallbackTimeout),
+                    "GEMINI",
+                    "gemini-3.5-flash-lite",
+                    "[{\"provider\":\"GEMINI\",\"model\":\"gemini-3.5-flash-lite\",\"timeoutSeconds\":60,\"temperature\":0.20}]"
+            );
+            try {
+                redisService.set(cacheKey, mapper.writeValueAsString(resolved), Duration.ofHours(6));
+            } catch (Exception ex) {
+                log.warn("Failed to cache default GITHUB_ANALYSIS config in Redis: {}", ex.getMessage());
+            }
+            return resolved;
+        }
+        for (String sourceTask : new String[]{"MATCHING", "CV_PARSING"}) {
+            try {
+                if (modelConfigRepository.findByTaskType(sourceTask)
+                        .filter(c -> !Boolean.FALSE.equals(c.getIsActive()))
+                        .isPresent()) {
+                    ResolvedAiConfig inherited = getOrResolveBaseConfig(sourceTask);
+                    if (inherited.apiKey() != null && !inherited.apiKey().isBlank()) {
+                        return new ResolvedAiConfig(
+                                "GITHUB_ANALYSIS",
+                                inherited.provider(),
+                                sanitizeGithubModel("GITHUB_ANALYSIS", inherited.provider(), inherited.modelName(), true),
+                                inherited.apiKey(),
+                                inherited.endpointUrl(),
+                                inherited.temperature(),
+                                Math.max(4096, inherited.maxTokens() != null ? inherited.maxTokens() : 4096),
+                                Math.max(60, inherited.timeoutSeconds() != null ? inherited.timeoutSeconds() : 60),
+                                inherited.failoverProvider(),
+                                sanitizeGithubModel("GITHUB_ANALYSIS",
+                                        inherited.failoverProvider() != null ? inherited.failoverProvider() : inherited.provider(),
+                                        inherited.failoverModel(), false),
+                                inherited.fallbackChain()
+                        );
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Could not inherit {} config for GITHUB_ANALYSIS: {}", sourceTask, ex.getMessage());
+            }
+        }
+        return null;
+    }
+
+    private static String sanitizeGithubModel(String task, String provider, String model, boolean primary) {
+        if (!"GITHUB_ANALYSIS".equals(task) || model == null || model.isBlank()) {
+            return model;
+        }
+        String normalizedProvider = provider == null ? "GEMINI" : provider.trim().toUpperCase();
+        if (!"GEMINI".equals(normalizedProvider)) {
+            return model;
+        }
+        String lower = model.trim().toLowerCase();
+        if ("gemini-1.5-flash".equals(lower)
+                || "gemini-1.5-pro".equals(lower)
+                || "gemini-2.0-flash".equals(lower)
+                || "gemini-2.0-flash-001".equals(lower)
+                || "gemini-2.0-flash-lite".equals(lower)) {
+            return primary ? "gemini-2.5-flash" : "gemini-3.5-flash-lite";
+        }
+        return model;
     }
 
     public void markModelCooldown(String provider, String modelName, Duration duration) {
@@ -410,7 +495,7 @@ public class DynamicAiConfigProvider {
         for (com.smarthire.master.ai.dto.AiFallbackStep step : steps) {
             if (step.getModel() == null || step.getModel().isBlank()) continue;
             String stepProvider = (step.getProvider() == null || step.getProvider().isBlank()) ? base.provider() : step.getProvider().trim().toUpperCase();
-            String stepModel = step.getModel().trim();
+            String stepModel = sanitizeGithubModel(normalizedTask, stepProvider, step.getModel().trim(), false);
 
             if (stepProvider.equalsIgnoreCase(base.provider()) && stepModel.equalsIgnoreCase(base.modelName())) {
                 continue;
@@ -475,7 +560,9 @@ public class DynamicAiConfigProvider {
     }
 
     private static String taskCacheKey(String task) {
-        return RedisKeys.aiTaskConfig(task) + (isInterview(task) ? ":spring-ai-v1" : "");
+        if (isInterview(task)) return RedisKeys.aiTaskConfig(task) + ":spring-ai-v1";
+        if ("GITHUB_ANALYSIS".equals(task)) return RedisKeys.aiTaskConfig(task) + ":v3";
+        return RedisKeys.aiTaskConfig(task);
     }
 
     private Optional<AiProviderKey> findActiveProviderKey(String provider) {
@@ -532,7 +619,7 @@ public class DynamicAiConfigProvider {
 
     public void evictAll() {
         try {
-            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "QUESTION_GEN", "MATCHING"}) {
+            for (String task : new String[]{"CV_PARSING", "GITHUB_ANALYSIS", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "QUESTION_GEN", "MATCHING"}) {
                 redisService.delete(taskCacheKey(task));
             }
         } catch (Exception ex) {

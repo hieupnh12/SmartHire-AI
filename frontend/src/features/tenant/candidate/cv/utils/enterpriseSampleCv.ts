@@ -1,6 +1,6 @@
 import type { CvBuilderData, CvBuilderItem, CvBuilderItemRow, CvBuilderSection, CvSectionType } from "@/api/types/cv";
 import type { UserProfile } from "@/features/tenant/auth/types";
-import { createSection, defaultCvTheme } from "./createDefaultCv";
+import { createSection, defaultCvTheme } from "./cvDocPrimitives";
 import { rowsToDescription } from "./itemRows";
 
 type Sample = Omit<CvBuilderItem, "id">;

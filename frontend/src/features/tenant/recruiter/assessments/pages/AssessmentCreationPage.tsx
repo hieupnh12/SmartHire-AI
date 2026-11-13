@@ -6,6 +6,7 @@ import {
   Sliders,
   Users,
 } from "lucide-react";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
@@ -16,26 +17,26 @@ export type ConfigSection = "general" | "exercise" | "assign";
 
 const configNavGroups = [
   {
-    groupTitle: "CẤU HÌNH",
+    groupTitleKey: "recruiter.assessments.config.nav.groupConfig",
     items: [
       {
         id: "general" as const,
-        title: "Chung",
+        titleKey: "recruiter.assessments.config.nav.general",
         icon: Settings2,
       },
       {
         id: "exercise" as const,
-        title: "Bài tập",
+        titleKey: "recruiter.assessments.config.nav.exercise",
         icon: Sliders,
       },
     ],
   },
   {
-    groupTitle: "ỨNG VIÊN",
+    groupTitleKey: "recruiter.assessments.config.nav.groupCandidates",
     items: [
       {
         id: "assign" as const,
-        title: "Giao đề",
+        titleKey: "recruiter.assessments.config.nav.assign",
         icon: Users,
       },
     ],
@@ -43,6 +44,7 @@ const configNavGroups = [
 ];
 
 export function AssessmentCreationPage() {
+  const t = useT();
   const job = useRecruitmentJob();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -96,9 +98,9 @@ export function AssessmentCreationPage() {
             )}
           >
             {configNavGroups.map((group) => (
-              <div key={group.groupTitle} className="space-y-1">
+              <div key={group.groupTitleKey} className="space-y-1">
                 <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-slate-400">
-                  {group.groupTitle}
+                  {t(group.groupTitleKey)}
                 </div>
                 <div className="space-y-0.5">
                   {group.items.map((item) => {
@@ -112,7 +114,7 @@ export function AssessmentCreationPage() {
                         className={cn(
                           "w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all cursor-pointer group",
                           isActive
-                            ? "bg-blue-50 text-[#0066FF] font-semibold dark:bg-blue-950/40 dark:text-blue-300 shadow-2xs"
+                            ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)] font-semibold shadow-2xs"
                             : "text-[#475467] hover:bg-slate-50 hover:text-[#101828] dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-white",
                         )}
                       >
@@ -120,13 +122,13 @@ export function AssessmentCreationPage() {
                           className={cn(
                             "size-4 shrink-0 transition-colors",
                             isActive
-                              ? "text-[#0066FF] dark:text-blue-400"
+                              ? "text-[var(--color-primary)]"
                               : "text-[#667085] group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300",
                           )}
                         />
-                        <span className="flex-1 text-[13px] font-medium leading-tight">{item.title}</span>
+                        <span className="flex-1 text-[13px] font-medium leading-tight">{t(item.titleKey)}</span>
                         {isActive && (
-                          <ChevronRight className="size-3.5 shrink-0 text-[#0066FF] self-center ml-auto dark:text-blue-400" />
+                          <ChevronRight className="size-3.5 shrink-0 text-[var(--color-primary)] self-center ml-auto" />
                         )}
                       </button>
                     );

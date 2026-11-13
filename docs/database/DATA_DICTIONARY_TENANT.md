@@ -1,5 +1,23 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Đa ngôn ngữ nội dung đánh giá AI V61 (2026-11-13)
+
+Nguồn: `V61__ai_localized_contents.sql`. Bảng mới: `ai_localized_contents`.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `ai_localized_contents.id` | BIGINT | Không | AUTO_INCREMENT | Khóa chính tự tăng |
+| `ai_localized_contents.entity_type` | VARCHAR(64) | Không | — | Loại thực thể AI (vd: `CV_SCREENING`, `AI_INTERVIEW_REPORT`, `ASSESSMENT_GRADING`) |
+| `ai_localized_contents.entity_id` | BIGINT | Không | — | ID của thực thể tương ứng (vd: `cv_id`) |
+| `ai_localized_contents.content_hash` | VARCHAR(64) | Không | — | Mã băm SHA-256 từ nội dung đánh giá gốc chuẩn hóa để phát hiện thay đổi |
+| `ai_localized_contents.locale` | VARCHAR(16) | Không | — | Mã ngôn ngữ đích đã dịch (`ja`, `en`, `vi`) |
+| `ai_localized_contents.source_locale` | VARCHAR(16) | Không | `'vi'` | Mã ngôn ngữ gốc của nội dung AI sinh ban đầu |
+| `ai_localized_contents.localized_json` | JSON | Không | — | Cấu trúc dữ liệu đã được dịch và bảo toàn thuật ngữ kỹ thuật |
+| `ai_localized_contents.created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm tạo bản dịch |
+| `ai_localized_contents.updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm cập nhật |
+| `uk_ai_loc_content` | UNIQUE `(entity_type, entity_id, content_hash, locale)` | — | — | Đảm bảo duy nhất một bản dịch cho mỗi tổ hợp nội dung + ngôn ngữ |
+| `idx_ai_loc_lookup` | INDEX `(entity_type, entity_id, locale)` | — | — | Hỗ trợ truy vấn nhanh bản dịch của thực thể theo ngôn ngữ |
+
 ## Tự động chấm điểm và công bố kết quả V59 (2026-10-28)
 
 Nguồn: `V59__test_auto_grading.sql`. Không tạo bảng mới.
@@ -276,7 +294,7 @@ Entity `MemberInvitation` (káº¿ thá»«a `BaseEntity`). KhÃ´ng cÃ³ khoÃ
 | `full_name` | VARCHAR(255) | | KhÃ´ng | â€” | Há» tÃªn ngÆ°á»i Ä‘Æ°á»£c má»i |
 | `role` | VARCHAR(32) | | KhÃ´ng | â€” | Vai trÃ² sáº½ Ä‘Æ°á»£c cáº¥p khi cháº¥p nháº­n |
 | `token_hash` | VARCHAR(64) | UQ | KhÃ´ng | â€” | **Hash** cá»§a token má»i; token gá»‘c khÃ´ng bao giá» Ä‘Æ°á»£c lÆ°u hay log |
-| `status` | VARCHAR(32) | | KhÃ´ng | `'PENDING'` | `InvitationStatus`: PENDING, ACCEPTED |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'PENDING'` | `InvitationStatus`: PENDING, ACCEPTED, REVOKED |
 | `expires_at` | TIMESTAMP | | KhÃ´ng | â€” | Háº¡n dÃ¹ng cá»§a lá»i má»i |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
@@ -736,6 +754,8 @@ Entity `Recommendation`. **KhÃ´ng cÃ³ khoÃ¡ ngoáº¡i nÃ o** â€” t
 | `score` | DECIMAL(5,2) | | KhÃ´ng | â€” | Äá»™ phÃ¹ há»£p |
 | `reason_json` | JSON | | CÃ³ | NULL | LÃ½ do gá»£i Ã½ |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**Ràng buộc / index:** `idx_rec_subject_target (subject_type, subject_id, target_type, score DESC)` (V60)
 
 ---
 
@@ -1334,4 +1354,43 @@ Entity `CompanyEmailSetting` (`com.smarthire.domain.tenant.entity.CompanyEmailSe
 **Ràng buộc & Nghiệp vụ:**
 - Mỗi tenant cấu hình tài khoản Gmail riêng. Mật khẩu ứng dụng 16 ký tự được mã hóa AES-256 GCM bằng `TenantCredentialService` với AAD là `tenantCode`.
 - Bắt buộc phải có Gmail được cấu hình thành công thì công ty mới có thể gửi thư mời nhân viên và các email thông báo. Nếu chưa cấu hình, hệ thống sẽ chặn gửi và thông báo yêu cầu cấu hình trên giao diện Company.
+
+---
+
+## M. Candidate Saved Jobs & Job Alerts (V60)
+
+### M.1 `saved_jobs` — Việc làm đã lưu của ứng viên (V60)
+
+Entity `SavedJob`. Mỗi ứng viên có thể lưu một tin tuyển dụng tối đa một lần.
+
+| Cột | Kiểu | Khoá | Null | Mặc định | Ý nghĩa |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | AUTO_INCREMENT | Khoá chính |
+| `candidate_id` | BIGINT | FK → `candidates.id`, UQ | Không | — | Ứng viên đã lưu tin (ON DELETE CASCADE) |
+| `job_id` | BIGINT | FK → `jobs.id`, UQ, IDX | Không | — | Tin tuyển dụng được lưu (ON DELETE CASCADE) |
+| `created_at` | TIMESTAMP | IDX | Không | `CURRENT_TIMESTAMP` | Thời điểm lưu tin |
+
+**Ràng buộc / index:** `fk_saved_jobs_candidate` (ON DELETE CASCADE), `fk_saved_jobs_job` (ON DELETE CASCADE), `uk_saved_jobs_candidate_job (candidate_id, job_id)`, `idx_saved_jobs_candidate (candidate_id, created_at DESC)`, `idx_saved_jobs_job (job_id)`
+
+### M.2 `job_alerts` — Đăng ký nhận thông báo việc làm mới (V60)
+
+Entity `JobAlert`. Lưu bộ lọc tiêu chí nhận thông báo web/email khi doanh nghiệp publish tin tuyển dụng mới phù hợp.
+
+| Cột | Kiểu | Khoá | Null | Mặc định | Ý nghĩa |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | AUTO_INCREMENT | Khoá chính |
+| `candidate_id` | BIGINT | FK → `candidates.id`, IDX | Không | — | Ứng viên đăng ký nhận thông báo (ON DELETE CASCADE) |
+| `keyword` | VARCHAR(255) | | Có | NULL | Từ khoá tìm kiếm trong tiêu đề/mô tả/kỹ năng |
+| `department` | VARCHAR(128) | | Có | NULL | Phòng ban lọc |
+| `location` | VARCHAR(255) | | Có | NULL | Địa điểm lọc |
+| `work_mode` | VARCHAR(32) | | Có | NULL | Hình thức làm việc (`ONSITE` / `HYBRID` / `REMOTE`) |
+| `employment_type` | VARCHAR(32) | | Có | NULL | Loại hình công việc (`FULL_TIME`, v.v.) |
+| `web_enabled` | BOOLEAN | | Không | `TRUE` | Bật thông báo in-app (`notifications`) |
+| `email_enabled` | BOOLEAN | | Không | `TRUE` | Bật gửi email (`email_outbox`) |
+| `active` | BOOLEAN | IDX | Không | `TRUE` | Trạng thái kích hoạt đăng ký |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc / index:** `fk_job_alerts_candidate` (ON DELETE CASCADE), `idx_job_alerts_candidate (candidate_id)`, `idx_job_alerts_active (active)`
+
 

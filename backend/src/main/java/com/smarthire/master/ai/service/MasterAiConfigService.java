@@ -5,11 +5,11 @@ import com.smarthire.config.ai.DynamicAiConfigProvider;
 import com.smarthire.domain.master.entity.AiModelConfig;
 import com.smarthire.domain.master.entity.AiModelPricing;
 import com.smarthire.domain.master.entity.AiProviderKey;
-import com.smarthire.domain.master.entity.PlatformAuditLog;
+import com.smarthire.domain.master.entity.TenantSystemLog;
 import com.smarthire.domain.master.repository.AiModelConfigRepository;
 import com.smarthire.domain.master.repository.AiModelPricingRepository;
 import com.smarthire.domain.master.repository.AiProviderKeyRepository;
-import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
+import com.smarthire.domain.master.repository.TenantSystemLogRepository;
 import com.smarthire.master.ai.dto.AiFallbackStep;
 import com.smarthire.master.ai.dto.AiModelConfigDto;
 import com.smarthire.master.ai.dto.AiModelPricingDto;
@@ -39,7 +39,7 @@ public class MasterAiConfigService {
 
     private final AiProviderKeyRepository providerKeyRepository;
     private final AiModelConfigRepository modelConfigRepository;
-    private final PlatformAuditLogRepository auditLogRepository;
+    private final TenantSystemLogRepository auditLogRepository;
     private final TenantCredentialService credentialService;
     private final DynamicAiConfigProvider configProvider;
     private final ObjectMapper mapper;
@@ -50,7 +50,7 @@ public class MasterAiConfigService {
     public MasterAiConfigService(
             AiProviderKeyRepository providerKeyRepository,
             AiModelConfigRepository modelConfigRepository,
-            PlatformAuditLogRepository auditLogRepository,
+            TenantSystemLogRepository auditLogRepository,
             TenantCredentialService credentialService,
             DynamicAiConfigProvider configProvider,
             ObjectMapper mapper) {
@@ -60,7 +60,7 @@ public class MasterAiConfigService {
     public MasterAiConfigService(
             AiProviderKeyRepository providerKeyRepository,
             AiModelConfigRepository modelConfigRepository,
-            PlatformAuditLogRepository auditLogRepository,
+            TenantSystemLogRepository auditLogRepository,
             TenantCredentialService credentialService,
             DynamicAiConfigProvider configProvider,
             ObjectMapper mapper,
@@ -145,14 +145,17 @@ public class MasterAiConfigService {
         AiProviderKey saved = providerKeyRepository.save(entity);
         configProvider.evictAll();
 
-        // Audit Log
+        // System Log
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
+                    .tenantCode("MASTER")
+                    .category("AI_CONFIG")
+                    .level("INFO")
                     .action("AI_KEY_SAVED")
-                    .description("Saved AI key for provider " + provider + " (alias: " + saved.getKeyAlias() + ") by " + adminEmail)
+                    .message("Saved AI key for provider " + provider + " (alias: " + saved.getKeyAlias() + ") by " + adminEmail)
                     .build());
         } catch (Exception ex) {
-            log.warn("Failed to write audit log for saveProviderKey: {}", ex.getMessage());
+            log.warn("Failed to write log for saveProviderKey: {}", ex.getMessage());
         }
 
         return toProviderKeyDto(saved);
@@ -166,21 +169,47 @@ public class MasterAiConfigService {
         configProvider.evictAll();
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
+                    .tenantCode("MASTER")
+                    .category("AI_CONFIG")
+                    .level("INFO")
                     .action("AI_KEY_DELETED")
-                    .description("Deleted AI key id: " + id + " (" + key.getKeyAlias() + ") by " + adminEmail)
+                    .message("Deleted AI key id: " + id + " (" + key.getKeyAlias() + ") by " + adminEmail)
                     .build());
         } catch (Exception ex) {
-            log.warn("Failed to write audit log for deleteProviderKey: {}", ex.getMessage());
+            log.warn("Failed to write log for deleteProviderKey: {}", ex.getMessage());
         }
     }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiModelConfigDto> getAllTaskConfigs() {
-        return modelConfigRepository.findAll().stream()
+        List<AiModelConfigDto> configs = modelConfigRepository.findAll().stream()
                 .sorted(java.util.Comparator.comparing(AiModelConfig::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .map(this::toModelConfigDto)
                 .collect(Collectors.toList());
+        if (configs.stream().noneMatch(c -> "GITHUB_ANALYSIS".equalsIgnoreCase(c.getTaskType()))) {
+            configs.add(buildDefaultGithubAnalysisDto());
+        }
+        return configs;
+    }
+
+    private AiModelConfigDto buildDefaultGithubAnalysisDto() {
+        AiFallbackStep defaultStep = new AiFallbackStep("GEMINI", "gemini-3.5-flash-lite", 60, new BigDecimal("0.20"));
+        String chainJson = "[{\"provider\":\"GEMINI\",\"model\":\"gemini-3.5-flash-lite\",\"timeoutSeconds\":60,\"temperature\":0.20}]";
+        return AiModelConfigDto.builder()
+                .taskType("GITHUB_ANALYSIS")
+                .taskName("Phân tích bằng chứng GitHub")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .temperature(new BigDecimal("0.20"))
+                .maxTokens(4096)
+                .timeoutSeconds(60)
+                .failoverProvider("GEMINI")
+                .failoverModel("gemini-3.5-flash-lite")
+                .fallbackChain(chainJson)
+                .fallbackSteps(List.of(defaultStep))
+                .isActive(true)
+                .build();
     }
 
     @Transactional("masterTransactionManager")
@@ -220,12 +249,15 @@ public class MasterAiConfigService {
         configProvider.evictCache(normalizedTask);
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
+                    .tenantCode("MASTER")
+                    .category("AI_CONFIG")
+                    .level("INFO")
                     .action("AI_MODEL_ROUTING_UPDATED")
-                    .description("Updated AI task config for " + normalizedTask + " to model " + saved.getModelName() + " by " + adminEmail)
+                    .message("Updated AI task config for " + normalizedTask + " to model " + saved.getModelName() + " by " + adminEmail)
                     .build());
         } catch (Exception ex) {
-            log.warn("Failed to write audit log for updateTaskConfig: {}", ex.getMessage());
+            log.warn("Failed to write log for updateTaskConfig: {}", ex.getMessage());
         }
 
         return toModelConfigDto(saved);
@@ -746,13 +778,16 @@ public class MasterAiConfigService {
         AiModelPricing saved = modelPricingRepository.save(entity);
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
+                    .tenantCode("MASTER")
+                    .category("AI_CONFIG")
+                    .level("INFO")
                     .action("AI_MODEL_PRICING_UPDATED")
-                    .description(String.format("Updated AI model pricing for %s:%s (in=$%s/1M, out=$%s/1M) by %s",
+                    .message(String.format("Updated AI model pricing for %s:%s (in=$%s/1M, out=$%s/1M) by %s",
                             provider, modelName, saved.getInputPricePer1mTokens(), saved.getOutputPricePer1mTokens(), adminEmail))
                     .build());
         } catch (Exception ex) {
-            log.warn("Failed to write audit log for saveModelPricing: {}", ex.getMessage());
+            log.warn("Failed to write log for saveModelPricing: {}", ex.getMessage());
         }
 
         return toModelPricingDto(saved);
@@ -768,13 +803,16 @@ public class MasterAiConfigService {
         modelPricingRepository.delete(entity);
 
         try {
-            auditLogRepository.save(PlatformAuditLog.builder()
+            auditLogRepository.save(TenantSystemLog.builder()
+                    .tenantCode("MASTER")
+                    .category("AI_CONFIG")
+                    .level("INFO")
                     .action("AI_MODEL_PRICING_DELETED")
-                    .description(String.format("Deleted AI model pricing %s:%s (id=%d) by %s",
+                    .message(String.format("Deleted AI model pricing %s:%s (id=%d) by %s",
                             entity.getProvider(), entity.getModelName(), id, adminEmail))
                     .build());
         } catch (Exception ex) {
-            log.warn("Failed to write audit log for deleteModelPricing: {}", ex.getMessage());
+            log.warn("Failed to write log for deleteModelPricing: {}", ex.getMessage());
         }
     }
 

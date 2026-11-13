@@ -16,10 +16,10 @@ import {
   XCircle,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
+import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
-import type {
-  SubmissionGradingDetail,
-} from "@/api/types/assessment";
+import type { SubmissionGradingDetail } from "@/api/types/assessment";
+import { getAssessmentStatusLabel } from "@/components/ux/assessmentUi";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { cn } from "@/lib/utils";
 
@@ -31,64 +31,52 @@ type Props = {
   preview?: boolean;
 };
 
-// --- Mock preview data ---
-const PREVIEW_ASSESSMENT_DETAIL: SubmissionGradingDetail = {
-  id: 32,
-  testTitle: "Middle Full-Stack Developer",
-  candidateName: "Lê mỹ lộc",
-  candidateEmail: "loc.le@example.com",
-  status: "SUBMITTED",
-  score: null,
-  totalPoints: 10,
-  passingScore: 6,
-  emailAvailable: true,
-  objective: {
-    correctCount: 1,
-    questionCount: 3,
-    score: 3,
-    totalPoints: 3,
-  },
-  reviews: [
-    {
-      questionId: 185,
-      prompt:
-        "Trình bày cơ chế hoạt động của HashMap trong Java (phiên bản Java 8 trở lên). Điều gì xảy ra khi xảy ra xung đột khóa (hash collision) và cơ chế chuyển đổi từ LinkedList sang Red-Black Tree diễn ra theo điều kiện nào?",
-      type: "ESSAY",
-      points: 3,
-      answerText: "i don't know",
-      language: null,
-      rubric: {
-        referenceAnswer:
-          "HashMap trong Java 8 sử dụng mảng các Node/Bucket kết hợp LinkedList và Red-Black Tree. Khi xung đột hash, các node được liên kết ở cuối bucket. Nếu số node trong bucket >= 8 và dung lượng mảng >= 64, bucket chuyển thành cây Red-Black Tree (độ phức tạp O(log n)). Nếu dung lượng mảng < 64 thì ưu tiên resize(). Khi số node giảm về <= 6 thì hoàn nguyên về LinkedList.",
-        criteria: [
-          {
-            description: "Tính chính xác: Giải thích đúng nguyên lý và khái niệm cốt lõi",
-            weight: 50,
-          },
-          {
-            description: "Thuật ngữ & Bản chất: Đúng thuật ngữ, giải thích rõ cơ chế hoạt động",
-            weight: 30,
-          },
-          {
-            description: "Ví dụ thực tế: Minh họa rõ ràng ngữ cảnh sử dụng",
-            weight: 20,
-          },
-        ],
-      },
-      evaluation: {
-        comment: "Ứng viên không trả lời được câu hỏi (trả lời 'i don't know').",
-      },
-      suggestedScore: 0,
-      score: 0,
-      reviewedAt: new Date().toISOString(),
+function getPreviewAssessmentDetail(t: TranslateFn): SubmissionGradingDetail {
+  return {
+    id: 32,
+    testTitle: t("recruiter.screening.preview.assessment.testTitle"),
+    candidateName: "Lê mỹ lộc",
+    candidateEmail: "loc.le@example.com",
+    status: "SUBMITTED",
+    score: null,
+    totalPoints: 10,
+    passingScore: 6,
+    emailAvailable: true,
+    objective: {
+      correctCount: 1,
+      questionCount: 3,
+      score: 3,
+      totalPoints: 3,
     },
-    {
-      questionId: 186,
-      prompt:
-        "Triển khai hàm kiểm tra tính hợp lệ của chuỗi ngoặc nhọn, ngoặc tròn, ngoặc vuông (Valid Parentheses). Trả về true nếu chuỗi ngoặc đóng mở hợp lệ và đúng thứ tự, ngược lại trả về false. Độ phức tạp thời gian O(N).",
-      type: "CODING",
-      points: 4,
-      answerText: `public class Solution {
+    reviews: [
+      {
+        questionId: 185,
+        prompt: t("recruiter.screening.preview.assessment.essay1Prompt"),
+        type: "ESSAY",
+        points: 3,
+        answerText: "i don't know",
+        language: null,
+        rubric: {
+          referenceAnswer: t("recruiter.screening.preview.assessment.essay1Ref"),
+          criteria: [
+            { description: t("recruiter.screening.preview.assessment.essay1Crit1"), weight: 50 },
+            { description: t("recruiter.screening.preview.assessment.essay1Crit2"), weight: 30 },
+            { description: t("recruiter.screening.preview.assessment.essay1Crit3"), weight: 20 },
+          ],
+        },
+        evaluation: {
+          comment: t("recruiter.screening.preview.assessment.essay1Eval"),
+        },
+        suggestedScore: 0,
+        score: 0,
+        reviewedAt: new Date().toISOString(),
+      },
+      {
+        questionId: 186,
+        prompt: t("recruiter.screening.preview.assessment.coding1Prompt"),
+        type: "CODING",
+        points: 4,
+        answerText: `public class Solution {
     public boolean isValid(String s) {
         java.util.Stack<Character> stack = new java.util.Stack<>();
         for (char c : s.toCharArray()) {
@@ -100,82 +88,85 @@ const PREVIEW_ASSESSMENT_DETAIL: SubmissionGradingDetail = {
         return stack.isEmpty();
     }
 }`,
-      language: "java",
-      rubric: {
-        referenceAnswer: "Sử dụng cấu trúc dữ liệu Stack để khớp các cặp ngoặc mở và đóng tương ứng.",
-        criteria: [
-          { description: "Độ chính xác thuật toán", weight: 60 },
-          { description: "Xử lý edge cases (chuỗi rỗng, ngoặc đơn lẻ)", weight: 40 },
-        ],
+        language: "java",
+        rubric: {
+          referenceAnswer: t("recruiter.screening.preview.assessment.coding1Ref"),
+          criteria: [
+            { description: t("recruiter.screening.preview.assessment.coding1Crit1"), weight: 60 },
+            { description: t("recruiter.screening.preview.assessment.coding1Crit2"), weight: 40 },
+          ],
+        },
+        evaluation: {
+          passed: true,
+          testCasesPassed: 5,
+          totalTestCases: 5,
+          complexity: "Time: O(N), Space: O(N)",
+          comment: t("recruiter.screening.preview.assessment.coding1Eval"),
+        },
+        suggestedScore: 4,
+        score: null,
+        reviewedAt: null,
       },
-      evaluation: {
-        passed: true,
-        testCasesPassed: 5,
-        totalTestCases: 5,
-        complexity: "Time: O(N), Space: O(N)",
-        comment: "Thuật toán tối ưu, code ngắn gọn và bao phủ toàn bộ test cases.",
-      },
-      suggestedScore: 4,
-      score: null,
-      reviewedAt: null,
+    ],
+    integrity: {
+      proctorEventCount: 0,
+      proctorEvents: [],
+      customRuns: [],
     },
-  ],
-  integrity: {
-    proctorEventCount: 0,
-    proctorEvents: [],
-    customRuns: [],
-  },
-};
+  };
+}
 
-// Mock MCQ Questions for Preview
-const PREVIEW_MCQ_QUESTIONS = [
-  {
-    id: 101,
-    questionText: "Trong Java Memory Model, từ khóa volatile đảm bảo tính chất nào sau đây?",
-    points: 1,
-    options: [
-      { id: 1, text: "A. Tính nguyên tử (Atomicity) cho mọi biểu thức số học phức tạp" },
-      { id: 2, text: "B. Tính khả kiến (Visibility) trên bộ nhớ cache và ngăn chặn Instruction Reordering" },
-      { id: 3, text: "C. Đồng bộ hóa toàn bộ phương thức như từ khóa synchronized" },
-      { id: 4, text: "D. Tự động giải phóng biến khỏi Heap khi không còn luồng sử dụng" },
-    ],
-    candidateSelectedId: 2,
-    correctId: 2,
-    explanation: "Từ khóa volatile đảm bảo các luồng đọc luôn đọc từ main memory (Visibility) và ngăn compiler/CPU sắp xếp lại chỉ thị lệnh (Memory Barrier), nhưng không đảm bảo tính nguyên tử.",
-  },
-  {
-    id: 102,
-    questionText: "Độ phức tạp thời gian trung bình để tìm kiếm một phần tử trong cây Red-Black Tree với n phần tử là gì?",
-    points: 1,
-    options: [
-      { id: 1, text: "A. O(1)" },
-      { id: 2, text: "B. O(log n)" },
-      { id: 3, text: "C. O(n)" },
-      { id: 4, text: "D. O(n log n)" },
-    ],
-    candidateSelectedId: 2,
-    correctId: 2,
-    explanation: "Cây Red-Black Tree là cây nhị phân tìm kiếm tự cân bằng, đảm bảo chiều cao không vượt quá 2*log(n+1), do đó phép tìm kiếm luôn đạt O(log n).",
-  },
-  {
-    id: 103,
-    questionText: "Annotation nào trong Spring Boot dùng để định nghĩa một bean bất đồng bộ chạy trên thread pool riêng biệt?",
-    points: 1,
-    options: [
-      { id: 1, text: "A. @Async" },
-      { id: 2, text: "B. @Transactional" },
-      { id: 3, text: "C. @Scheduled" },
-      { id: 4, text: "D. @Lazy" },
-    ],
-    candidateSelectedId: 3,
-    correctId: 1,
-    explanation: "@Async đánh dấu phương thức được thực thi bất đồng bộ trên một TaskExecutor riêng biệt.",
-  },
-];
+function getPreviewMcqQuestions(t: TranslateFn) {
+  return [
+    {
+      id: 101,
+      questionText: t("recruiter.screening.preview.assessment.mcq1Q"),
+      points: 1,
+      options: [
+        { id: 1, text: t("recruiter.screening.preview.assessment.mcq1Opt1") },
+        { id: 2, text: t("recruiter.screening.preview.assessment.mcq1Opt2") },
+        { id: 3, text: t("recruiter.screening.preview.assessment.mcq1Opt3") },
+        { id: 4, text: t("recruiter.screening.preview.assessment.mcq1Opt4") },
+      ],
+      candidateSelectedId: 2,
+      correctId: 2,
+      explanation: t("recruiter.screening.preview.assessment.mcq1Exp"),
+    },
+    {
+      id: 102,
+      questionText: t("recruiter.screening.preview.assessment.mcq2Q"),
+      points: 1,
+      options: [
+        { id: 1, text: "A. O(1)" },
+        { id: 2, text: "B. O(log n)" },
+        { id: 3, text: "C. O(n)" },
+        { id: 4, text: "D. O(n log n)" },
+      ],
+      candidateSelectedId: 2,
+      correctId: 2,
+      explanation: t("recruiter.screening.preview.assessment.mcq2Exp"),
+    },
+    {
+      id: 103,
+      questionText: t("recruiter.screening.preview.assessment.mcq3Q"),
+      points: 1,
+      options: [
+        { id: 1, text: "A. @Async" },
+        { id: 2, text: "B. @Transactional" },
+        { id: 3, text: "C. @Scheduled" },
+        { id: 4, text: "D. @Lazy" },
+      ],
+      candidateSelectedId: 3,
+      correctId: 1,
+      explanation: t("recruiter.screening.preview.assessment.mcq3Exp"),
+    },
+  ];
+}
 
 type CategoryKey = "ESSAY" | "OBJECTIVE" | "CODING" | "INTEGRITY";
 
 function CopyButton({ text }: { text: string | null | undefined }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     if (!text) return;
@@ -190,7 +181,7 @@ function CopyButton({ text }: { text: string | null | undefined }) {
       className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
     >
       {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-      <span>{copied ? "Đã sao chép" : "Sao chép"}</span>
+      <span>{copied ? t("recruiter.screening.assessment.copied") : t("recruiter.screening.assessment.copy")}</span>
     </button>
   );
 }
@@ -201,7 +192,11 @@ export function CandidateAssessmentTab({
   candidateName,
   preview = false,
 }: Props) {
-  // If submissionId is NOT provided, check available assessments for this application
+  const t = useT();
+  const locale = useLocale();
+  const previewDetail = useMemo(() => (preview ? getPreviewAssessmentDetail(t) : null), [preview, t]);
+  const previewMcqList = useMemo(() => (preview ? getPreviewMcqQuestions(t) : []), [preview, t]);
+
   const availableQuery = useQuery({
     queryKey: ["assessments", "available-by-app", applicationId],
     queryFn: () => assessmentApi.available(applicationId),
@@ -226,17 +221,15 @@ export function CandidateAssessmentTab({
   });
 
   const detail: SubmissionGradingDetail | null = preview
-    ? PREVIEW_ASSESSMENT_DETAIL
+    ? previewDetail
     : query.data ?? null;
 
-  // Breakdown reviews by type
   const reviews = useMemo(() => detail?.reviews ?? [], [detail?.reviews]);
   const essayReviews = useMemo(() => reviews.filter((r) => r.type === "ESSAY"), [reviews]);
   const codingReviews = useMemo(() => reviews.filter((r) => r.type === "CODING"), [reviews]);
   const proctorCount = detail?.integrity?.proctorEventCount ?? 0;
   const objectiveCount = detail?.objective?.questionCount ?? 0;
 
-  // Construct Category List based on presence
   const categories = useMemo(() => {
     const list: {
       key: CategoryKey;
@@ -246,47 +239,43 @@ export function CandidateAssessmentTab({
     }[] = [
       {
         key: "ESSAY",
-        label: "Tự luận lý thuyết",
-        badge: `${essayReviews.length} câu`,
+        label: t("recruiter.screening.assessment.categories.ESSAY"),
+        badge: t("recruiter.screening.assessment.questionCountValue", { count: essayReviews.length }),
         icon: FileText,
       },
       {
         key: "OBJECTIVE",
-        label: "Trắc nghiệm",
-        badge: `${objectiveCount} câu`,
+        label: t("recruiter.screening.assessment.categories.OBJECTIVE"),
+        badge: t("recruiter.screening.assessment.questionCountValue", { count: objectiveCount }),
         icon: CheckCircle2,
       },
     ];
 
-    // Chỉ hiển thị "Tự luận code" nếu có câu hỏi coding
     if (codingReviews.length > 0) {
       list.push({
         key: "CODING",
-        label: "Tự luận code",
-        badge: `${codingReviews.length} câu`,
+        label: t("recruiter.screening.assessment.categories.CODING"),
+        badge: t("recruiter.screening.assessment.questionCountValue", { count: codingReviews.length }),
         icon: Code2,
       });
     }
 
     list.push({
       key: "INTEGRITY",
-      label: "Nhật ký giám sát",
-      badge: proctorCount === 0 ? "0 vi phạm" : `${proctorCount} cảnh báo`,
+      label: t("recruiter.screening.assessment.categories.INTEGRITY"),
+      badge: proctorCount === 0
+        ? t("recruiter.screening.assessment.categories.proctorCleanBadge")
+        : t("recruiter.screening.assessment.proctorAlertsCount", { count: proctorCount }),
       icon: proctorCount === 0 ? ShieldCheck : ShieldAlert,
     });
 
     return list;
-  }, [essayReviews.length, objectiveCount, codingReviews.length, proctorCount]);
+  }, [essayReviews.length, objectiveCount, codingReviews.length, proctorCount, t]);
 
-  // Selected Category
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("ESSAY");
-
-  // Selected question inside each category
   const [selectedEssayIdx, setSelectedEssayIdx] = useState<number>(0);
   const [selectedCodingIdx, setSelectedCodingIdx] = useState<number>(0);
   const [selectedMcqIdx, setSelectedMcqIdx] = useState<number>(0);
-
-  // Accordion state for rubrics
   const [expandedRubrics, setExpandedRubrics] = useState<Record<number, boolean>>({});
 
   const toggleRubric = (questionId: number) => {
@@ -296,7 +285,6 @@ export function CandidateAssessmentTab({
     }));
   };
 
-  // In TanStack Query v5, disabled queries have isPending=true. We must check isLoading (isPending && isFetching).
   const isResolving = !preview && !submissionId && availableQuery.isLoading;
   const isFetchingDetail = !preview && !!effectiveSubmissionId && query.isLoading;
   const isLoading = isResolving || isFetchingDetail;
@@ -319,7 +307,7 @@ export function CandidateAssessmentTab({
           <AlertTriangle className="size-6" />
         </div>
         <h3 className="mt-3 text-base font-bold text-slate-900 dark:text-white">
-          Không thể tải chi tiết bài làm Assessment
+          {t("recruiter.screening.assessment.errorTitle")}
         </h3>
         <p className="mx-auto mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
           {getApiErrorMessage(queryError)}
@@ -332,7 +320,7 @@ export function CandidateAssessmentTab({
           }}
           className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors cursor-pointer"
         >
-          Thử lại
+          {t("recruiter.screening.common.retry")}
         </button>
       </div>
     );
@@ -345,20 +333,18 @@ export function CandidateAssessmentTab({
           <Code2 className="size-6" />
         </div>
         <h3 className="mt-3 text-base font-bold text-slate-900 dark:text-white">
-          Chưa có bài kiểm tra năng lực
+          {t("recruiter.screening.assessment.emptyTitle")}
         </h3>
         <p className="mx-auto mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
-          Ứng viên {candidateName} chưa thực hiện bài thi kiểm tra kỹ thuật cho vị trí tuyển dụng này.
+          {t("recruiter.screening.assessment.emptyDesc", { name: candidateName })}
         </p>
       </div>
     );
   }
 
-  // Active items by category
   const activeEssay = essayReviews[selectedEssayIdx] ?? essayReviews[0];
   const activeCoding = codingReviews[selectedCodingIdx] ?? codingReviews[0];
 
-  // Resolve MCQ questions: Use real resultQuery if available, else preview mock
   const realMcqQuestions = (resultQuery.data?.questions ?? [])
     .filter((q) => q.questionType === "MCQ" || q.questionType === "MULTIPLE_CHOICE")
     .map((q) => {
@@ -369,7 +355,7 @@ export function CandidateAssessmentTab({
         points: q.points,
         options: (q.options ?? []).map((opt) => ({ id: opt.id, text: opt.optionText })),
         candidateSelectedId: savedAns?.selectedOptionId ?? null,
-        correctId: null, // Staff view without answer key unless exposed
+        correctId: null,
         explanation: null,
       };
     });
@@ -378,14 +364,21 @@ export function CandidateAssessmentTab({
     realMcqQuestions.length > 0
       ? realMcqQuestions
       : preview
-        ? PREVIEW_MCQ_QUESTIONS
+        ? previewMcqList
         : [];
 
   const activeMcq = mcqList[selectedMcqIdx] ?? mcqList[0];
 
+  const statusBadgeText =
+    detail.status === "GRADED"
+      ? t("recruiter.screening.assessment.statuses.GRADED")
+      : detail.status === "SUBMITTED"
+        ? t("recruiter.screening.assessment.statuses.SUBMITTED")
+        : getAssessmentStatusLabel(detail.status, t);
+
   return (
     <div className="space-y-6">
-      {/* 1. Header Overview Strip (Matching screenshot banner!) */}
+      {/* 1. Header Overview Strip */}
       <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -395,7 +388,7 @@ export function CandidateAssessmentTab({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  {detail.testTitle || "Bài kiểm tra năng lực kỹ thuật"}
+                  {detail.testTitle || t("recruiter.screening.assessment.fallbackTitle")}
                 </h2>
                 <span
                   className={cn(
@@ -405,30 +398,27 @@ export function CandidateAssessmentTab({
                       : "bg-brand-primary/10 text-brand-primary border border-brand-primary/20 dark:bg-brand-primary/20 dark:text-brand-primary"
                   )}
                 >
-                  {detail.status === "GRADED"
-                    ? "Đã chốt điểm"
-                    : detail.status === "SUBMITTED"
-                      ? "Đã nộp bài"
-                      : detail.status}
+                  {statusBadgeText}
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Bài làm ID #{detail.id} · Ứng viên: {detail.candidateName}
+                {t("recruiter.screening.assessment.submissionMeta", { id: detail.id, name: detail.candidateName })}
               </p>
             </div>
           </div>
 
-          {/* Overall score badge */}
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-indigo-50/80 border border-indigo-200/60 px-4 py-2 text-right dark:bg-indigo-950/50 dark:border-indigo-800">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                ĐIỂM BÀI LÀM
+                {t("recruiter.screening.assessment.scoreBoxLabel")}
               </span>
               <div className="flex items-baseline justify-end gap-1">
                 <strong className="text-2xl font-black text-indigo-700 dark:text-indigo-300 tabular-nums">
                   {detail.score != null ? detail.score : "—"}
                 </strong>
-                <span className="text-xs text-slate-400">/ {detail.totalPoints || 10} đ</span>
+                <span className="text-xs text-slate-400">
+                  {t("recruiter.screening.common.pointsOutOf", { total: detail.totalPoints || 10 })}
+                </span>
               </div>
             </div>
           </div>
@@ -438,31 +428,36 @@ export function CandidateAssessmentTab({
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/40">
             <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Điểm đạt yêu cầu
+              {t("recruiter.screening.assessment.passingScoreLabel")}
             </span>
             <strong className="mt-0.5 block text-sm font-bold text-slate-800 dark:text-slate-200">
-              {detail.passingScore ?? 6} đ
+              {t("recruiter.screening.common.pointsValue", { score: detail.passingScore ?? 6 })}
             </strong>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/40">
             <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Tổng số câu hỏi
+              {t("recruiter.screening.assessment.totalQuestionsLabel")}
             </span>
             <strong className="mt-0.5 block text-sm font-bold text-slate-800 dark:text-slate-200">
-              {reviews.length + (detail.objective?.questionCount ?? 0)} câu
+              {t("recruiter.screening.assessment.questionCountValue", {
+                count: reviews.length + (detail.objective?.questionCount ?? 0),
+              })}
             </strong>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/40">
             <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Trắc nghiệm đúng
+              {t("recruiter.screening.assessment.mcqCorrectLabel")}
             </span>
             <strong className="mt-0.5 block text-sm font-bold text-slate-800 dark:text-slate-200">
-              {detail.objective?.correctCount ?? 0}/{detail.objective?.questionCount ?? 0} câu
+              {t("recruiter.screening.assessment.mcqCorrectValue", {
+                correct: detail.objective?.correctCount ?? 0,
+                total: detail.objective?.questionCount ?? 0,
+              })}
             </strong>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/40">
             <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Cảnh báo giám sát
+              {t("recruiter.screening.assessment.proctorAlertsLabel")}
             </span>
             <strong
               className={cn(
@@ -472,13 +467,15 @@ export function CandidateAssessmentTab({
                   : "text-amber-600 dark:text-amber-400"
               )}
             >
-              {proctorCount === 0 ? "Bình thường (0 vi phạm)" : `${proctorCount} cảnh báo`}
+              {proctorCount === 0
+                ? t("recruiter.screening.assessment.proctorClean")
+                : t("recruiter.screening.assessment.proctorAlertsCount", { count: proctorCount })}
             </strong>
           </div>
         </div>
       </section>
 
-      {/* 2. CATEGORY TABS (Chia ra: Tự luận lý thuyết, Trắc nghiệm, Tự luận code (nếu có), Nhật ký giám sát) */}
+      {/* 2. CATEGORY TABS */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -515,17 +512,16 @@ export function CandidateAssessmentTab({
           </div>
         </div>
 
-        {/* 3. DETAILS DISPLAY BY CATEGORY ("xong ấn vào thì nó hiển thị bài làm của ứng viên") */}
-
-        {/* A. TỰ LUẬN LÝ THUYẾT */}
+        {/* A. ESSAY */}
         {activeCategory === "ESSAY" && (
           <div className="space-y-4">
             {essayReviews.length > 0 ? (
               <>
-                {/* Question selector tabs if multiple essay questions */}
                 {essayReviews.length > 1 && (
                   <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/40">
-                    <span className="text-[11px] font-semibold text-slate-400">Chọn câu tự luận:</span>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      {t("recruiter.screening.assessment.essay.selectLabel")}
+                    </span>
                     {essayReviews.map((r, i) => (
                       <button
                         key={r.questionId}
@@ -538,55 +534,56 @@ export function CandidateAssessmentTab({
                             : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         )}
                       >
-                        Câu {i + 1} ({r.points} đ)
+                        {t("recruiter.screening.assessment.essay.questionTab", { num: i + 1, points: r.points })}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Candidate Essay Submission Card */}
                 {activeEssay && (
                   <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
-                    {/* Header */}
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          Câu {selectedEssayIdx + 1} (ID #{activeEssay.questionId})
+                          {t("recruiter.screening.assessment.essay.cardBadge", {
+                            num: selectedEssayIdx + 1,
+                            id: activeEssay.questionId,
+                          })}
                         </span>
                         <span className="rounded-md bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 px-2 py-0.5 text-[11px] font-bold uppercase">
-                          TỰ LUẬN LÝ THUYẾT
+                          {t("recruiter.screening.assessment.essay.tag")}
                         </span>
                         <span className="text-xs text-slate-500 font-medium">
-                          · Thang điểm: {activeEssay.points} đ
+                          · {t("recruiter.screening.assessment.essay.pointsScale", { points: activeEssay.points })}
                         </span>
                       </div>
 
-                      {/* Grade Status */}
                       <div>
                         {activeEssay.score != null ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                             <CheckCircle2 className="size-3.5" />
-                            Đã duyệt: {activeEssay.score}/{activeEssay.points} đ
+                            {t("recruiter.screening.assessment.essay.approvedBadge", {
+                              score: activeEssay.score,
+                              points: activeEssay.points,
+                            })}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                            Chờ duyệt
+                            {t("recruiter.screening.assessment.essay.pendingBadge")}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Question Prompt */}
                     <div>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">
                         {activeEssay.prompt}
                       </h4>
                     </div>
 
-                    {/* BÀI LÀM CỦA ỨNG VIÊN */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
-                        <span className="font-bold">Bài làm của ứng viên</span>
+                        <span className="font-bold">{t("recruiter.screening.assessment.essay.candidateAnswerTitle")}</span>
                         <CopyButton text={activeEssay.answerText} />
                       </div>
 
@@ -595,13 +592,12 @@ export function CandidateAssessmentTab({
                           activeEssay.answerText
                         ) : (
                           <span className="italic text-slate-400">
-                            Ứng viên không trả lời câu hỏi này.
+                            {t("recruiter.screening.assessment.essay.noAnswer")}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Đáp án mẫu & Rubric Accordion */}
                     {activeEssay.rubric && (
                       <div className="rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
                         <button
@@ -611,7 +607,7 @@ export function CandidateAssessmentTab({
                         >
                           <span className="flex items-center gap-1.5">
                             <Eye className="size-3.5 text-slate-400" />
-                            Đáp án mẫu tham khảo (Reference Answer)
+                            {t("recruiter.screening.assessment.essay.referenceToggle")}
                           </span>
                           {expandedRubrics[activeEssay.questionId] !== false ? (
                             <ChevronUp className="size-4 text-slate-400" />
@@ -628,14 +624,13 @@ export function CandidateAssessmentTab({
                               </div>
                             )}
 
-                            {/* Criteria Table */}
                             {activeEssay.rubric.criteria && activeEssay.rubric.criteria.length > 0 && (
                               <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
                                 <table className="w-full text-left text-xs">
                                   <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                     <tr>
-                                      <th className="px-3 py-2">Tiêu chí</th>
-                                      <th className="px-3 py-2 text-right w-24">Trọng số</th>
+                                      <th className="px-3 py-2">{t("recruiter.screening.assessment.essay.criteriaCol")}</th>
+                                      <th className="px-3 py-2 text-right w-24">{t("recruiter.screening.assessment.essay.weightCol")}</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -658,22 +653,28 @@ export function CandidateAssessmentTab({
                       </div>
                     )}
 
-                    {/* Bottom Score Strip */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">
                       <div className="text-slate-500">
-                        AI đề xuất:{" "}
+                        {t("recruiter.screening.assessment.essay.aiSuggested")}{" "}
                         <strong className="text-slate-800 dark:text-slate-200">
-                          {activeEssay.suggestedScore != null ? `${activeEssay.suggestedScore}/${activeEssay.points} đ` : "—"}
+                          {activeEssay.suggestedScore != null
+                            ? `${activeEssay.suggestedScore}${t("recruiter.screening.common.pointsSlash", { total: activeEssay.points })}`
+                            : "—"}
                         </strong>
                         {" · "}
-                        Đã chốt:{" "}
+                        {t("recruiter.screening.assessment.essay.finalized")}{" "}
                         <strong className="text-emerald-600 dark:text-emerald-400">
-                          {activeEssay.score != null ? `${activeEssay.score} đ` : "Chờ duyệt"}
+                          {activeEssay.score != null
+                            ? t("recruiter.screening.common.pointsValue", { score: activeEssay.score })
+                            : t("recruiter.screening.assessment.essay.pendingBadge")}
                         </strong>
                       </div>
 
                       <div className="font-bold text-slate-700 dark:text-slate-300">
-                        Điểm: {activeEssay.score != null ? activeEssay.score : "—"} / {activeEssay.points} đ
+                        {t("recruiter.screening.assessment.essay.scoreFooter", {
+                          score: activeEssay.score != null ? activeEssay.score : "—",
+                          points: activeEssay.points,
+                        })}
                       </div>
                     </div>
                   </article>
@@ -681,16 +682,15 @@ export function CandidateAssessmentTab({
               </>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xs text-slate-400 italic">Không có câu hỏi tự luận lý thuyết nào trong đề thi này.</p>
+                <p className="text-xs text-slate-400 italic">{t("recruiter.screening.assessment.essay.empty")}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* B. TRẮC NGHIỆM */}
+        {/* B. OBJECTIVE (MCQ) */}
         {activeCategory === "OBJECTIVE" && (
           <div className="space-y-4">
-            {/* Objective Summary Card */}
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
@@ -698,17 +698,19 @@ export function CandidateAssessmentTab({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Kết quả phần thi Trắc nghiệm
+                    {t("recruiter.screening.assessment.mcq.summaryTitle")}
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Hệ thống tự động chấm điểm khách quan theo đáp án chính xác.
+                    {t("recruiter.screening.assessment.mcq.summarySubtitle")}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-4 text-xs font-semibold">
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Tỷ lệ chính xác</span>
+                  <span className="text-slate-400 block text-[11px]">
+                    {t("recruiter.screening.assessment.mcq.accuracyRate")}
+                  </span>
                   <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
                     {detail.objective?.questionCount
                       ? Math.round(((detail.objective.correctCount ?? 0) / detail.objective.questionCount) * 100)
@@ -717,26 +719,30 @@ export function CandidateAssessmentTab({
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Số câu đúng</span>
+                  <span className="text-slate-400 block text-[11px]">
+                    {t("recruiter.screening.assessment.mcq.correctCount")}
+                  </span>
                   <span className="text-sm font-black text-slate-800 dark:text-slate-200">
                     {detail.objective?.correctCount ?? 0}/{detail.objective?.questionCount ?? 0}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Điểm đạt được</span>
+                  <span className="text-slate-400 block text-[11px]">
+                    {t("recruiter.screening.assessment.mcq.earnedPoints")}
+                  </span>
                   <span className="text-sm font-black text-brand-primary">
-                    {detail.objective?.score ?? 0}/{detail.objective?.totalPoints ?? 0} đ
+                    {detail.objective?.score ?? 0}{t("recruiter.screening.common.pointsSlash", { total: detail.objective?.totalPoints ?? 0 })}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* MCQ Questions List */}
             {mcqList.length > 0 ? (
               <div className="space-y-4">
-                {/* Question index tabs */}
                 <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/40">
-                  <span className="text-[11px] font-semibold text-slate-400">Chọn câu trắc nghiệm:</span>
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    {t("recruiter.screening.assessment.mcq.selectLabel")}
+                  </span>
                   {mcqList.map((q, i) => {
                     const isCorrect = q.correctId != null ? q.candidateSelectedId === q.correctId : true;
                     return (
@@ -751,7 +757,7 @@ export function CandidateAssessmentTab({
                             : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         )}
                       >
-                        <span>Câu {i + 1}</span>
+                        <span>{t("recruiter.screening.assessment.mcq.questionTab", { num: i + 1 })}</span>
                         {q.correctId != null && (
                           <span
                             className={cn(
@@ -765,19 +771,21 @@ export function CandidateAssessmentTab({
                   })}
                 </div>
 
-                {/* Active MCQ Question Card */}
                 {activeMcq && (
                   <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                       <div className="flex items-center gap-2">
                         <span className="rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          Câu {selectedMcqIdx + 1} (ID #{activeMcq.id})
+                          {t("recruiter.screening.assessment.mcq.cardBadge", {
+                            num: selectedMcqIdx + 1,
+                            id: activeMcq.id,
+                          })}
                         </span>
                         <span className="rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 text-[11px] font-bold uppercase">
-                          TRẮC NGHIỆM
+                          {t("recruiter.screening.assessment.mcq.tag")}
                         </span>
                         <span className="text-xs text-slate-500 font-medium">
-                          · Thang điểm: {activeMcq.points} đ
+                          · {t("recruiter.screening.assessment.mcq.pointsScale", { points: activeMcq.points })}
                         </span>
                       </div>
 
@@ -785,28 +793,33 @@ export function CandidateAssessmentTab({
                         <div>
                           {activeMcq.candidateSelectedId === activeMcq.correctId ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                              <CheckCircle2 className="size-3.5" /> Đúng ({activeMcq.points}/{activeMcq.points} đ)
+                              <CheckCircle2 className="size-3.5" />
+                              {t("recruiter.screening.assessment.mcq.correctBadge", {
+                                score: activeMcq.points,
+                                points: activeMcq.points,
+                              })}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-xs font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-                              <XCircle className="size-3.5" /> Sai (0/{activeMcq.points} đ)
+                              <XCircle className="size-3.5" />
+                              {t("recruiter.screening.assessment.mcq.wrongBadge", {
+                                points: activeMcq.points,
+                              })}
                             </span>
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* Question Prompt */}
                     <div>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed">
                         {activeMcq.questionText}
                       </h4>
                     </div>
 
-                    {/* Options & Candidate's Selected Choice */}
                     <div className="space-y-2 pt-1">
                       <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block">
-                        Phương án trả lời & Lựa chọn của ứng viên:
+                        {t("recruiter.screening.assessment.mcq.optionsHeading")}
                       </span>
                       <div className="space-y-2">
                         {activeMcq.options.map((opt) => {
@@ -849,16 +862,15 @@ export function CandidateAssessmentTab({
                                 <span className="leading-relaxed font-medium">{opt.text}</span>
                               </div>
 
-                              {/* Badges */}
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {isCandidateChoice && (
                                   <span className="rounded-md bg-brand-primary text-white px-2 py-0.5 text-[10px] font-bold shadow-2xs">
-                                    Ứng viên chọn
+                                    {t("recruiter.screening.assessment.mcq.candidateChoiceBadge")}
                                   </span>
                                 )}
                                 {isCorrect && (
                                   <span className="rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold dark:bg-emerald-950 dark:text-emerald-300">
-                                    Đáp án đúng
+                                    {t("recruiter.screening.assessment.mcq.correctAnswerBadge")}
                                   </span>
                                 )}
                               </div>
@@ -868,10 +880,11 @@ export function CandidateAssessmentTab({
                       </div>
                     </div>
 
-                    {/* Explanation */}
                     {activeMcq.explanation && (
                       <div className="rounded-xl border border-brand-primary/15 bg-brand-primary/5 p-3.5 text-xs text-slate-800 dark:border-brand-primary/20 dark:bg-brand-primary/10 dark:text-slate-200">
-                        <strong className="block font-semibold mb-0.5 text-brand-primary">Giải thích:</strong>
+                        <strong className="block font-semibold mb-0.5 text-brand-primary">
+                          {t("recruiter.screening.assessment.mcq.explanationLabel")}
+                        </strong>
                         <span>{activeMcq.explanation}</span>
                       </div>
                     )}
@@ -880,21 +893,22 @@ export function CandidateAssessmentTab({
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xs text-slate-400 italic">Không có câu hỏi trắc nghiệm nào trong đề thi này.</p>
+                <p className="text-xs text-slate-400 italic">{t("recruiter.screening.assessment.mcq.empty")}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* C. TỰ LUẬN CODE (Lập trình - Chỉ hiển thị nếu có) */}
+        {/* C. CODING */}
         {activeCategory === "CODING" && (
           <div className="space-y-4">
             {codingReviews.length > 0 ? (
               <>
-                {/* Question switcher if multiple coding questions */}
                 {codingReviews.length > 1 && (
                   <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/40">
-                    <span className="text-[11px] font-semibold text-slate-400">Chọn câu lập trình:</span>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      {t("recruiter.screening.assessment.coding.selectLabel")}
+                    </span>
                     {codingReviews.map((r, i) => (
                       <button
                         key={r.questionId}
@@ -907,87 +921,94 @@ export function CandidateAssessmentTab({
                             : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         )}
                       >
-                        Câu {i + 1} ({r.points} đ)
+                        {t("recruiter.screening.assessment.coding.questionTab", { num: i + 1, points: r.points })}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Active Coding Submission Card */}
                 {activeCoding && (
                   <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
-                    {/* Header */}
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          Câu {selectedCodingIdx + 1} (ID #{activeCoding.questionId})
+                          {t("recruiter.screening.assessment.coding.cardBadge", {
+                            num: selectedCodingIdx + 1,
+                            id: activeCoding.questionId,
+                          })}
                         </span>
                         <span className="rounded-md bg-brand-primary/10 text-brand-primary border border-brand-primary/20 px-2 py-0.5 text-[11px] font-bold uppercase">
-                          TỰ LUẬN CODE (LẬP TRÌNH)
+                          {t("recruiter.screening.assessment.coding.tag")}
                         </span>
                         <span className="text-xs text-slate-500 font-medium">
-                          · Thang điểm: {activeCoding.points} đ
+                          · {t("recruiter.screening.assessment.coding.pointsScale", { points: activeCoding.points })}
                         </span>
                       </div>
 
-                      {/* Grade Status */}
                       <div>
                         {activeCoding.score != null ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                             <CheckCircle2 className="size-3.5" />
-                            Đã duyệt: {activeCoding.score}/{activeCoding.points} đ
+                            {t("recruiter.screening.assessment.coding.approvedBadge", {
+                              score: activeCoding.score,
+                              points: activeCoding.points,
+                            })}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                            Chờ duyệt
+                            {t("recruiter.screening.assessment.coding.pendingBadge")}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Question Prompt */}
                     <div>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed whitespace-pre-wrap">
                         {activeCoding.prompt}
                       </h4>
                     </div>
 
-                    {/* CANDIDATE'S CODE SUBMISSION */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
                         <span className="font-bold flex items-center gap-1.5">
                           <Code2 className="size-4 text-brand-primary" />
-                          Mã nguồn ứng viên đã nộp:
+                          {t("recruiter.screening.assessment.coding.submittedCodeLabel")}
                         </span>
                         <CopyButton text={activeCoding.answerText} />
                       </div>
 
                       <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs font-mono text-slate-100 max-h-96 overflow-auto shadow-inner">
                         <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-2 text-[10px] text-slate-400">
-                          <span>Ngôn ngữ: <strong className="text-brand-primary">{activeCoding.language || "Java"}</strong></span>
-                          <span>Đã định dạng mã nguồn</span>
+                          <span>
+                            {t("recruiter.screening.assessment.coding.languageLabel")}{" "}
+                            <strong className="text-brand-primary">{activeCoding.language || "Java"}</strong>
+                          </span>
+                          <span>{t("recruiter.screening.assessment.coding.formattedLabel")}</span>
                         </div>
                         <pre className="whitespace-pre-wrap break-words leading-relaxed">
-                          <code>{activeCoding.answerText || "// Ứng viên không nộp mã nguồn cho câu này"}</code>
+                          <code>{activeCoding.answerText || t("recruiter.screening.assessment.coding.noCodeComment")}</code>
                         </pre>
                       </div>
                     </div>
 
-                    {/* Coding Test Cases & Execution Results */}
                     {activeCoding.evaluation && (
                       <div className="rounded-xl border border-brand-primary/15 bg-brand-primary/5 p-4 text-xs dark:border-brand-primary/20 dark:bg-brand-primary/10 space-y-2">
                         <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100">
-                          <span>Kết quả kiểm thử tự động (Sandbox Execution)</span>
+                          <span>{t("recruiter.screening.assessment.coding.sandboxTitle")}</span>
                           {activeCoding.evaluation.testCasesPassed != null && (
                             <span className="rounded-md bg-white border border-brand-primary/20 px-2 py-0.5 text-brand-primary dark:bg-slate-900">
-                              Vượt qua {String(activeCoding.evaluation.testCasesPassed)}/{String(activeCoding.evaluation.totalTestCases || 5)} test cases
+                              {t("recruiter.screening.assessment.coding.passedTests", {
+                                passed: String(activeCoding.evaluation.testCasesPassed),
+                                total: String(activeCoding.evaluation.totalTestCases || 5),
+                              })}
                             </span>
                           )}
                         </div>
 
                         {Boolean(activeCoding.evaluation.complexity) && (
                           <div className="text-slate-600 dark:text-slate-400">
-                            Độ phức tạp ước tính: <strong>{String(activeCoding.evaluation.complexity)}</strong>
+                            {t("recruiter.screening.assessment.coding.complexityLabel")}{" "}
+                            <strong>{String(activeCoding.evaluation.complexity)}</strong>
                           </div>
                         )}
 
@@ -999,22 +1020,28 @@ export function CandidateAssessmentTab({
                       </div>
                     )}
 
-                    {/* Bottom Score Strip */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">
                       <div className="text-slate-500">
-                        AI đề xuất:{" "}
+                        {t("recruiter.screening.assessment.essay.aiSuggested")}{" "}
                         <strong className="text-slate-800 dark:text-slate-200">
-                          {activeCoding.suggestedScore != null ? `${activeCoding.suggestedScore}/${activeCoding.points} đ` : "—"}
+                          {activeCoding.suggestedScore != null
+                            ? `${activeCoding.suggestedScore}${t("recruiter.screening.common.pointsSlash", { total: activeCoding.points })}`
+                            : "—"}
                         </strong>
                         {" · "}
-                        Đã chốt:{" "}
+                        {t("recruiter.screening.assessment.essay.finalized")}{" "}
                         <strong className="text-emerald-600 dark:text-emerald-400">
-                          {activeCoding.score != null ? `${activeCoding.score} đ` : "Chờ duyệt"}
+                          {activeCoding.score != null
+                            ? t("recruiter.screening.common.pointsValue", { score: activeCoding.score })
+                            : t("recruiter.screening.assessment.coding.pendingBadge")}
                         </strong>
                       </div>
 
                       <div className="font-bold text-slate-700 dark:text-slate-300">
-                        Điểm: {activeCoding.score != null ? activeCoding.score : "—"} / {activeCoding.points} đ
+                        {t("recruiter.screening.assessment.essay.scoreFooter", {
+                          score: activeCoding.score != null ? activeCoding.score : "—",
+                          points: activeCoding.points,
+                        })}
                       </div>
                     </div>
                   </article>
@@ -1024,27 +1051,27 @@ export function CandidateAssessmentTab({
           </div>
         )}
 
-        {/* D. NHẬT KÝ GIÁM SÁT */}
+        {/* D. INTEGRITY LOG */}
         {activeCategory === "INTEGRITY" && (
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-5 text-emerald-600" />
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Nhật ký giám sát thi cử & Tính toàn vẹn
+                  {t("recruiter.screening.assessment.integrity.title")}
                 </h4>
               </div>
               <span className="text-xs text-slate-500 font-semibold">
-                Tổng cộng: {proctorCount} sự kiện ghi nhận
+                {t("recruiter.screening.assessment.integrity.totalEvents", { count: proctorCount })}
               </span>
             </div>
 
             {proctorCount === 0 ? (
               <div className="rounded-xl bg-emerald-50/50 border border-emerald-200/70 p-6 text-center text-xs text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-900/40 dark:text-emerald-300 space-y-2">
                 <CheckCircle2 className="mx-auto size-8 text-emerald-600" />
-                <strong className="text-sm block">Bài làm hoàn toàn nghiêm túc, không có vi phạm nào.</strong>
+                <strong className="text-sm block">{t("recruiter.screening.assessment.integrity.cleanTitle")}</strong>
                 <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                  Ứng viên hoàn thành bài thi với toàn màn hình liên tục, không chuyển tab trình duyệt và duy trì webcam ổn định.
+                  {t("recruiter.screening.assessment.integrity.cleanDesc")}
                 </p>
               </div>
             ) : (
@@ -1054,9 +1081,13 @@ export function CandidateAssessmentTab({
                     key={i}
                     className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
                   >
-                    <span className="font-semibold">{evt.eventType || "Cảnh báo vi phạm"}</span>
+                    <span className="font-semibold">
+                      {evt.eventType || t("recruiter.screening.assessment.integrity.defaultEventType")}
+                    </span>
                     <span className="text-slate-600 dark:text-slate-400">{evt.detail}</span>
-                    <span className="font-mono text-slate-400">{evt.createdAt}</span>
+                    <span className="font-mono text-slate-400">
+                      {evt.createdAt ? formatDateTime(evt.createdAt, undefined, locale) : "—"}
+                    </span>
                   </div>
                 ))}
               </div>

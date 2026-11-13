@@ -1,0 +1,28 @@
+export const errorsVi = {
+  requestFailed: "Không thể hoàn tất yêu cầu. Vui lòng thử lại.",
+  actionFailed: "Không thể hoàn tất thao tác. Vui lòng thử lại.",
+  timeout: "Hệ thống chưa trả lời kịp. Việc này có thể vẫn đang chạy, hãy đợi một lát rồi tải lại.",
+  network: "Không thể kết nối đến hệ thống. Vui lòng kiểm tra mạng và thử lại.",
+  forbidden: "Bạn không có quyền thực hiện thao tác này.",
+  notFound: "Không tìm thấy dữ liệu được yêu cầu.",
+  interviewConnectFailed: "Không thể kết nối hội thoại (HTTP {status}). Vui lòng thử lại.",
+  interviewInterrupted: "Kết nối bị gián đoạn. Bấm gửi lại để khôi phục cùng lượt trả lời.",
+  interviewAiTimeout: "AI phản hồi quá lâu. Bấm gửi lại để khôi phục cùng lượt trả lời; nội dung của bạn được giữ lại.",
+  aiQuestionGenFailed: "Lỗi sinh câu hỏi từ AI",
+  subscriptionCreated: "Tạo gói dịch vụ thành công!",
+  subscriptionUpdated: "Cập nhật gói dịch vụ thành công!",
+  subscriptionStatusUpdated: "Cập nhật trạng thái gói dịch vụ thành công!",
+  codes: {
+    AI_INTERVIEW_PROVIDER_OVERLOADED: "Dịch vụ AI phỏng vấn đang quá tải. Vui lòng thử lại sau.",
+    AI_INTERVIEW_PROVIDER_TIMEOUT: "Dịch vụ AI phản hồi quá lâu. Vui lòng thử lại sau.",
+    AI_INTERVIEW_PROVIDER_UNAVAILABLE: "Chưa kết nối được dịch vụ AI phỏng vấn. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
+    AI_INTERVIEW_PROVIDER_RATE_LIMITED: "Dịch vụ AI đã đạt giới hạn lượt gọi. Vui lòng thử lại sau.",
+    AI_INTERVIEW_PROVIDER_AUTH_FAILED: "Dịch vụ AI từ chối xác thực. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
+    AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND: "Model AI phỏng vấn chưa khả dụng. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
+    AI_INTERVIEW_LOCKED: "Phiên đã bị khóa. Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi; không thể xóa khi đang sinh câu hỏi hoặc đã bắt đầu.",
+    INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
+    VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
+    BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",
+  },
+} as const;
+

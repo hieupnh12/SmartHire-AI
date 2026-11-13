@@ -1,6 +1,7 @@
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { toIntlLocale, useLocale, useT } from "@/i18n";
 
 type RankingSelectOption = {
   value: string;
@@ -21,9 +22,16 @@ type Props = {
   searchPlaceholder?: string;
 };
 
-const normalizeSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("vi");
+const normalizeSearch = (value: string, intlLocale: string) =>
+  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(intlLocale);
 
-export function RankingSelect({ value, options, onChange, ariaLabel, placeholder = "Chọn một giá trị", disabled = false, compact = false, searchable = false, searchPlaceholder = "Tìm kiếm…" }: Props) {
+export function RankingSelect({ value, options, onChange, ariaLabel, placeholder, disabled = false, compact = false, searchable = false, searchPlaceholder }: Props) {
+  const t = useT();
+  const locale = useLocale();
+  const intlLocale = toIntlLocale(locale);
+  const resolvedPlaceholder = placeholder ?? t("recruiter.screening.select.placeholder");
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t("recruiter.screening.select.searchPlaceholder");
+
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -33,7 +41,7 @@ export function RankingSelect({ value, options, onChange, ariaLabel, placeholder
   const [activeIndex, setActiveIndex] = useState(Math.max(0, selectedIndex));
   const selected = options[selectedIndex];
   const filteredOptions = searchable && query.trim()
-    ? options.filter((option) => normalizeSearch(`${option.label} ${option.description ?? ""}`).includes(normalizeSearch(query.trim())))
+    ? options.filter((option) => normalizeSearch(`${option.label} ${option.description ?? ""}`, intlLocale).includes(normalizeSearch(query.trim(), intlLocale)))
     : options;
 
   useEffect(() => {
@@ -96,13 +104,13 @@ export function RankingSelect({ value, options, onChange, ariaLabel, placeholder
       onKeyDown={handleKeyDown}
       className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white text-left font-medium transition-all hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50 shadow-2xs ${compact ? "h-8 px-2.5 text-xs" : "h-8.5 px-3 text-[13px]"}`}
     >
-      <span className={`min-w-0 flex-1 truncate ${selected ? "text-slate-900" : "text-slate-500"}`}>{selected?.label ?? placeholder}</span>
+      <span className={`min-w-0 flex-1 truncate ${selected ? "text-slate-900" : "text-slate-500"}`}>{selected?.label ?? resolvedPlaceholder}</span>
       {selected?.badge && <span className="shrink-0 rounded-full bg-brand-primary/10 px-1.5 py-0.2 text-[10px] font-semibold text-brand-primary">{selected.badge}</span>}
       <ChevronDown className={`size-3.5 shrink-0 text-slate-400 transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`} aria-hidden="true" />
     </button>
 
     {open && <div className="absolute left-0 top-[calc(100%+0.25rem)] z-50 min-w-[220px] max-w-xs w-max overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-      {searchable && <div className="border-b border-slate-100 p-2"><label className="relative block"><span className="sr-only">{searchPlaceholder}</span><Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleKeyDown} placeholder={searchPlaceholder} className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1 pl-8 pr-8 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />{query && <button type="button" onClick={() => setQuery("")} className="absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-slate-400 hover:bg-slate-100" aria-label="Xóa từ khóa"><X className="size-3.5" aria-hidden="true" /></button>}</label><p className="px-1 pt-1.5 text-[11px] text-slate-500">{filteredOptions.length} kết quả</p></div>}
+      {searchable && <div className="border-b border-slate-100 p-2"><label className="relative block"><span className="sr-only">{resolvedSearchPlaceholder}</span><Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleKeyDown} placeholder={resolvedSearchPlaceholder} className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1 pl-8 pr-8 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />{query && <button type="button" onClick={() => setQuery("")} className="absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-slate-400 hover:bg-slate-100" aria-label={t("recruiter.screening.select.clearSearch")}><X className="size-3.5" aria-hidden="true" /></button>}</label><p className="px-1 pt-1.5 text-[11px] text-slate-500">{t("recruiter.screening.select.resultCount", { count: filteredOptions.length })}</p></div>}
       <div id={`${id}-listbox`} role="listbox" aria-label={ariaLabel} className="max-h-56 overflow-y-auto p-1 [scrollbar-width:thin]">
       {filteredOptions.map((option, index) => {
         const isSelected = option.value === value;
@@ -122,7 +130,7 @@ export function RankingSelect({ value, options, onChange, ariaLabel, placeholder
           {option.badge && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.2 text-[10px] font-semibold text-slate-600">{option.badge}</span>}
         </button>;
       })}
-      {filteredOptions.length === 0 && <div className="px-4 py-6 text-center"><Search className="mx-auto size-5 text-slate-300" aria-hidden="true" /><p className="mt-1.5 text-xs font-semibold text-slate-700">Không tìm thấy</p><p className="mt-0.5 text-[11px] text-slate-400">Thử từ khóa khác.</p></div>}
+      {filteredOptions.length === 0 && <div className="px-4 py-6 text-center"><Search className="mx-auto size-5 text-slate-300" aria-hidden="true" /><p className="mt-1.5 text-xs font-semibold text-slate-700">{t("recruiter.screening.select.emptyTitle")}</p><p className="mt-0.5 text-[11px] text-slate-400">{t("recruiter.screening.select.emptyHint")}</p></div>}
       </div>
     </div>}
   </div>;

@@ -7,35 +7,52 @@ import {
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ApiResponse } from "@/types/api";
-import type { JobDetail, JobStatus } from "@/api/types/job";
+import type { JobDetail } from "@/api/types/job";
 import { JobPermissionsModal } from "../components/JobPermissionsModal";
 import { jobApi } from "@/api/tenant/jobApi";
 import { Button } from "@/components/ux/Button";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { PageSkeleton } from "@/components/ux/Skeleton";
+import { formatDate, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import {
-  JOB_ROLE_LABELS, JOB_ROLE_COLORS, parseJobRole,
+  JOB_ROLE_COLORS, getJobRoleLabel, parseJobRole,
   canEditJob, canPublishJob, canDeleteJob, canManageTeam,
 } from "@/features/tenant/recruiter/jobPermissions";
 import { formatSalaryRange } from "@/lib/formatSalary";
 
-const STATUS_LABEL: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
-const EMPLOYMENT: Record<string, string> = { FULL_TIME: "Toàn thời gian", PART_TIME: "Bán thời gian", CONTRACT: "Hợp đồng", INTERNSHIP: "Thực tập" };
-const WORK_MODE: Record<string, string> = { ONSITE: "Tại văn phòng", HYBRID: "Linh hoạt", REMOTE: "Từ xa" };
+const EDUCATION_LEVEL_KEY: Record<string, string> = {
+  "Trung học phổ thông": "recruiter.ops.educationLevels.highSchool",
+  "Cao đẳng": "recruiter.ops.educationLevels.college",
+  "Đại học": "recruiter.ops.educationLevels.bachelor",
+  "Thạc sĩ": "recruiter.ops.educationLevels.master",
+  "Tiến sĩ": "recruiter.ops.educationLevels.doctorate",
+};
+
 const card = "rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6 shadow-[0_12px_30px_rgba(59,130,246,0.05)]";
 const statusAction = "w-full justify-start";
 const linkBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)]";
 
-function date(value?: string | null) {
-  return value ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)) : "Chưa đặt";
+function formatJobDate(value: string | null | undefined, locale: Locale, t: TranslateFn) {
+  return value
+    ? formatDate(value, { day: "2-digit", month: "2-digit", year: "numeric" }, locale)
+    : t("recruiter.ops.common.notSet");
+}
+
+function translateEnum(t: TranslateFn, prefix: string, value?: string | null, fallbackKey = "recruiter.ops.common.notUpdated") {
+  if (!value) return t(fallbackKey);
+  const key = `${prefix}.${value}`;
+  const label = t(key);
+  return label === key ? value : label;
 }
 
 export function JobDetailPage() {
+  const t = useT();
+  const locale = useLocale();
   const { id } = useParams();
   const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const navigate = useNavigate();
@@ -76,21 +93,25 @@ export function JobDetailPage() {
   const canPublish = job?.canEdit ?? (isAdmin || canPublishJob(role));
   const canDelete = job?.canManagePermissions ?? (isAdmin || canDeleteJob(role));
   const canManage = job?.canManagePermissions ?? (isAdmin || canManageTeam(role));
-  const roleLabel = role ? JOB_ROLE_LABELS[role] : null;
+  const roleLabel = role ? getJobRoleLabel(role, t) : null;
   const roleColor = role ? JOB_ROLE_COLORS[role] : null;
 
   const confirmDelete = () =>
     askConfirm({
-      title: "Lưu trữ tin tuyển dụng?",
-      description: `"${job?.title}" sẽ bị ẩn khỏi danh sách. Hồ sơ ứng viên vẫn được giữ lại.`,
+      title: t("recruiter.ops.jobs.detail.confirmArchiveTitle"),
+      description: t("recruiter.ops.jobs.detail.confirmArchiveDesc", { title: job?.title ?? "" }),
       danger: true,
-      confirmLabel: "Lưu trữ",
+      confirmLabel: t("recruiter.ops.jobs.detail.confirmArchiveBtn"),
       onConfirm: async () => { await act.mutateAsync("delete"); },
     });
 
   if (detail.isPending) return <PageSkeleton variant="detail" />;
   if (detail.isError) return <Alert>{getApiErrorMessage(detail.error)}</Alert>;
   if (!job) return null;
+
+  const educationLabel = job.educationLevel
+    ? (EDUCATION_LEVEL_KEY[job.educationLevel] ? t(EDUCATION_LEVEL_KEY[job.educationLevel]) : job.educationLevel)
+    : null;
 
   return (
     <section className="text-[var(--color-on-surface)]">
@@ -100,8 +121,10 @@ export function JobDetailPage() {
             <div className="px-6 py-6 lg:px-7">
               {/* Status + role badge */}
               <div className="flex flex-wrap items-center gap-2">
-                <StatusPill status={job.status} label={STATUS_LABEL[job.status]} />
-                <span className="text-xs text-[var(--color-on-surface-variant)]">Mã vị trí #{job.id}</span>
+                <StatusPill status={job.status} label={t(`recruiter.ops.jobStatuses.${job.status}`)} />
+                <span className="text-xs text-[var(--color-on-surface-variant)]">
+                  {t("recruiter.ops.jobs.detail.jobIdLabel", { id: job.id })}
+                </span>
                 {/* Job role badge for the current user */}
                 {roleLabel && roleColor && (
                   <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", roleColor.bg, roleColor.text, roleColor.border)}>
@@ -114,25 +137,35 @@ export function JobDetailPage() {
                 {isAdmin && !role && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                     <Settings2 className="size-3" aria-hidden="true" />
-                    Quản trị viên
+                    {t("recruiter.ops.jobs.detail.adminBadge")}
                   </span>
                 )}
               </div>
 
               <h1 className="mt-3 text-2xl font-semibold leading-8 tracking-tight lg:text-[28px] lg:leading-9">{job.title}</h1>
-              <p className="mt-3 text-xl font-semibold text-[var(--color-primary)]">{job.salaryVisible ? formatSalaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency ?? "VND") : "Mức lương không công khai"}</p>
+              <p className="mt-3 text-xl font-semibold text-[var(--color-primary)]">
+                {job.salaryVisible
+                  ? formatSalaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency ?? "VND")
+                  : t("recruiter.ops.jobs.detail.salaryHidden")}
+              </p>
               <div className="mt-6 grid gap-5 sm:grid-cols-3">
-                <HeroFact icon={MapPin} label="Địa điểm" value={job.location || "Chưa cập nhật"} />
-                <HeroFact icon={BriefcaseBusiness} label="Kinh nghiệm" value={job.minYearsExperience != null ? `${job.minYearsExperience} năm` : "Không yêu cầu"} />
-                <HeroFact icon={CalendarDays} label="Hạn ứng tuyển" value={date(job.deadline)} />
+                <HeroFact icon={MapPin} label={t("recruiter.ops.jobs.detail.factLocation")} value={job.location || t("recruiter.ops.common.notUpdated")} />
+                <HeroFact
+                  icon={BriefcaseBusiness}
+                  label={t("recruiter.ops.jobs.detail.factExperience")}
+                  value={job.minYearsExperience != null ? t("recruiter.ops.jobs.detail.yearsCount", { count: job.minYearsExperience }) : t("recruiter.ops.common.noRequirement")}
+                />
+                <HeroFact icon={CalendarDays} label={t("recruiter.ops.jobs.detail.factDeadline")} value={formatJobDate(job.deadline, locale, t)} />
               </div>
               <div className="mt-6 flex gap-3">
                 <Link className={`${linkBase} flex-1 bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]`} to={`/recruiter/jobs/${job.id}/applicants`}>
-                  <Users className="size-4" aria-hidden="true" />Xem ứng viên ({job.applicationCount})
+                  <Users className="size-4" aria-hidden="true" />
+                  {t("recruiter.ops.jobs.detail.viewApplicantsBtn", { count: job.applicationCount })}
                 </Link>
                 {canEdit && (
                   <Link className={`${linkBase} border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]`} to={`/recruiter/jobs/${job.id}/edit`}>
-                    <Pencil className="size-4" aria-hidden="true" />Sửa tin
+                    <Pencil className="size-4" aria-hidden="true" />
+                    {t("recruiter.ops.jobs.detail.editJobBtn")}
                   </Link>
                 )}
                 {canManage && (
@@ -140,9 +173,10 @@ export function JobDetailPage() {
                     type="button"
                     onClick={() => setPermissionsModalOpen(true)}
                     className={`${linkBase} border border-[var(--color-border-default)] text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container-low)]`}
-                    aria-label="Phân quyền tin tuyển dụng"
+                    aria-label={t("recruiter.ops.jobs.detail.permissionsAria")}
                   >
-                    <ShieldCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Phân quyền
+                    <ShieldCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                    {t("recruiter.ops.jobs.detail.permissionsBtn")}
                   </button>
                 )}
               </div>
@@ -153,21 +187,62 @@ export function JobDetailPage() {
 
           <article className={`${card} space-y-8`}>
             <section className="border-b border-[var(--color-border-default)] pb-8">
-              <Heading>Tổng quan</Heading>
+              <Heading>{t("recruiter.ops.jobs.detail.overviewHeading")}</Heading>
               <div className="mt-5 space-y-4 text-sm">
-                <Overview label="Yêu cầu"><Chip>{job.minYearsExperience != null ? `${job.minYearsExperience} năm kinh nghiệm` : "Không yêu cầu kinh nghiệm"}</Chip><Chip>{job.educationLevel || "Không yêu cầu học vấn"}</Chip></Overview>
-                <Overview label="Kỹ năng">{job.skills.length ? job.skills.map((skill) => <Chip key={skill.skillId} outline>{skill.name}{skill.required ? " · Bắt buộc" : ""}</Chip>) : <span className="text-[var(--color-on-surface-variant)]">Chưa thiết lập</span>}</Overview>
-                <Overview label="Hình thức"><Chip>{EMPLOYMENT[job.employmentType ?? ""] || job.employmentType || "Chưa cập nhật"}</Chip><Chip>{WORK_MODE[job.workMode ?? ""] || job.workMode || "Chưa cập nhật"}</Chip></Overview>
+                <Overview label={t("recruiter.ops.jobs.detail.overviewRequirements")}>
+                  <Chip>
+                    {job.minYearsExperience != null
+                      ? t("recruiter.ops.jobs.detail.yearsExperienceChip", { count: job.minYearsExperience })
+                      : t("recruiter.ops.jobs.detail.noExpRequired")}
+                  </Chip>
+                  <Chip>{educationLabel || t("recruiter.ops.jobs.detail.noEduRequired")}</Chip>
+                </Overview>
+                <Overview label={t("recruiter.ops.jobs.detail.overviewSkills")}>
+                  {job.skills.length
+                    ? job.skills.map((skill) => (
+                        <Chip key={skill.skillId} outline>
+                          {skill.name}
+                          {skill.required ? t("recruiter.ops.jobs.detail.requiredSkillSuffix") : ""}
+                        </Chip>
+                      ))
+                    : <span className="text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.detail.skillsUnset")}</span>}
+                </Overview>
+                <Overview label={t("recruiter.ops.jobs.detail.overviewFormat")}>
+                  <Chip>{translateEnum(t, "recruiter.ops.employmentTypes", job.employmentType)}</Chip>
+                  <Chip>{translateEnum(t, "recruiter.ops.workModes", job.workMode)}</Chip>
+                </Overview>
               </div>
             </section>
-            <JobText title="Mô tả công việc" value={job.description} />
-            {job.responsibilities && <JobText title="Trách nhiệm" value={job.responsibilities} bullets />}
-            {job.benefits && <JobText title="Quyền lợi" value={job.benefits} bullets last />}
+            <JobText title={t("recruiter.ops.jobs.detail.descriptionHeading")} value={job.description} />
+            {job.responsibilities && <JobText title={t("recruiter.ops.jobs.detail.responsibilitiesHeading")} value={job.responsibilities} bullets />}
+            {job.benefits && <JobText title={t("recruiter.ops.jobs.detail.benefitsHeading")} value={job.benefits} bullets last />}
           </article>
 
           {(job.cvScreening || job.gateScreening) && <div className="grid gap-6 lg:grid-cols-2">
-            {job.cvScreening && <Weights title="Sàng lọc CV" rows={[["Kỹ năng bắt buộc", job.cvScreening.skillWeight], ["Kỹ năng ưu tiên", job.cvScreening.preferredWeight], ["Kinh nghiệm", job.cvScreening.experienceWeight], ["Học vấn", job.cvScreening.educationWeight], ["Ngữ nghĩa AI", job.cvScreening.semanticWeight]]} threshold={job.cvScreening.passThreshold} />}
-            {job.gateScreening && <Weights title="Đánh giá tổng hợp" rows={[["Điểm CV", job.gateScreening.cvWeight], ["Phỏng vấn AI", job.gateScreening.aiInterviewWeight], ["Bài đánh giá", job.gateScreening.assessmentWeight]]} threshold={job.gateScreening.passThreshold} />}
+            {job.cvScreening && (
+              <Weights
+                title={t("recruiter.ops.jobs.detail.cvScreeningTitle")}
+                rows={[
+                  [t("recruiter.ops.jobs.detail.weightRequiredSkills"), job.cvScreening.skillWeight],
+                  [t("recruiter.ops.jobs.detail.weightPreferredSkills"), job.cvScreening.preferredWeight],
+                  [t("recruiter.ops.jobs.detail.weightExperience"), job.cvScreening.experienceWeight],
+                  [t("recruiter.ops.jobs.detail.weightEducation"), job.cvScreening.educationWeight],
+                  [t("recruiter.ops.jobs.detail.weightSemantic"), job.cvScreening.semanticWeight],
+                ]}
+                threshold={job.cvScreening.passThreshold}
+              />
+            )}
+            {job.gateScreening && (
+              <Weights
+                title={t("recruiter.ops.jobs.detail.gateScreeningTitle")}
+                rows={[
+                  [t("recruiter.ops.jobs.detail.weightCvScore"), job.gateScreening.cvWeight],
+                  [t("recruiter.ops.jobs.detail.weightAiInterview"), job.gateScreening.aiInterviewWeight],
+                  [t("recruiter.ops.jobs.detail.weightAssessment"), job.gateScreening.assessmentWeight],
+                ]}
+                threshold={job.gateScreening.passThreshold}
+              />
+            )}
           </div>}
 
         </main>
@@ -175,50 +250,53 @@ export function JobDetailPage() {
         <aside className="recruiter-job-detail-sidebar space-y-5">
           {/* Status actions — shown based on role */}
           <div className={card}>
-            <h2 className="font-semibold">Trạng thái tin tuyển dụng</h2>
+            <h2 className="font-semibold">{t("recruiter.ops.jobs.detail.statusActionsTitle")}</h2>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              {canPublish && (job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />Đăng tuyển</Button>}
-              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />Tạm dừng</Button>}
-              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />Về bản nháp</Button>}
-              {canPublish && (job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />Đóng tin</Button>}
-              {canPublish && (job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />Mở lại</Button>}
-              <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("clone")}><Copy className="size-4" aria-hidden="true" />Nhân bản</Button>
+              {canPublish && (job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionPublish")}</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionPause")}</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionUnpublish")}</Button>}
+              {canPublish && (job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionClose")}</Button>}
+              {canPublish && (job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionReopen")}</Button>}
+              <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("clone")}><Copy className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionClone")}</Button>
               {canDelete && (
                 <Button size="sm" variant="secondary" disabled={act.isPending} onClick={confirmDelete}
                   className={`${statusAction} text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700`}>
-                  <Trash2 className="size-4" aria-hidden="true" />Lưu trữ
+                  <Trash2 className="size-4" aria-hidden="true" />{t("recruiter.ops.jobs.detail.actionArchive")}
                 </Button>
               )}
             </div>
           </div>
 
           <div className={card}>
-            <h2 className="text-xl font-semibold">Thông tin chung</h2>
+            <h2 className="text-xl font-semibold">{t("recruiter.ops.jobs.detail.generalInfoTitle")}</h2>
             <div className="mt-6 space-y-5">
-              <Info icon={Building2} label="Bộ phận" value={job.department || "Chưa phân bộ phận"} />
-              <Info icon={GraduationCap} label="Học vấn" value={job.educationLevel || "Không yêu cầu"} />
-              <Info icon={Users} label="Số lượng tuyển" value={job.headcount != null ? `${job.headcount} người` : "Chưa đặt"} />
-              <Info icon={BriefcaseBusiness} label="Hình thức làm việc" value={WORK_MODE[job.workMode ?? ""] || job.workMode || "Chưa cập nhật"} />
-              <Info icon={ClipboardCheck} label="Loại hình công việc" value={EMPLOYMENT[job.employmentType ?? ""] || job.employmentType || "Chưa cập nhật"} />
+              <Info icon={Building2} label={t("recruiter.ops.jobs.detail.infoDepartment")} value={job.department || t("recruiter.ops.jobs.detail.infoDepartmentUnset")} />
+              <Info icon={GraduationCap} label={t("recruiter.ops.jobs.detail.infoEducation")} value={educationLabel || t("recruiter.ops.common.noRequirement")} />
+              <Info icon={Users} label={t("recruiter.ops.jobs.detail.infoHeadcount")} value={job.headcount != null ? t("recruiter.ops.jobs.detail.headcountUnit", { count: job.headcount }) : t("recruiter.ops.common.notSet")} />
+              <Info icon={BriefcaseBusiness} label={t("recruiter.ops.jobs.detail.infoWorkMode")} value={translateEnum(t, "recruiter.ops.workModes", job.workMode)} />
+              <Info icon={ClipboardCheck} label={t("recruiter.ops.jobs.detail.infoEmploymentType")} value={translateEnum(t, "recruiter.ops.employmentTypes", job.employmentType)} />
             </div>
           </div>
 
           <div className={card}>
-            <h2 className="font-semibold">Quản lý tuyển dụng</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Ứng viên" value={job.applicationCount} /><Metric label="Chỉ tiêu" value={job.headcount ?? "—"} /></div>
+            <h2 className="font-semibold">{t("recruiter.ops.jobs.detail.recruitmentMgmtTitle")}</h2>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Metric label={t("recruiter.ops.jobs.detail.metricApplicants")} value={job.applicationCount} />
+              <Metric label={t("recruiter.ops.jobs.detail.metricTarget")} value={job.headcount ?? "—"} />
+            </div>
             <dl className="mt-5 space-y-3 border-t border-[var(--color-border-default)] pt-4 text-sm">
-              <Row label="Phụ trách" value={job.ownerName || "Chưa phân công"} />
-              <Row label="Nhận hồ sơ" value={job.acceptingApplications ? "Đang mở" : "Đã dừng"} />
-              <Row label="Cập nhật" value={date(job.updatedAt)} />
+              <Row label={t("recruiter.ops.common.assignee")} value={job.ownerName || t("recruiter.ops.common.unassigned")} />
+              <Row label={t("recruiter.ops.jobs.detail.rowAccepting")} value={job.acceptingApplications ? t("recruiter.ops.jobs.detail.acceptingOpen") : t("recruiter.ops.jobs.detail.acceptingClosed")} />
+              <Row label={t("recruiter.ops.jobs.detail.rowUpdated")} value={formatJobDate(job.updatedAt, locale, t)} />
             </dl>
           </div>
 
           <div className={card}>
-            <h2 className="font-semibold">Công cụ tuyển dụng</h2>
-            <nav className="mt-3 space-y-1" aria-label="Công cụ của vị trí">
-              <Tool to={`/recruiter/jobs/${job.id}/applicants?view=board`} icon={ClipboardCheck}>Bảng quy trình</Tool>
-              <Tool to={`/recruiter/jobs/${job.id}/rank`} icon={Sparkles}>Xếp hạng ứng viên</Tool>
-              <Tool to={`/recruiter/jobs/${job.id}/cvs`} icon={FileSearch}>Sàng lọc CV</Tool>
+            <h2 className="font-semibold">{t("recruiter.ops.jobs.detail.toolsTitle")}</h2>
+            <nav className="mt-3 space-y-1" aria-label={t("recruiter.ops.jobs.detail.toolsAria")}>
+              <Tool to={`/recruiter/jobs/${job.id}/applicants?view=board`} icon={ClipboardCheck}>{t("recruiter.ops.jobs.detail.toolPipeline")}</Tool>
+              <Tool to={`/recruiter/jobs/${job.id}/rank`} icon={Sparkles}>{t("recruiter.ops.jobs.detail.toolRanking")}</Tool>
+              <Tool to={`/recruiter/jobs/${job.id}/cvs`} icon={FileSearch}>{t("recruiter.ops.jobs.detail.toolCvScreening")}</Tool>
             </nav>
           </div>
 
@@ -270,4 +348,7 @@ function Info({ icon, label, value }: { icon: LucideIcon; label: string; value: 
 function Metric({ label, value }: { label: string; value: number | string }) { return <div className="rounded-2xl bg-[var(--color-surface-container-low)] p-3"><p className="text-2xl font-semibold">{value}</p><p className="text-xs text-[var(--color-on-surface-variant)]">{label}</p></div>; }
 function Row({ label, value }: { label: string; value: string }) { return <div className="flex justify-between gap-3"><dt className="text-[var(--color-on-surface-variant)]">{label}</dt><dd className="text-right font-medium">{value}</dd></div>; }
 function Tool({ to, icon: Icon, children }: { to: string; icon: LucideIcon; children: ReactNode }) { return <Link to={to} className="group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]"><Icon className="size-4" aria-hidden="true" /><span className="flex-1">{children}</span><ChevronRight className="size-4" aria-hidden="true" /></Link>; }
-function Weights({ title, rows, threshold }: { title: string; rows: Array<[string, number]>; threshold: number }) { return <div className={card}><div className="flex items-start gap-3"><IconBubble icon={Sparkles} /><div><h2 className="font-semibold">{title}</h2><p className="text-sm text-[var(--color-on-surface-variant)]">Ngưỡng đạt {threshold} điểm</p></div></div><div className="mt-5 space-y-3">{rows.map(([label, value]) => <div key={label}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><strong>{value}%</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-container)]"><div className="h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${Math.min(value, 100)}%` }} /></div></div>)}</div></div>; }
+function Weights({ title, rows, threshold }: { title: string; rows: Array<[string, number]>; threshold: number }) {
+  const t = useT();
+  return <div className={card}><div className="flex items-start gap-3"><IconBubble icon={Sparkles} /><div><h2 className="font-semibold">{title}</h2><p className="text-sm text-[var(--color-on-surface-variant)]">{t("recruiter.ops.jobs.detail.thresholdPass", { threshold })}</p></div></div><div className="mt-5 space-y-3">{rows.map(([label, value]) => <div key={label}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><strong>{value}%</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-container)]"><div className="h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${Math.min(value, 100)}%` }} /></div></div>)}</div></div>;
+}

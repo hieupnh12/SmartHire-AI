@@ -9,7 +9,10 @@ import type {
 import type { InvoiceItem } from "@/api/master/billingApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
+import { formatDate, formatNumber, useLocale, useT, type Locale } from "@/i18n";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -21,6 +24,7 @@ import {
   CreditCard,
   Download,
   FileText,
+  HelpCircle,
   Plus,
   Search,
   SlidersHorizontal,
@@ -48,13 +52,42 @@ type BillingWorkspaceProps = {
 
 type InvoiceStatus = "PAID" | "PENDING" | "OVERDUE" | "CANCELLED";
 
-const money = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
-  maximumFractionDigits: 0,
-});
+function formatVndCurrency(value: number, locale: Locale): string {
+  return formatNumber(
+    value,
+    {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    },
+    locale,
+  );
+}
 
 const surface = "rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]";
+
+function HelpTip({ content, label }: { content: string; label: string }) {
+  return (
+    <Tooltip content={content} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+const TENANT_STATUS_CLS: Record<string, string> = {
+  ACTIVE: "bg-emerald-50 text-emerald-700",
+  PENDING_PAYMENT: "bg-amber-50 text-amber-700",
+  PROVISIONING: "bg-blue-50 text-blue-700",
+  SUSPENDED: "bg-amber-50 text-amber-700",
+  FAILED: "bg-rose-50 text-rose-700",
+};
 
 export function BillingWorkspace({
   plans,
@@ -71,6 +104,8 @@ export function BillingWorkspace({
   onTogglePlanStatus,
   onSubscriptionAssigned,
 }: BillingWorkspaceProps) {
+  const t = useT();
+  const locale = useLocale();
   const [invoiceQuery, setInvoiceQuery] = useState("");
   const [allocationQuery, setAllocationQuery] = useState("");
   const [savedTenantId, setSavedTenantId] = useState<number | null>(null);
@@ -106,7 +141,7 @@ export function BillingWorkspace({
   }, [invoiceQuery, invoices]);
 
   const filteredTenants = useMemo(() => {
-    const nonDeleted = tenants.filter((t) => !t.deleted);
+    const nonDeleted = tenants.filter((item) => !item.deleted);
     const query = allocationQuery.trim().toLowerCase();
     return query
       ? nonDeleted.filter((tenant) =>
@@ -132,15 +167,21 @@ export function BillingWorkspace({
 
   const totalBilled = paidTotal + pendingTotal + overdueTotal;
   const collectionPercent = totalBilled > 0 ? Math.round((paidTotal * 100) / totalBilled) : 100;
+  const paidPct = totalBilled > 0 ? (paidTotal / totalBilled) * 100 : 100;
+  const paidPlusPendingPct = totalBilled > 0 ? ((paidTotal + pendingTotal) / totalBilled) * 100 : 100;
+  const collectionConicGradient =
+    totalBilled > 0
+      ? `conic-gradient(#2563eb 0 ${paidPct}%, #f59e0b ${paidPct}% ${paidPlusPendingPct}%, #ef4444 ${paidPlusPendingPct}% 100%)`
+      : "conic-gradient(#2563eb 0 100%)";
 
   const downloadInvoices = () => {
-    const header = "Invoice,Tenant,Plan,Due date,Amount,Status";
+    const header = t("master.commerce.billingWorkspace.csvHeader");
     const rows = invoices.map((invoice) =>
       [
         invoice.invoiceNumber,
         invoice.tenantName ?? invoice.tenantCode ?? `#${invoice.tenantId}`,
         invoice.planName ?? invoice.planCode ?? "Enterprise",
-        invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("vi-VN") : "—",
+        invoice.dueDate ? formatDate(invoice.dueDate, undefined, locale) : "—",
         invoice.amount,
         invoice.status,
       ]
@@ -165,7 +206,7 @@ export function BillingWorkspace({
           className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
         >
           <Download className="size-3.5" aria-hidden="true" />
-          <span>Xuất báo cáo</span>
+          <span>{t("master.commerce.billingWorkspace.exportReport")}</span>
         </button>
         <button
           type="button"
@@ -173,28 +214,33 @@ export function BillingWorkspace({
           className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
           <Plus className="size-3.5" aria-hidden="true" />
-          <span>Tạo gói mới</span>
+          <span>{t("master.commerce.billingWorkspace.createPlan")}</span>
         </button>
       </HeaderActions>
 
-      <nav className="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 sm:w-fit" aria-label="Điều hướng gói và thanh toán">
-        {([['overview', 'Tổng quan'], ['plans', `Gói dịch vụ (${plans.length})`], ['allocations', 'Phân bổ gói'], ['invoices', `Hóa đơn (${invoices.length})`]] as const).map(([id, label]) => (
+      <nav className="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 sm:w-fit" aria-label={t("master.commerce.billingWorkspace.navAria")}>
+        {([
+          ["overview", t("master.commerce.billingWorkspace.tabs.overview")],
+          ["plans", t("master.commerce.billingWorkspace.tabs.plans", { count: plans.length })],
+          ["allocations", t("master.commerce.billingWorkspace.tabs.allocations")],
+          ["invoices", t("master.commerce.billingWorkspace.tabs.invoices", { count: invoices.length })],
+        ] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => onViewChange(id)} aria-current={view === id ? "page" : undefined} className={cn("min-h-9 whitespace-nowrap rounded-lg px-4 text-sm font-medium transition-colors", view === id ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}>{label}</button>
         ))}
       </nav>
 
       {view === "overview" && (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tổng quan thanh toán">
-            <MetricCard icon={CircleDollarSign} label="Doanh thu định kỳ (MRR)" value={money.format(monthlyRevenue)} detail="Quy đổi từ bản quyền năm" trend={revenue?.growthRate ?? "0.0%"} positive />
-            <MetricCard icon={Building2} label="Thuê bao hoạt động" value={activeTenants.toString()} detail="Trên toàn nền tảng" trend={`+${revenue?.newTenantsThisMonth ?? 0} tháng này`} positive />
-            <MetricCard icon={Clock3} label="Đang chờ thanh toán" value={money.format(pendingTotal)} detail={`${pendingCount} hóa đơn đang chờ`} trend={`${pendingCount} đơn`} />
-            <MetricCard icon={TriangleAlert} label="Công nợ quá hạn" value={money.format(overdueTotal)} detail={`${overdueCount} hóa đơn cần xử lý`} trend={`${overdueCount} đơn`} />
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("master.commerce.billingWorkspace.overviewAria")}>
+            <MetricCard icon={CircleDollarSign} label={t("master.commerce.billingWorkspace.metrics.mrrLabel")} value={formatVndCurrency(monthlyRevenue, locale)} detail={t("master.commerce.billingWorkspace.metrics.mrrDetail")} trend={revenue?.growthRate ?? "0.0%"} positive />
+            <MetricCard icon={Building2} label={t("master.commerce.billingWorkspace.metrics.activeTenantsLabel")} value={activeTenants.toString()} detail={t("master.commerce.billingWorkspace.metrics.activeTenantsDetail")} trend={t("master.commerce.billingWorkspace.metrics.activeTenantsTrend", { count: revenue?.newTenantsThisMonth ?? 0 })} positive />
+            <MetricCard icon={Clock3} label={t("master.commerce.billingWorkspace.metrics.pendingLabel")} value={formatVndCurrency(pendingTotal, locale)} detail={t("master.commerce.billingWorkspace.metrics.pendingDetail", { count: pendingCount })} trend={t("master.commerce.billingWorkspace.metrics.pendingTrend", { count: pendingCount })} />
+            <MetricCard icon={TriangleAlert} label={t("master.commerce.billingWorkspace.metrics.overdueLabel")} value={formatVndCurrency(overdueTotal, locale)} detail={t("master.commerce.billingWorkspace.metrics.overdueDetail", { count: overdueCount })} trend={t("master.commerce.billingWorkspace.metrics.overdueTrend", { count: overdueCount })} />
           </section>
 
           <div className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr]">
             <section className={cn(surface, "overflow-hidden")}>
-              <SectionHeader title="Hiệu suất doanh thu" description="Doanh thu thực tế ghi nhận theo chu kỳ" action="Xuất báo cáo" onAction={downloadInvoices} />
+              <SectionHeader title={t("master.commerce.billingWorkspace.revenuePerfTitle")} description={t("master.commerce.billingWorkspace.revenuePerfDesc")} action={t("master.commerce.billingWorkspace.exportReport")} onAction={downloadInvoices} />
               <RevenueChart
                 totalRevenue={revenue?.totalRevenue ?? paidTotal}
                 growthRate={revenue?.growthRate ?? "0.0%"}
@@ -203,25 +249,25 @@ export function BillingWorkspace({
             </section>
             <section className={cn(surface, "p-5 sm:p-6")}>
               <div className="flex items-start justify-between gap-4">
-                <div><p className="text-sm font-semibold text-slate-950">Tình trạng thu tiền</p><p className="mt-1 text-xs text-slate-500">Tổng hợp từ hóa đơn thực tế</p></div>
+                <div><p className="text-sm font-semibold text-slate-950">{t("master.commerce.billingWorkspace.collectionTitle")}</p><p className="mt-1 text-xs text-slate-500">{t("master.commerce.billingWorkspace.collectionDesc")}</p></div>
                 <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CreditCard className="size-5" aria-hidden="true" /></span>
               </div>
               <div className="mt-6 flex items-center gap-5">
-                <div className="grid size-28 shrink-0 place-items-center rounded-full bg-[conic-gradient(#2563eb_0_82%,#f59e0b_82%_94%,#ef4444_94%)] p-3">
-                  <div className="grid size-full place-items-center rounded-full bg-white text-center"><span><strong className="block text-2xl text-slate-950">{collectionPercent}%</strong><small className="text-[10px] font-medium text-slate-500">đã thu</small></span></div>
+                <div className="grid size-28 shrink-0 place-items-center rounded-full p-3" style={{ background: collectionConicGradient }}>
+                  <div className="grid size-full place-items-center rounded-full bg-white text-center"><span><strong className="block text-2xl text-slate-950">{collectionPercent}%</strong><small className="text-[10px] font-medium text-slate-500">{t("master.commerce.billingWorkspace.collectedLabel")}</small></span></div>
                 </div>
                 <dl className="min-w-0 flex-1 space-y-3 text-xs">
-                  <StatusLegend color="bg-blue-600" label="Đã thanh toán" value={money.format(paidTotal)} />
-                  <StatusLegend color="bg-amber-500" label="Đang chờ" value={money.format(pendingTotal)} />
-                  <StatusLegend color="bg-red-500" label="Quá hạn" value={money.format(overdueTotal)} />
+                  <StatusLegend color="bg-blue-600" label={t("master.commerce.billingWorkspace.paidLegend")} value={formatVndCurrency(paidTotal, locale)} />
+                  <StatusLegend color="bg-amber-500" label={t("master.commerce.billingWorkspace.pendingLegend")} value={formatVndCurrency(pendingTotal, locale)} />
+                  <StatusLegend color="bg-red-500" label={t("master.commerce.billingWorkspace.overdueLegend")} value={formatVndCurrency(overdueTotal, locale)} />
                 </dl>
               </div>
-              <button type="button" onClick={() => onViewChange("invoices")} className="mt-6 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">Xem tất cả hóa đơn<ChevronRight className="size-4" /></button>
+              <button type="button" onClick={() => onViewChange("invoices")} className="mt-6 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">{t("master.commerce.billingWorkspace.viewAllInvoices")}<ChevronRight className="size-4" /></button>
             </section>
           </div>
 
           <section className={cn(surface, "overflow-hidden")}>
-            <SectionHeader title="Gói dịch vụ" description="Hiệu suất và giới hạn của các gói đang cung cấp" action="Quản lý gói" onAction={() => onViewChange("plans")} />
+            <SectionHeader title={t("master.commerce.billingWorkspace.plansSectionTitle")} description={t("master.commerce.billingWorkspace.plansSectionDesc")} action={t("master.commerce.billingWorkspace.managePlansAction")} onAction={() => onViewChange("plans")} />
             <div className="grid divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
               {plans.slice(0, 3).map((plan) => <CompactPlan key={plan.id ?? plan.code} plan={plan} tenants={plan.subscriberCount ?? 0} />)}
             </div>
@@ -235,8 +281,8 @@ export function BillingWorkspace({
           {plans.map((plan) => <PlanCard key={plan.id ?? plan.code} plan={plan} tenants={plan.subscriberCount ?? 0} onEdit={() => onEditPlan(plan)} onToggle={() => onTogglePlanStatus(plan)} />)}
           <button type="button" onClick={onCreatePlan} className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-8 text-center transition-colors hover:bg-blue-50">
             <span className="grid size-12 place-items-center rounded-2xl bg-white text-blue-700 shadow-sm"><Plus className="size-5" /></span>
-            <span className="mt-4 text-sm font-semibold text-slate-900">Tạo gói dịch vụ mới</span>
-            <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Thiết lập mức giá, giới hạn tuyển dụng và hạn ngạch AI.</span>
+            <span className="mt-4 text-sm font-semibold text-slate-900">{t("master.commerce.billingWorkspace.createNewPlanTitle")}</span>
+            <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">{t("master.commerce.billingWorkspace.createNewPlanDesc")}</span>
           </button>
         </section>
       )}
@@ -244,34 +290,212 @@ export function BillingWorkspace({
       {view === "allocations" && (
         <section className={cn(surface, "overflow-hidden")}>
           <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Phân bổ gói cho Tenant</h2>
-              <p className="mt-1 text-xs text-slate-500">Gán, nâng cấp hoặc hạ cấp gói dịch vụ (Snapshot V27) cho từng doanh nghiệp.</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-600">
+                {t("master.commerce.billingWorkspace.allocations.title")}
+              </h2>
+              <HelpTip
+                content={t("master.commerce.billingWorkspace.allocations.titleTooltip")}
+                label={t("master.commerce.billingWorkspace.allocations.titleHelpLabel")}
+              />
             </div>
-            <label className="relative block w-full sm:max-w-xs"><span className="sr-only">Tìm doanh nghiệp</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={allocationQuery} onChange={(event) => setAllocationQuery(event.target.value)} placeholder="Tìm tenant..." className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="relative block w-full sm:max-w-xs">
+              <span className="sr-only">{t("master.commerce.billingWorkspace.allocations.searchSrOnly")}</span>
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={allocationQuery}
+                onChange={(event) => setAllocationQuery(event.target.value)}
+                placeholder={t("master.commerce.billingWorkspace.allocations.searchPlaceholder")}
+                className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100"
+              />
+            </label>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">Doanh nghiệp</th><th className="px-6 py-3">Trạng thái Tenant / Sub</th><th className="px-6 py-3">Gói hiện tại (Snapshot)</th><th className="px-6 py-3">Chu kỳ & Giá</th><th className="px-6 py-3 text-right">Thao tác</th></tr></thead>
-              <tbody>{filteredTenants.map((tenant) => {
-                const subInstance = subscriptionByTenantId.get(tenant.id);
-                const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
-                const currentPlanCode = subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
-                const selectedCode = assignments[tenant.id] ?? currentPlanCode;
-                const contractedPrice = subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
-                return <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 className="size-4" /></span><span><strong className="block font-semibold text-slate-900">{tenant.name}</strong><small className="text-xs text-slate-500">{tenant.code} · {tenant.subdomain}</small></span></div></td><td className="px-6 py-4"><div className="flex flex-wrap items-center gap-1.5"><span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", tenant.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{tenant.status}</span>{subInstance?.status && <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">Sub: {subInstance.status}</span>}</div></td><td className="px-6 py-4"><select aria-label={`Gói dịch vụ của ${tenant.name}`} value={selectedCode} onChange={(event) => { setAssignments((current) => ({ ...current, [tenant.id]: event.target.value })); setSavedTenantId(null); }} className="min-h-10 min-w-48 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100">{plans.filter((plan) => (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode).map((plan) => <option key={plan.id ?? plan.code} value={plan.code}>{plan.name} (v{plan.version ?? 1}{plan.custom ? " · Custom" : ""})</option>)}</select></td><td className="px-6 py-4 text-xs text-slate-600"><strong className="block text-slate-900">{money.format(contractedPrice)} / năm</strong><span>Hàng năm (Snapshot V27)</span></td><td className="px-6 py-4 text-right"><button type="button" onClick={async () => { try { const { masterAdminApi } = await import("@/api/master/masterAdminApi"); await masterAdminApi.assignTenantSubscription(tenant.id, { planCode: selectedCode, status: "ACTIVE" }); setSavedTenantId(tenant.id); await onSubscriptionAssigned?.(); toast.success(`Đã cập nhật gói ${selectedCode} cho ${tenant.name}`); } catch { toast.danger("Không thể cập nhật gói thuê bao cho tenant"); } }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">{savedTenantId === tenant.id ? <><UserRoundCheck className="size-3.5" />Đã lưu Snapshot</> : "Lưu thay đổi"}</button></td></tr>;
-              })}</tbody>
+              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-6 py-3">{t("master.commerce.billingWorkspace.allocations.colCompany")}</th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colStatus")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colStatusTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colStatusHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colCurrentPlan")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colCurrentPlanTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colCurrentPlanHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3">
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t("master.commerce.billingWorkspace.allocations.colCyclePrice")}</span>
+                      <HelpTip
+                        content={t("master.commerce.billingWorkspace.allocations.colCyclePriceTooltip")}
+                        label={t("master.commerce.billingWorkspace.allocations.colCyclePriceHelpLabel")}
+                      />
+                    </span>
+                  </th>
+                  <th className="px-6 py-3 text-right">{t("master.commerce.billingWorkspace.allocations.colActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTenants.map((tenant) => {
+                  const subInstance = subscriptionByTenantId.get(tenant.id);
+                  const resolvedPlan = subInstance ? planById.get(subInstance.planId) : undefined;
+                  const currentPlanCode =
+                    subInstance?.planCodeSnapshot ?? resolvedPlan?.code ?? plans[0]?.code ?? "";
+                  const selectedCode = assignments[tenant.id] ?? currentPlanCode;
+                  const contractedPrice =
+                    subInstance?.contractedPriceYearly ?? resolvedPlan?.priceYearly ?? 0;
+                  const tenantCls = TENANT_STATUS_CLS[tenant.status] ?? "bg-slate-100 text-slate-600";
+                  const tenantLabel =
+                    tenant.status in TENANT_STATUS_CLS
+                      ? t(`master.commerce.billingWorkspace.allocations.tenantStatuses.${tenant.status}`)
+                      : tenant.status;
+                  const subKnown =
+                    subInstance?.status === "ACTIVE" ||
+                    subInstance?.status === "GRACE_PERIOD" ||
+                    subInstance?.status === "PAST_DUE" ||
+                    subInstance?.status === "EXPIRED" ||
+                    subInstance?.status === "CANCELLED";
+                  const availablePlans = plans
+                    .filter(
+                      (plan) =>
+                        (plan.status === "ACTIVE" && !plan.archived) || plan.code === currentPlanCode,
+                    )
+                    .map((plan) => ({
+                      value: plan.code,
+                      label: `${plan.name} (v${plan.version ?? 1}${
+                        plan.custom ? t("master.commerce.billingWorkspace.allocations.customSuffix") : ""
+                      })`,
+                    }));
+
+                  return (
+                    <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                            <Building2 className="size-4" />
+                          </span>
+                          <span>
+                            <strong className="block font-semibold text-slate-600">
+                              {tenant.name}
+                            </strong>
+                            <small className="text-xs text-slate-500">
+                              {tenant.code} · {tenant.subdomain}
+                            </small>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                              tenantCls,
+                            )}
+                          >
+                            {tenantLabel}
+                          </span>
+                          {subInstance?.status && (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                              {subKnown
+                                ? t(`master.commerce.billingWorkspace.allocations.subStatuses.${subInstance.status}`)
+                                : t("master.commerce.billingWorkspace.allocations.subPrefix", {
+                                    status: subInstance.status,
+                                  })}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="min-w-52 max-w-64">
+                          <CustomSelect
+                            ariaLabel={t("master.commerce.billingWorkspace.allocations.selectAria", {
+                              name: tenant.name,
+                            })}
+                            value={selectedCode}
+                            onChange={(val) => {
+                              setAssignments((current) => ({
+                                ...current,
+                                [tenant.id]: val,
+                              }));
+                              setSavedTenantId(null);
+                            }}
+                            options={availablePlans}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-600">
+                        <strong className="block font-semibold text-slate-600">
+                          {formatVndCurrency(contractedPrice, locale)} / {t("master.commerce.common.yearUnit")}
+                        </strong>
+                        <span className="text-slate-500">
+                          {t("master.commerce.billingWorkspace.allocations.yearlySnapshot")}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const { masterAdminApi } = await import("@/api/master/masterAdminApi");
+                              await masterAdminApi.assignTenantSubscription(tenant.id, {
+                                planCode: selectedCode,
+                                status: "ACTIVE",
+                              });
+                              setSavedTenantId(tenant.id);
+                              await onSubscriptionAssigned?.();
+                              toast.success(
+                                t("master.commerce.billingWorkspace.allocations.assignedToast", {
+                                  code: selectedCode,
+                                  name: tenant.name,
+                                }),
+                              );
+                            } catch {
+                              toast.danger(
+                                t("master.commerce.billingWorkspace.allocations.assignFailedToast"),
+                              );
+                            }
+                          }}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                        >
+                          {savedTenantId === tenant.id ? (
+                            <>
+                              <UserRoundCheck className="size-3.5" />
+                              {t("master.commerce.billingWorkspace.allocations.savedSnapshot")}
+                            </>
+                          ) : (
+                            t("master.commerce.billingWorkspace.allocations.saveChanges")
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
-          {filteredTenants.length === 0 && <p className="p-10 text-center text-sm text-slate-500">Không tìm thấy tenant phù hợp.</p>}
+          {filteredTenants.length === 0 && (
+            <p className="p-10 text-center text-sm text-slate-500">
+              {t("master.commerce.billingWorkspace.allocations.empty")}
+            </p>
+          )}
         </section>
       )}
 
       {view === "invoices" && (
         <>
           <div className={cn(surface, "flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between")}>
-            <label className="relative block w-full sm:max-w-sm"><span className="sr-only">Tìm hóa đơn</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={invoiceQuery} onChange={(event) => setInvoiceQuery(event.target.value)} placeholder="Tìm mã hóa đơn, tenant hoặc gói..." className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" /></label>
-            <button type="button" onClick={downloadInvoices} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><SlidersHorizontal className="size-4" />Xuất CSV ({filteredInvoices.length})</button>
+            <label className="relative block w-full sm:max-w-sm"><span className="sr-only">{t("master.commerce.billingWorkspace.invoicesSearchSrOnly")}</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={invoiceQuery} onChange={(event) => setInvoiceQuery(event.target.value)} placeholder={t("master.commerce.billingWorkspace.invoicesSearchPlaceholder")} className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" /></label>
+            <button type="button" onClick={downloadInvoices} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><SlidersHorizontal className="size-4" />{t("master.commerce.billingWorkspace.exportCsvCount", { count: filteredInvoices.length })}</button>
           </div>
           <InvoiceTable invoices={filteredInvoices} onDownload={downloadInvoices} />
         </>
@@ -289,19 +513,21 @@ function SectionHeader({ title, description, action, onAction }: { title: string
 }
 
 function RevenueChart({ totalRevenue, growthRate, trend }: { totalRevenue: number; growthRate: string; trend: ChartDataPoint[] }) {
+  const t = useT();
+  const locale = useLocale();
   const maxVal = Math.max(...trend.map((d) => d.value), 1);
   return (
     <div className="p-5 sm:p-6">
       <div className="mb-5 flex items-end justify-between">
         <div>
-          <strong className="text-2xl font-semibold text-slate-950">{money.format(totalRevenue)}</strong>
+          <strong className="text-2xl font-semibold text-slate-950">{formatVndCurrency(totalRevenue, locale)}</strong>
           <span className="ml-2 text-xs font-semibold text-emerald-700">{growthRate}</span>
         </div>
-        <span className="text-xs text-slate-400">Đơn vị: VNĐ</span>
+        <span className="text-xs text-slate-400">{t("master.commerce.billingWorkspace.chart.unit")}</span>
       </div>
       {trend.length > 0 ? (
         <>
-          <div className="flex h-44 items-end gap-3 sm:gap-5" role="img" aria-label="Biểu đồ doanh thu thực tế">
+          <div className="flex h-44 items-end gap-3 sm:gap-5" role="img" aria-label={t("master.commerce.billingWorkspace.chart.ariaLabel")}>
             <div className="flex h-full flex-1 items-end justify-around border-b border-slate-200 bg-[linear-gradient(to_top,#e2e8f0_1px,transparent_1px)] [background-size:100%_25%]">
               {trend.map((point) => {
                 const heightPct = Math.max(8, Math.round((point.value / maxVal) * 92));
@@ -312,7 +538,7 @@ function RevenueChart({ totalRevenue, growthRate, trend }: { totalRevenue: numbe
                       style={{ height: `${heightPct}%` }}
                     >
                       <span className="absolute inset-x-0 -top-6 hidden text-center text-[10px] font-semibold text-blue-700 group-hover:block">
-                        {money.format(point.value)}
+                        {formatVndCurrency(point.value, locale)}
                       </span>
                     </div>
                   </div>
@@ -333,7 +559,7 @@ function RevenueChart({ totalRevenue, growthRate, trend }: { totalRevenue: numbe
         </>
       ) : (
         <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-          Chưa có dữ liệu hóa đơn thanh toán trong kỳ.
+          {t("master.commerce.billingWorkspace.chart.empty")}
         </div>
       )}
     </div>
@@ -345,9 +571,11 @@ function StatusLegend({ color, label, value }: { color: string; label: string; v
 }
 
 function CompactPlan({ plan, tenants }: { plan: SubscriptionPlan; tenants: number }) {
-  const displayPrice = plan.priceYearly 
-    ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
-    : "0 đ";
+  const t = useT();
+  const locale = useLocale();
+  const displayPrice = plan.priceYearly
+    ? `${formatNumber(plan.priceYearly, undefined, locale)} ₫`
+    : "0 ₫";
   const count = plan.subscriberCount ?? tenants;
   return (
     <article className="p-5 sm:p-6">
@@ -359,19 +587,21 @@ function CompactPlan({ plan, tenants }: { plan: SubscriptionPlan; tenants: numbe
         <span className={cn("size-2 rounded-full", plan.status === "ACTIVE" ? "bg-emerald-500" : plan.status === "ARCHIVED" ? "bg-amber-500" : "bg-slate-300")} />
       </div>
       <h3 className="mt-4 text-sm font-semibold text-slate-950">{plan.name}</h3>
-      <p className="mt-1 text-xs text-slate-500">{count} tenant đang sử dụng</p>
+      <p className="mt-1 text-xs text-slate-500">{t("master.commerce.billingWorkspace.compactPlan.tenantsUsing", { count })}</p>
       <div className="mt-4 flex items-baseline gap-1">
         <strong className="text-xl text-slate-950">{displayPrice}</strong>
-        <span className="text-xs text-slate-500">/ năm</span>
+        <span className="text-xs text-slate-500">/ {t("master.commerce.common.yearUnit")}</span>
       </div>
     </article>
   );
 }
 
 function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan; tenants: number; onEdit: () => void; onToggle: () => void }) {
-  const displayPrice = plan.priceYearly 
-    ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
-    : "0 đ";
+  const t = useT();
+  const locale = useLocale();
+  const displayPrice = plan.priceYearly
+    ? `${formatNumber(plan.priceYearly, undefined, locale)} ₫`
+    : "0 ₫";
   const subscriberCount = plan.subscriberCount ?? tenants;
   const isArchived = plan.archived || plan.status === "ARCHIVED";
   return (
@@ -384,7 +614,7 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
               <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">v{plan.version ?? 1}</span>
               {plan.custom && (
                 <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
-                  Custom Enterprise {plan.targetTenantId ? `#${plan.targetTenantId}` : ""}
+                  {t("master.commerce.billingWorkspace.planCard.customBadge")} {plan.targetTenantId ? `#${plan.targetTenantId}` : ""}
                 </span>
               )}
             </div>
@@ -398,34 +628,38 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
               ? "bg-amber-100 text-amber-800"
               : "bg-slate-100 text-slate-500"
           )}>
-            {plan.status === "ACTIVE" && !isArchived ? "Đang mở bán" : isArchived ? "Đã lưu trữ (Grandfathered)" : "Tạm ngưng"}
+            {plan.status === "ACTIVE" && !isArchived
+              ? t("master.commerce.billingWorkspace.planCard.statusActive")
+              : isArchived
+              ? t("master.commerce.billingWorkspace.planCard.statusArchived")
+              : t("master.commerce.billingWorkspace.planCard.statusPaused")}
           </span>
         </div>
         <p className="mt-3 min-h-10 text-xs leading-5 text-slate-500">{plan.description}</p>
         <div className="mt-5 flex items-baseline gap-1.5">
           <strong className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950">{displayPrice}</strong>
-          <span className="text-xs font-semibold text-slate-600">/ năm</span>
+          <span className="text-xs font-semibold text-slate-600">/ {t("master.commerce.common.yearUnit")}</span>
         </div>
         <p className="mt-1 text-xs text-emerald-600 font-medium">
-          {isArchived ? "Ngừng bán mới · Khách cũ vẫn được gia hạn giá bảo lưu" : "Bản quyền phần mềm theo năm"}
+          {isArchived ? t("master.commerce.billingWorkspace.planCard.archivedDesc") : t("master.commerce.billingWorkspace.planCard.activeDesc")}
         </p>
       </div>
       <div className="flex-1 space-y-3 p-6 text-sm text-slate-600">
-        <PlanFeature text={plan.maxJobs < 0 ? "Không giới hạn vị trí tuyển dụng" : `${plan.maxJobs} vị trí tuyển dụng`} />
-        <PlanFeature text={plan.maxCvParses < 0 ? "Không giới hạn phân tích CV" : `${plan.maxCvParses.toLocaleString("vi-VN")} lượt phân tích CV / năm`} />
-        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? "Phỏng vấn AI không giới hạn" : plan.maxAiInterviewHours === 0 ? "Không hỗ trợ AI" : `${plan.maxAiInterviewHours} giờ phỏng vấn AI`} />
-        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? "Lưu trữ không giới hạn" : plan.maxStorageGb === 0 ? "Không cấp phát lưu trữ" : `${plan.maxStorageGb} GB lưu trữ`} />
+        <PlanFeature text={plan.maxJobs == null || plan.maxJobs < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedJobs") : plan.maxJobs === 0 ? t("master.commerce.billingWorkspace.planCard.noJobs") : t("master.commerce.billingWorkspace.planCard.limitedJobs", { count: formatNumber(plan.maxJobs, undefined, locale) })} />
+        <PlanFeature text={plan.maxCvParses == null || plan.maxCvParses < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedCv") : plan.maxCvParses === 0 ? t("master.commerce.billingWorkspace.planCard.noCv") : t("master.commerce.billingWorkspace.planCard.limitedCv", { count: formatNumber(plan.maxCvParses, undefined, locale) })} />
+        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedAi") : plan.maxAiInterviewHours === 0 ? t("master.commerce.billingWorkspace.planCard.noAi") : t("master.commerce.billingWorkspace.planCard.limitedAi", { count: formatNumber(plan.maxAiInterviewHours, undefined, locale) })} />
+        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? t("master.commerce.billingWorkspace.planCard.unlimitedStorage") : plan.maxStorageGb === 0 ? t("master.commerce.billingWorkspace.planCard.noStorage") : t("master.commerce.billingWorkspace.planCard.limitedStorage", { count: formatNumber(plan.maxStorageGb, undefined, locale) })} />
         <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-          <span className="text-slate-500">Hợp đồng đang tham chiếu</span>
+          <span className="text-slate-500">{t("master.commerce.billingWorkspace.planCard.referencingContracts")}</span>
           <strong className="text-slate-900">{subscriberCount}</strong>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
         <button type="button" onClick={onEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-50 text-sm font-semibold text-blue-700 hover:bg-blue-100">
-          <SlidersHorizontal className="size-4" />{subscriberCount > 0 ? "Tạo bản mới / Clone" : "Chỉnh sửa"}
+          <SlidersHorizontal className="size-4" />{subscriberCount > 0 ? t("master.commerce.billingWorkspace.planCard.cloneBtn") : t("master.commerce.billingWorkspace.planCard.editBtn")}
         </button>
         <button type="button" onClick={onToggle} className="min-h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-          {plan.status === "ACTIVE" ? "Lưu trữ (Archive)" : "Mở bán lại"}
+          {plan.status === "ACTIVE" ? t("master.commerce.billingWorkspace.planCard.archiveBtn") : t("master.commerce.billingWorkspace.planCard.reactivateBtn")}
         </button>
       </div>
     </article>
@@ -435,15 +669,18 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
 function PlanFeature({ text }: { text: string }) { return <div className="flex items-center gap-2"><span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-700"><Check className="size-3" /></span><span>{text}</span></div>; }
 
 function InvoiceTable({ invoices: rows, onShowAll, onDownload }: { invoices: InvoiceItem[]; onShowAll?: () => void; onDownload: () => void }) {
-  return <section className={cn(surface, "overflow-hidden")}><SectionHeader title="Hóa đơn gần đây" description={`${rows.length} hóa đơn trong danh sách`} action={onShowAll ? "Xem tất cả" : "Tải xuống"} onAction={onShowAll ?? onDownload} /><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">Mã hóa đơn</th><th className="px-6 py-3">Doanh nghiệp</th><th className="px-6 py-3">Gói</th><th className="px-6 py-3">Đến hạn</th><th className="px-6 py-3 text-right">Giá trị</th><th className="px-6 py-3">Trạng thái</th></tr></thead><tbody>{rows.map((invoice) => <tr key={invoice.id} className="border-t border-slate-100 transition-colors hover:bg-blue-50/30"><td className="px-6 py-4 font-mono text-xs font-semibold text-blue-700"><span className="inline-flex items-center gap-2"><FileText className="size-4 text-slate-400" />{invoice.invoiceNumber}</span></td><td className="px-6 py-4 font-medium text-slate-900">{invoice.tenantName ?? invoice.tenantCode ?? `#${invoice.tenantId}`}</td><td className="px-6 py-4 text-slate-500">{invoice.planName ?? invoice.planCode ?? "Enterprise"}</td><td className="px-6 py-4 text-slate-500">{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("vi-VN") : "—"}</td><td className="px-6 py-4 text-right font-semibold text-slate-900">{money.format(invoice.amount)}</td><td className="px-6 py-4"><InvoiceBadge status={invoice.status} /></td></tr>)}{rows.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-500">Chưa có hóa đơn nào trong hệ thống.</td></tr>}</tbody></table></div></section>;
+  const t = useT();
+  const locale = useLocale();
+  return <section className={cn(surface, "overflow-hidden")}><SectionHeader title={t("master.commerce.billingWorkspace.invoiceTable.title")} description={t("master.commerce.billingWorkspace.invoiceTable.desc", { count: rows.length })} action={onShowAll ? t("master.commerce.billingWorkspace.invoiceTable.viewAll") : t("master.commerce.billingWorkspace.invoiceTable.download")} onAction={onShowAll ?? onDownload} /><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">{t("master.commerce.billingWorkspace.invoiceTable.colInvoice")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.invoiceTable.colCompany")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.invoiceTable.colPlan")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.invoiceTable.colDueDate")}</th><th className="px-6 py-3 text-right">{t("master.commerce.billingWorkspace.invoiceTable.colAmount")}</th><th className="px-6 py-3">{t("master.commerce.billingWorkspace.invoiceTable.colStatus")}</th></tr></thead><tbody>{rows.map((invoice) => <tr key={invoice.id} className="border-t border-slate-100 transition-colors hover:bg-blue-50/30"><td className="px-6 py-4 font-mono text-xs font-semibold text-blue-700"><span className="inline-flex items-center gap-2"><FileText className="size-4 text-slate-400" />{invoice.invoiceNumber}</span></td><td className="px-6 py-4 font-medium text-slate-900">{invoice.tenantName ?? invoice.tenantCode ?? `#${invoice.tenantId}`}</td><td className="px-6 py-4 text-slate-500">{invoice.planName ?? invoice.planCode ?? "Enterprise"}</td><td className="px-6 py-4 text-slate-500">{invoice.dueDate ? formatDate(invoice.dueDate, undefined, locale) : "—"}</td><td className="px-6 py-4 text-right font-semibold text-slate-900">{formatVndCurrency(invoice.amount, locale)}</td><td className="px-6 py-4"><InvoiceBadge status={invoice.status} /></td></tr>)}{rows.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-500">{t("master.commerce.billingWorkspace.invoiceTable.empty")}</td></tr>}</tbody></table></div></section>;
 }
 
 function InvoiceBadge({ status }: { status: InvoiceStatus }) {
+  const t = useT();
   const config = ({
-    PAID: ["Đã thanh toán", "bg-emerald-50 text-emerald-700"],
-    PENDING: ["Đang chờ", "bg-amber-50 text-amber-700"],
-    OVERDUE: ["Quá hạn", "bg-red-50 text-red-700"],
-    CANCELLED: ["Đã hủy", "bg-slate-100 text-slate-600"],
-  } as const)[status] ?? ["Đang chờ", "bg-amber-50 text-amber-700"];
+    PAID: [t("master.commerce.billingWorkspace.invoiceStatus.PAID"), "bg-emerald-50 text-emerald-700"],
+    PENDING: [t("master.commerce.billingWorkspace.invoiceStatus.PENDING"), "bg-amber-50 text-amber-700"],
+    OVERDUE: [t("master.commerce.billingWorkspace.invoiceStatus.OVERDUE"), "bg-red-50 text-red-700"],
+    CANCELLED: [t("master.commerce.billingWorkspace.invoiceStatus.CANCELLED"), "bg-slate-100 text-slate-600"],
+  } as const)[status] ?? [t("master.commerce.billingWorkspace.invoiceStatus.PENDING"), "bg-amber-50 text-amber-700"];
   return <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold", config[1])}><span className="size-1.5 rounded-full bg-current" />{config[0]}</span>;
 }

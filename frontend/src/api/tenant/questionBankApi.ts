@@ -1,6 +1,7 @@
 import type { CodingContent, SampleResult } from "@/api/types/assessment";
 import type { BankGenerationRequest, BankGenerationResponse } from "@/api/types/bankGeneration";
 import { api } from "@/lib/axios";
+import { t } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import type { ApiResponse } from "@/types/api";
 import type { BankQuestion, BankQuestionPage, BankQuestionQuery, BankQuestionRequest } from "@/api/types/questionBank";
@@ -129,7 +130,7 @@ export const questionBankApi = {
               } catch {}
               break streamLoop;
             } else if (eventName === "generation_error") {
-              throw new Error(parsed.message || "Lỗi sinh câu hỏi từ AI");
+              throw new Error(parsed.message || t("errors.aiQuestionGenFailed"));
             }
           } catch (parseErr) {
             if (eventName === "generation_error") throw parseErr;
