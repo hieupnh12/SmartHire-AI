@@ -16,7 +16,6 @@ import {
   Save,
   Sparkles,
   StickyNote,
-  Users,
   Workflow,
   XCircle,
 } from "lucide-react";
@@ -308,25 +307,7 @@ export function ApplicantDetailPage() {
 
   return (
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 pb-10 text-[var(--color-on-surface)]">
-      {/* 1. Breadcrumb Trail (đồng bộ CvDetailPage) */}
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 px-1 text-xs sm:text-sm">
-        <Users className="size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-        <Link
-          to={listUrl}
-          className="font-medium text-slate-600 transition-colors hover:text-[var(--color-primary)]"
-        >
-          {t("recruiter.ops.applicants.detail.breadcrumbApplicants", { jobTitle })}
-        </Link>
-        <span className="text-slate-400" aria-hidden="true">/</span>
-        <span className="truncate font-semibold text-slate-900">
-          {detail.candidateName}{" "}
-          <span className="font-normal text-slate-500">
-            {t("recruiter.ops.applicants.detail.breadcrumbApplicationId", { id: detail.id })}
-          </span>
-        </span>
-      </nav>
-
-      {/* 2. Top Candidate Header Card */}
+      {/* Top Candidate Header Card */}
       <header className="flex flex-col gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-5 py-4 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3.5">
           <Link

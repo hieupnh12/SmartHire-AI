@@ -98,6 +98,32 @@ public class FileStorageService {
             return id;
         } catch (Exception ex) { throw new IOException("Cannot store private interview audio", ex); }
     }
+
+    public String storeInterviewVideo(String tenantId, byte[] content, String extension) throws IOException {
+        String safeTenant = safeSegment(tenantId, "tenantId");
+        String id = "interview_rec_" + safeTenant + "_" + java.util.UUID.randomUUID();
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = cloudinary.uploader().upload(content, ObjectUtils.asMap(
+                    "resource_type", "video",
+                    "type", "upload",
+                    "public_id", id,
+                    "overwrite", true,
+                    "format", extension));
+            Object url = result.get("secure_url");
+            if (url != null && !url.toString().isBlank()) {
+                return url.toString();
+            }
+        } catch (Exception ex) {
+            log.warn("Cloudinary video upload failed ({}), saving to local disk fallback: {}", ex.getClass().getSimpleName(), ex.getMessage());
+        }
+        // Local disk fallback for dev/demo or when Cloudinary video plan is limited
+        java.nio.file.Path dir = java.nio.file.Paths.get("uploads", "recordings", safeTenant);
+        java.nio.file.Files.createDirectories(dir);
+        String filename = id + "." + extension;
+        java.nio.file.Files.write(dir.resolve(filename), content);
+        return "/api/v1/interviews/recordings/file/" + filename;
+    }
     @SuppressWarnings("unchecked")
     public byte[] readInterviewAudio(String key) throws IOException {
         if (key == null || !key.matches("interview_[a-z0-9_-]+")) throw new IOException("Invalid audio key");
