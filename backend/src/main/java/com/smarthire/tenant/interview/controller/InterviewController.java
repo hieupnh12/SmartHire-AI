@@ -53,6 +53,54 @@ public class InterviewController {
     public ApiResponse<BulkResult> bulk(@Valid @RequestBody BulkRequest body) { return ApiResponse.ok(service.bulk(body)); }
     @GetMapping("/{id}/email-preview") @Operation(summary="Preview the persisted invitation")
     public ApiResponse<EmailPreview> preview(@PathVariable long id) { return ApiResponse.ok(service.emailPreview(id)); }
+    @PostMapping(value = "/{id}/recording", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload a video recording for an interview")
+    public ApiResponse<InterviewView> uploadRecording(
+            @PathVariable long id,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(value = "source", defaultValue = "UPLOAD") String source) {
+        return ApiResponse.ok(service.uploadRecording(id, file, source));
+    }
+
+    @PostMapping("/{id}/recording-link")
+    @Operation(summary = "Attach an external video recording URL for an interview")
+    public ApiResponse<InterviewView> attachRecording(
+            @PathVariable long id,
+            @Valid @RequestBody RecordingRequest body) {
+        return ApiResponse.ok(service.attachRecording(id, body));
+    }
+
+    @DeleteMapping("/{id}/recording")
+    @Operation(summary = "Remove video recording from an interview")
+    public ApiResponse<InterviewView> removeRecording(@PathVariable long id) {
+        return ApiResponse.ok(service.removeRecording(id));
+    }
+
+    @PostMapping("/{id}/chapters")
+    @Operation(summary = "Update chapters timeline bookmarks for an interview recording")
+    public ApiResponse<InterviewView> updateChapters(
+            @PathVariable long id,
+            @RequestBody List<HumanInterviewModels.Chapter> chapters) {
+        return ApiResponse.ok(service.updateChapters(id, chapters));
+    }
+
+    @PostMapping("/{id}/chapters/ai-extract")
+    @Operation(summary = "Extract chapters automatically using AI based on rubric")
+    public ApiResponse<InterviewView> extractAiChapters(@PathVariable long id) {
+        return ApiResponse.ok(service.extractAiChapters(id));
+    }
+
+    @GetMapping("/recordings/file/{filename}")
+    @Operation(summary = "Download or stream local interview recording video")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadRecording(@PathVariable String filename) {
+        var resource = service.getRecordingFile(filename);
+        String mediaType = filename.endsWith(".webm") ? "video/webm" : filename.endsWith(".mov") ? "video/quicktime" : "video/mp4";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mediaType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .body(resource);
+    }
+
     @GetMapping(value="/export",produces="text/calendar") @Operation(summary="Export published job interviews as ICS")
     public ResponseEntity<String> export(@RequestParam long jobId) { return calendar(service.calendar(jobId)); }
     @GetMapping(value="/{id}/calendar",produces="text/calendar") @Operation(summary="Download a human interview calendar invitation")

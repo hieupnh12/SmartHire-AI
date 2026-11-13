@@ -1358,5 +1358,17 @@ All 3/3 public test cases PASSED successfully!`,
       connectedGuest: "Joined room — connecting video with everyone.",
       deviceError: "Device error",
     },
+    startRecord: "Record",
+    stopRecord: "Stop Recording",
+    recordingActive: "REC · Recording",
+    recordingModalTitle: "SmartHire Room Recording Completed",
+    recordingModalDesc:
+      "The meeting recording has been captured. You can download it locally or save it directly to the interview session.",
+    downloadLocal: "Download (.webm)",
+    saveToInterview: "Save to Interview",
+    saving: "Saving...",
+    saveSuccess: "SmartHire Room recording saved successfully to interview session!",
+    recordPermissionError:
+      "Could not start recording. Please allow screen or tab audio sharing permissions.",
   },
 } as const;

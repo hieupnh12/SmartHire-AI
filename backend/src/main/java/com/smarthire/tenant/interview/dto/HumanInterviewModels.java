@@ -17,8 +17,60 @@ public final class HumanInterviewModels {
         @NotBlank @Pattern(regexp="STANDARD|EXPRESS|EXECUTIVE") String emailTemplate,
         @Size(max=2000) String notes, boolean attachCalendar, boolean smsReminder, boolean draft,
         @NotEmpty @Size(max=10) List<@Valid ParticipantInput> participants) {}
-    public record Configuration(String rubric, String provider, String emailTemplate, String notes,
-        boolean attachCalendar, String rescheduleReason, Instant requestedStart, Instant requestedEnd) {}
+    public record Chapter(int time, String label, String desc) {}
+    public record Configuration(
+        String rubric,
+        String provider,
+        String emailTemplate,
+        String notes,
+        boolean attachCalendar,
+        String rescheduleReason,
+        Instant requestedStart,
+        Instant requestedEnd,
+        String recordingUrl,
+        String recordingType,
+        Long recordingSize,
+        String recordingSource,
+        Instant recordedAt,
+        List<Chapter> chapters
+    ) {
+        public Configuration(
+            String rubric,
+            String provider,
+            String emailTemplate,
+            String notes,
+            boolean attachCalendar,
+            String rescheduleReason,
+            Instant requestedStart,
+            Instant requestedEnd
+        ) {
+            this(rubric, provider, emailTemplate, notes, attachCalendar, rescheduleReason, requestedStart, requestedEnd, null, null, null, null, null, null);
+        }
+
+        public Configuration(
+            String rubric,
+            String provider,
+            String emailTemplate,
+            String notes,
+            boolean attachCalendar,
+            String rescheduleReason,
+            Instant requestedStart,
+            Instant requestedEnd,
+            String recordingUrl,
+            String recordingType,
+            Long recordingSize,
+            String recordingSource,
+            Instant recordedAt
+        ) {
+            this(rubric, provider, emailTemplate, notes, attachCalendar, rescheduleReason, requestedStart, requestedEnd, recordingUrl, recordingType, recordingSize, recordingSource, recordedAt, null);
+        }
+    }
+    public record RecordingRequest(
+        @NotBlank @Size(max = 2048) String recordingUrl,
+        @Size(max = 128) String recordingType,
+        Long recordingSize,
+        @Pattern(regexp = "UPLOAD|SMARTHIRE_RECORDER|EXTERNAL_LINK") String source
+    ) {}
     public record ParticipantView(long userId, String name, String email, String role) {}
     public record EvaluationView(long id, long evaluatorId, String evaluatorName, BigDecimal technicalScore,
         BigDecimal communicationScore, BigDecimal cultureScore, BigDecimal overallScore,
