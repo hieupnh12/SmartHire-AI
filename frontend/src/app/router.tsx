@@ -94,6 +94,8 @@ import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessmen
 import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentCreationPage";
 import { AiQuestionGeneratorPage } from "@/features/tenant/recruiter/assessments/pages/AiQuestionGeneratorPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
+import { InterviewSchedulePage } from "@/features/tenant/recruiter/interviews/pages/InterviewSchedulePage";
+import { InterviewEvaluationPage } from "@/features/tenant/recruiter/interviews/pages/InterviewEvaluationPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { AiInterviewDetailPage as RecruiterAiInterviewDetailPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewDetailPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
@@ -274,6 +276,10 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
             <Route path="jobs/:id/interviews" element={<JobRecruitmentWorkspace><RecruiterInterviewsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/new" element={<JobRecruitmentWorkspace><InterviewSchedulePage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/edit" element={<JobRecruitmentWorkspace><InterviewSchedulePage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/evaluation" element={<JobRecruitmentWorkspace><InterviewEvaluationPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/interviews/:interviewId/scorecard" element={<JobRecruitmentWorkspace><InterviewEvaluationPage /></JobRecruitmentWorkspace>} />
             <Route path="interviews" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>
