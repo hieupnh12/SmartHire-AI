@@ -13,9 +13,6 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
-import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme } from "@/lib/tenantTheme";
-import { MobileAppSyncCard } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
 
 const FILTER_VALUES: ("ALL" | ApplicationStatus)[] = [
   "ALL",
@@ -34,8 +31,6 @@ const FILTER_VALUES: ("ALL" | ApplicationStatus)[] = [
 export function MyApplicationsPage() {
   const t = useT();
   const locale = useLocale();
-  const tenantCode = getTenantIdFromWindow() || "acme";
-  const theme = getTenantTheme(tenantCode);
   const token = useAuthStore((state) => state.accessToken);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"ALL" | ApplicationStatus>("ALL");
@@ -78,8 +73,6 @@ export function MyApplicationsPage() {
           <div className="w-fit rounded-2xl border border-[var(--color-primary)]/15 bg-white/80 px-4 py-3 text-right"><strong className="block text-2xl text-[var(--color-primary)]">{activeRows.length}</strong><span className="text-xs text-[var(--color-on-surface-variant)]">{t("candidate.core.applications.trackingCountLabel")}</span></div>
         </div>
       </header>
-
-      <MobileAppSyncCard variant="compact" tenantName={theme.name} tenantCode={tenantCode} />
 
       {mine.isSuccess && activeRows.length > 0 && (
         <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-[var(--shadow-card)]">

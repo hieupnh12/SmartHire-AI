@@ -111,15 +111,14 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     "/notifications",
   ]);
   const displayedLinks = isRecruiterWorkspace
-    ? isRecruiterJobForm || (accessToken && !user)
+    ? isRecruiterJobForm || (accessToken && !user) || !recruiterJobId
       ? []
-      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "").map((item) => {
           let to: string = item.to;
           if (item.to === "/jobs") {
-            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "";
+            to = `/jobs/${recruiterJobId}`;
           } else if (jobScopedNav.has(item.to)) {
-            if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
-            else to = "";
+            to = `/jobs/${recruiterJobId}${item.to}`;
           }
           return { ...item, to };
         })
@@ -140,6 +139,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     !isRecruiterDashboard &&
     !isRecruiterQuestionBank &&
     !isRecruiterJobForm &&
+    !!recruiterJobId &&
     !!accessToken &&
     !user;
 

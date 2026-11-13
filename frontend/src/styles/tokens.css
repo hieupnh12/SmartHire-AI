@@ -128,9 +128,8 @@
   --color-border-focus: #0d9488;
 }
 
-.tenant-workspace-theme,
-.tenant-workspace-theme * {
-  --tw-ring-color: rgba(13, 148, 136, 0.35);
+.tenant-workspace-theme {
+  --tw-ring-color: color-mix(in srgb, var(--color-primary, #0d9488) 25%, transparent);
 }
 
 .tenant-workspace-theme ::selection {
