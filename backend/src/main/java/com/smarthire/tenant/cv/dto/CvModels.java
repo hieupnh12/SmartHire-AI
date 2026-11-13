@@ -201,7 +201,14 @@ public final class CvModels {
             long cvId,
             BigDecimal score,
             JsonNode breakdown,
-            String modelVersion) {}
+            String modelVersion,
+            String contentHash,
+            String sourceLocale,
+            Boolean translationPending) {
+        public MatchView(long jobId, long cvId, BigDecimal score, JsonNode breakdown, String modelVersion) {
+            this(jobId, cvId, score, breakdown, modelVersion, null, null, null);
+        }
+    }
 
     public record JobSkillItem(
             @NotBlank String name,

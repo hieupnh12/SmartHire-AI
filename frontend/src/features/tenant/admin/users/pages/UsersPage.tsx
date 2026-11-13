@@ -371,9 +371,6 @@ export function UsersPage() {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold text-[var(--color-text-primary)]">{t("tenantAdmin.users.pageTitle")}</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            {t("tenantAdmin.users.pageSubtitleV2")}
-          </p>
         </div>
       </div>
 

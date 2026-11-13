@@ -847,6 +847,9 @@ export function ApplicantDetailPage() {
                             breakdown={cvBreakdown}
                             extraction={cvDetail.extraction}
                             skills={cvDetail.skills}
+                            cvId={cvDetail.id}
+                            contentHash={cvDetail.match.contentHash}
+                            translationPending={cvDetail.match.translationPending}
                             wide
                           />
                         ) : (

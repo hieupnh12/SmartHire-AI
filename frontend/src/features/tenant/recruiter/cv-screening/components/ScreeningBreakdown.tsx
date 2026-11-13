@@ -1,8 +1,9 @@
-import { AlertTriangle, BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, Loader2, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatNumber, useI18nStore, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { MatchBreakdown, RequirementMatch, RequirementStatus, SkillView } from "@/api/types/cv";
+import { useAiLocalization } from "@/hooks/useAiLocalization";
 
 function translateOrFallback(t: TranslateFn, prefix: string, key: string | undefined | null) {
   if (!key) return "";
@@ -353,16 +354,45 @@ export function ScreeningAiPanel({
   breakdown,
   extraction,
   skills,
+  cvId,
+  contentHash,
+  translationPending,
 }: {
   breakdown: MatchBreakdown | null | undefined;
   extraction?: Record<string, unknown> | null;
   skills?: SkillView[];
+  cvId?: number | null;
+  contentHash?: string | null;
+  translationPending?: boolean | null;
 }) {
   const t = useT();
+
+  const {
+    displayContent,
+    isTranslated,
+    isTranslating,
+    showOriginal,
+    toggleOriginal,
+  } = useAiLocalization({
+    entityType: "CV_SCREENING",
+    entityId: cvId,
+    content: breakdown,
+    contentHash: contentHash ?? (breakdown as any)?.contentHash,
+    translationPending: translationPending ?? (breakdown as any)?.translationPending,
+    sourceLocale: "vi",
+  });
+
   if (!breakdown) return null;
-  const verdictText = breakdown.verdict?.trim() ? screeningCopy(breakdown.verdict.trim(), t) : localVerdict(breakdown, t);
-  const serverStrengths = (breakdown.strengths ?? []).map((item) => item.trim()).filter(Boolean);
-  const serverRisks = (breakdown.risks ?? []).map((item) => item.trim()).filter(Boolean);
+
+  const activeContent = displayContent ?? breakdown;
+
+  const rawVerdict = activeContent.verdict?.trim() ?? "";
+  const verdictText = rawVerdict
+    ? (isTranslated && !showOriginal ? rawVerdict : screeningCopy(rawVerdict, t))
+    : localVerdict(breakdown, t);
+
+  const serverStrengths = (activeContent.strengths ?? []).map((item) => item.trim()).filter(Boolean);
+  const serverRisks = (activeContent.risks ?? []).map((item) => item.trim()).filter(Boolean);
   const strengths = serverStrengths.length > 0 ? serverStrengths : localStrengths(breakdown, t, extraction, skills);
   const risks = serverRisks.length > 0 ? serverRisks : localRisks(breakdown, t);
   const deepAi = breakdown.decisionSource !== "formula" && serverStrengths.length > 0 && serverRisks.length > 0;
@@ -370,10 +400,32 @@ export function ScreeningAiPanel({
   return (
     <div className="space-y-4">
       <div className="space-y-3 rounded-2xl bg-[var(--color-primary-subtle)] p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            {t("recruiter.screening.breakdown.aiReviewTitle")}
+            <span>{t("recruiter.screening.breakdown.aiReviewTitle")}</span>
+            {isTranslating && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-normal text-slate-500 dark:text-slate-400 animate-pulse">
+                <Loader2 className="size-3 animate-spin" />
+                {t("recruiter.screening.breakdown.aiTranslating")}
+              </span>
+            )}
+            {isTranslated && (
+              <div className="inline-flex items-center gap-1.5 text-[11px]">
+                <span className="rounded bg-[var(--color-primary)]/10 px-1.5 py-0.5 font-medium text-[var(--color-primary)]">
+                  {t("recruiter.screening.breakdown.aiTranslated")}
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleOriginal}
+                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 underline cursor-pointer transition-colors"
+                >
+                  {showOriginal
+                    ? t("recruiter.screening.breakdown.viewTranslation")
+                    : t("recruiter.screening.breakdown.viewOriginal")}
+                </button>
+              </div>
+            )}
           </div>
           <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
             {deepAi ? t("recruiter.screening.breakdown.deepEvaluation") : t("recruiter.screening.breakdown.summaryEvaluation")}
@@ -412,7 +464,7 @@ export function ScreeningAiPanel({
           </div>
         </div>
       </div>
-      <AdviceBlock breakdown={breakdown} />
+      <AdviceBlock breakdown={activeContent} isTranslated={isTranslated} showOriginal={showOriginal} />
     </div>
   );
 }
@@ -424,6 +476,9 @@ export function ScreeningBreakdown({
   wide = false,
   extraction,
   skills,
+  cvId,
+  contentHash,
+  translationPending,
 }: {
   score: number;
   modelVersion?: string | null;
@@ -431,6 +486,9 @@ export function ScreeningBreakdown({
   wide?: boolean;
   extraction?: Record<string, unknown> | null;
   skills?: SkillView[];
+  cvId?: number | null;
+  contentHash?: string | null;
+  translationPending?: boolean | null;
 }) {
   const t = useT();
   if (!breakdown && score == null) return null;
@@ -439,7 +497,14 @@ export function ScreeningBreakdown({
     <div className="space-y-5">
       <div className={pair}>
         <ScreeningScoreCard score={score} modelVersion={modelVersion} breakdown={breakdown} />
-        <ScreeningAiPanel breakdown={breakdown} extraction={extraction} skills={skills} />
+        <ScreeningAiPanel
+          breakdown={breakdown}
+          extraction={extraction}
+          skills={skills}
+          cvId={cvId}
+          contentHash={contentHash}
+          translationPending={translationPending}
+        />
       </div>
 
       <ComponentBars breakdown={breakdown} />
@@ -457,10 +522,20 @@ export function ScreeningBreakdown({
   );
 }
 
-function AdviceBlock({ breakdown }: { breakdown: MatchBreakdown }) {
+function AdviceBlock({
+  breakdown,
+  isTranslated,
+  showOriginal,
+}: {
+  breakdown: MatchBreakdown;
+  isTranslated?: boolean;
+  showOriginal?: boolean;
+}) {
   const t = useT();
   const stored = breakdown.advice?.trim() ?? "";
-  const text = stored ? screeningCopy(stored, t) : localAdvice(breakdown, t);
+  const text = stored
+    ? (isTranslated && !showOriginal ? stored : screeningCopy(stored, t))
+    : localAdvice(breakdown, t);
   const questions = breakdown.interviewQuestions ?? [];
   if (!text && questions.length === 0) return null;
   return (

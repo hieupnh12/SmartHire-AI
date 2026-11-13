@@ -28,6 +28,7 @@ import { formatSalaryText } from "@/lib/formatSalary";
 import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadline";
 import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { JobDetailAppQrCard } from "@/features/tenant/candidate/jobs/components/JobDetailAppQrCard";
+import { useLocalizedLanding } from "@/features/tenant/candidate/jobs/utils/landingLocalization";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { Skeleton } from "@/components/ux/Skeleton";
@@ -574,7 +575,8 @@ export function TenantCareerPage() {
     toggleSaveMutation.mutate({ targetJobId, alreadySaved: savedJobIds.has(targetJobId) });
   };
 
-  const customLanding = publicLanding.data?.data;
+  const rawLanding = publicLanding.data?.data;
+  const customLanding = useLocalizedLanding(rawLanding, theme.name);
   const detailJob = publicJobDetail.data?.data ?? null;
   const detailJobNotFound =
     isJobDetailPage && !publicJobDetail.isPending && (publicJobDetail.isError || !detailJob);
