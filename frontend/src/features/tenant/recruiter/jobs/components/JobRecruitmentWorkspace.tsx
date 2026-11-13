@@ -32,7 +32,7 @@ export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
     enabled: valid,
   });
 
-  if (!valid || job.isError) return (
+  if (!valid || job.isError || (job.data && !job.data.data)) return (
     <div role="alert" className="space-y-3">
       <p>{t("recruiter.ops.jobs.workspace.loadError")}</p>
       <Link to="/recruiter" className="text-[var(--color-primary)]">{t("recruiter.ops.jobs.workspace.backToJobs")}</Link>
