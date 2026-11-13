@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { TenantSystemLog } from "@/api/master/masterAdminApi";
 import { useAuditLogs, useTenants } from "@/api/master/queries";
 import { LogDetailModal } from "../components/modals/LogDetailModal";
+import { Tooltip } from "@/components/ux/Tooltip";
 import { useT, useLocale, formatDateTime } from "@/i18n";
 import {
   Terminal,
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -188,8 +190,8 @@ export function AuditLogsPage() {
                 <th className="p-4">{t("master.ops.auditLogs.colLogId")}</th>
                 <th className="p-4">{t("master.ops.auditLogs.colCompany")}</th>
                 <th className="p-4">Phân loại</th>
-                <th className="p-4">{t("master.ops.auditLogs.colAction")}</th>
-                <th className="p-4">{t("master.ops.auditLogs.colDetails")}</th>
+                <th className="py-4 pl-4 pr-2.5 max-w-[200px]">{t("master.ops.auditLogs.colAction")}</th>
+                <th className="py-4 pl-2.5 pr-4">{t("master.ops.auditLogs.colDetails")}</th>
                 <th className="p-4">{t("master.ops.auditLogs.colLevel")}</th>
                 <th className="p-4">{t("master.ops.auditLogs.colTime")}</th>
                 <th className="p-4 text-right">{t("master.ops.auditLogs.colActions")}</th>
@@ -207,15 +209,45 @@ export function AuditLogsPage() {
                   <td className="p-4 font-sans text-slate-500 text-[11px]">
                     {log.category || "APPLICATION"}
                   </td>
-                  <td className="p-4 font-semibold text-slate-700">{log.action}</td>
-                  <td className="p-4 font-sans text-xs max-w-sm truncate text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      {log.stackTrace && (
-                        <span title="Chứa Stack Trace lỗi">
-                          <Terminal className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <td className="py-4 pl-4 pr-2.5 max-w-[200px]">
+                    <Tooltip
+                      className="flex w-full min-w-0"
+                      side="top"
+                      disabled={!log.action}
+                      content={
+                        <span className="font-mono font-semibold break-all text-[11px]">
+                          {log.action}
                         </span>
+                      }
+                    >
+                      <span className="truncate block font-semibold text-slate-700 cursor-default">
+                        {log.action}
+                      </span>
+                    </Tooltip>
+                  </td>
+                  <td className="py-4 pl-2.5 pr-4 font-sans text-xs max-w-sm text-slate-600">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {log.stackTrace && (
+                        <Tooltip side="top" content="Chứa Stack Trace lỗi">
+                          <span className="inline-flex cursor-help shrink-0">
+                            <Terminal className="w-3.5 h-3.5 text-rose-500" />
+                          </span>
+                        </Tooltip>
                       )}
-                      <span className="truncate">{log.message || log.description}</span>
+                      <Tooltip
+                        className="flex min-w-0 flex-1"
+                        side="top"
+                        disabled={!(log.message || log.description)}
+                        content={
+                          <span className="font-sans break-words text-xs leading-relaxed">
+                            {log.message || log.description}
+                          </span>
+                        }
+                      >
+                        <span className="truncate cursor-default">
+                          {log.message || log.description}
+                        </span>
+                      </Tooltip>
                     </div>
                   </td>
                   <td className="p-4">
@@ -235,12 +267,16 @@ export function AuditLogsPage() {
                     {formatDateTime(log.timestamp, undefined, locale)}
                   </td>
                   <td className="p-4 text-right">
-                    <button
-                      onClick={() => setSelectedLog(log)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors font-sans"
-                    >
-                      {t("master.ops.auditLogs.viewDetailBtn")}
-                    </button>
+                    <Tooltip side="top" content={t("master.ops.auditLogs.viewDetailBtn")}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLog(log)}
+                        aria-label={t("master.ops.auditLogs.viewDetailBtn")}
+                        className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-100 hover:text-blue-600 text-slate-600 transition-colors shadow-2xs"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
                   </td>
                 </tr>
               ))}
