@@ -80,7 +80,7 @@ public class InterviewController {
     @Operation(summary = "Update chapters timeline bookmarks for an interview recording")
     public ApiResponse<InterviewView> updateChapters(
             @PathVariable long id,
-            @RequestBody List<HumanInterviewModels.Chapter> chapters) {
+            @RequestBody List<Chapter> chapters) {
         return ApiResponse.ok(service.updateChapters(id, chapters));
     }
 
