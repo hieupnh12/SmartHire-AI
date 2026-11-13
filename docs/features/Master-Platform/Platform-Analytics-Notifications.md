@@ -38,6 +38,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 - Bảng `tenant_system_logs` chỉ cho phép ghi thêm (Append-only); không có API sửa hoặc xoá nhật ký kiểm toán.
 - Hệ thống tự động gắn `tenant_code` và `trace_id` qua SLF4J MDC (`TenantWebInterceptor` cho HTTP API và `TenantJobExecutor` cho RabbitMQ background worker).
 - Mọi ngoại lệ HTTP 5xx không kiểm soát được bắt tại `GlobalExceptionHandler` và tự động đẩy vào `tenant_system_logs` bất đồng bộ kèm vết ngăn xếp (`stack_trace`).
+- Lỗi crash giao diện phía client (`ErrorBoundary` của Frontend) được tự động gửi qua `POST /api/v1/public/logs/client-crash` kèm cơ chế chống gửi dồn (Throttle cooldown 60s) để lưu vào `tenant_system_logs` với `category = 'FRONTEND_UI'`.
 - Cơ chế chống gửi trùng Redis (`email_sent:sub_alert:*`, `web_notif:sub_alert:*`, `web_notif:quota:*`) kết hợp kiểm tra DB (`masterNotificationLogRepository.existsByTenantCodeAndTypeAndStatusAndSentAtAfter` và `notificationRepository.existsByUser_IdAndTypeAndCreatedAtAfter`) đảm bảo mỗi mốc cảnh báo (`7D`/`3D`/`1D`/`PAST_DUE`/`SUSPENDED`/`QUOTA_WARNING`) chỉ gửi tối đa **01** lần trong chu kỳ tương ứng.
 - Các tham số nhạy cảm trong `system_settings` khi lưu với cờ `is_encrypted = true` được mã hoá AES-256-GCM với context `"SYSTEM_SETTING"`.
 - API quản trị tài khoản Platform Admin (`/api/v1/master/admin/users/**`) và các endpoint phân tích chỉ cho phép `WORKSPACE_ADMIN`.
@@ -49,6 +50,7 @@ Cung cấp bảng điều khiển chỉ số tài chính và vận hành cấp n
 | GET | `/api/v1/master/analytics/revenue` | WORKSPACE_ADMIN | Doanh thu, MRR, ARR, ARPA, tăng trưởng MoM, breakdown hoá đơn, lead/hợp đồng & `revenueTrend` |
 | GET | `/api/v1/master/analytics/ai-quota` | WORKSPACE_ADMIN | Tiêu thụ AI toàn sàn, chi phí AI ước tính VNĐ, tỷ lệ thành công, latency & sức khoẻ AI |
 | GET | `/api/v1/master/analytics/logs` | WORKSPACE_ADMIN | Lấy danh sách nhật ký hệ thống & lỗi ứng dụng (`tenant_system_logs`, hỗ trợ lọc `?tenantCode=&level=`) |
+| POST | `/api/v1/public/logs/client-crash` | Public | Tiếp nhận báo cáo lỗi crash giao diện Frontend (`REACT_ERROR_BOUNDARY`) kèm stack trace |
 | GET | `/api/v1/master/system/settings` | WORKSPACE_ADMIN | Danh sách tham số hệ thống (`system_settings`, lọc `?category=`) |
 | POST | `/api/v1/master/system/settings` | WORKSPACE_ADMIN | Tạo hoặc cập nhật tham số hệ thống (hỗ trợ mã hoá `isEncrypted`) |
 | POST | `/api/v1/master/auth/{login\|refresh\|logout\|change-password}` | Public / WORKSPACE_ADMIN | Đăng nhập, làm mới token, đăng xuất (blacklist JWT) và đổi mật khẩu Admin nền tảng |

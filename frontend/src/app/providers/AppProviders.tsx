@@ -7,6 +7,7 @@ import { useAppHotkeys } from "@/hooks/useAppHotkeys";
 import { ToastViewport } from "@/components/ux/ToastViewport";
 import { ShortcutsHelp } from "@/components/ux/ShortcutsHelp";
 import { ConfirmDialog } from "@/components/ux/ConfirmDialog";
+import { ErrorBoundary } from "@/components/ux/ErrorBoundary";
 import { useT } from "@/i18n";
 
 const queryClient = new QueryClient({
@@ -71,7 +72,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
             <SkipLink />
             <HotkeysBridge />
             <CtrlWheelZoomGuard />
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
             <ToastViewport />
             <ShortcutsHelp />
             <ConfirmDialog />
