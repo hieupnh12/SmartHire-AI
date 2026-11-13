@@ -332,10 +332,11 @@ export function AppRouter() {
           <Route path="system/ai-usage" element={<AiManagementPage />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
           <Route path="system/ai-config" element={<AiManagementPage />} />
-          <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
-          <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
-          <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
-          <Route path="account/notifications" element={<MasterAccountPage activeTab="account-notifications" />} />
+          <Route path="account" element={<MasterAccountPage />} />
+          <Route path="account/profile" element={<Navigate to="/admin/account?tab=profile" replace />} />
+          <Route path="account/security" element={<Navigate to="/admin/account?tab=security" replace />} />
+          <Route path="account/accessibility" element={<Navigate to="/admin/account?tab=accessibility" replace />} />
+          <Route path="account/notifications" element={<Navigate to="/admin/account?tab=notifications" replace />} />
         </Route>
       </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />

@@ -113,7 +113,7 @@ export function MasterAdminSidebar({
           id: "tenant-directory",
           label: t("master.shell.sidebar.tenantDirectory"),
           path: "/admin/tenants/directory",
-          activePaths: ["/admin/tenants/directory", "/admin/tenants/overview"],
+          activePaths: ["/admin/tenants/directory"],
           icon: Building2,
         },
         {
@@ -163,7 +163,7 @@ export function MasterAdminSidebar({
           id: "subscriptions",
           label: t("master.shell.sidebar.saasPlans"),
           path: "/admin/subscriptions/plans",
-          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/overview", "/admin/subscriptions/create"],
+          activePaths: ["/admin/subscriptions/plans", "/admin/subscriptions/create"],
           icon: CreditCard,
         },
         {

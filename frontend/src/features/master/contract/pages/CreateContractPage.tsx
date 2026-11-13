@@ -127,6 +127,10 @@ export function CreateContractPage() {
 
   const handleCreateContractSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (contractEndDate < contractStartDate) {
+      toast.error(t("master.commerce.contractsPage.invalidDateRange") || "Ngày kết thúc hiệu lực phải sau ngày bắt đầu.");
+      return;
+    }
     setCreatingContract(true);
     try {
       const payload = {
@@ -150,6 +154,7 @@ export function CreateContractPage() {
         notes: contractNotes,
       };
       const res = await contractApi.create(payload as any);
+      queryClient.invalidateQueries({ queryKey: masterQueryKeys.contracts() });
       setContracts((prev: any[] = []) => [res, ...prev]);
       toast.success(t("master.commerce.createContract.createdToast"));
       navigate("/admin/contracts");

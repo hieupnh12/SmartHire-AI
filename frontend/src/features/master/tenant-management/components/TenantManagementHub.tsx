@@ -1,19 +1,12 @@
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { z } from "zod";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArchiveRestore,
   Building2,
   CheckCircle2,
-  ChevronRight,
-  CircleDashed,
-  Database,
   Eye,
   LoaderCircle,
-  Plus,
   RefreshCw,
   Search,
   ServerCog,
@@ -28,35 +21,21 @@ import {
   Globe,
 } from "lucide-react";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
-import { masterTenantApi, type OnboardTenantResponse } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
-import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
-import { useT, useLocale, formatNumber, formatDate, formatDateTime, type TranslateFn } from "@/i18n";
+import { useT, useLocale, formatNumber, formatDate, formatDateTime } from "@/i18n";
 
-export type TenantHubTab = "overview" | "directory" | "create" | "provisioning";
+export type TenantHubTab = "directory" | "provisioning";
 type Props = {
   activeTab: TenantHubTab;
   onTabChange: (tab: TenantHubTab) => void;
   tenants: TenantInfo[];
-  onTenantCreated: (tenant: OnboardTenantResponse) => void;
   onToggleStatus: (tenant: TenantInfo) => void;
   onSoftDeleteTenant?: (tenant: TenantInfo) => void;
   onRestoreTenant?: (tenant: TenantInfo) => void;
   onRetryProvisioning: (tenant: TenantInfo) => void;
 };
-
-function createSchema(t: TranslateFn) {
-  return z.object({
-    name: z.string().trim().min(1, t("master.ops.tenants.validation.nameRequired")).max(255),
-    code: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/, t("master.ops.tenants.validation.codeRegex")),
-    subdomain: z.string().regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, t("master.ops.tenants.validation.subdomainRegex")),
-    adminName: z.string().trim().min(1, t("master.ops.tenants.validation.adminNameRequired")).max(255),
-    adminEmail: z.string().trim().email(t("master.ops.tenants.validation.adminEmailInvalid")).max(255),
-  });
-}
-type FormValues = z.infer<ReturnType<typeof createSchema>>;
 
 const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.16)]";
 const inputClass = "min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15";
@@ -68,22 +47,6 @@ function statusStyle(status: string, deleted?: boolean) {
   if (status === "FAILED") return "bg-rose-50 text-rose-700";
   if (status === "PROVISIONING") return "bg-amber-50 text-amber-700";
   return "bg-slate-100 text-slate-600";
-}
-
-function OverviewPanel({ tenants, onNavigate }: { tenants: TenantInfo[]; onNavigate: (tab: TenantHubTab) => void }) {
-  const t = useT();
-  const active = tenants.filter((tenant) => tenant.status === "ACTIVE" && !tenant.deleted).length;
-  const provisioning = tenants.filter((tenant) => (tenant.status === "PROVISIONING" || tenant.status === "PENDING_PAYMENT") && !tenant.deleted).length;
-  const failed = tenants.filter((tenant) => tenant.status === "FAILED" && !tenant.deleted).length;
-  return <div className="space-y-5">
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
-      [t("master.ops.tenants.overview.totalTenants"), tenants.length, t("master.ops.tenants.overview.totalTenantsHelper"), Building2, "blue"],
-      [t("master.ops.tenants.overview.activeTenants"), active, t("master.ops.tenants.overview.activeTenantsHelper"), CheckCircle2, "emerald"],
-      [t("master.ops.tenants.overview.provisioningTenants"), provisioning, t("master.ops.tenants.overview.provisioningTenantsHelper"), CircleDashed, "amber"],
-      [t("master.ops.tenants.overview.attentionTenants"), failed, t("master.ops.tenants.overview.attentionTenantsHelper"), AlertTriangle, "rose"],
-    ].map(([label, value, helper, Icon, tone]) => { const MetricIcon = Icon as typeof Building2; return <article key={String(label)} className={cn(cardClass, "p-5")}><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label as string}</p><p className="mt-2 text-3xl font-bold text-slate-950">{value as number}</p></div><span className={cn("grid size-10 place-items-center rounded-xl", tone === "emerald" ? "bg-emerald-50 text-emerald-700" : tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "rose" ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700")}><MetricIcon className="size-5" /></span></div><p className="mt-4 text-xs text-slate-500">{helper as string}</p></article>; })}</div>
-    <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]"><section className={cn(cardClass, "p-5")}><h2 className="font-semibold text-slate-950">{t("master.ops.tenants.overview.lifecycleTitle")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.tenants.overview.lifecycleSubtitle")}</p><div className="mt-6 grid gap-3 sm:grid-cols-4">{[["1", t("master.ops.tenants.overview.step1Title"), t("master.ops.tenants.overview.step1Detail")], ["2", t("master.ops.tenants.overview.step2Title"), t("master.ops.tenants.overview.step2Detail")], ["3", t("master.ops.tenants.overview.step3Title"), t("master.ops.tenants.overview.step3Detail")], ["4", t("master.ops.tenants.overview.step4Title"), t("master.ops.tenants.overview.step4Detail")]].map(([step, title, detail], index) => <div key={step} className="relative rounded-xl border border-slate-200 p-4"><span className="grid size-7 place-items-center rounded-lg bg-blue-600 text-xs font-bold text-white">{step}</span><h3 className="mt-3 text-sm font-semibold">{title}</h3><p className="mt-1 text-xs text-slate-500">{detail}</p>{index < 3 && <ChevronRight className="absolute -right-3 top-1/2 z-10 hidden size-5 -translate-y-1/2 rounded-full bg-white text-slate-400 sm:block" />}</div>)}</div></section><section className={cn(cardClass, "p-5")}><h2 className="font-semibold text-slate-950">{t("master.ops.tenants.overview.quickActionsTitle")}</h2><div className="mt-4 space-y-3"><button type="button" onClick={() => onNavigate("create")} className="flex min-h-14 w-full items-center gap-3 rounded-xl bg-blue-600 px-4 text-left text-white hover:bg-blue-700"><Plus className="size-5" /><span><strong className="block text-sm">{t("master.ops.tenants.overview.createTrialTitle")}</strong><span className="text-xs text-blue-100">{t("master.ops.tenants.overview.createTrialDesc")}</span></span></button><button type="button" onClick={() => onNavigate("directory")} className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 text-left hover:bg-slate-50"><Database className="size-5 text-blue-600" /><span><strong className="block text-sm">{t("master.ops.tenants.overview.openDirTitle")}</strong><span className="text-xs text-slate-500">{t("master.ops.tenants.overview.openDirDesc")}</span></span></button><button type="button" onClick={() => onNavigate("provisioning")} className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 text-left hover:bg-slate-50"><ServerCog className="size-5 text-blue-600" /><span><strong className="block text-sm">{t("master.ops.tenants.overview.monitorProvTitle")}</strong><span className="text-xs text-slate-500">{t("master.ops.tenants.overview.monitorProvDesc")}</span></span></button></div></section></div>
-  </div>;
 }
 
 function DirectoryPanel({ tenants, onToggleStatus, onSoftDeleteTenant, onRestoreTenant, onRetryProvisioning }: Pick<Props, "tenants" | "onToggleStatus" | "onSoftDeleteTenant" | "onRestoreTenant" | "onRetryProvisioning">) {
@@ -105,27 +68,6 @@ function DirectoryPanel({ tenants, onToggleStatus, onSoftDeleteTenant, onRestore
     try { setSelected(await masterAdminApi.getTenantById(tenant.id)); } catch { setSelected(tenant); } finally { setDetailLoading(false); }
   };
   return <div className="relative"><section className={cn(cardClass, "overflow-hidden")}><div className="flex flex-col gap-3 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-semibold text-slate-600">{t("master.ops.tenants.directory.title")}</h2></div><div className="flex flex-col gap-2 sm:flex-row"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("master.ops.tenants.directory.searchPlaceholder")} className={cn(inputClass, "pl-9 sm:w-64")} /></label><select value={status} onChange={(event) => setStatus(event.target.value)} className={cn(inputClass, "sm:w-48")}><option value="ALL">{t("master.ops.tenants.directory.filterAll")}</option><option value="ACTIVE">{t("master.ops.tenants.directory.filterActive")}</option><option value="PENDING_PAYMENT">{t("master.ops.tenants.directory.filterPendingPayment")}</option><option value="PROVISIONING">{t("master.ops.tenants.directory.filterProvisioning")}</option><option value="FAILED">{t("master.ops.tenants.directory.filterFailed")}</option><option value="SUSPENDED">{t("master.ops.tenants.directory.filterSuspended")}</option><option value="DELETED">{t("master.ops.tenants.directory.filterDeleted")}</option></select></div></div><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm text-slate-600"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600"><tr><th className="px-5 py-3">{t("master.ops.tenants.directory.colCompany")}</th><th className="px-3 py-3">{t("master.ops.tenants.directory.colSubdomain")}</th><th className="px-3 py-3">{t("master.ops.tenants.directory.colDatabase")}</th><th className="px-3 py-3">{t("master.ops.tenants.directory.colStatus")}</th><th className="px-3 py-3">{t("master.ops.tenants.directory.colCreatedAt")}</th><th className="px-5 py-3 text-right">{t("master.ops.tenants.directory.colActions")}</th></tr></thead><tbody>{filtered.map((tenant) => <tr key={tenant.id} className={cn("border-t border-slate-100 hover:bg-blue-50/30", tenant.deleted && "bg-slate-50/70 opacity-75")}><td className="px-5 py-4"><strong className="block text-slate-600">{tenant.name}</strong><span className="text-xs text-slate-500">{tenant.code}</span></td><td className="px-3 py-4 font-mono text-xs text-slate-600">{tenant.subdomain}.smarthire.top</td><td className="px-3 py-4 font-mono text-xs text-slate-600">{tenant.dbName}</td><td className="px-3 py-4"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusStyle(tenant.status, tenant.deleted))}>{tenant.deleted ? "SOFT_DELETED" : tenant.status}</span></td><td className="px-3 py-4 text-slate-500">{formatDate(tenant.createdAt, undefined, locale)}</td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => openDetail(tenant)} className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" title={t("master.ops.tenants.directory.viewDetailTitle")} aria-label={t("master.ops.tenants.directory.viewTenantAria", { name: tenant.name })}><Eye className="size-4" /></button>{!tenant.deleted && (tenant.status === "FAILED" || tenant.status === "PROVISIONING" ? <button type="button" onClick={() => onRetryProvisioning(tenant)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-amber-50 px-3 text-xs font-semibold text-amber-700"><RefreshCw className="size-3.5" />{t("master.ops.tenants.directory.retryBtn")}</button> : tenant.status !== "PENDING_PAYMENT" && <button type="button" onClick={() => onToggleStatus(tenant)} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">{tenant.status === "ACTIVE" ? t("master.ops.tenants.directory.suspendBtn") : t("master.ops.tenants.directory.activateBtn")}</button>)}{tenant.deleted ? (onRestoreTenant && <button type="button" onClick={() => onRestoreTenant(tenant)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" title={t("master.ops.tenants.directory.restoreTitle")}><ArchiveRestore className="size-3.5" />{t("master.ops.tenants.directory.restoreBtn")}</button>) : (onSoftDeleteTenant && <button type="button" onClick={() => onSoftDeleteTenant(tenant)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100" title={t("master.ops.tenants.directory.softDeleteTitle")}><ArchiveRestore className="size-3.5" />{t("master.ops.tenants.directory.softDeleteBtn")}</button>)}</div></td></tr>)}{filtered.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-500">{t("master.ops.tenants.directory.empty")}</td></tr>}</tbody></table></div></section>{selected && <TenantDetailPanel tenant={selected} detailLoading={detailLoading} onClose={() => setSelected(null)} />}</div>;
-}
-
-function CreatePanel({ onTenantCreated, onNavigate }: { onTenantCreated: Props["onTenantCreated"]; onNavigate: (tab: TenantHubTab) => void }) {
-  const t = useT();
-  const schema = useMemo(() => createSchema(t), [t]);
-  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { name: "", code: "", subdomain: "", adminName: "", adminEmail: "" } });
-  const mutation = useMutation({ mutationFn: masterTenantApi.onboardTenant, onSuccess: (tenant) => { form.reset(); onTenantCreated(tenant); } });
-  const fields: Array<{ name: keyof FormValues; label: string; placeholder: string; type?: string; section: "tenant" | "admin" }> = [
-    { name: "name", label: t("master.ops.tenants.create.fieldNameLabel"), placeholder: t("master.ops.tenants.create.fieldNamePlaceholder"), section: "tenant" },
-    { name: "code", label: t("master.ops.tenants.create.fieldCodeLabel"), placeholder: t("master.ops.tenants.create.fieldCodePlaceholder"), section: "tenant" },
-    { name: "subdomain", label: t("master.ops.tenants.create.fieldSubdomainLabel"), placeholder: t("master.ops.tenants.create.fieldSubdomainPlaceholder"), section: "tenant" },
-    { name: "adminName", label: t("master.ops.tenants.create.fieldAdminNameLabel"), placeholder: t("master.ops.tenants.create.fieldAdminNamePlaceholder"), section: "admin" },
-    { name: "adminEmail", label: t("master.ops.tenants.create.fieldAdminEmailLabel"), placeholder: t("master.ops.tenants.create.fieldAdminEmailPlaceholder"), type: "email", section: "admin" },
-  ];
-  if (mutation.isSuccess) return <section className={cn(cardClass, "mx-auto max-w-2xl p-8 text-center")}><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><CheckCircle2 className="size-7" /></span><h2 className="mt-4 text-xl font-bold">{t("master.ops.tenants.create.activatedTitle")}</h2><p className="mt-2 text-sm text-slate-500"><strong>{mutation.data.name}</strong> {t("master.ops.tenants.create.activatedDescSuffix")}</p>{mutation.data.activationUrl && <p className="mt-3 break-all rounded-xl bg-slate-50 p-3 font-mono text-xs text-blue-700">{mutation.data.activationUrl}</p>}<button type="button" onClick={() => { mutation.reset(); onNavigate("directory"); }} className="mt-6 min-h-11 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white">{t("master.ops.tenants.create.backToDirBtn")}</button></section>;
-  return <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-5 xl:grid-cols-[1fr_360px]" noValidate><section className={cn(cardClass, "p-5 sm:p-6")}><div><h2 className="font-semibold text-slate-950">{t("master.ops.tenants.create.formTitle")}</h2><p className="mt-1 text-xs text-slate-500">{t("master.ops.tenants.create.formSubtitle")}</p></div>{mutation.isError && <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{getApiErrorMessage(mutation.error, t("master.ops.tenants.create.errorFallback"))}</p>}<fieldset disabled={mutation.isPending} className="mt-6 space-y-6 disabled:opacity-60"><div><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Building2 className="size-4 text-blue-600" />{t("master.ops.tenants.create.companySectionTitle")}</h3><div className="grid gap-4 sm:grid-cols-2">{fields.filter((field) => field.section === "tenant").map((field, index) => <FormField key={field.name} field={field} form={form} wide={index === 0} />)}</div></div><div className="border-t border-slate-100 pt-6"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><UserRoundCog className="size-4 text-blue-600" />{t("master.ops.tenants.create.adminSectionTitle")}</h3><div className="grid gap-4 sm:grid-cols-2">{fields.filter((field) => field.section === "admin").map((field, index) => <FormField key={field.name} field={field} form={form} wide={index === 0} />)}</div><p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">{t("master.ops.tenants.create.inviteClaimNotice")}</p></div><button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-wait">{mutation.isPending ? <><LoaderCircle className="size-4 animate-spin" />{t("master.ops.tenants.create.submittingBtn")}</> : <><Plus className="size-4" />{t("master.ops.tenants.create.submitBtn")}</>}</button></fieldset></section><aside className={cn(cardClass, "h-fit p-5")}><h2 className="text-sm font-semibold">{t("master.ops.tenants.create.whatHappensTitle")}</h2><ol className="mt-4 space-y-4">{[["1", t("master.ops.tenants.create.step1")], ["2", t("master.ops.tenants.create.step2")], ["3", t("master.ops.tenants.create.step3")], ["4", t("master.ops.tenants.create.step4")]].map(([step, text]) => <li key={step} className="flex gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">{step}</span><span className="text-xs leading-5 text-slate-600">{text}</span></li>)}</ol><div className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900"><AlertTriangle className="mb-2 size-4" />{t("master.ops.tenants.create.failureGuardNotice")}</div></aside></form>;
-}
-
-function FormField({ field, form, wide }: { field: { name: keyof FormValues; label: string; placeholder: string; type?: string }; form: ReturnType<typeof useForm<FormValues>>; wide?: boolean }) {
-  const error = form.formState.errors[field.name];
-  return <div className={wide ? "sm:col-span-2" : undefined}><label htmlFor={`tenant-${field.name}`} className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}</label><input id={`tenant-${field.name}`} type={field.type ?? "text"} placeholder={field.placeholder} {...form.register(field.name)} className={inputClass} aria-invalid={Boolean(error)} aria-describedby={error ? `tenant-${field.name}-error` : undefined} />{error && <p id={`tenant-${field.name}-error`} role="alert" className="mt-1 text-xs text-rose-700">{error.message}</p>}</div>;
 }
 
 function ProvisioningPanel({ tenants, onRetryProvisioning }: Pick<Props, "tenants" | "onRetryProvisioning">) {
@@ -260,10 +202,21 @@ function TenantDetailPanel({ tenant, detailLoading, onClose }: { tenant: TenantI
 
 export function TenantManagementHub(props: Props) {
   const panels: Record<TenantHubTab, React.ReactNode> = {
-    overview: <OverviewPanel tenants={props.tenants} onNavigate={props.onTabChange} />,
-    directory: <DirectoryPanel tenants={props.tenants} onToggleStatus={props.onToggleStatus} onSoftDeleteTenant={props.onSoftDeleteTenant} onRestoreTenant={props.onRestoreTenant} onRetryProvisioning={props.onRetryProvisioning} />,
-    create: <CreatePanel onTenantCreated={props.onTenantCreated} onNavigate={props.onTabChange} />,
-    provisioning: <ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} />,
+    directory: (
+      <DirectoryPanel
+        tenants={props.tenants}
+        onToggleStatus={props.onToggleStatus}
+        onSoftDeleteTenant={props.onSoftDeleteTenant}
+        onRestoreTenant={props.onRestoreTenant}
+        onRetryProvisioning={props.onRetryProvisioning}
+      />
+    ),
+    provisioning: (
+      <ProvisioningPanel
+        tenants={props.tenants}
+        onRetryProvisioning={props.onRetryProvisioning}
+      />
+    ),
   };
   return <div className="space-y-6 animate-fade-in"><div>{panels[props.activeTab]}</div></div>;
 }
