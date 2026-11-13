@@ -45,10 +45,16 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
 
   const [speechEngine, setSpeechEngine] = useState<"browser" | "cloud">(() => {
     try {
+      const v = localStorage.getItem("smarthire_ai_speech_engine_v2");
+      if (!v) {
+        localStorage.setItem("smarthire_ai_speech_engine", "cloud");
+        localStorage.setItem("smarthire_ai_speech_engine_v2", "true");
+        return "cloud";
+      }
       const saved = localStorage.getItem("smarthire_ai_speech_engine");
-      return saved === "cloud" || saved === "browser" ? saved : "browser";
+      return saved === "browser" ? "browser" : "cloud";
     } catch {
-      return "browser";
+      return "cloud";
     }
   });
 
@@ -423,17 +429,20 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
               onClick={() => {
                 const next = speechEngine === "browser" ? "cloud" : "browser";
                 setSpeechEngine(next);
-                try { localStorage.setItem("smarthire_ai_speech_engine", next); } catch {}
+                try {
+                  localStorage.setItem("smarthire_ai_speech_engine", next);
+                  localStorage.setItem("smarthire_ai_speech_engine_v2", "true");
+                } catch {}
               }}
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors cursor-pointer ${
-                speechEngine === "browser"
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                  : "border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+                speechEngine === "cloud"
+                  ? "border-blue-300 bg-blue-50 text-[#0066FF] dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 shadow-2xs font-semibold"
+                  : "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               }`}
-              title="Chuyển đổi phương thức đọc câu hỏi: Giọng siêu tốc (Trình duyệt) hoặc Giọng AI Studio (Cloud)"
+              title="Chuyển đổi phương thức đọc câu hỏi: Giọng AI Cloud (song ngữ Anh - Việt mượt mà) hoặc Giọng cục bộ Trình duyệt"
             >
               <Zap className="size-3.5" aria-hidden="true" />
-              <span>{speechEngine === "browser" ? "Đọc siêu tốc (Trình duyệt)" : "Đọc AI Cloud (Gemini)"}</span>
+              <span>{speechEngine === "cloud" ? "Giọng AI Studio (Gemini song ngữ)" : "Giọng siêu tốc (Trình duyệt)"}</span>
             </button>
           )}
 

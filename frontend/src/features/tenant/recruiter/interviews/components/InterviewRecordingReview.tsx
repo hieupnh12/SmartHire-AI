@@ -18,8 +18,7 @@ export function InterviewRecordingReview({ interviewId, answerId }: { interviewI
     return () => URL.revokeObjectURL(objectUrl);
   }, [audio.data]);
 
-  if (info.isError) return <p role="alert" className="text-xs text-rose-600">{getApiErrorMessage(info.error)}</p>;
-  if (!info.data) return null;
+  if (info.isError || !info.data) return null;
 
   return (
     <div className="space-y-2.5 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">

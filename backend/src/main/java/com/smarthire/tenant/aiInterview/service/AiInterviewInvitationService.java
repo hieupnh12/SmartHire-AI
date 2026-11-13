@@ -2,6 +2,7 @@ package com.smarthire.tenant.aiInterview.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Notification;
@@ -65,9 +66,18 @@ public class AiInterviewInvitationService {
 
     @Transactional
     public AiInterview openNextAttempt(long applicationId) {
+        return openNextAttempt(applicationId, false);
+    }
+
+    @Transactional
+    public AiInterview openNextAttempt(long applicationId, boolean force) {
         requireTenant();
         var application = applications.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
+        if (force && !AiInterviewEligibility.openRound(application.getStatus())) {
+            application.setStatus(ApplicationStatus.INTERVIEW);
+            applications.save(application);
+        }
         if (!AiInterviewEligibility.openRound(application.getStatus()) || application.getArchivedAt() != null
                 || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application must be in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
@@ -76,7 +86,7 @@ public class AiInterviewInvitationService {
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         if (existing.isEmpty()) return createAttempt(application, null, 1, null);
         var latest = existing.get(0);
-        if (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now())) {
+        if (!force && (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now()))) {
             if (latest.getStatus() != AiInterviewStatus.PASSED && latest.getStatus() != AiInterviewStatus.FAILED
                     && latest.getStatus() != AiInterviewStatus.SCORED) return latest;
             throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");

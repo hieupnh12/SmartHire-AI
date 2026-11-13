@@ -307,6 +307,7 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
                         allQuestions={interview.questions}
                         completed={!!interview.completedAt}
                         editable={editable && !busy}
+                        conversational={!!interview.conversational}
                         onChanged={refresh}
                       />
                     ))}
@@ -399,13 +400,14 @@ function stageKind(questions: AiQuestion[]): StageGroup["kind"] {
   return "MIXED";
 }
 
-function StageQuestionGroup({ stage, stageIndex, interviewId, allQuestions, editable, completed, onChanged }: {
+function StageQuestionGroup({ stage, stageIndex, interviewId, allQuestions, editable, completed, conversational, onChanged }: {
   stage: StageGroup;
   stageIndex: number;
   interviewId: number;
   allQuestions: AiQuestion[];
   completed: boolean;
   editable: boolean;
+  conversational?: boolean;
   onChanged: () => void;
 }) {
   const kindLabel = stage.kind === "MCQ" ? "Trắc nghiệm" : stage.kind === "OPEN" ? "Tự luận" : "Kết hợp";
@@ -454,6 +456,7 @@ function StageQuestionGroup({ stage, stageIndex, interviewId, allQuestions, edit
                 question={question}
                 completed={completed}
                 editable={editable}
+                conversational={conversational}
                 onChanged={onChanged}
               />
             ))}
@@ -692,7 +695,7 @@ function AddQuestionForm({ interviewId, nextOrder, onAdded }: { interviewId: num
   );
 }
 
-function QuestionItem({ index, interviewId, question, editable, completed, onChanged }: { completed: boolean; index: number; interviewId: number; question: AiQuestion; editable: boolean; onChanged: () => void }) {
+function QuestionItem({ index, interviewId, question, editable, completed, conversational, onChanged }: { completed: boolean; index: number; interviewId: number; question: AiQuestion; editable: boolean; conversational?: boolean; onChanged: () => void }) {
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [editing, setEditing] = useState(false);
   const update = useMutation({
@@ -882,7 +885,7 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
               {!answer.answerText ? "Bỏ trống (0 điểm)" : mcq ? `Chọn ${String.fromCharCode(65 + Number(answer.answerText))}` : answer.answerText}
             </p>
           </div>
-          <FeedbackView feedback={answer.feedback} answer={answer} />
+          <FeedbackView feedback={answer.feedback} answer={answer} conversational={conversational} />
           {completed && <InterviewRecordingReview interviewId={interviewId} answerId={answer.id} />}
         </div>
       ) : (
@@ -892,7 +895,7 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
   );
 }
 
-function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answer: AiAnswer }) {
+function FeedbackView({ feedback, answer, conversational }: { feedback: AiFeedback | null; answer: AiAnswer; conversational?: boolean }) {
   let metrics: { durationMs?: number; voicedMs?: number; silenceMs?: number; pauseCount?: number; responseLatencyMs?: number | null } | undefined;
   let wordsPerMinute: number | undefined;
   try {
@@ -921,6 +924,10 @@ function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answe
           {feedback.strengths && <p className="text-emerald-700 dark:text-emerald-400"><strong>Điểm mạnh:</strong> {feedback.strengths}</p>}
           {feedback.weaknesses && <p className="text-amber-700 dark:text-amber-400"><strong>Cần cải thiện:</strong> {feedback.weaknesses}</p>}
         </div>
+      ) : conversational ? (
+        <p className="text-slate-500 italic text-[11px]">
+          ✦ Đã đối soát RAG và tổng hợp đánh giá trong Báo cáo AI toàn diện phía trên.
+        </p>
       ) : (
         <p className="text-slate-400 italic">Chưa có đánh giá AI.</p>
       )}

@@ -327,7 +327,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
             />
           )}
 
-          {data.completedAt && questions.map((question, i) => (
+          {!data.conversational && data.completedAt && questions.map((question, i) => (
             <article key={question.id} className={`${card} space-y-3`}>
               <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {i + 1}{question.stageTitle ? ` · ${question.stageTitle}` : ""}</p>
               <h3 className="font-semibold">{question.questionText}</h3>
@@ -432,14 +432,25 @@ function InvitationCard({ data, busy, onReady }: {
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Phòng phỏng vấn AI</p>
       <h2 id="invitation-title" className="mt-1 text-xl font-semibold">Chuẩn bị làm bài · {data.jobTitle ?? `Hồ sơ #${data.applicationId}`}</h2>
-      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{data.conversational ? "Hoàn tất kiểm tra thiết bị để vào phòng chờ. Đồng hồ chỉ bắt đầu khi AI tạo xong lời chào và phòng chat sẵn sàng." : "Đồng hồ bắt đầu theo giờ máy chủ sau khi bộ câu hỏi sẵn sàng và bạn hoàn tất kiểm tra thiết bị. Không rời khỏi phòng thi sau khi bắt đầu."}</p>
+      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{data.conversational ? "Hoàn tất kiểm tra thiết bị để bắt đầu phỏng vấn. AI Interviewer sẽ phỏng vấn trực tiếp theo bộ câu hỏi đã được nhà tuyển dụng phê duyệt." : "Đồng hồ bắt đầu theo giờ máy chủ sau khi bộ câu hỏi sẵn sàng và bạn hoàn tất kiểm tra thiết bị. Không rời khỏi phòng thi sau khi bắt đầu."}</p>
     </div>
     <dl className="grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
       <dt className="text-xs text-[var(--color-on-surface-variant)]">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
     {data.status === "GENERATING" && <p role="status">AI đang chuẩn bị câu hỏi. Trang sẽ tự cập nhật khi sẵn sàng.</p>}
     {data.status === "CREATED" && <p role="status">Nhà tuyển dụng đang chuẩn bị câu hỏi. Lời mời sẽ cập nhật khi phiên sẵn sàng.</p>}
-    {data.status === "QUESTIONS_READY" && <div className="space-y-3">
-      <p className="text-sm">{data.conversational ? "Bấm bắt đầu để vào phòng chờ; chat sẽ tự hiển thị khi AI sẵn sàng. Thời gian chờ không tính vào bài phỏng vấn." : "Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu."}</p>
+    {data.status === "QUESTIONS_READY" && !data.questionsApproved && (
+      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/40 space-y-1.5">
+        <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-200 text-sm">
+          <Info className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span>Đang chờ Nhà tuyển dụng phê duyệt đề thi</span>
+        </div>
+        <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+          Bộ câu hỏi phỏng vấn đã được AI khởi tạo và đang được nhà tuyển dụng kiểm tra, phê duyệt. Bạn sẽ có thể bắt đầu phiên phỏng vấn ngay sau khi nhà tuyển dụng hoàn tất duyệt đề &amp; nạp RAG.
+        </p>
+      </div>
+    )}
+    {data.status === "QUESTIONS_READY" && data.questionsApproved && <div className="space-y-3">
+      <p className="text-sm">{data.conversational ? "Bấm “Bắt đầu phỏng vấn” để vào phòng. Trợ lý AI sẽ chào mừng và đọc câu hỏi đầu tiên theo bộ đề đã duyệt." : "Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu."}</p>
       {data.voiceEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />Tôi đồng ý dùng micro, chuyển giọng nói thành transcript và phân tích tín hiệu lời nói{data.recordingEnabled ? ", lưu bản ghi âm riêng tư cho nhà tuyển dụng xem xét sau phiên" : ""}.</label>}
       <ProctoringStart busy={busy || !!data.voiceEnabled && !accepted} onReady={onReady} />
     </div>}

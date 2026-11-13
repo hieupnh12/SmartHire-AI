@@ -267,10 +267,9 @@ public class AiInterviewEvaluationService {
             }
         } catch (Exception ex) {
             log.warn("Failed generating conversation questions with keypoints: {}", ex.getMessage());
+            throw new IllegalStateException("Không thể sinh câu hỏi phỏng vấn từ AI: " + ex.getMessage(), ex);
         }
-
-        interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
-        activity.record(interview, "CONVERSATION_READY", "Conversation context captured; greeting generated on start");
+        throw new IllegalStateException("AI không trả về danh sách câu hỏi hợp lệ");
     }
 
     public void regenerateSingleQuestion(AiInterview interview, AiQuestion targetQuestion) {

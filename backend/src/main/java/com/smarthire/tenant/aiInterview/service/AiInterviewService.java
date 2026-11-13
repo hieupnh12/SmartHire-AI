@@ -122,7 +122,12 @@ public class AiInterviewService {
         AiInterview current = existing.get(0);
         requireActiveApplication(current);
         return switch (current.getStatus()) {
-            case QUESTIONS_READY -> start(current.getId());
+            case QUESTIONS_READY -> {
+                if (!AiInterviewMapper.isQuestionsApproved(current)) {
+                    yield mapper.toResponse(current);
+                }
+                yield start(current.getId());
+            }
             case IN_PROGRESS -> start(current.getId());
             case CREATED, ERROR -> {
                 requeueGeneration(current.getId());
@@ -170,10 +175,14 @@ public class AiInterviewService {
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
         RecruitmentStage stage = resolveStage(request.workflowStageId(), application);
 
+        if (application.getStatus() == com.smarthire.domain.enums.ApplicationStatus.HUMAN_INTERVIEW) {
+            application.setStatus(com.smarthire.domain.enums.ApplicationStatus.INTERVIEW);
+            applications.save(application);
+        }
         var existing = interviews.findByApplication_IdOrderByIdDesc(application.getId());
         AiInterview interview;
         if (!existing.isEmpty() && isFinished(existing.get(0).getStatus())) {
-            interview = invitations.openNextAttempt(application.getId());
+            interview = invitations.openNextAttempt(application.getId(), true);
         } else {
             interview = invitations.invite(application.getId(), stage);
         }
@@ -212,6 +221,9 @@ public class AiInterviewService {
                 || !InterviewPolicies.isConversation(interview) && questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
             throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
+        if (!AiInterviewMapper.isQuestionsApproved(interview)) {
+            throw new BusinessException("Đề phỏng vấn đang chờ nhà tuyển dụng kiểm tra và duyệt.", HttpStatus.CONFLICT, "AI_QUESTIONS_NOT_APPROVED");
+        }
         if (InterviewPolicies.voiceEnabled(interview) && !consents.findByAiInterview_Id(id).map(c -> c.isAccepted()).orElse(false)) {
             throw new BusinessException("Voice recording consent is required before starting", HttpStatus.CONFLICT, "AI_VOICE_CONSENT_REQUIRED");
         }
@@ -234,15 +246,9 @@ public class AiInterviewService {
         }
         interview.setStatus(AiInterviewStatus.IN_PROGRESS);
         if (InterviewPolicies.isConversation(interview)) {
-            interview.setStartedAt(null);
-            interview.setExpiresAt(null);
             interview.setErrorMessage(null);
-            activity.record(interview, "OPENING_QUEUED", "Candidate admitted; greeting queued; timer has not started");
-            try {
-                evaluation.process(interview.getId());
-            } catch (Exception ex) {
-                // If immediate initialization encounters an issue, keep OPENING_QUEUED so background dispatcher can retry
-            }
+            conversation.initialize(interview);
+            activity.record(interview, "STARTED", "Conversation started with pre-approved questions");
             return mapper.toResponse(interview);
         }
         interview.setStartedAt(now);
@@ -532,6 +538,9 @@ public class AiInterviewService {
         boolean revealCorrect = isStaff && completed;
         boolean revealExplanation = isStaff && completed;
         boolean revealReference = isStaff;
+        if (!isStaff && InterviewPolicies.isConversation(interview)) {
+            return List.of();
+        }
         if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {
             var review = InterviewPolicies.config(interview).policy().review();
             revealCorrect = review != null && review.showCorrectAnswer();
