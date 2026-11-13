@@ -172,8 +172,8 @@ public class CvController {
 
     @GetMapping("/cvs/{id}")
     @Operation(summary = "Get CV screening status and dataset")
-    public ApiResponse<CvDetail> get(@PathVariable long id) {
-        return ApiResponse.ok(cvs.get(id));
+    public ApiResponse<CvDetail> get(@PathVariable long id, @RequestParam(required = false) String lang) {
+        return ApiResponse.ok(cvs.get(id, lang));
     }
 
     @GetMapping("/cvs/{id}/extraction")
@@ -219,8 +219,11 @@ public class CvController {
 
     @GetMapping("/jobs/{jobId}/cvs/{cvId}/match")
     @Operation(summary = "Read persisted job-fit screening score")
-    public ApiResponse<MatchView> match(@PathVariable long jobId, @PathVariable long cvId) {
-        return ApiResponse.ok(cvs.match(jobId, cvId));
+    public ApiResponse<MatchView> match(
+            @PathVariable long jobId,
+            @PathVariable long cvId,
+            @RequestParam(required = false) String lang) {
+        return ApiResponse.ok(cvs.match(jobId, cvId, lang));
     }
 
     @PostMapping("/jobs/{jobId}/cvs/{cvId}/match")

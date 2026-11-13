@@ -78,13 +78,9 @@ export function RecruitmentPage() {
   return (
     <section className="space-y-5">
       <header>
-        <p className="text-sm font-semibold text-brand-primary">{t("tenantAdmin.recruitment.eyebrow")}</p>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
           {t("tenantAdmin.recruitment.title")}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-          {t("tenantAdmin.recruitment.subtitle")}
-        </p>
       </header>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(16rem,22rem)_1fr]">

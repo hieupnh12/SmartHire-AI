@@ -2042,9 +2042,6 @@ export function AnalyticsPage() {
           <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
             {t("tenantAdmin.analytics.title")}
           </h1>
-          <p className="mt-1.5 max-w-2xl text-xs sm:text-sm text-[var(--color-text-secondary)]">
-            {t("tenantAdmin.analytics.subtitle")}
-          </p>
         </div>
 
         {/* Time range selector */}

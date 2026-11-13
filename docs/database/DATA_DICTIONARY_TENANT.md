@@ -1,5 +1,23 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Đa ngôn ngữ nội dung đánh giá AI V61 (2026-11-13)
+
+Nguồn: `V61__ai_localized_contents.sql`. Bảng mới: `ai_localized_contents`.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `ai_localized_contents.id` | BIGINT | Không | AUTO_INCREMENT | Khóa chính tự tăng |
+| `ai_localized_contents.entity_type` | VARCHAR(64) | Không | — | Loại thực thể AI (vd: `CV_SCREENING`, `AI_INTERVIEW_REPORT`, `ASSESSMENT_GRADING`) |
+| `ai_localized_contents.entity_id` | BIGINT | Không | — | ID của thực thể tương ứng (vd: `cv_id`) |
+| `ai_localized_contents.content_hash` | VARCHAR(64) | Không | — | Mã băm SHA-256 từ nội dung đánh giá gốc chuẩn hóa để phát hiện thay đổi |
+| `ai_localized_contents.locale` | VARCHAR(16) | Không | — | Mã ngôn ngữ đích đã dịch (`ja`, `en`, `vi`) |
+| `ai_localized_contents.source_locale` | VARCHAR(16) | Không | `'vi'` | Mã ngôn ngữ gốc của nội dung AI sinh ban đầu |
+| `ai_localized_contents.localized_json` | JSON | Không | — | Cấu trúc dữ liệu đã được dịch và bảo toàn thuật ngữ kỹ thuật |
+| `ai_localized_contents.created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm tạo bản dịch |
+| `ai_localized_contents.updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm cập nhật |
+| `uk_ai_loc_content` | UNIQUE `(entity_type, entity_id, content_hash, locale)` | — | — | Đảm bảo duy nhất một bản dịch cho mỗi tổ hợp nội dung + ngôn ngữ |
+| `idx_ai_loc_lookup` | INDEX `(entity_type, entity_id, locale)` | — | — | Hỗ trợ truy vấn nhanh bản dịch của thực thể theo ngôn ngữ |
+
 ## Tự động chấm điểm và công bố kết quả V59 (2026-10-28)
 
 Nguồn: `V59__test_auto_grading.sql`. Không tạo bảng mới.

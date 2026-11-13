@@ -526,7 +526,14 @@ export function CvDetailPage() {
 
                     <div className="mt-5">
                       {overviewSubTab === "ai" ? (
-                        <ScreeningAiPanel breakdown={breakdown} extraction={cv.extraction} skills={cv.skills} />
+                        <ScreeningAiPanel
+                          breakdown={breakdown}
+                          extraction={cv.extraction}
+                          skills={cv.skills}
+                          cvId={cv.id}
+                          contentHash={match.contentHash}
+                          translationPending={match.translationPending}
+                        />
                       ) : (
                         <div className="space-y-5">
                           <ScreeningScoreCard score={match.score} modelVersion={match.modelVersion} breakdown={breakdown} />
