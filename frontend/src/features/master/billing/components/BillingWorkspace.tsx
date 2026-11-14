@@ -10,6 +10,7 @@ import { Tooltip } from "@/components/ux/Tooltip";
 import { CustomSelect } from "@/components/ux/CustomSelect";
 import { toast } from "@/stores/toastStore";
 import { formatNumber, useLocale, useT, type Locale } from "@/i18n";
+import { formatPlanDisplayName } from "@/features/tenant/admin/billing/utils/billingLabels";
 import {
   Building2,
   Check,
@@ -27,7 +28,7 @@ type BillingWorkspaceProps = {
   tenants: TenantInfo[];
   tenantSubscriptions?: TenantSubscriptionInstance[];
   view: BillingView;
-  onViewChange: (view: BillingView) => void;
+  onViewChange?: (view: BillingView) => void;
   onCreatePlan: () => void;
   onEditPlan: (plan: SubscriptionPlan) => void;
   onTogglePlanStatus: (plan: SubscriptionPlan) => void;
@@ -76,7 +77,7 @@ export function BillingWorkspace({
   tenants,
   tenantSubscriptions = [],
   view,
-  onViewChange,
+  onViewChange: _onViewChange,
   onCreatePlan,
   onEditPlan,
   onTogglePlanStatus,
@@ -128,15 +129,6 @@ export function BillingWorkspace({
           <span>{t("master.commerce.billingWorkspace.createPlan")}</span>
         </button>
       </HeaderActions>
-
-      <nav className="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 sm:w-fit" aria-label={t("master.commerce.billingWorkspace.navAria")}>
-        {([
-          ["plans", t("master.commerce.billingWorkspace.tabs.plans", { count: plans.length })],
-          ["allocations", t("master.commerce.billingWorkspace.tabs.allocations")],
-        ] as const).map(([id, label]) => (
-          <button key={id} type="button" onClick={() => onViewChange(id)} aria-current={view === id ? "page" : undefined} className={cn("min-h-9 whitespace-nowrap rounded-lg px-4 text-sm font-medium transition-colors", view === id ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}>{label}</button>
-        ))}
-      </nav>
 
       {view === "plans" && (
         <section className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
@@ -237,7 +229,7 @@ export function BillingWorkspace({
                     )
                     .map((plan) => ({
                       value: plan.code,
-                      label: `${plan.name} (v${plan.version ?? 1}${
+                      label: `${formatPlanDisplayName(plan.name, t)} (v${plan.version ?? 1}${
                         plan.custom ? t("master.commerce.billingWorkspace.allocations.customSuffix") : ""
                       })`,
                     }));
@@ -382,7 +374,7 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
                 </span>
               )}
             </div>
-            <h2 className="mt-1 text-lg font-semibold text-slate-800">{plan.name}</h2>
+            <h2 className="mt-1 text-lg font-semibold text-slate-800">{formatPlanDisplayName(plan.name, t)}</h2>
           </div>
           <span className={cn(
             "rounded-full px-2.5 py-1 text-[10px] font-semibold",

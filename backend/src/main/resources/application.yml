@@ -219,7 +219,7 @@ smarthire:
       address: ${PLATFORM_COMPANY_ADDRESS:Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng}
       city: ${PLATFORM_CITY:Đà Nẵng}
       dispute-court: ${PLATFORM_DISPUTE_COURT:Tòa án nhân dân có thẩm quyền tại Thành phố Đà Nẵng}
-      representative: ${PLATFORM_REPRESENTATIVE:Phan Nhật Hưng}
+      representative: ${PLATFORM_REPRESENTATIVE:Nguyễn Minh Hiếu}
       position: ${PLATFORM_REPRESENTATIVE_POSITION:Tổng Giám Đốc}
       hotline: ${PLATFORM_HOTLINE:0988.888.888}
       support-email: ${PLATFORM_SUPPORT_EMAIL:support@smarthire.top}

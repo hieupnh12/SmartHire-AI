@@ -9,7 +9,7 @@ export const LEGAL_POLICY_META = {
     "Tầng 13, Tòa nhà FPT, ĐH FPT Đà Nẵng, KĐT Công nghệ FPT, P. Hòa Hải, Q. Ngũ Hành Sơn, TP. Đà Nẵng",
   city: "Đà Nẵng",
   disputeCourt: "Tòa án nhân dân có thẩm quyền tại Thành phố Đà Nẵng",
-  representative: "Phan Nhật Hưng",
+  representative: "Nguyễn Minh Hiếu",
   position: "Tổng Giám Đốc",
   hotline: "0988.888.888",
   supportEmail: "support@smarthire.top",

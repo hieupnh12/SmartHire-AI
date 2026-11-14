@@ -63,7 +63,7 @@ public class Contract {
 
     @Builder.Default
     @Column(name = "party_a_representative", nullable = false)
-    String partyARepresentative = "Phan Nhật Hưng";
+    String partyARepresentative = "Nguyễn Minh Hiếu";
 
     @Builder.Default
     @Column(name = "party_a_position", nullable = false)

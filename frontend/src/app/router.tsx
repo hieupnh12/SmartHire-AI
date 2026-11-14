@@ -324,7 +324,8 @@ export function AppRouter() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tenants/create" element={<B2bDealWizardPage />} />
           <Route path="deals" element={<B2bDealWizardPage />} />
-          <Route path="analytics" element={<MasterAnalyticsPage />} />
+          <Route path="analytics" element={<Navigate to="/admin/analytics/overview" replace />} />
+          <Route path="analytics/:tab" element={<MasterAnalyticsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />
           <Route path="tenants/:section" element={<TenantManagementPage />} />
@@ -335,7 +336,7 @@ export function AppRouter() {
           <Route path="subscriptions/create" element={<CreateSubscriptionPlanPage />} />
           <Route path="subscriptions/:section" element={<BillingPage />} />
           <Route path="system/logs" element={<AuditLogsPage />} />
-          <Route path="system/ai-usage" element={<AiManagementPage />} />
+          <Route path="system/ai-usage" element={<Navigate to="/admin/analytics/ai" replace />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
           <Route path="system/ai-config" element={<AiManagementPage />} />
           <Route path="account" element={<MasterAccountPage />} />

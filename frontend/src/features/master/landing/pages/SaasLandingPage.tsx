@@ -24,6 +24,7 @@ import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
 import { formatNumber, useLocale, useT } from "@/i18n";
+import { formatPlanDisplayName } from "@/features/tenant/admin/billing/utils/billingLabels";
 
 export function SaasLandingPage() {
   const t = useT();
@@ -626,7 +627,7 @@ export function SaasLandingPage() {
             plans.map((plan, index) => {
               const isHighlighted = index === 1;
               const isEnterprise = plan.code === "ENTERPRISE";
-              const cleanName = plan.name.replace(/\s*\(.*?\)\s*/g, "");
+              const cleanName = formatPlanDisplayName(plan.name, t);
 
               return (
                 <div

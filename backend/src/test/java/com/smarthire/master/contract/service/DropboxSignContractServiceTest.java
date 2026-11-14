@@ -554,7 +554,7 @@ class DropboxSignContractServiceTest {
                 .endDate(LocalDate.of(2027, 10, 9))
                 .partyAName("CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM")
                 .partyATaxCode("0110888999")
-                .partyARepresentative("Phan Nhật Hưng")
+                .partyARepresentative("Nguyễn Minh Hiếu")
                 .partyAPosition("Tổng Giám Đốc")
                 .partyBName("CÔNG TY CỔ PHẦN DOANH NGHIỆP ĐỐI TÁC")
                 .partyBTaxCode("0109988776")

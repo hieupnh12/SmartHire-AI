@@ -1,23 +1,38 @@
-import { useState, useMemo, useEffect, useRef, type ComponentType } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import {
   AlertTriangle,
   Building2,
+  ChartArea,
+  ChartBar,
+  ChartLine,
   Check,
   ChevronDown,
-  CircleDollarSign,
   Clock3,
   Download,
   HelpCircle,
   LifeBuoy,
-  TrendingUp,
 } from "lucide-react";
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { AiUsageReportView } from "@/features/master/system/components/SystemManagementWorkspace";
 import { cn } from "@/lib/utils";
 import { useT, useLocale, formatNumber } from "@/i18n";
 
-type PlatformTab = "overview" | "revenue" | "operations";
+type PlatformTab = "overview" | "revenue" | "ai" | "operations";
 
 type Props = {
   revenue: RevenueAnalytics | null;
@@ -30,12 +45,6 @@ type Props = {
   onYearChange?: (year: number) => void;
   onExport: () => void;
 };
-
-const tabs: Array<{ id: PlatformTab; labelKey: string; icon: ComponentType<{ className?: string }> }> = [
-  { id: "overview", labelKey: "master.ops.analytics.tabs.overview", icon: TrendingUp },
-  { id: "revenue", labelKey: "master.ops.analytics.tabs.revenue", icon: CircleDollarSign },
-  { id: "operations", labelKey: "master.ops.analytics.tabs.operations", icon: LifeBuoy },
-];
 
 const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
@@ -119,9 +128,12 @@ function YearSelector({
   );
 }
 
+type ChartVisualType = "area" | "bar" | "line";
+
 function Overview({ revenue, aiQuota, tenants, logs, groupBy = "MONTH", onGroupByChange, selectedYear, onYearChange }: Omit<Props, "onExport">) {
   const t = useT();
   const locale = useLocale();
+  const [chartType, setChartType] = useState<ChartVisualType>("area");
   const nonDeletedTenants = tenants.filter((item) => !item.deleted);
   const attentionTenants = nonDeletedTenants.filter((tenant) => tenant.status !== "ACTIVE").length;
   const overdueCount = revenue?.overdueInvoicesCount ?? 0;
@@ -162,12 +174,60 @@ function Overview({ revenue, aiQuota, tenants, logs, groupBy = "MONTH", onGroupB
     return label;
   };
 
+  const formatTooltipLabel = (label: unknown) => {
+    const lbl = String(label ?? "");
+    if (lbl.includes("-") && !lbl.includes("Q")) {
+      const [y, m] = lbl.split("-");
+      if (locale === "vi") return `Tháng ${parseInt(m, 10)} / ${y}`;
+      if (locale === "ja") return `${y}年${parseInt(m, 10)}月`;
+      return lbl;
+    }
+    if (lbl.includes("-Q")) {
+      const [y, q] = lbl.split("-");
+      if (locale === "vi") return `Quý ${q.replace("Q", "")} - Năm ${y}`;
+      if (locale === "ja") return `${y}年 第${q.replace("Q", "")}四半期`;
+      return lbl;
+    }
+    return lbl;
+  };
+
   return (
     <div className="space-y-5">
+      <section className={cn(cardClass, "grid gap-4 p-5 md:grid-cols-4")}>
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.cvParsed")}</p>
+            <TooltipHelp text={t("master.ops.analytics.overview.cvParsedTooltip")} />
+          </div>
+          <p className="mt-1 text-xl font-bold text-slate-700">{formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale)}</p>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.aiInterviewHours")}</p>
+            <TooltipHelp text={t("master.ops.analytics.overview.aiInterviewHoursTooltip")} />
+          </div>
+          <p className="mt-1 text-xl font-bold text-slate-700">{t("master.ops.analytics.overview.hoursUnit", { hours: aiQuota?.totalVoiceHoursUsed ?? 0 })}</p>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.estimatedAiCost")}</p>
+            <TooltipHelp text={t("master.ops.analytics.overview.estimatedAiCostTooltip")} />
+          </div>
+          <p className="mt-1 text-xl font-bold text-slate-700">{t("master.ops.analytics.overview.amountVnd", { amount: formatNumber(aiQuota?.estimatedAiCostVnd ?? 0, undefined, locale) })}</p>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.apiSuccessRate")}</p>
+            <TooltipHelp text={t("master.ops.analytics.overview.apiSuccessRateTooltip")} />
+          </div>
+          <p className="mt-1 text-xl font-bold text-emerald-700">{aiQuota?.apiSuccessRate ?? 100}%</p>
+        </div>
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
       <section className={cn(cardClass, "overflow-hidden")}>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="font-semibold text-slate-800">{t("master.ops.analytics.overview.revenueChartTitle")}</h2>
             <YearSelector
               year={activeYear}
@@ -176,7 +236,34 @@ function Overview({ revenue, aiQuota, tenants, logs, groupBy = "MONTH", onGroupB
               locale={locale}
             />
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100/70 p-0.5" role="group" aria-label="Kiểu biểu đồ">
+              {([
+                { key: "area", label: t("master.ops.analytics.overview.chartTypeArea"), Icon: ChartArea },
+                { key: "bar", label: t("master.ops.analytics.overview.chartTypeBar"), Icon: ChartBar },
+                { key: "line", label: t("master.ops.analytics.overview.chartTypeLine"), Icon: ChartLine },
+              ] as const).map(({ key, label, Icon }) => (
+                <div key={key} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => setChartType(key)}
+                    aria-label={label}
+                    title={label}
+                    className={cn(
+                      "grid size-7 place-items-center rounded-md transition-all",
+                      chartType === key
+                        ? "bg-white font-semibold text-blue-600 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </button>
+                  <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-white shadow-md group-hover:block">
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
             <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100/70 p-0.5 text-xs font-medium">
               {(["MONTH", "QUARTER", "YEAR"] as const).map((mode) => (
                 <button
@@ -206,45 +293,112 @@ function Overview({ revenue, aiQuota, tenants, logs, groupBy = "MONTH", onGroupB
         <div className="p-5">
         <div className="h-[235px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={revenue?.revenueTrend || []} margin={{ top: 10, right: 20, bottom: 5, left: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                tickFormatter={formatXAxisTick}
-                dy={10}
-              />
-              <YAxis
-                width={yAxisWidth}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                tickFormatter={(v) => `${formatNumber(Number(v), undefined, locale)}${t("master.ops.analytics.overview.yAxisSuffix")}`}
-              />
-              <Tooltip
-                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(val: unknown) => [`${formatNumber(Number(val ?? 0), undefined, locale)} ₫`, t("master.ops.analytics.overview.revenueSeriesName")]}
-                labelFormatter={(label: unknown) => {
-                  const lbl = String(label ?? "");
-                  if (lbl.includes("-") && !lbl.includes("Q")) {
-                    const [y, m] = lbl.split("-");
-                    if (locale === "vi") return `Tháng ${parseInt(m, 10)} / ${y}`;
-                    if (locale === "ja") return `${y}年${parseInt(m, 10)}月`;
-                    return lbl;
-                  }
-                  if (lbl.includes("-Q")) {
-                    const [y, q] = lbl.split("-");
-                    if (locale === "vi") return `Quý ${q.replace("Q", "")} - Năm ${y}`;
-                    if (locale === "ja") return `${y}年 第${q.replace("Q", "")}四半期`;
-                    return lbl;
-                  }
-                  return lbl;
-                }}
-              />
-              <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={3} dot={{ r: 4, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} name={t("master.ops.analytics.overview.revenueSeriesName")} />
-            </LineChart>
+            {chartType === "bar" ? (
+              <BarChart data={revenue?.revenueTrend || []} margin={{ top: 10, right: 20, bottom: 5, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={formatXAxisTick}
+                  dy={10}
+                />
+                <YAxis
+                  width={yAxisWidth}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(v) => `${formatNumber(Number(v), undefined, locale)}${t("master.ops.analytics.overview.yAxisSuffix")}`}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                  formatter={(val: unknown) => [`${formatNumber(Number(val ?? 0), undefined, locale)} ₫`, t("master.ops.analytics.overview.revenueSeriesName")]}
+                  labelFormatter={formatTooltipLabel}
+                />
+                <Bar
+                  dataKey="value"
+                  fill="#2563eb"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={44}
+                  name={t("master.ops.analytics.overview.revenueSeriesName")}
+                />
+              </BarChart>
+            ) : chartType === "area" ? (
+              <AreaChart data={revenue?.revenueTrend || []} margin={{ top: 10, right: 20, bottom: 5, left: 4 }}>
+                <defs>
+                  <linearGradient id="revenueAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={formatXAxisTick}
+                  dy={10}
+                />
+                <YAxis
+                  width={yAxisWidth}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(v) => `${formatNumber(Number(v), undefined, locale)}${t("master.ops.analytics.overview.yAxisSuffix")}`}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                  formatter={(val: unknown) => [`${formatNumber(Number(val ?? 0), undefined, locale)} ₫`, t("master.ops.analytics.overview.revenueSeriesName")]}
+                  labelFormatter={formatTooltipLabel}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#2563eb"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#revenueAreaGrad)"
+                  dot={{ r: 3, fill: "#2563eb", strokeWidth: 1 }}
+                  activeDot={{ r: 6 }}
+                  name={t("master.ops.analytics.overview.revenueSeriesName")}
+                />
+              </AreaChart>
+            ) : (
+              <LineChart data={revenue?.revenueTrend || []} margin={{ top: 10, right: 20, bottom: 5, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={formatXAxisTick}
+                  dy={10}
+                />
+                <YAxis
+                  width={yAxisWidth}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(v) => `${formatNumber(Number(v), undefined, locale)}${t("master.ops.analytics.overview.yAxisSuffix")}`}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                  formatter={(val: unknown) => [`${formatNumber(Number(val ?? 0), undefined, locale)} ₫`, t("master.ops.analytics.overview.revenueSeriesName")]}
+                  labelFormatter={formatTooltipLabel}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#2563eb"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: "#fff", strokeWidth: 2, stroke: "#2563eb" }}
+                  activeDot={{ r: 6 }}
+                  name={t("master.ops.analytics.overview.revenueSeriesName")}
+                />
+              </LineChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div></section>
@@ -255,36 +409,6 @@ function Overview({ revenue, aiQuota, tenants, logs, groupBy = "MONTH", onGroupB
         [errorLogsCount, t("master.ops.analytics.overview.errorLogsTitle"), t("master.ops.analytics.overview.errorLogsDetail"), errorLogsCount > 0 ? "rose" : "blue"],
       ].map(([count,title,detail,tone]) => <div key={String(title)} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><span className={cn("grid size-9 shrink-0 place-items-center rounded-lg text-sm font-bold", tone === "rose" ? "bg-rose-50 text-rose-700" : tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700")}>{count}</span><div><p className="text-sm font-semibold text-slate-800">{title}</p><p className="text-xs text-slate-500">{detail}</p></div></div>)}</div></section>
     </div>
-    <section className={cn(cardClass, "grid gap-4 p-5 md:grid-cols-4")}>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.cvParsed")}</p>
-          <TooltipHelp text={t("master.ops.analytics.overview.cvParsedTooltip")} />
-        </div>
-        <p className="mt-1 text-xl font-bold text-slate-700">{formatNumber(aiQuota?.totalCvParsesUsed ?? 0, undefined, locale)}</p>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.aiInterviewHours")}</p>
-          <TooltipHelp text={t("master.ops.analytics.overview.aiInterviewHoursTooltip")} />
-        </div>
-        <p className="mt-1 text-xl font-bold text-slate-700">{t("master.ops.analytics.overview.hoursUnit", { hours: aiQuota?.totalVoiceHoursUsed ?? 0 })}</p>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.estimatedAiCost")}</p>
-          <TooltipHelp text={t("master.ops.analytics.overview.estimatedAiCostTooltip")} />
-        </div>
-        <p className="mt-1 text-xl font-bold text-slate-700">{t("master.ops.analytics.overview.amountVnd", { amount: formatNumber(aiQuota?.estimatedAiCostVnd ?? 0, undefined, locale) })}</p>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium text-slate-500">{t("master.ops.analytics.overview.apiSuccessRate")}</p>
-          <TooltipHelp text={t("master.ops.analytics.overview.apiSuccessRateTooltip")} />
-        </div>
-        <p className="mt-1 text-xl font-bold text-emerald-700">{aiQuota?.apiSuccessRate ?? 100}%</p>
-      </div>
-    </section>
   </div>
   );
 }
@@ -484,10 +608,20 @@ function OperationsPanel({ revenue, aiQuota, tenants }: Omit<Props, "onExport" |
 
 export function PlatformAnalyticsDashboard({ revenue, aiQuota, tenants, logs, groupBy, onGroupByChange, selectedYear, onYearChange, onExport }: Props) {
   const t = useT();
-  const [activeTab, setActiveTab] = useState<PlatformTab>("overview");
+  const { tab: paramTab } = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
+
+  const rawTab = (paramTab || searchParams.get("tab") || "overview").toLowerCase();
+  const normalizedKey = rawTab === "ai-usage" ? "ai" : rawTab;
+  const validTabs: PlatformTab[] = ["overview", "revenue", "ai", "operations"];
+  const activeTab: PlatformTab = validTabs.includes(normalizedKey as PlatformTab)
+    ? (normalizedKey as PlatformTab)
+    : "overview";
+
   const panels: Record<PlatformTab, React.ReactNode> = {
     overview: <Overview revenue={revenue} aiQuota={aiQuota} tenants={tenants} logs={logs} groupBy={groupBy} onGroupByChange={onGroupByChange} selectedYear={selectedYear} onYearChange={onYearChange} />,
     revenue: <RevenuePanel revenue={revenue} />,
+    ai: <AiUsageReportView showHeaderActions={false} />,
     operations: <OperationsPanel revenue={revenue} aiQuota={aiQuota} tenants={tenants} />,
   };
   return (
@@ -502,8 +636,9 @@ export function PlatformAnalyticsDashboard({ revenue, aiQuota, tenants, logs, gr
           <span>{t("master.ops.analytics.exportReport")}</span>
         </button>
       </HeaderActions>
-    <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" aria-label={t("master.ops.analytics.tabsAria")}><div className="flex min-w-max gap-1" role="tablist">{tabs.map((tab) => { const Icon = tab.icon; const selected = activeTab === tab.id; return <button key={tab.id} type="button" role="tab" id={`platform-tab-${tab.id}`} aria-selected={selected} aria-controls={`platform-panel-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={cn("inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors", selected ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}><Icon className="size-4" aria-hidden="true" />{t(tab.labelKey)}</button>; })}</div></nav>
-    <div role="tabpanel" tabIndex={0} id={`platform-panel-${activeTab}`} aria-labelledby={`platform-tab-${activeTab}`}>{panels[activeTab]}</div>
+      <div role="tabpanel" tabIndex={0} id={`platform-panel-${activeTab}`} aria-labelledby={`platform-panel-${activeTab}`}>
+        {panels[activeTab]}
+      </div>
     </div>
   );
 }

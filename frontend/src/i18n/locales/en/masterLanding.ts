@@ -649,13 +649,13 @@ export const masterLandingEn = {
   demoPage: {
     backHome: "Home",
     demoTitle: "Book a 1:1 Demo Experience",
-    quoteTitle: "Pricing & Contract Consultation",
+    quoteTitle: "Pricing Consultation",
     demoSubtitle:
       "A solutions specialist will reach out within 2 hours to prepare a tailored demo.",
     quoteSubtitle:
-      "Our Enterprise team will follow up with detailed pricing and SLA terms.",
+      "Our dedicated team will follow up with detailed pricing.",
     demoTab: "Book 1:1 Demo",
-    quoteTab: "Enterprise Quote & Contract",
+    quoteTab: "Pricing Quote",
     defaultNeed: "Automate CV screening and AI preliminary interviews",
     invalidData: "Invalid input data. Please review and try again.",
     backendError:
@@ -673,7 +673,7 @@ export const masterLandingEn = {
     jobTitlePlaceholder: "Select or enter job title...",
     useCustomJobTitle: 'Use "{title}"',
     workEmailLabel: "Contact Email",
-    workEmailPlaceholder: "name@company.com",
+    workEmailPlaceholder: "name@gmail.com",
     phoneLabel: "Contact Phone Number",
     phonePlaceholder: "+84 912 345 678",
     notesLabel: "Specific Requirements or Notes (Optional)",
@@ -681,7 +681,7 @@ export const masterLandingEn = {
       "Example: Looking to integrate automated coding tests and AI interviews for IT hiring...",
     submitting: "Submitting request...",
     submitDemo: "Submit Demo Request",
-    submitQuote: "Request Quote & Contract",
+    submitQuote: "Request Pricing Quote",
     receivedTitle: "Request Received!",
     receivedDescBefore: "Thank you,",
     receivedDescMiddle:

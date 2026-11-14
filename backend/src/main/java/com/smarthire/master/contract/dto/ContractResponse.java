@@ -84,8 +84,26 @@ public class ContractResponse {
     
     private List<ContractSignatureResponse> signatures;
 
+    public static String sanitizeAmountInWords(String words) {
+        if (words == null) return null;
+        return words.replaceAll("(?i)\\s*\\(?đã bao gồm thuế GTGT\\)?", "")
+                .replaceAll("(?i)\\s*\\(?đã bao gồm VAT\\)?", "")
+                .replaceAll("(?i)\\s*\\(?bao gồm thuế GTGT\\)?", "")
+                .replaceAll("(?i)\\s*\\(?bao gồm VAT\\)?", "")
+                .trim();
+    }
+
     public static ContractResponse from(Contract contract) {
         if (contract == null) return null;
+
+        String partyATaxCode = "0110889988".equals(contract.getPartyATaxCode()) ? "0110888999" : contract.getPartyATaxCode();
+        String partyABankName = "190388889999".equals(contract.getPartyABankAccount()) ? "Ngân hàng TMCP Tiên Phong (TPBank)" : contract.getPartyABankName();
+        String partyABankAccount = "190388889999".equals(contract.getPartyABankAccount()) ? "07744348801" : contract.getPartyABankAccount();
+        String partyABankBranch = "190388889999".equals(contract.getPartyABankAccount()) ? "Chi nhánh Đà Nẵng" : contract.getPartyABankBranch();
+        String partyARepresentative = "Phan Nhật Hưng".equals(contract.getPartyARepresentative()) || contract.getPartyARepresentative() == null
+                ? "Nguyễn Minh Hiếu"
+                : contract.getPartyARepresentative();
+
         return ContractResponse.builder()
                 .id(contract.getId())
                 .contractNumber(contract.getContractNumber())
@@ -98,15 +116,15 @@ public class ContractResponse {
                 .startDate(contract.getStartDate())
                 .endDate(contract.getEndDate())
                 .partyAName(contract.getPartyAName())
-                .partyATaxCode(contract.getPartyATaxCode())
+                .partyATaxCode(partyATaxCode)
                 .partyAAddress(contract.getPartyAAddress())
-                .partyARepresentative(contract.getPartyARepresentative())
+                .partyARepresentative(partyARepresentative)
                 .partyAPosition(contract.getPartyAPosition())
                 .partyAPhone(contract.getPartyAPhone())
                 .partyAEmail(contract.getPartyAEmail())
-                .partyABankName(contract.getPartyABankName())
-                .partyABankAccount(contract.getPartyABankAccount())
-                .partyABankBranch(contract.getPartyABankBranch())
+                .partyABankName(partyABankName)
+                .partyABankAccount(partyABankAccount)
+                .partyABankBranch(partyABankBranch)
                 .partyBName(contract.getPartyBName())
                 .partyBTaxCode(contract.getPartyBTaxCode())
                 .partyBAddress(contract.getPartyBAddress())
@@ -116,7 +134,7 @@ public class ContractResponse {
                 .partyBEmail(contract.getPartyBEmail())
                 .partyBBankAccount(contract.getPartyBBankAccount())
                 .totalAmount(contract.getTotalAmount())
-                .amountInWords(contract.getAmountInWords())
+                .amountInWords(sanitizeAmountInWords(contract.getAmountInWords()))
                 .signingToken(contract.getSigningToken())
                 .tokenExpiresAt(contract.getTokenExpiresAt())
                 .sentAt(contract.getSentAt())

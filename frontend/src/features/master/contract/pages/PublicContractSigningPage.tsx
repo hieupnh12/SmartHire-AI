@@ -20,6 +20,16 @@ import {
   Hash,
 } from "lucide-react";
 
+const cleanAmountInWords = (words?: string | null): string => {
+  if (!words) return "";
+  return words
+    .replace(/\s*\(?đã bao gồm thuế GTGT\)?/gi, "")
+    .replace(/\s*\(?đã bao gồm VAT\)?/gi, "")
+    .replace(/\s*\(?bao gồm thuế GTGT\)?/gi, "")
+    .replace(/\s*\(?bao gồm VAT\)?/gi, "")
+    .trim();
+};
+
 export function PublicContractSigningPage() {
   const t = useT();
   const locale = useLocale();
@@ -248,18 +258,18 @@ export function PublicContractSigningPage() {
               </p>
             )}
 
-            <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600 font-mono">
+            <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-500 font-mono">
               {contract.externalSignatureRequestId && (
                 <div>
-                  <span className="font-sans font-semibold text-slate-500">{t("master.commerce.publicSigning.requestIdLabel")} </span>
-                  <span className="text-slate-900 font-bold">{contract.externalSignatureRequestId}</span>
+                  <span className="font-sans font-medium text-slate-500">{t("master.commerce.publicSigning.requestIdLabel")} </span>
+                  <span className="text-slate-800 font-semibold">{contract.externalSignatureRequestId}</span>
                 </div>
               )}
               {contract.documentChecksum && (
-                <div className="flex items-center gap-1 break-all">
-                  <Hash className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span className="font-sans font-semibold text-slate-500">{t("master.commerce.publicSigning.shaLabel")} </span>
-                  <span className="text-slate-800">{contract.documentChecksum}</span>
+                <div className="flex items-center gap-1" title={contract.documentChecksum}>
+                  <Hash className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span className="font-sans font-medium text-slate-500">{t("master.commerce.publicSigning.shaLabel")} </span>
+                  <span className="text-slate-800">{contract.documentChecksum.length > 24 ? `${contract.documentChecksum.slice(0, 12)}...${contract.documentChecksum.slice(-8)}` : contract.documentChecksum}</span>
                 </div>
               )}
             </div>
@@ -296,7 +306,7 @@ export function PublicContractSigningPage() {
           <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-900 leading-tight">
             {t("master.commerce.publicSigning.docTitleLine1")}
             <br />
-            <span className="text-indigo-600 text-lg sm:text-xl">{t("master.commerce.publicSigning.docTitleLine2")}</span>
+            <span className="text-slate-900 text-lg sm:text-xl">{t("master.commerce.publicSigning.docTitleLine2")}</span>
           </h1>
           <p className="text-xs font-mono font-bold text-slate-600 mt-2">
             {t("master.commerce.contractDetailModal.contractNumberLine", { contractNumber: contract.contractNumber })}
@@ -304,7 +314,7 @@ export function PublicContractSigningPage() {
         </div>
 
         {/* Legal Basis */}
-        <div className="text-[11px] text-slate-600 italic space-y-1 mb-8 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="text-[11px] sm:text-xs text-slate-600 italic space-y-1 mb-8 leading-relaxed pl-1">
           <p>{t("master.commerce.publicSigning.legalBasis1")}</p>
           <p>{t("master.commerce.publicSigning.legalBasis2")}</p>
           <p>{t("master.commerce.publicSigning.legalBasis3")}</p>
@@ -313,162 +323,182 @@ export function PublicContractSigningPage() {
         </div>
 
         {/* Parties Information */}
-        <div className="space-y-6 text-xs text-slate-800 leading-relaxed mb-8">
-          <p className="font-semibold">
+        <div className="mb-8 text-xs text-slate-800 leading-relaxed">
+          <p className="font-semibold mb-4 text-slate-900">
             {t("master.commerce.publicSigning.todayPartiesIntro", {
               date: formatDate(contract.createdAt, undefined, locale),
             })}
           </p>
 
-          {/* PARTY A */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
-            <h3 className="font-bold text-sm text-indigo-900 uppercase mb-3 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>
-                {t("master.commerce.publicSigning.partyAHeading", {
-                  name: contract.partyAName || LEGAL_POLICY_META.companyName,
-                })}
-              </span>
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
-                <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || LEGAL_POLICY_META.taxCode}</span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyARepLabel")} </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* NHÀ CUNG CẤP */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5">
+              <h3 className="font-bold text-xs uppercase text-slate-900 pb-2 border-b border-slate-200 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
                 <span>
-                  {contract.partyARepresentative || LEGAL_POLICY_META.representative}
-                  {t("master.commerce.publicSigning.partyAPositionSegment", {
-                    position: contract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition"),
+                  {t("master.commerce.publicSigning.partyAHeading", {
+                    name: contract.partyAName || LEGAL_POLICY_META.companyName,
                   })}
                 </span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyAAddressLabel")} </span>
-                <span>{contract.partyAAddress || t("master.commerce.publicSigning.partyADefaultAddress")}</span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyAEmailLabel")} </span>
-                <span>{contract.partyAEmail || LEGAL_POLICY_META.supportEmail}</span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyAHotlineLabel")} </span>
-                <span>{contract.partyAPhone || LEGAL_POLICY_META.hotline}</span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyAAccountLabel")} </span>
-                <span className="font-mono font-bold">{contract.partyABankAccount || PAYMENT_BANK_INFO.accountNumber}</span>{" "}
-                {t("master.commerce.publicSigning.partyABankAt")}{" "}
-                <span>
-                  {contract.partyABankName || PAYMENT_BANK_INFO.bankName} –{" "}
-                  {contract.partyABankBranch || t("master.commerce.publicSigning.partyADefaultBankBranch")}
-                </span>
+              </h3>
+              <div className="space-y-1.5 text-[12px] leading-relaxed">
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
+                  <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || LEGAL_POLICY_META.taxCode}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyARepLabel")} </span>
+                  <span className="font-semibold text-slate-900">
+                    {contract.partyARepresentative || LEGAL_POLICY_META.representative}
+                  </span>
+                  <span className="text-slate-600">
+                    {t("master.commerce.publicSigning.partyAPositionSegment", {
+                      position: contract.partyAPosition || t("master.commerce.contractDetailModal.partyAFallbackPosition"),
+                    })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyAAddressLabel")} </span>
+                  <span className="text-slate-800">{contract.partyAAddress || t("master.commerce.publicSigning.partyADefaultAddress")}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyAEmailLabel")} </span>
+                  <span className="text-slate-800">{contract.partyAEmail || LEGAL_POLICY_META.supportEmail}</span>
+                  <span className="mx-2 text-slate-300">|</span>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyAHotlineLabel")} </span>
+                  <span className="text-slate-800">{contract.partyAPhone || LEGAL_POLICY_META.hotline}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyAAccountLabel")} </span>
+                  <span className="font-mono font-bold text-slate-900">{contract.partyABankAccount || PAYMENT_BANK_INFO.accountNumber}</span>{" "}
+                  {t("master.commerce.publicSigning.partyABankAt")}{" "}
+                  <span className="text-slate-800">
+                    {contract.partyABankName || PAYMENT_BANK_INFO.bankName} – {contract.partyABankBranch || t("master.commerce.publicSigning.partyADefaultBankBranch")}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* PARTY B */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
-            <h3 className="font-bold text-sm text-slate-900 uppercase mb-3 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-600" />
-              <span>{t("master.commerce.publicSigning.partyBHeading")}</span>
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyBCompanyLabel")} </span>
-                <span className="font-bold text-slate-900">{contract.partyBName || contract.tenantName || t("master.commerce.publicSigning.partyBDefaultName")}</span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
-                <span className="font-mono font-bold text-slate-900">{contract.partyBTaxCode || t("master.commerce.contractDetailModal.taxCodeUpdating")}</span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyBAddressLabel")} </span>
-                <span>{contract.partyBAddress || t("master.commerce.publicSigning.partyBDefaultAddress")}</span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyBRepLabel")} </span>
-                <span>
-                  {contract.partyBRepresentative || t("master.commerce.contractDetailModal.repFallback")}
-                  {t("master.commerce.publicSigning.partyAPositionSegment", {
-                    position: contract.partyBPosition || t("master.commerce.contractDetailModal.partyBFallbackPosition"),
-                  })}
-                </span>
-              </div>
-              <div>
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyBPhoneLabel")} </span>
-                <span>{contract.partyBPhone || t("master.commerce.publicSigning.partyBDefaultPhone")}</span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="font-semibold">{t("master.commerce.publicSigning.partyBEmailLabel")} </span>
-                <span className="font-mono text-indigo-700">{contract.partyBEmail || "email@company.com"}</span>
-              </div>
-              {contract.partyBBankAccount && (
-                <div className="sm:col-span-2">
-                  <span className="font-semibold">{t("master.commerce.publicSigning.partyBBankLabel")} </span>
-                  <span className="font-mono">{contract.partyBBankAccount}</span>
+            {/* KHÁCH HÀNG */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5">
+              <h3 className="font-bold text-xs uppercase text-slate-900 pb-2 border-b border-slate-200 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-slate-600 shrink-0" />
+                <span>{t("master.commerce.publicSigning.partyBHeading")}</span>
+              </h3>
+              <div className="space-y-1.5 text-[12px] leading-relaxed">
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBCompanyLabel")} </span>
+                  <span className="font-bold text-slate-900">{contract.partyBName || contract.tenantName || t("master.commerce.publicSigning.partyBDefaultName")}</span>
                 </div>
-              )}
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyATaxLabel")} </span>
+                  <span className="font-mono font-bold text-slate-900">{contract.partyBTaxCode || t("master.commerce.contractDetailModal.taxCodeUpdating")}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBRepLabel")} </span>
+                  <span className="font-semibold text-slate-900">
+                    {contract.partyBRepresentative || t("master.commerce.contractDetailModal.repFallback")}
+                  </span>
+                  <span className="text-slate-600">
+                    {t("master.commerce.publicSigning.partyAPositionSegment", {
+                      position: contract.partyBPosition || t("master.commerce.contractDetailModal.partyBFallbackPosition"),
+                    })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBAddressLabel")} </span>
+                  <span className="text-slate-800">{contract.partyBAddress || t("master.commerce.publicSigning.partyBDefaultAddress")}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBEmailLabel")} </span>
+                  <span className="font-mono text-indigo-700">{contract.partyBEmail || "email@company.com"}</span>
+                  {contract.partyBPhone && (
+                    <>
+                      <span className="mx-2 text-slate-300">|</span>
+                      <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBPhoneLabel")} </span>
+                      <span className="text-slate-800">{contract.partyBPhone}</span>
+                    </>
+                  )}
+                </div>
+                {contract.partyBBankAccount && (
+                  <div>
+                    <span className="text-slate-500 font-medium">{t("master.commerce.publicSigning.partyBBankLabel")} </span>
+                    <span className="font-mono text-slate-800">{contract.partyBBankAccount}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Contract Articles */}
-        <div className="space-y-6 text-xs text-slate-800 leading-relaxed">
+        <div className="space-y-7 text-xs sm:text-[13px] text-slate-800 leading-relaxed">
           {/* Article 1 */}
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
+          <div className="space-y-2">
+            <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
               {t("master.commerce.publicSigning.article1Title")}
             </h4>
-            <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>
-                {t("master.commerce.publicSigning.article1_1Before")}
-                <strong>SmartHire-AI</strong>
-                {t("master.commerce.publicSigning.article1_1After")}
-              </p>
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
-                <div>
-                  • <strong>{t("master.commerce.publicSigning.article1PlanLabel")}</strong>{" "}
-                  <span className="font-bold text-indigo-700">{contract.planName || t("master.commerce.publicSigning.article1DefaultPlan")}</span>
-                </div>
-                <div>
-                  • <strong>{t("master.commerce.publicSigning.article1SubdomainLabel")}</strong>{" "}
-                  <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-indigo-700">
-                    https://{contract.tenantCode || "company"}.smarthire.top
-                  </code>
-                </div>
-                <div>
-                  • <strong>{t("master.commerce.publicSigning.article1QuotaLabel")}</strong>{" "}
-                  <strong>
-                    {formatQuotaLimit(contract.maxJobs, t("master.commerce.publicSigning.quotaJobsUnit"), {
-                      locale,
-                      unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedJobs"),
-                      unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedJobs"),
-                      monthlySuffix: t("master.commerce.common.monthlySuffix"),
-                    })}
-                  </strong>;{" "}
-                  <strong>
-                    {formatQuotaLimit(contract.maxCvParses, t("master.commerce.publicSigning.quotaCvUnit"), {
-                      locale,
-                      monthly: true,
-                      unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedCv"),
-                      unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedCv"),
-                      monthlySuffix: t("master.commerce.common.monthlySuffix"),
-                    })}
-                  </strong>;{" "}
-                  <strong>
-                    {formatQuotaLimit(contract.maxAiInterviewHours, t("master.commerce.publicSigning.quotaAiUnit"), {
-                      locale,
-                      monthly: true,
-                      unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedAi"),
-                      unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedAi"),
-                      monthlySuffix: t("master.commerce.common.monthlySuffix"),
-                    })}
-                  </strong>;{" "}
+            <p>
+              {t("master.commerce.publicSigning.article1_1Before")}
+              <strong>SmartHire-AI</strong>
+              {t("master.commerce.publicSigning.article1_1After")}
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-200 my-3">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-100/90 text-slate-700 uppercase font-semibold text-[11px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-2.5">Hạng mục tài nguyên & dịch vụ</th>
+                    <th className="px-4 py-2.5 text-right">Hạn ngạch phân bổ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Gói dịch vụ bản quyền</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-indigo-700">{contract.planName || t("master.commerce.publicSigning.article1DefaultPlan")}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Không gian làm việc (Subdomain)</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-900 font-semibold">https://{contract.tenantCode || "company"}.smarthire.top</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Vị trí tuyển dụng mở đồng thời (Active Jobs)</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                      {formatQuotaLimit(contract.maxJobs, t("master.commerce.publicSigning.quotaJobsUnit"), {
+                        locale,
+                        unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedJobs"),
+                        unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedJobs"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Lượt phân tích & sàng lọc CV AI</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                      {formatQuotaLimit(contract.maxCvParses, t("master.commerce.publicSigning.quotaCvUnit"), {
+                        locale,
+                        monthly: true,
+                        unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedCv"),
+                        unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedCv"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Thời lượng phỏng vấn AI Voice</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                      {formatQuotaLimit(contract.maxAiInterviewHours, t("master.commerce.publicSigning.quotaAiUnit"), {
+                        locale,
+                        monthly: true,
+                        unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedAi"),
+                        unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedAi"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}
+                    </td>
+                  </tr>
                   {contract.maxProctoringHours !== undefined && (
-                    <>
-                      <strong>
+                    <tr>
+                      <td className="px-4 py-2.5 text-slate-600 font-medium">Giám sát thi trực tuyến (AI Proctoring)</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
                         {formatQuotaLimit(contract.maxProctoringHours, t("master.commerce.publicSigning.quotaProctoringUnit"), {
                           locale,
                           monthly: true,
@@ -476,126 +506,131 @@ export function PublicContractSigningPage() {
                           unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedProctoring"),
                           monthlySuffix: t("master.commerce.common.monthlySuffix"),
                         })}
-                      </strong>;{" "}
-                    </>
+                      </td>
+                    </tr>
                   )}
-                  <strong>
-                    {formatQuotaLimit(contract.maxStorageGb, t("master.commerce.publicSigning.quotaStorageUnit"), {
-                      locale,
-                      unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedStorage"),
-                      unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedStorage"),
-                      monthlySuffix: t("master.commerce.common.monthlySuffix"),
-                    })}
-                  </strong>.
-                </div>
-              </div>
-              <p>
-                <strong>{t("master.commerce.publicSigning.article1_2Title")}</strong>{" "}
-                {t("master.commerce.publicSigning.article1_2Before")}
-                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700">
-                  smarthire_tenant_{contract.tenantCode || "company"}
-                </code>
-                {t("master.commerce.publicSigning.article1_2After")}
-              </p>
-              <p>
-                <strong>{t("master.commerce.publicSigning.article1_3Title")}</strong>{" "}
-                {t("master.commerce.publicSigning.article1_3From")}{" "}
-                <span className="font-semibold font-mono">{contract.startDate}</span>{" "}
-                {t("master.commerce.publicSigning.article1_3To")}{" "}
-                <span className="font-semibold font-mono">{contract.endDate}</span>.
-              </p>
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">Dung lượng lưu trữ dữ liệu</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                      {formatQuotaLimit(contract.maxStorageGb, t("master.commerce.publicSigning.quotaStorageUnit"), {
+                        locale,
+                        unlimitedLabel: t("master.commerce.publicSigning.quotaUnlimitedStorage"),
+                        unsupportedLabel: t("master.commerce.publicSigning.quotaUnsupportedStorage"),
+                        monthlySuffix: t("master.commerce.common.monthlySuffix"),
+                      })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+            <p>
+              <strong>{t("master.commerce.publicSigning.article1_2Title")}</strong>{" "}
+              {t("master.commerce.publicSigning.article1_2Before")}
+              <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700">
+                smarthire_tenant_{contract.tenantCode || "company"}
+              </code>
+              {t("master.commerce.publicSigning.article1_2After")}
+            </p>
+            <p>
+              <strong>{t("master.commerce.publicSigning.article1_3Title")}</strong>{" "}
+              {t("master.commerce.publicSigning.article1_3From")}{" "}
+              <span className="font-semibold font-mono">{contract.startDate}</span>{" "}
+              {t("master.commerce.publicSigning.article1_3To")}{" "}
+              <span className="font-semibold font-mono">{contract.endDate}</span>.
+            </p>
           </div>
 
           {/* Article 2 */}
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
+          <div className="space-y-2">
+            <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
               {t("master.commerce.publicSigning.article2Title")}
             </h4>
-            <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>{t("master.commerce.publicSigning.article2_1Intro")}</p>
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
-                <div className="flex justify-between">
-                  <span>{t("master.commerce.publicSigning.article2LicenseFee")}</span>
-                  <span className="font-mono font-bold">{formatNumber(contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</span>
+            <p>{t("master.commerce.publicSigning.article2_1Intro")}</p>
+            <div className="overflow-hidden rounded-xl border border-slate-200 my-3">
+              <table className="w-full text-xs text-left">
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-600 font-medium">{t("master.commerce.publicSigning.article2LicenseFee")}</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-900">{formatNumber(contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</td>
+                  </tr>
+                  <tr className="bg-slate-50 font-bold">
+                    <td className="px-4 py-2.5 text-slate-900">{t("master.commerce.publicSigning.article2TotalFee")}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-emerald-600 text-sm">{formatNumber(contract.totalAmount || contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {cleanAmountInWords(contract.amountInWords) && (
+                <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-200 text-[11px] text-slate-500 italic">
+                  {t("master.commerce.contractDetailModal.amountInWords", {
+                    words: cleanAmountInWords(contract.amountInWords),
+                  })}
                 </div>
-                <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
-                  <span>{t("master.commerce.publicSigning.article2TotalFee")}</span>
-                  <span className="font-mono text-emerald-600">{formatNumber(contract.totalAmount || contract.contractValue, undefined, locale)} {t("master.commerce.common.vndCode")}</span>
-                </div>
-                {contract.amountInWords && (
-                  <div className="text-[11px] text-slate-500 italic pt-1">
-                    {t("master.commerce.contractDetailModal.amountInWords", { words: contract.amountInWords })}
-                  </div>
-                )}
-              </div>
-              <p><strong>{t("master.commerce.publicSigning.article2_2Title")}</strong></p>
-              <p>
+              )}
+            </div>
+            <p className="font-semibold pt-1">{t("master.commerce.publicSigning.article2_2Title")}</p>
+            <ul className="space-y-1.5 pl-4 list-disc text-slate-700">
+              <li>
                 {t("master.commerce.publicSigning.article2_2Bullet1Before")}
                 <strong>{t("master.commerce.publicSigning.article2_2Bullet1Strong")}</strong>
                 {t("master.commerce.publicSigning.article2_2Bullet1After")}
-              </p>
-              <p>
+              </li>
+              <li>
                 {t("master.commerce.publicSigning.article2_2Bullet2")}
-              </p>
-            </div>
+              </li>
+            </ul>
           </div>
 
           {/* Article 3 */}
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
+          <div className="space-y-2">
+            <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
               {t("master.commerce.publicSigning.article3Title")}
             </h4>
-            <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>
-                <strong>{t("master.commerce.publicSigning.article3_1Title")}</strong>{" "}
-                {t("master.commerce.publicSigning.article3_1Before")}
-                <strong>{t("master.commerce.publicSigning.article3_1Strong")}</strong>
-                {t("master.commerce.publicSigning.article3_1After")}
-              </p>
-              <p>
-                <strong>{t("master.commerce.publicSigning.article3_2Title", { law: LEGAL_POLICY_META.lawLabel })}</strong>{" "}
-                {t("master.commerce.publicSigning.article3_2Part1")}
-                <strong>{t("master.commerce.publicSigning.article3_2Controller")}</strong>
-                {t("master.commerce.publicSigning.article3_2Part2")}
-                <strong>{t("master.commerce.publicSigning.article3_2Processor")}</strong>
-                {t("master.commerce.publicSigning.article3_2Part3")}
-              </p>
-              <p>
-                <strong>{t("master.commerce.publicSigning.article3_3Title")}</strong>{" "}
-                {t("master.commerce.publicSigning.article3_3Body")}
-              </p>
-            </div>
+            <p>
+              <strong>{t("master.commerce.publicSigning.article3_1Title")}</strong>{" "}
+              {t("master.commerce.publicSigning.article3_1Before")}
+              <strong>{t("master.commerce.publicSigning.article3_1Strong")}</strong>
+              {t("master.commerce.publicSigning.article3_1After")}
+            </p>
+            <p>
+              <strong>{t("master.commerce.publicSigning.article3_2Title", { law: LEGAL_POLICY_META.lawLabel })}</strong>{" "}
+              {t("master.commerce.publicSigning.article3_2Part1")}
+              <strong>{t("master.commerce.publicSigning.article3_2Controller")}</strong>
+              {t("master.commerce.publicSigning.article3_2Part2")}
+              <strong>{t("master.commerce.publicSigning.article3_2Processor")}</strong>
+              {t("master.commerce.publicSigning.article3_2Part3")}
+            </p>
+            <p>
+              <strong>{t("master.commerce.publicSigning.article3_3Title")}</strong>{" "}
+              {t("master.commerce.publicSigning.article3_3Body")}
+            </p>
           </div>
 
           {/* Article 4 */}
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
+          <div className="space-y-2">
+            <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
               {t("master.commerce.publicSigning.article4Title")}
             </h4>
-            <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>
-                {t("master.commerce.publicSigning.article4_1Before")}
-                <strong>{t("master.commerce.publicSigning.article4_1Strong")}</strong>
-                {t("master.commerce.publicSigning.article4_1After")}
-              </p>
-              <p>
-                {t("master.commerce.publicSigning.article4_2Part1")}
-                <strong>{t("master.commerce.publicSigning.article4_2Provider")}</strong>
-                {t("master.commerce.publicSigning.article4_2Part2")}
-                <strong>{t("master.commerce.publicSigning.article4_2Hash")}</strong>
-                {t("master.commerce.publicSigning.article4_2Part3")}
-              </p>
-              <p>
-                {t("master.commerce.publicSigning.article4_3Before")}
-                <strong>
-                  {t("master.commerce.publicSigning.article4_3Strong", {
-                    court: LEGAL_POLICY_META.disputeCourt,
-                  })}
-                </strong>
-                {t("master.commerce.publicSigning.article4_3After")}
-              </p>
-            </div>
+            <p>
+              {t("master.commerce.publicSigning.article4_1Before")}
+              <strong>{t("master.commerce.publicSigning.article4_1Strong")}</strong>
+              {t("master.commerce.publicSigning.article4_1After")}
+            </p>
+            <p>
+              {t("master.commerce.publicSigning.article4_2Part1")}
+              <strong>{t("master.commerce.publicSigning.article4_2Provider")}</strong>
+              {t("master.commerce.publicSigning.article4_2Part2")}
+              <strong>{t("master.commerce.publicSigning.article4_2Hash")}</strong>
+              {t("master.commerce.publicSigning.article4_2Part3")}
+            </p>
+            <p>
+              {t("master.commerce.publicSigning.article4_3Before")}
+              <strong>
+                {t("master.commerce.publicSigning.article4_3Strong", {
+                  court: LEGAL_POLICY_META.disputeCourt,
+                })}
+              </strong>
+              {t("master.commerce.publicSigning.article4_3After")}
+            </p>
           </div>
         </div>
 

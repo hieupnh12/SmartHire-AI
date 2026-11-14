@@ -1,59 +1,19 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
-import { useTenants, useSubscriptions, useInvoices, masterQueryKeys } from "@/api/master/queries";
+import { useInvoices, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
-import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { Tooltip } from "@/components/ux/Tooltip";
-import { CreateInvoiceModal } from "@/features/master/billing/components/modals/CreateInvoiceModal";
 import { InvoiceDetailModal } from "@/features/master/billing/components/modals/InvoiceDetailModal";
 import { formatDate, formatDateTime, formatSimpleDateTime, formatNumber, useLocale, useT } from "@/i18n";
 
-interface InvoicesTabProps {
-  invoiceTenantId: number | "";
-  setInvoiceTenantId: (val: number | "") => void;
-  invoicePlanId: number | "";
-  setInvoicePlanId: (val: number | "") => void;
-  invoiceAmount: number;
-  setInvoiceAmount: (val: number) => void;
-  invoiceCurrency: string;
-  setInvoiceCurrency: (val: string) => void;
-  invoicePaymentGateway: string;
-  setInvoicePaymentGateway: (val: string) => void;
-  invoiceNotes: string;
-  setInvoiceNotes: (val: string) => void;
-  showCreateInvoiceModal: boolean;
-  setShowCreateInvoiceModal: (val: boolean) => void;
-  selectedInvoice: InvoiceItem | null;
-  setSelectedInvoice: (val: InvoiceItem | null) => void;
-}
-
-function InvoicesContent({
-  invoiceTenantId,
-  setInvoiceTenantId,
-  invoicePlanId,
-  setInvoicePlanId,
-  invoiceAmount,
-  setInvoiceAmount,
-  invoiceCurrency,
-  setInvoiceCurrency,
-  invoicePaymentGateway,
-  setInvoicePaymentGateway,
-  invoiceNotes,
-  setInvoiceNotes,
-  showCreateInvoiceModal,
-  setShowCreateInvoiceModal,
-  selectedInvoice,
-  setSelectedInvoice,
-}: InvoicesTabProps) {
+export function InvoicesPage() {
   const t = useT();
   const locale = useLocale();
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
-  const { data: tenants = [] } = useTenants();
-  const { data: plans = [] } = useSubscriptions();
   const { data: invoices = [] } = useInvoices();
   const setInvoices = (updater: any) => {
     queryClient.setQueriesData({ queryKey: masterQueryKeys.invoices() }, updater);
@@ -63,6 +23,7 @@ function InvoicesContent({
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -98,8 +59,6 @@ function InvoicesContent({
     return invoices.filter((i) => i.status === "OVERDUE").length;
   }, [invoices]);
 
-  const [creatingInvoice, setCreatingInvoice] = useState(false);
-
   const handleMarkInvoicePaid = (inv: InvoiceItem) => {
     askConfirm({
       title: t("master.commerce.invoicesPage.approveModal.title", { invoiceNumber: inv.invoiceNumber }),
@@ -125,54 +84,8 @@ function InvoicesContent({
     });
   };
 
-  const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invoiceTenantId) {
-      toast.danger(t("master.commerce.invoicesPage.selectTenantDanger"));
-      return;
-    }
-    setCreatingInvoice(true);
-    try {
-      const created = await billingApi.create({
-        tenantId: Number(invoiceTenantId),
-        planId: invoicePlanId ? Number(invoicePlanId) : undefined,
-        amount: invoiceAmount,
-        currency: invoiceCurrency || "VND",
-        paymentGateway: invoicePaymentGateway || "BANK_TRANSFER",
-        notes: invoiceNotes || undefined,
-      });
-      setInvoices((prev: InvoiceItem[]) => [created, ...(prev || [])]);
-      setShowCreateInvoiceModal(false);
-      toast.success(t("master.commerce.invoicesPage.createdToast", { invoiceNumber: created.invoiceNumber }));
-    } catch (err: any) {
-      const msg = err.response?.data?.message || t("master.commerce.invoicesPage.createError");
-      toast.danger(msg);
-    } finally {
-      setCreatingInvoice(false);
-    }
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
-      <HeaderActions>
-        <button
-          onClick={() => {
-            setInvoiceTenantId(tenants[0]?.id || "");
-            const defaultPlan = plans[0];
-            if (defaultPlan) {
-              setInvoicePlanId(defaultPlan.id || "");
-              setInvoiceAmount(defaultPlan.priceYearly || 36000000);
-            }
-            setInvoiceNotes("");
-            setShowCreateInvoiceModal(true);
-          }}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
-        >
-          <Plus className="size-3.5" />
-          <span>{t("master.commerce.invoicesPage.createBtn")}</span>
-        </button>
-      </HeaderActions>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
           <span className="text-sm font-semibold text-slate-600 block mb-1.5">{t("master.commerce.invoicesPage.kpiPaidTitle")}</span>
@@ -565,64 +478,11 @@ function InvoicesContent({
           </div>
         )}
       </div>
-      <CreateInvoiceModal
-        showCreateInvoiceModal={showCreateInvoiceModal}
-        setShowCreateInvoiceModal={setShowCreateInvoiceModal}
-        tenants={tenants}
-        plans={plans}
-        invoiceTenantId={invoiceTenantId}
-        setInvoiceTenantId={setInvoiceTenantId}
-        invoicePlanId={invoicePlanId}
-        setInvoicePlanId={setInvoicePlanId}
-        invoiceAmount={invoiceAmount}
-        setInvoiceAmount={setInvoiceAmount}
-        invoiceCurrency={invoiceCurrency}
-        setInvoiceCurrency={setInvoiceCurrency}
-        invoicePaymentGateway={invoicePaymentGateway}
-        setInvoicePaymentGateway={setInvoicePaymentGateway}
-        invoiceNotes={invoiceNotes}
-        setInvoiceNotes={setInvoiceNotes}
-        creatingInvoice={creatingInvoice}
-        handleCreateInvoiceSubmit={handleCreateInvoiceSubmit}
-      />
-
       <InvoiceDetailModal
         selectedInvoice={selectedInvoice}
         setSelectedInvoice={setSelectedInvoice}
         handleMarkInvoicePaid={handleMarkInvoicePaid}
       />
     </div>
-  );
-}
-
-export function InvoicesPage() {
-  const [tenantId, setTenantId] = useState<number | "">("");
-  const [planId, setPlanId] = useState<number | "">("");
-  const [amount, setAmount] = useState(0);
-  const [currency, setCurrency] = useState("VND");
-  const [paymentGateway, setPaymentGateway] = useState("BANK_TRANSFER");
-  const [notes, setNotes] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [selected, setSelected] = useState<InvoiceItem | null>(null);
-
-  return (
-    <InvoicesContent
-      invoiceTenantId={tenantId}
-      setInvoiceTenantId={setTenantId}
-      invoicePlanId={planId}
-      setInvoicePlanId={setPlanId}
-      invoiceAmount={amount}
-      setInvoiceAmount={setAmount}
-      invoiceCurrency={currency}
-      setInvoiceCurrency={setCurrency}
-      invoicePaymentGateway={paymentGateway}
-      setInvoicePaymentGateway={setPaymentGateway}
-      invoiceNotes={notes}
-      setInvoiceNotes={setNotes}
-      showCreateInvoiceModal={creating}
-      setShowCreateInvoiceModal={setCreating}
-      selectedInvoice={selected}
-      setSelectedInvoice={setSelected}
-    />
   );
 }

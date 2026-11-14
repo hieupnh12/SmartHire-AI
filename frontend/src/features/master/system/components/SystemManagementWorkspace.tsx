@@ -133,7 +133,7 @@ function MetricCard({
   );
 }
 
-function AiUsageReportView() {
+export function AiUsageReportView({ showHeaderActions = true }: { showHeaderActions?: boolean } = {}) {
   const t = useT();
   const locale = useLocale();
   const [months, setMonths] = useState<number>(6);
@@ -215,28 +215,30 @@ function AiUsageReportView() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        action={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchReport(months)}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <RefreshCw className="size-3.5" />
-              {t("master.ops.systemWorkspace.usage.refreshBtn")}
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <FileDown className="size-3.5" />
-              {t("master.ops.systemWorkspace.usage.exportCsvBtn")}
-            </button>
-          </div>
-        }
-      />
+      {showHeaderActions && (
+        <PageHeader
+          action={
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fetchReport(months)}
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <RefreshCw className="size-3.5" />
+                {t("master.ops.systemWorkspace.usage.refreshBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <FileDown className="size-3.5" />
+                {t("master.ops.systemWorkspace.usage.exportCsvBtn")}
+              </button>
+            </div>
+          }
+        />
+      )}
 
       {error && (
         <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
@@ -289,6 +291,27 @@ function AiUsageReportView() {
           tone="amber"
         />
       </section>
+
+      {!showHeaderActions && (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => fetchReport(months)}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+          >
+            <RefreshCw className="size-3.5" />
+            {t("master.ops.systemWorkspace.usage.refreshBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+          >
+            <FileDown className="size-3.5" />
+            {t("master.ops.systemWorkspace.usage.exportCsvBtn")}
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className={cn(surface, "p-5 sm:p-6")}>

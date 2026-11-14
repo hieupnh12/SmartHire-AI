@@ -228,7 +228,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `party_a_name` | VARCHAR(255) | | Không | `'CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM'` | Snapshot Tên Bên A (SmartHire) |
 | `party_a_tax_code` | VARCHAR(50) | | Không | `'0110888999'` (V37) | Snapshot MST Bên A |
 | `party_a_address` | VARCHAR(512) | | Không | Tòa nhà FPT Đà Nẵng (V37) | Snapshot Địa chỉ Bên A |
-| `party_a_representative` | VARCHAR(255) | | Không | `'Phan Nhật Hưng'` | Người đại diện Bên A |
+| `party_a_representative` | VARCHAR(255) | | Không | `'Nguyễn Minh Hiếu'` | Người đại diện Bên A |
 | `party_a_position` | VARCHAR(255) | | Không | `'Tổng Giám Đốc'` | Chức vụ người đại diện Bên A |
 | `party_a_phone` | VARCHAR(50) | | Không | `'0988.888.888'` (V37) | Số điện thoại Bên A |
 | `party_a_email` | VARCHAR(255) | | Không | `'support@smarthire.top'` (V37) | Email Bên A |
