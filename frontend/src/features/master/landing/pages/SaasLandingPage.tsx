@@ -16,7 +16,8 @@ import {
   Activity,
   Check,
   DollarSign,
-  ChevronRight
+  ChevronRight,
+  Smartphone
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
 import { PlanFeatureList } from "../components/PlanFeatureList";
@@ -102,7 +103,7 @@ export function SaasLandingPage() {
             {t("master.landing.saas.hero.subtitle")}
           </p>
 
-          <div data-reveal="fade-up" style={{ transitionDelay: "160ms" }} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
+          <div data-reveal="fade-up" style={{ transitionDelay: "160ms" }} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-6">
             <button
               onClick={() => openDemoModal(t("master.landing.shared.consultTier"))}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5 group"
@@ -117,6 +118,32 @@ export function SaasLandingPage() {
             >
               {t("master.landing.saas.hero.secondaryCta")}
             </Link>
+          </div>
+
+          {/* Android App Download Badge for Candidates */}
+          <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
+            <span>Dành cho Ứng viên:</span>
+            <a
+              href="/smarthire.apk"
+              download="SmartHire.apk"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors active:scale-95 shadow-2xs"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Tải ứng dụng</span>
+            </a>
+          </div>
+
+          {/* Android App Download Badge for Candidates */}
+          <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
+            <span>Dành cho Ứng viên:</span>
+            <a
+              href="/smarthire.apk"
+              download="SmartHire.apk"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors active:scale-95 shadow-2xs"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Tải ứng dụng SmartHire Android (.APK)</span>
+            </a>
           </div>
 
           {/* LIVE PRODUCT PREVIEW MOCKUP WITH FLOATING CHIPS */}
