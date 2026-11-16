@@ -1,6 +1,12 @@
+import { Video, MapPin } from "lucide-react";
 import { formatDate, formatTime, useLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { getInterviewRoundShortLabel, roundMeta, type MockInterview } from "../constants/mockInterviews";
+import {
+  getInterviewRoundShortLabel,
+  getInterviewStatusLabel,
+  statusMeta,
+  type MockInterview,
+} from "../constants/mockInterviews";
 
 const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -42,13 +48,13 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
   const today = dayKey(new Date());
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white">
+    <div className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white shadow-2xs">
       {/* Weekday Header */}
       <div className="grid grid-cols-7 border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]">
         {WEEKDAY_KEYS.map((day) => (
           <div
             key={day}
-            className="py-3 text-center text-xs font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]"
+            className="py-2.5 text-center text-xs font-semibold text-[var(--color-on-surface-variant)]"
           >
             {t(`recruiter.ops.schedules.calendar.weekdays.${day}`)}
           </div>
@@ -76,10 +82,10 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
                 month: "long",
               }, locale)}${items.length ? t("recruiter.ops.schedules.calendar.dayInterviewCountAria", { count: items.length }) : ""}`}
               className={cn(
-                "group relative flex min-h-[72px] flex-col gap-1 border-b border-r border-[var(--color-border-default)] p-1.5 text-left align-top transition-colors sm:min-h-[96px] lg:min-h-[108px] [&:nth-child(7n)]:border-r-0",
+                "group relative flex min-h-[76px] flex-col gap-1 border-b border-r border-[var(--color-border-default)] p-2 text-left align-top transition-colors sm:min-h-[100px] lg:min-h-[116px] [&:nth-child(7n)]:border-r-0",
                 outside
-                  ? "bg-slate-50/50 text-slate-400"
-                  : "bg-white hover:bg-[var(--color-primary-subtle)]/40",
+                  ? "bg-slate-50/60 text-slate-400"
+                  : "bg-white hover:bg-[var(--color-primary-subtle)]/50",
                 isSelected &&
                   "bg-[var(--color-primary-subtle)]/80 ring-2 ring-inset ring-brand-primary",
               )}
@@ -88,7 +94,7 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
               <div className="flex items-center justify-between">
                 <span
                   className={cn(
-                    "grid size-6 place-items-center rounded-full text-xs font-semibold transition-transform duration-150 group-hover:scale-105",
+                    "grid size-7 place-items-center rounded-full text-xs font-semibold transition-transform duration-150 group-hover:scale-105",
                     isToday
                       ? "bg-brand-primary text-white shadow-sm"
                       : isSelected
@@ -99,58 +105,65 @@ export function RecruiterCalendarMonth({ month, interviews, selected, onSelect }
                   {day.getDate()}
                 </span>
                 {items.length > 0 && (
-                  <span className="hidden rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 sm:inline-block">
+                  <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 sm:inline-block">
                     {items.length}
                   </span>
                 )}
               </div>
 
-              {/* Mobile View: Dots */}
+              {/* Mobile View: Dots based on Status */}
               <div className="flex flex-wrap gap-1 pt-0.5 sm:hidden">
-                {items.slice(0, 3).map((item) => (
-                  <span
-                    key={item.id}
-                    title={`${item.candidateName} (${getInterviewRoundShortLabel(item.round, t)})`}
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      roundMeta[item.round]?.dot || "bg-brand-primary",
-                    )}
-                  />
-                ))}
+                {items.slice(0, 3).map((item) => {
+                  const sm = statusMeta[item.status];
+                  return (
+                    <span
+                      key={item.id}
+                      title={`${item.candidateName} (${getInterviewStatusLabel(item.status, t)} · ${getInterviewRoundShortLabel(item.round, t)})`}
+                      className={cn(
+                        "size-2 rounded-full",
+                        sm?.dot || "bg-brand-primary",
+                      )}
+                    />
+                  );
+                })}
                 {items.length > 3 && (
-                  <span className="text-[9px] font-bold text-[var(--color-outline)]">+</span>
+                  <span className="text-xs font-bold text-[var(--color-outline)]">+</span>
                 )}
               </div>
 
-              {/* Desktop / Tablet View: Event Chips */}
+              {/* Desktop / Tablet View: Event Chips based on Status & Mode */}
               <div className="hidden min-w-0 flex-1 flex-col gap-1 sm:flex">
                 {items.slice(0, 2).map((item) => {
                   const startTime = formatTime(item.startsAt, {
                     hour: "2-digit",
                     minute: "2-digit",
                   }, locale);
-                  const meta = roundMeta[item.round];
+                  const sm = statusMeta[item.status];
                   return (
                     <div
                       key={item.id}
-                      title={`${item.candidateName} · ${item.jobTitle} (${startTime})`}
+                      title={`${item.candidateName} · ${item.jobTitle} (${startTime} - ${getInterviewStatusLabel(item.status, t)} · ${getInterviewRoundShortLabel(item.round, t)})`}
                       className={cn(
-                        "flex items-center gap-1 truncate rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-transform hover:scale-[1.02]",
-                        meta?.chip || "border-slate-200 bg-slate-50 text-slate-800",
-                        item.status === "CANCELLED" && "line-through opacity-60",
+                        "flex items-center gap-1.5 truncate rounded-md border px-2 py-1 text-xs font-medium transition-all hover:scale-[1.01]",
+                        sm?.chip || "border-slate-200 bg-slate-50 text-slate-800",
                       )}
                     >
                       <span
-                        className={cn("size-1.5 shrink-0 rounded-full", meta?.dot || "bg-slate-400")}
+                        className={cn("size-2 shrink-0 rounded-full", sm?.dot || "bg-slate-400")}
                         aria-hidden="true"
                       />
+                      {item.mode === "ONLINE" ? (
+                        <Video className="size-3 shrink-0 text-sky-600" aria-label="Online" />
+                      ) : (
+                        <MapPin className="size-3 shrink-0 text-emerald-600" aria-label="Offline" />
+                      )}
                       <span className="truncate font-semibold">{item.candidateName}</span>
-                      <span className="shrink-0 text-[10px] opacity-75">{startTime}</span>
+                      <span className="shrink-0 font-mono text-[11px] opacity-75">{startTime}</span>
                     </div>
                   );
                 })}
                 {items.length > 2 && (
-                  <span className="px-1 text-[10px] font-medium text-[var(--color-on-surface-variant)]">
+                  <span className="px-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
                     {t("recruiter.ops.schedules.calendar.moreCandidates", { count: items.length - 2 })}
                   </span>
                 )}

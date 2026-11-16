@@ -624,13 +624,13 @@ export const masterLandingJa = {
   demoPage: {
     backHome: "ホームへ",
     demoTitle: "1対1 デモ体験を予約",
-    quoteTitle: "お見積り・契約のご相談",
+    quoteTitle: "お見積りのご相談",
     demoSubtitle:
       "担当コンサルタントが2時間以内にご連絡し、貴社に合わせたデモを準備いたします。",
     quoteSubtitle:
-      "エンタープライズ専任チームより、詳細な料金体系とSLA条件をご案内いたします。",
+      "専任チームより、詳細な料金体系をご案内いたします。",
     demoTab: "1対1 デモ予約",
-    quoteTab: "Enterprise 見積・契約",
+    quoteTab: "見積",
     defaultNeed: "CVスクリーニングとAI一次面接の自動化",
     invalidData: "入力内容に不備があります。ご確認のうえ再度お試しください。",
     backendError:
@@ -648,7 +648,7 @@ export const masterLandingJa = {
     jobTitlePlaceholder: "役職を選択または入力...",
     useCustomJobTitle: '"{title}" を使用する',
     workEmailLabel: "連絡先メールアドレス",
-    workEmailPlaceholder: "name@company.com",
+    workEmailPlaceholder: "name@gmail.com",
     phoneLabel: "電話番号",
     phonePlaceholder: "0912 345 678",
     notesLabel: "ご要望・備考（任意）",
@@ -656,7 +656,7 @@ export const masterLandingJa = {
       "例：IT部門向けに自動コーディング評価とAI面接の導入を検討中...",
     submitting: "送信中...",
     submitDemo: "デモ予約リクエストを送信",
-    submitQuote: "お見積り・契約相談を送信",
+    submitQuote: "お見積り相談を送信",
     receivedTitle: "リクエストを受け付けました！",
     receivedDescBefore: "ご登録企業：",
     receivedDescMiddle:

@@ -1,23 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  ArrowUpDown,
+  BarChart3,
   BrainCircuit,
   Building2,
   Calculator,
-  CreditCard,
-  ReceiptText,
-  FileSignature,
-  ArrowUpDown,
-  BarChart3,
-  House,
-  FileText,
-  ShieldCheck,
-  PhoneCall,
-  Sliders,
-  Cpu,
   ChevronDown,
+  CircleDollarSign,
+  Cpu,
+  CreditCard,
+  FileSignature,
+  FileText,
+  House,
+  LifeBuoy,
+  PhoneCall,
+  ReceiptText,
+  ShieldCheck,
+  Sliders,
+  TrendingUp,
   X,
-  LucideIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { useTenants } from "@/api/master/queries";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
@@ -95,12 +98,40 @@ export function MasterAdminSidebar({
       icon: House,
     },
     {
-      type: "single",
+      type: "group",
       id: "analytics",
       label: t("master.shell.sidebar.analytics"),
-      path: "/admin/analytics",
-      activePaths: ["/admin/analytics"],
       icon: BarChart3,
+      children: [
+        {
+          id: "analytics-overview",
+          label: t("master.ops.analytics.tabs.overview"),
+          path: "/admin/analytics/overview",
+          activePaths: ["/admin/analytics/overview", "/admin/analytics"],
+          icon: TrendingUp,
+        },
+        {
+          id: "analytics-revenue",
+          label: t("master.ops.analytics.tabs.revenue"),
+          path: "/admin/analytics/revenue",
+          activePaths: ["/admin/analytics/revenue"],
+          icon: CircleDollarSign,
+        },
+        {
+          id: "analytics-ai",
+          label: t("master.ops.analytics.tabs.ai"),
+          path: "/admin/analytics/ai",
+          activePaths: ["/admin/analytics/ai"],
+          icon: BrainCircuit,
+        },
+        {
+          id: "analytics-operations",
+          label: t("master.ops.analytics.tabs.operations"),
+          path: "/admin/analytics/operations",
+          activePaths: ["/admin/analytics/operations"],
+          icon: LifeBuoy,
+        },
+      ],
     },
     {
       type: "group",
@@ -189,13 +220,6 @@ export function MasterAdminSidebar({
           icon: FileText,
         },
         {
-          id: "ai-usage",
-          label: t("master.shell.sidebar.aiUsage"),
-          path: "/admin/system/ai-usage",
-          activePaths: ["/admin/system/ai-usage"],
-          icon: BrainCircuit,
-        },
-        {
           id: "ai-quotas",
           label: t("master.shell.sidebar.aiQuotas"),
           path: "/admin/system/ai-quotas",
@@ -229,6 +253,7 @@ export function MasterAdminSidebar({
   // Keep track of which groups are open
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     return {
+      analytics: true,
       tenants: true,
       commerce: true,
       system: false,

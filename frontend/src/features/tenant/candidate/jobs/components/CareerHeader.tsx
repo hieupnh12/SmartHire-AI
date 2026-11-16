@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowRight, Bell, Bookmark, Box, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronDown, ChevronRight,
+  ArrowRight, Bell, Bookmark, Box, BriefcaseBusiness, Building2, CalendarDays, ChevronDown, ChevronRight,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
-  FileText, Gift, Languages, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
+  FileText, Gift, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
   Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
@@ -16,7 +16,7 @@ import { notificationApi } from "@/api/tenant/notificationApi";
 import type { LandingPageConfig } from "@/features/tenant/admin/landing/types/landing";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { formatDateTime, localeLabels, locales, useI18nStore, useLocale, useT, type TranslateFn } from "@/i18n";
+import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
 import { useNotifications } from "@/hooks/useNotifications";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
@@ -430,20 +430,13 @@ function AccountPanel({ user, onClose, onLogout }: { user: ReturnType<typeof use
   const t = useT();
   return <div className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
     <Link to="/account" onClick={onClose} title={t("candidate.core.header.account.settingsTitle")} className="group flex items-center gap-4 border-b border-slate-100 p-5 transition-colors hover:bg-slate-50"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0 flex-1"><p className="truncate text-base font-semibold text-slate-800 group-hover:text-[var(--color-primary)]">{user?.fullName || t("roles.candidate")}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">{t("candidate.core.header.account.verified")}</p></div><ChevronRight className="size-5 shrink-0 text-slate-400 group-hover:text-[var(--color-primary)]" aria-hidden="true" /></Link>
-    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title={t("candidate.core.header.account.notificationsAndSchedule")} links={[{ label: t("candidate.core.header.account.notificationsLink"), to: "/notifications?tab=settings" }, { label: t("candidate.core.header.account.schedulesLink"), to: "/schedules" }]} onClose={onClose} /><LanguageSection /></div>
+    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title={t("candidate.core.header.account.notificationsAndSchedule")} links={[{ label: t("candidate.core.header.account.notificationsLink"), to: "/notifications?tab=settings" }, { label: t("candidate.core.header.account.schedulesLink"), to: "/schedules" }]} onClose={onClose} /></div>
     <div className="border-t border-slate-100 p-3"><button type="button" onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="size-5" aria-hidden="true" />{t("common.logout")}</button></div>
   </div>;
 }
 
 function AccountSection({ icon: Icon, title, links, onClose }: { icon: ElementType; title: string; links: Array<MenuItem & { to: string }>; onClose: () => void }) {
   return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Icon className="size-5 text-slate-400" aria-hidden="true" />{title}</h2><div className="ml-8">{links.map((link) => <Link key={link.to + link.label} to={link.to} onClick={onClose} className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]">{link.label}</Link>)}</div></section>;
-}
-
-function LanguageSection() {
-  const t = useT();
-  const locale = useI18nStore((state) => state.locale);
-  const setLocale = useI18nStore((state) => state.setLocale);
-  return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Languages className="size-5 text-slate-400" aria-hidden="true" />{t("common.language")}</h2><div role="radiogroup" aria-label={t("common.language")} className="ml-8 flex flex-wrap gap-2 px-3 py-1">{locales.map((value) => { const selected = value === locale; return <button key={value} type="button" role="radio" aria-checked={selected} onClick={() => setLocale(value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 ${selected ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]"}`}>{selected && <Check className="size-4" aria-hidden="true" />}{localeLabels[value]}</button>; })}</div></section>;
 }
 
 function MobileMenu({ menus, loggedIn, tenantName, tenantCode, onNavigate }: { menus: Menus; loggedIn: boolean; tenantName: string; tenantCode: string; onNavigate: () => void }) {

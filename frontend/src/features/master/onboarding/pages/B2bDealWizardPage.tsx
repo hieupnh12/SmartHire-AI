@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage } from "@/lib/axios";
 import { formatQuotaLimit } from "@/lib/quotaFormatters";
 import { formatNumber, useLocale, useT, type TranslateFn } from "@/i18n";
+import { formatPlanDisplayName } from "@/features/tenant/admin/billing/utils/billingLabels";
 import { 
   calculateTemplateAddonQuote, 
   calculateScratchCustomQuote, 
@@ -1355,7 +1356,7 @@ export function B2bDealWizardPageContent() {
                           }`}
                       >
                         <div className="flex justify-between items-start mb-4">
-                          <h4 className="font-bold text-slate-600 text-lg">{plan.name}</h4>
+                          <h4 className="font-bold text-slate-600 text-lg">{formatPlanDisplayName(plan.name, t)}</h4>
                           {isSelected && <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />}
                         </div>
                         <div className="text-2xl font-bold text-slate-600 mb-1">

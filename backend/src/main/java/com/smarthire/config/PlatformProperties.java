@@ -23,7 +23,7 @@ public class PlatformProperties {
         private String address = "Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng";
         private String city = "Đà Nẵng";
         private String disputeCourt = "Tòa án nhân dân có thẩm quyền tại Thành phố Đà Nẵng";
-        private String representative = "Phan Nhật Hưng";
+        private String representative = "Nguyễn Minh Hiếu";
         private String position = "Tổng Giám Đốc";
         private String hotline = "0988.888.888";
         private String supportEmail = "support@smarthire.top";

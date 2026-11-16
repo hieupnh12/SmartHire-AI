@@ -17,6 +17,10 @@ import { cn } from "@/lib/utils";
 
 function getAdminPageTitle(pathname: string, t: TranslateFn): string {
   if (pathname.startsWith("/admin/dashboard")) return t("master.shell.titles.dashboard");
+  if (pathname.startsWith("/admin/analytics/overview")) return `${t("master.shell.titles.analytics")} · ${t("master.ops.analytics.tabs.overview")}`;
+  if (pathname.startsWith("/admin/analytics/revenue")) return `${t("master.shell.titles.analytics")} · ${t("master.ops.analytics.tabs.revenue")}`;
+  if (pathname.startsWith("/admin/analytics/ai")) return `${t("master.shell.titles.analytics")} · ${t("master.ops.analytics.tabs.ai")}`;
+  if (pathname.startsWith("/admin/analytics/operations")) return `${t("master.shell.titles.analytics")} · ${t("master.ops.analytics.tabs.operations")}`;
   if (pathname.startsWith("/admin/analytics")) return t("master.shell.titles.analytics");
   if (pathname.startsWith("/admin/leads")) return t("master.shell.titles.leads");
   if (pathname.startsWith("/admin/deals") || pathname.startsWith("/admin/tenants/create")) {
