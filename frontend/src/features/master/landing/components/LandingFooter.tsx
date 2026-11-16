@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Mail, ArrowUpRight } from "lucide-react";
+import { Mail, ArrowUpRight, Smartphone } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
@@ -75,6 +75,26 @@ export function LandingFooter() {
                   {t("master.landingChrome.footer.enterWorkspace")}
                   <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
+              </li>
+              <li>
+                <a
+                  href="/smarthire.apk"
+                  download="SmartHire.apk"
+                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span>Tải SmartHire App</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/smarthire.apk"
+                  download="SmartHire.apk"
+                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span>Tải SmartHire App (Android .apk)</span>
+                </a>
               </li>
               <li>
                 <a
