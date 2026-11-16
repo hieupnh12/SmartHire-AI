@@ -140,6 +140,27 @@ public class AiInterviewController {
         return ApiResponse.ok(aiInterviewService.generate(id));
     }
 
+    @PostMapping("/{id}/questions/approve")
+    @Operation(summary = "Approve questions and index key points into Vector DB / RAG (staff)")
+    public ApiResponse<AiInterviewResponse> approveQuestions(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.approveQuestions(id));
+    }
+
+    @PostMapping("/{id}/questions/unapprove")
+    @Operation(summary = "Reopen questions for editing/regeneration (staff)")
+    public ApiResponse<AiInterviewResponse> unapproveQuestions(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.unapproveQuestions(id));
+    }
+
+    @PostMapping("/{id}/questions/{questionId}/regenerate")
+    @Operation(summary = "Regenerate a single question using AI (staff)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
+    public ApiResponse<AiInterviewResponse> regenerateQuestion(
+            @PathVariable long id,
+            @PathVariable long questionId) {
+        return ApiResponse.ok(aiInterviewService.regenerateQuestion(id, questionId));
+    }
+
     @PostMapping("/{id}/score")
     @Operation(summary = "Retry a failed AI evaluation without creating another attempt (staff)")
     public ApiResponse<AiInterviewResponse> score(@PathVariable long id) {
@@ -159,6 +180,43 @@ public class AiInterviewController {
             @PathVariable long id,
             @Valid @RequestBody ProctorEventRequest request) {
         aiInterviewService.recordProctorEvent(id, request);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/proctor/approve")
+    @Operation(summary = "Approve secondary camera angle and readiness for the interview (staff)")
+    public ApiResponse<AiInterviewResponse> approveProctorSetup(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.approveProctorSetup(id));
+    }
+
+    @PostMapping("/{id}/proctor/unapprove")
+    @Operation(summary = "Reset proctor approval for the interview (staff)")
+    public ApiResponse<AiInterviewResponse> unapproveProctorSetup(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.unapproveProctorSetup(id));
+    }
+
+    @PostMapping("/{id}/proctor/meet-link")
+    @Operation(summary = "Update Google Meet or secondary device conference URL (staff)")
+    public ApiResponse<AiInterviewResponse> updateProctorMeetUrl(
+            @PathVariable long id,
+            @RequestBody java.util.Map<String, String> body) {
+        String meetUrl = body != null ? body.get("meetUrl") : null;
+        return ApiResponse.ok(aiInterviewService.updateProctorMeetUrl(id, meetUrl));
+    }
+
+    @PostMapping("/{id}/proctor/terminate")
+    @Operation(summary = "Immediately terminate active interview for proctoring/fraud violation (staff)")
+    public ApiResponse<AiInterviewResponse> terminateByProctor(
+            @PathVariable long id,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ApiResponse.ok(aiInterviewService.terminateByProctor(id, reason));
+    }
+
+    @PostMapping("/{id}/proctor/ready")
+    @Operation(summary = "Signal candidate has placed phone and joined meet room (candidate)")
+    public ApiResponse<Void> signalProctorCandidateReady(@PathVariable long id) {
+        aiInterviewService.signalProctorCandidateReady(id);
         return ApiResponse.ok(null);
     }
 

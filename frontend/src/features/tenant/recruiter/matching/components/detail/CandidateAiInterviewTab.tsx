@@ -236,6 +236,7 @@ export function CandidateAiInterviewTab({
     queryKey: ["ai-interviews", "by-app", applicationId],
     queryFn: () => aiInterviewApi.list({ applicationId, size: 5 }),
     enabled: !preview && !interviewId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const effectiveId =
@@ -247,6 +248,7 @@ export function CandidateAiInterviewTab({
     queryKey: ["ai-interviews", "detail", effectiveId],
     queryFn: () => (effectiveId ? aiInterviewApi.get(effectiveId) : null),
     enabled: !preview && !!effectiveId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const interview: AiInterview | null = preview

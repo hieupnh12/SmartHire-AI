@@ -188,6 +188,14 @@ export function prepareCleanSpeechText(raw: string): string {
     .replace(/[*_#`~]/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^[-*•]\s+/gm, "")
+    .replace(/\bN\s*\+\s*1\b/gi, "N cộng 1")
+    .replace(/\bCI\/CD\b/gi, "CI CD")
+    .replace(/\bAPIs\b/g, "API")
+    .replace(/\bPostgreSQL\b/gi, "Postgre SQL")
+    .replace(/\bGraphQL\b/gi, "Graph QL")
+    .replace(/\bMicroservices\b/gi, "Micro services")
+    .replace(/\bNodeJS\b/gi, "Node JS")
+    .replace(/\bNextJS\b/gi, "Next JS")
     .replace(/\s+/g, " ")
     .trim();
 }

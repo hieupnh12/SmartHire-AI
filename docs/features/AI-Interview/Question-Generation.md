@@ -1,5 +1,17 @@
 # AI Question Generation
 
+## Duyệt Đề & Nạp Vector RAG trước khi phỏng vấn (2026-11-12)
+
+Nhằm đảm bảo chất lượng câu hỏi phỏng vấn và cung cấp căn cứ đối soát cho hệ thống chấm điểm tự động:
+1. **Sinh đề mẫu và Key Points:** Khi khởi tạo phiên hoặc bấm "Sinh câu hỏi bằng AI", hệ thống sinh sẵn bộ câu hỏi kèm đáp án mẫu (`referenceAnswer`) và danh sách các ý chính cần đạt (`keyPoints`).
+2. **Kiểm tra và chỉnh sửa bởi Recruiter:** Nhà tuyển dụng có thể xem toàn bộ câu hỏi, loại câu hỏi, tiêu chí năng lực và các Key Points. Recruiter có thể thêm, bớt hoặc chỉnh sửa nội dung câu hỏi trực tiếp trên giao diện.
+3. **Phê duyệt & Nạp Vector Embeddings (RAG Indexing):**
+   - Recruiter bấm nút **"Duyệt đề & Nạp RAG"** trên giao diện chi tiết phiên (`POST /api/v1/ai-interviews/{id}/questions/approve`).
+   - Hệ thống chuyển đổi các Key Points thành vector embedding 768 chiều thông qua model `models/gemini-embedding-001`, lưu trực tiếp vào trường `rubric_json` của câu hỏi và sẵn sàng cho việc đối soát ngữ nghĩa qua Vector DB / RAG.
+   - **Khóa đề & Ẩn thao tác sinh/sửa:** Sau khi đã duyệt, nút "Duyệt đề & Nạp RAG" cùng toàn bộ các nút sinh câu hỏi (`Sinh lại toàn bộ bằng AI`, `Sinh lại bằng AI` từng câu, thêm/sửa/xóa) tự động ẩn xuống để bảo toàn dữ liệu đề thi đã vector hóa.
+   - Giao diện hiển thị huy hiệu xanh **`Đã duyệt đề & Nạp RAG`** kèm nút **`Mở khóa sửa đề`** (`POST /api/v1/ai-interviews/{id}/questions/unapprove`) cho phép Recruiter mở lại đề để điều chỉnh nếu ứng viên chưa bắt đầu làm bài.
+   - Phiên giữ trạng thái `QUESTIONS_READY` và gửi thông báo cho ứng viên sẵn sàng tham gia phỏng vấn.
+
 ## Cửa sổ làm bài tính từ lời mời (2026-10-15)
 
 Cấu hình chung cho phép chọn lịch tuyệt đối hoặc lịch tương đối theo lời mời. Với tương đối, thời gian mở = thời điểm tạo lời mời + X giờ (X ≥ 0), hạn hoàn thành = thời gian mở + N giờ (N ≥ 1). Mỗi lời mời mới chốt các ngày giờ vào snapshot, thẻ ứng viên/thông báo/email dùng các mốc đó; retry giữ nguyên cửa sổ ban đầu. Không dùng thời điểm lưu cấu hình, tạo câu hỏi, tải lại trang hoặc mở email làm mốc tính. Các kiểm tra bắt đầu sớm/quá hạn và deadline toàn phiên tiếp tục dùng ngày giờ snapshot. Thời lượng bài vẫn tính riêng theo số câu chính × 5 phút. API cấu hình bổ sung `policy.availability`; không đổi schema database. Trạng thái: `Done` cho logic và kiểm thử.

@@ -921,7 +921,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
       creatingRetry: "Đang tạo lượt mới…",
       retryInterview: "Làm lại AI Interview",
       failedNoRetry:
-        "Bạn chưa đạt ngưỡng điểm và đã sử dụng hết số lượt làm bài phỏng vấn cho vị trí này.",
+        "Bạn chưa đạt ngưỡng điểm yêu cầu cho bài phỏng vấn này. Kết quả đã được chuyển tới nhà tuyển dụng để xem xét.",
       unansweredZeroPoints: "Chưa trả lời (0 điểm)",
       submittedExplanation: "Giải thích: {text}",
     },
@@ -1350,6 +1350,23 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
     participantFallback: "Thành viên",
     devicePermissionError:
       "Không mở được camera/micro. Hãy cho phép quyền trình duyệt.",
+    deviceBusyError:
+      "Thiết bị Camera hoặc Micro đang bị ứng dụng khác (Zoom, Teams, Google Meet hoặc một tab trình duyệt khác) chiếm giữ. Vui lòng đóng bớt các ứng dụng/tab đó rồi bấm Thử lại.",
+    devicePermissionDenied:
+      "Trình duyệt chưa được cấp quyền truy cập Camera hoặc Microphone. Vui lòng bấm vào biểu tượng ổ khóa cạnh thanh địa chỉ URL để Cấp quyền (Allow), sau đó bấm Thử lại.",
+    deviceNotFound:
+      "Không tìm thấy thiết bị Camera hoặc Microphone trên máy tính của bạn. Vui lòng kiểm tra lại thiết bị kết nối.",
+    deviceOverconstrained:
+      "Phần cứng camera hiện tại không hỗ trợ thông số kỹ thuật yêu cầu.",
+    cameraBusyFallback:
+      "Camera đang bận hoặc bị ứng dụng/tab khác chiếm giữ. Phòng họp đã tự động kết nối bằng Micro (chế độ chỉ nghe/nói).",
+    listenOnlyFallback:
+      "Không tìm thấy hoặc bị chặn quyền Camera & Micro. Phòng họp đã kết nối ở chế độ Chỉ nghe/theo dõi.",
+    tryTurnOnCam: "Thử bật lại Camera",
+    camOffStatus: "Camera đang tắt",
+    retryConnection: "Thử lại kết nối",
+    camEnabledSuccess: "Đã bật Camera thành công.",
+    micEnabledSuccess: "Đã bật Micro thành công.",
     status: {
       preparing: "Đang chuẩn bị phòng…",
       enablingDevices: "Đang bật camera / micro…",

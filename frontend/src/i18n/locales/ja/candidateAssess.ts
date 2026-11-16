@@ -1323,6 +1323,23 @@ export const candidateAssessJa = {
     participantFallback: "参加者",
     devicePermissionError:
       "カメラ／マイクを開けませんでした。ブラウザの権限を許可してください。",
+    deviceBusyError:
+      "カメラまたはマイクが他のアプリ（Zoom、Teams、Meet、または別のタブ）で使用中です。アプリを閉じて再試行してください。",
+    devicePermissionDenied:
+      "カメラまたはマイクのアクセスが拒否されました。アドレスバーの鍵アイコンからアクセスを許可して再試行してください。",
+    deviceNotFound:
+      "カメラまたはマイクが見つかりませんでした。接続を確認してください。",
+    deviceOverconstrained:
+      "カメラのハードウェアが要求された仕様をサポートしていません。",
+    cameraBusyFallback:
+      "カメラが他のアプリまたはタブで使用中のため、マイクのみの音声モードで自動接続しました。",
+    listenOnlyFallback:
+      "カメラとマイクが利用できないかブロックされています。リッスン専用モードで参加しました。",
+    tryTurnOnCam: "カメラを再試行",
+    camOffStatus: "カメラオフ",
+    retryConnection: "再試行",
+    camEnabledSuccess: "カメラを正常にオンにしました。",
+    micEnabledSuccess: "マイクを正常にオンにしました。",
     status: {
       preparing: "会議室を準備中…",
       enablingDevices: "カメラ／マイクを起動中…",

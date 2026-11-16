@@ -31,5 +31,12 @@ public record AiInterviewResponse(
         Instant availableUntil,
         List<RoadmapStep> roadmap,
         boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational,
-        int maxQuestionCount) {
+        int maxQuestionCount,
+        boolean questionsApproved,
+        Instant questionsApprovedAt,
+        String proctorMeetUrl,
+        boolean proctorApproved,
+        Instant proctorApprovedAt,
+        boolean proctorTerminated,
+        String proctorTerminationReason) {
 }

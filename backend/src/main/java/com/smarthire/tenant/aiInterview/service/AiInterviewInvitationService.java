@@ -2,6 +2,7 @@ package com.smarthire.tenant.aiInterview.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Notification;
@@ -65,9 +66,18 @@ public class AiInterviewInvitationService {
 
     @Transactional
     public AiInterview openNextAttempt(long applicationId) {
+        return openNextAttempt(applicationId, false);
+    }
+
+    @Transactional
+    public AiInterview openNextAttempt(long applicationId, boolean force) {
         requireTenant();
         var application = applications.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
+        if (force && !AiInterviewEligibility.openRound(application.getStatus())) {
+            application.setStatus(ApplicationStatus.INTERVIEW);
+            applications.save(application);
+        }
         if (!AiInterviewEligibility.openRound(application.getStatus()) || application.getArchivedAt() != null
                 || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application must be in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
@@ -76,7 +86,7 @@ public class AiInterviewInvitationService {
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         if (existing.isEmpty()) return createAttempt(application, null, 1, null);
         var latest = existing.get(0);
-        if (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now())) {
+        if (!force && (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now()))) {
             if (latest.getStatus() != AiInterviewStatus.PASSED && latest.getStatus() != AiInterviewStatus.FAILED
                     && latest.getStatus() != AiInterviewStatus.SCORED) return latest;
             throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");
@@ -97,6 +107,26 @@ public class AiInterviewInvitationService {
             snapshot.set("availableUntil", InterviewPolicies.tree(InterviewPolicies.json(config.availableUntil())));
             interview.setConfigSnapshotJson(snapshot.toString());
         }
+        if (previous != null && previous.getContextSnapshotJson() != null) {
+            try {
+                var prevCtx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(previous.getContextSnapshotJson());
+                prevCtx.put("questionsApproved", false);
+                prevCtx.remove("questionsApprovedAt");
+                prevCtx.put("proctorRequired", true);
+                prevCtx.remove("proctorApproved");
+                prevCtx.remove("proctorApprovedAt");
+                prevCtx.remove("proctorTerminated");
+                prevCtx.remove("proctorTerminationReason");
+                interview.setContextSnapshotJson(prevCtx.toString());
+            } catch (Exception ignored) {}
+        } else {
+            try {
+                var initCtx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}");
+                initCtx.put("questionsApproved", false);
+                initCtx.put("proctorRequired", true);
+                interview.setContextSnapshotJson(initCtx.toString());
+            } catch (Exception ignored) {}
+        }
         interview = interviews.save(interview);
         var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
@@ -109,7 +139,7 @@ public class AiInterviewInvitationService {
                     .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),
                             config.policy().durationMinutes(), config.policy().maxAttempts()))
                     .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
-                            + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
+                            + ",\"path\":\"/interviews/" + interview.getId() + "\"}")
                     .build());
             activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
         }
