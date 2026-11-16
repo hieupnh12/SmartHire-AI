@@ -18,6 +18,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
 import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
 import { AdminGlobalSearch } from "@/features/tenant/admin/components/AdminGlobalSearch";
+import { RecruiterGlobalSearch } from "@/features/tenant/recruiter/components/RecruiterGlobalSearch";
 import { formatDateTime, useLocale, useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -410,16 +411,20 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
 
         <div className={cn("ml-20", isSingleViewportAdmin ? "flex h-screen flex-col overflow-hidden" : "min-h-screen")}>
           <header className="sticky top-0 z-30 shrink-0 border-b border-[var(--color-border-default)] bg-white/90 shadow-sm backdrop-blur-md">
-            <div className="grid min-h-14 w-full grid-cols-[2.5rem_minmax(0,40rem)_2.5rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
-              <span aria-hidden="true" />
-              <AdminGlobalSearch basePath={basePath} />
+            <div className="flex min-h-14 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
+              <span aria-hidden="true" className="w-10 shrink-0" />
+              <div className="mx-auto w-full max-w-xl">
+                <AdminGlobalSearch basePath={basePath} />
+              </div>
 
-              <div
-                className="relative justify-self-end"
-                onBlur={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsAdminNotificationsOpen(false);
-                }}
-              >
+              <div className="flex shrink-0 items-center gap-2 justify-self-end">
+                <LanguageSwitcher variant="icon" className="size-10 min-h-10 rounded-xl" />
+                <div
+                  className="relative"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsAdminNotificationsOpen(false);
+                  }}
+                >
                 <Tooltip content={t("nav.notifications")} side="bottom" disabled={isAdminNotificationsOpen}>
                   <button
                     type="button"
@@ -464,7 +469,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 )}
               </div>
             </div>
-          </header>
+          </div>
+        </header>
 
           <main
             id="main-content"
@@ -512,30 +518,35 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             </div>
 
             {useWorkspaceHeader && (
-              <form
-                className="relative mx-auto hidden min-w-0 max-w-xl flex-1 md:block"
-                role="search"
-                onSubmit={submitWorkspaceSearch}
-              >
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[17px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
-                <input
-                  data-search-input
-                  name="workspace-search"
-                  type="search"
-                  placeholder={isCandidateWorkspace ? t("shell.workspaceCandidateSearchPlaceholder", { search: t("common.search") }) : t("shell.workspaceRecruiterSearchPlaceholder", { search: t("common.search") })}
-                  aria-label={t("common.search")}
-                  className="min-h-10 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-1.5 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-1.5 top-1/2 min-h-7 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary"
+              isRecruiterWorkspace ? (
+                <RecruiterGlobalSearch />
+              ) : (
+                <form
+                  className="relative mx-auto hidden min-w-0 max-w-xl flex-1 md:block"
+                  role="search"
+                  onSubmit={submitWorkspaceSearch}
                 >
-                  {t("common.search")}
-                </button>
-              </form>
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[17px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+                  <input
+                    data-search-input
+                    name="workspace-search"
+                    type="search"
+                    placeholder={isCandidateWorkspace ? t("shell.workspaceCandidateSearchPlaceholder", { search: t("common.search") }) : t("shell.workspaceRecruiterSearchPlaceholder", { search: t("common.search") })}
+                    aria-label={t("common.search")}
+                    className="min-h-10 w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-1.5 pl-10 pr-20 text-sm text-[var(--color-on-surface)] outline-none transition-colors placeholder:text-[var(--color-outline)] focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-1.5 top-1/2 min-h-7 -translate-y-1/2 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-primary"
+                  >
+                    {t("common.search")}
+                  </button>
+                </form>
+              )
             )}
 
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <LanguageSwitcher variant="icon" className="size-9 min-h-9 rounded-xl" />
               <Tooltip content={`${t("common.shortcuts")} (?)`} side="bottom">
                 <Button
                   variant="ghost"
