@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LogOut, MessageSquareText, RefreshCw, RotateCcw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi, AlertTriangle, AlertCircle, Clock } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, ClipboardCheck, Info, LogOut, MessageSquareText, RefreshCw, ServerCrash, ShieldCheck, Sparkles, Timer, Wifi, AlertTriangle, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { toast } from "@/stores/toastStore";
 import { formatDateTime, useLocale, useT, type TranslateFn } from "@/i18n";
@@ -39,7 +39,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
     refetchInterval: query => {
       const d = query.state.data;
       if (!d) return false;
-      if (d.conversational && !d.startedAt && !d.completedAt) return 2000;
+      if (!d.startedAt && !d.completedAt) return 2500;
       if (d.status === "SCORING") return 3000;
       return 15000;
     },
@@ -215,13 +215,9 @@ export function AiInterviewRoom({ id }: { id: number }) {
             {/* Separated badges & status row (Clear Visual Hierarchy) */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Attempt count badge */}
-              {data.attemptNumber && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
-                  <RotateCcw className="size-3 text-blue-500" aria-hidden="true" />
-                  {t("candidate.assess.interviews.room.attemptBadge", {
-                    current: data.attemptNumber,
-                    max: data.maxAttempts ?? data.attemptNumber,
-                  })}
+              {data.attemptNumber && data.attemptNumber > 1 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-200">
+                  Lần thi thứ {data.attemptNumber}
                 </span>
               )}
 
@@ -348,7 +344,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
         <div className="flex flex-col gap-6 lg:col-span-8">
           {/* RESULT CARD: Rendered FIRST after submission so candidates don't have to scroll past chat (Issue 1) */}
           {data.completedAt && (
-            <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />
+            <ResultCard data={data} />
           )}
 
           {data.conversational && inProgress && (
@@ -458,7 +454,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
     </>
   </section>;
   return inProgress && proctorSession
-    ? <ProctoredInterviewGuard interviewId={id} session={proctorSession} zeroTouchMode={true} onAutoSubmit={() => complete.mutate()}>{content}</ProctoredInterviewGuard>
+    ? <ProctoredInterviewGuard interviewId={id} session={proctorSession} zeroTouchMode={!!data?.conversational} onAutoSubmit={() => complete.mutate()}>{content}</ProctoredInterviewGuard>
     : content;
 }
 
@@ -627,7 +623,7 @@ function InvitationCard({ data, busy, onReady }: {
   </section>;
 }
 
-function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateInterview; busy: boolean; retrying: boolean; onRetry: () => void }) {
+function ResultCard({ data }: { data: CandidateInterview }) {
   const t = useT();
   const locale = useLocale();
   const finished = ["SCORED", "PASSED", "FAILED"].includes(data.status);
@@ -783,29 +779,9 @@ function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateIntervie
 
       {data.status === "FAILED" && (
         <div className="pt-2">
-          {data.canRetry ? (
-            <div className="space-y-3">
-              <p className="text-sm text-[var(--color-on-surface-variant)]">
-                {t("candidate.assess.interviews.room.failedCanRetry")}
-              </p>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <Button disabled={busy} onClick={onRetry} className="gap-2">
-                  <RotateCcw className={`size-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
-                  {retrying ? t("candidate.assess.interviews.room.creatingRetry") : t("candidate.assess.interviews.room.retryInterview")}
-                </Button>
-                {retrying && (
-                  <span className="text-xs text-blue-600 animate-pulse flex items-center gap-1.5 font-medium">
-                    <RefreshCw className="size-3.5 animate-spin text-blue-500" />
-                    AI đang sinh câu hỏi mới (khoảng 30-45s), vui lòng đợi…
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--color-on-surface-variant)]">
-              {t("candidate.assess.interviews.room.failedNoRetry")}
-            </p>
-          )}
+          <p className="text-sm text-[var(--color-on-surface-variant)]">
+            {t("candidate.assess.interviews.room.failedNoRetry")}
+          </p>
         </div>
       )}
     </section>

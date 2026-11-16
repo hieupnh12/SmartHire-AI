@@ -775,12 +775,12 @@ public class AiInterviewService {
     }
 
     private boolean isProctorApprovalRequired(AiInterview interview) {
-        if (interview.getContextSnapshotJson() == null) return false;
+        if (interview.getContextSnapshotJson() == null) return true;
         try {
             var node = InterviewPolicies.tree(interview.getContextSnapshotJson());
-            return node.path("proctorRequired").asBoolean(false) || node.has("proctorMeetUrl");
+            return node.path("proctorRequired").asBoolean(true);
         } catch (Exception e) {
-            return false;
+            return true;
         }
     }
 

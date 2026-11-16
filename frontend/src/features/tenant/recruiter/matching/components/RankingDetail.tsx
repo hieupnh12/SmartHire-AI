@@ -74,10 +74,19 @@ export function RankingCandidateDetailView({
     }
     return "ai_interview";
   });
+  const [visitedTabs, setVisitedTabs] = useState<Set<DetailTab>>(() => new Set([activeTab]));
   const [scheduling, setScheduling] = useState(false);
+
+  useEffect(() => {
+    if (tabParam && ["ai_interview", "assessment", "schedule", "overview"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      setVisitedTabs((prev) => new Set(prev).add(tabParam));
+    }
+  }, [tabParam]);
 
   const handleTabChange = (tab: DetailTab) => {
     setActiveTab(tab);
+    setVisitedTabs((prev) => new Set(prev).add(tab));
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -104,24 +113,28 @@ export function RankingCandidateDetailView({
     queryKey: ["ranking-sources", tenantKey, row.applicationId],
     queryFn: () => matchingApi.sources(row.applicationId),
     enabled: !preview && !fallback,
+    staleTime: 5 * 60 * 1000,
   });
 
   const application = useQuery({
     queryKey: ["applications", row.applicationId, "ranking-rounds"],
     queryFn: () => applicantApi.get(row.applicationId),
     enabled: !preview,
+    staleTime: 5 * 60 * 1000,
   });
 
   const interviewOptions = useQuery({
     queryKey: ["human-interviews", "options", jobId],
     queryFn: () => humanInterviewApi.options(jobId),
     enabled: scheduling,
+    staleTime: 5 * 60 * 1000,
   });
 
   const humanInterviews = useQuery({
     queryKey: ["human-interviews", jobId, row.applicationId],
     queryFn: () => humanInterviewApi.list({ jobId, size: 50 }),
     enabled: !preview,
+    staleTime: 5 * 60 * 1000,
   });
 
   const rounds = application.data?.data.rounds;
@@ -329,46 +342,54 @@ export function RankingCandidateDetailView({
         </aside>
 
         <main className="flex-1 min-w-0 space-y-6">
-          {activeTab === "ai_interview" && (
-            <CandidateAiInterviewTab
-              applicationId={row.applicationId}
-              interviewId={effectiveInterviewId}
-              candidateName={row.candidateName}
-              jobId={jobId}
-              preview={preview}
-            />
-          )}
+          <div className={activeTab === "ai_interview" ? "block" : "hidden"}>
+            {(visitedTabs.has("ai_interview") || activeTab === "ai_interview") && (
+              <CandidateAiInterviewTab
+                applicationId={row.applicationId}
+                interviewId={effectiveInterviewId}
+                candidateName={row.candidateName}
+                jobId={jobId}
+                preview={preview}
+              />
+            )}
+          </div>
 
-          {activeTab === "assessment" && (
-            <CandidateAssessmentTab
-              applicationId={row.applicationId}
-              submissionId={effectiveSubmissionId}
-              candidateName={row.candidateName}
-              jobId={jobId}
-              preview={preview}
-            />
-          )}
+          <div className={activeTab === "assessment" ? "block" : "hidden"}>
+            {(visitedTabs.has("assessment") || activeTab === "assessment") && (
+              <CandidateAssessmentTab
+                applicationId={row.applicationId}
+                submissionId={effectiveSubmissionId}
+                candidateName={row.candidateName}
+                jobId={jobId}
+                preview={preview}
+              />
+            )}
+          </div>
 
-          {activeTab === "schedule" && (
-            <CandidateSchedulingTab
-              applicationId={row.applicationId}
-              candidateName={row.candidateName}
-              jobId={jobId}
-              rounds={rounds}
-              cvScreeningStatus={application.data?.data.cvScreeningStatus}
-              preview={preview}
-              onOpenScheduleDialog={() => setScheduling(true)}
-            />
-          )}
+          <div className={activeTab === "schedule" ? "block" : "hidden"}>
+            {(visitedTabs.has("schedule") || activeTab === "schedule") && (
+              <CandidateSchedulingTab
+                applicationId={row.applicationId}
+                candidateName={row.candidateName}
+                jobId={jobId}
+                rounds={rounds}
+                cvScreeningStatus={application.data?.data.cvScreeningStatus}
+                preview={preview}
+                onOpenScheduleDialog={() => setScheduling(true)}
+              />
+            )}
+          </div>
 
-          {activeTab === "overview" && (
-            <CandidateOverviewTab
-              row={row}
-              sourcesData={sources.data?.data}
-              tenantKey={tenantKey}
-              preview={preview}
-            />
-          )}
+          <div className={activeTab === "overview" ? "block" : "hidden"}>
+            {(visitedTabs.has("overview") || activeTab === "overview") && (
+              <CandidateOverviewTab
+                row={row}
+                sourcesData={sources.data?.data}
+                tenantKey={tenantKey}
+                preview={preview}
+              />
+            )}
+          </div>
         </main>
       </div>
 

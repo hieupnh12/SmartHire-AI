@@ -130,6 +130,7 @@ export function CandidateSchedulingTab({
     queryKey: ["human-interviews", jobId, applicationId],
     queryFn: () => humanInterviewApi.list({ jobId, size: 50 }),
     enabled: !preview,
+    staleTime: 5 * 60 * 1000,
   });
 
   const scheduledInterview: HumanInterview | null = preview

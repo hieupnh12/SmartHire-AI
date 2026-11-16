@@ -110,17 +110,21 @@ public class AiInterviewInvitationService {
         if (previous != null && previous.getContextSnapshotJson() != null) {
             try {
                 var prevCtx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(previous.getContextSnapshotJson());
-                boolean wasApproved = prevCtx.path("questionsApproved").asBoolean(false);
-                if (wasApproved) {
-                    prevCtx.put("questionsApproved", true);
-                    prevCtx.put("questionsApprovedAt", java.time.Instant.now().toString());
-                    prevCtx.put("proctorRequired", true);
-                    prevCtx.remove("proctorApproved");
-                    prevCtx.remove("proctorApprovedAt");
-                    prevCtx.remove("proctorTerminated");
-                    prevCtx.remove("proctorTerminationReason");
-                    interview.setContextSnapshotJson(prevCtx.toString());
-                }
+                prevCtx.put("questionsApproved", false);
+                prevCtx.remove("questionsApprovedAt");
+                prevCtx.put("proctorRequired", true);
+                prevCtx.remove("proctorApproved");
+                prevCtx.remove("proctorApprovedAt");
+                prevCtx.remove("proctorTerminated");
+                prevCtx.remove("proctorTerminationReason");
+                interview.setContextSnapshotJson(prevCtx.toString());
+            } catch (Exception ignored) {}
+        } else {
+            try {
+                var initCtx = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree("{}");
+                initCtx.put("questionsApproved", false);
+                initCtx.put("proctorRequired", true);
+                interview.setContextSnapshotJson(initCtx.toString());
             } catch (Exception ignored) {}
         }
         interview = interviews.save(interview);
@@ -135,7 +139,7 @@ public class AiInterviewInvitationService {
                     .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),
                             config.policy().durationMinutes(), config.policy().maxAttempts()))
                     .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
-                            + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
+                            + ",\"path\":\"/interviews/" + interview.getId() + "\"}")
                     .build());
             activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
         }

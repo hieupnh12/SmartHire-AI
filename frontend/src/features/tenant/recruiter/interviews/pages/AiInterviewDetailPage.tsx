@@ -44,10 +44,10 @@ import { LiveProctoringPanel } from "../components/LiveProctoringPanel";
 import { AiStatusBadge, formatDateTime, formatInterviewScore, getAiStatusLabel } from "../components/aiInterviewUi";
 import { AVAILABLE_INTERVIEW_PROCESS, visibleInterviewDetails } from "../utils/interviewProcessSettings";
 
-type SectionTab = "overview" | "content" | "pipeline" | "logs";
+type SectionTab = "overview" | "questions" | "transcript" | "pipeline" | "logs";
 type OverviewSubTab = "ai" | "metrics";
 
-const SECTION_TABS: readonly SectionTab[] = ["overview", "content", "pipeline", "logs"];
+const SECTION_TABS: readonly SectionTab[] = ["overview", "questions", "transcript", "pipeline", "logs"];
 
 export function AiInterviewDetailPage() {
   const t = useT();
@@ -64,8 +64,7 @@ export function AiInterviewDetailPage() {
   const backSearch = (location.state as { backSearch?: string } | null)?.backSearch ?? "";
   const listUrl = `/recruiter/jobs/${job.id}/ai-interviews${backSearch}`;
 
-  const requestedSection = searchParams.get("section") as SectionTab | null;
-  const activeSection: SectionTab = requestedSection && SECTION_TABS.includes(requestedSection) ? requestedSection : "overview";
+  const requestedSection = searchParams.get("section");
   const [overviewSubTab, setOverviewSubTab] = useState<OverviewSubTab>("ai");
 
   const setActiveSection = (section: SectionTab) => {
@@ -96,6 +95,16 @@ export function AiInterviewDetailPage() {
   });
 
   const canFetchTranscript = Boolean(interview?.conversational && (interview.startedAt || interview.completedAt));
+  const activeSection: SectionTab = useMemo(() => {
+    if (requestedSection === "content") {
+      return canFetchTranscript ? "transcript" : "questions";
+    }
+    if (requestedSection && (SECTION_TABS as readonly string[]).includes(requestedSection)) {
+      return requestedSection as SectionTab;
+    }
+    return "overview";
+  }, [requestedSection, canFetchTranscript]);
+
   const transcript = useInterviewTranscript(interviewId ?? 0, canFetchTranscript);
 
   const logs = useQuery({
@@ -208,12 +217,17 @@ export function AiInterviewDetailPage() {
     Boolean(rawInterview?.roadmap?.length) &&
     rawInterview!.roadmap!.every((step) => step.title.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
   const isApproved = Boolean(interview.questionsApproved);
-  const editable = availableSession && !interview.startedAt && !isApproved && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
+  const editable =
+    (availableSession || Boolean(rawInterview?.conversational)) &&
+    !interview.startedAt &&
+    !isApproved &&
+    ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
   const deletable = !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
   const canApprove = !interview.startedAt && !isApproved && interview.questions.length > 0;
   const canUnapprove = !interview.startedAt && isApproved;
   const canRetryScore = availableSession && interview.status === "ERROR" && Boolean(interview.completedAt);
-  const canGenerate = editable && !interview.conversational && (interview.questions.length === 0 || Boolean(interview.processBased));
+  const canGenerate =
+    editable && (interview.questions.length === 0 || Boolean(interview.processBased) || Boolean(interview.conversational));
   const planned = interview.questions.some((q) => Boolean(q.stageTitle));
   const stageGroups = groupQuestionsByStage(interview, t);
   const busy = generate.isPending || score.isPending || remove.isPending || approve.isPending || unapprove.isPending;
@@ -266,18 +280,21 @@ export function AiInterviewDetailPage() {
       icon: Sparkles,
     },
     {
-      id: "content",
-      label: interview.conversational
-        ? t("recruiter.interviews.ai.detail.page.navTranscript")
-        : t("recruiter.interviews.ai.detail.page.navQuestions"),
-      badge: interview.conversational
-        ? turnSummary
-        : t("recruiter.interviews.ai.detail.page.questionsProgress", {
-            answered: answeredCount,
-            total: interview.questions.length,
-          }),
-      icon: interview.conversational ? MessageSquare : ListChecks,
+      id: "questions",
+      label: interview.conversational ? "Bộ câu hỏi & Nạp RAG" : t("recruiter.interviews.ai.detail.page.navQuestions"),
+      badge: `${interview.questions.length} câu${isApproved ? " · Đã duyệt" : " · Chờ duyệt"}`,
+      icon: ListChecks,
     },
+    ...(interview.conversational || canFetchTranscript
+      ? [
+          {
+            id: "transcript" as SectionTab,
+            label: t("recruiter.interviews.ai.detail.page.navTranscript"),
+            badge: turnSummary,
+            icon: MessageSquare,
+          },
+        ]
+      : []),
     {
       id: "pipeline",
       label: t("recruiter.interviews.ai.detail.page.navPipeline"),
@@ -765,13 +782,22 @@ export function AiInterviewDetailPage() {
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setActiveSection("content")}
-                        className={button}
+                        onClick={() => setActiveSection("questions")}
+                        className={primary}
                       >
-                        {interview.conversational
-                          ? t("recruiter.interviews.ai.detail.page.viewTranscriptBtn")
-                          : t("recruiter.interviews.ai.detail.page.viewQuestionsBtn")}
+                        <ListChecks className="size-4" aria-hidden="true" />
+                        <span>Xem bộ câu hỏi & Đối soát RAG</span>
                       </button>
+                      {interview.conversational && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSection("transcript")}
+                          className={button}
+                        >
+                          <MessageSquare className="size-4" aria-hidden="true" />
+                          <span>{t("recruiter.interviews.ai.detail.page.viewTranscriptBtn")}</span>
+                        </button>
+                      )}
                       {canRetryScore && (
                         <button
                           type="button"
@@ -790,33 +816,48 @@ export function AiInterviewDetailPage() {
             </div>
           )}
 
-          {activeSection === "content" && (
+          {activeSection === "questions" && (
+            <StageQuestionsSection
+              interview={interview}
+              stageGroups={stageGroups}
+              editable={editable}
+              planned={planned}
+              busy={busy}
+              generatePending={generate.isPending}
+              onGenerate={() => generate.mutate()}
+              onChanged={refresh}
+              isApproved={isApproved}
+              canApprove={canApprove}
+              canUnapprove={canUnapprove}
+              onApprove={async () => { await approve.mutateAsync(); }}
+              onUnapprove={async () => { await unapprove.mutateAsync(); }}
+              approvePending={approve.isPending}
+              unapprovePending={unapprove.isPending}
+            />
+          )}
+
+          {activeSection === "transcript" && (
             <>
-              {interview.conversational ? (
-                canFetchTranscript ? (
-                  <ConversationTranscript interviewId={interview.id} maxHeightClass="max-h-[70vh]" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center">
-                    <MessageSquare className="size-8 text-slate-400" aria-hidden="true" />
-                    <h2 className="mt-3 text-base font-semibold text-slate-900">
-                      {t("recruiter.interviews.ai.detail.page.emptyChatTitle")}
-                    </h2>
-                    <p className="mt-1 max-w-md text-xs text-slate-500">
-                      {t("recruiter.interviews.ai.detail.page.emptyChatDesc")}
-                    </p>
-                  </div>
-                )
+              {canFetchTranscript ? (
+                <ConversationTranscript interviewId={interview.id} maxHeightClass="max-h-[70vh]" />
               ) : (
-                <StageQuestionsSection
-                  interview={interview}
-                  stageGroups={stageGroups}
-                  editable={editable}
-                  planned={planned}
-                  busy={busy}
-                  generatePending={generate.isPending}
-                  onGenerate={() => generate.mutate()}
-                  onChanged={refresh}
-                />
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center">
+                  <MessageSquare className="size-8 text-slate-400" aria-hidden="true" />
+                  <h2 className="mt-3 text-base font-semibold text-slate-900">
+                    {t("recruiter.interviews.ai.detail.page.emptyChatTitle")}
+                  </h2>
+                  <p className="mt-1 max-w-md text-xs text-slate-500">
+                    {t("recruiter.interviews.ai.detail.page.emptyChatDesc")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection("questions")}
+                    className={cn(primary, "mt-4")}
+                  >
+                    <ListChecks className="size-4" aria-hidden="true" />
+                    <span>Xem và duyệt bộ câu hỏi thi</span>
+                  </button>
+                </div>
               )}
             </>
           )}

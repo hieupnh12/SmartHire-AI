@@ -224,11 +224,11 @@ export function ProctoredInterviewGuard({
       if (blocked) block(event, "BLOCKED_SHORTCUT", t("candidate.assess.interviews.proctor.blockedShortcut", { key: event.key }));
     };
 
-    // Zero-Touch Mode: block mouse clicks except allowed controls
+    // Zero-Touch Mode: block mouse clicks except allowed in-room controls
     const pointerdown = (event: MouseEvent) => {
       if (!zeroTouchMode) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-proctor-allowed="true"]')) return;
+      if (target?.closest('button, a, input, textarea, select, [role="button"], [data-proctor-allowed="true"]')) return;
       block(event, "MOUSE_TOUCH", "Cảnh báo vi phạm: Bạn đã chạm vào chuột! Chế độ phỏng vấn cấm chạm vào thiết bị.");
     };
 

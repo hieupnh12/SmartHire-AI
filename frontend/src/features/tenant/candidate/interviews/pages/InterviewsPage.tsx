@@ -177,10 +177,7 @@ function InterviewCard({ interview, preview = false }: { interview: AiInterview;
         )}
       </div>
     </div>
-    <div className="flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-      <span className="text-xs text-[var(--color-on-surface-variant)]">
-        {t("candidate.assess.interviews.list.maxAttempts", { max: interview.maxAttempts ?? 1 })}
-      </span>
+    <div className="flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6">
       {preview ? (
         <Link to="/interviews/demo" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">
           {t("candidate.assess.interviews.list.startInterview")}<ArrowRight className="size-4" aria-hidden="true" />

@@ -1350,6 +1350,23 @@ All 3/3 public test cases PASSED successfully!`,
     participantFallback: "Participant",
     devicePermissionError:
       "Cannot access camera/microphone. Please allow browser permissions.",
+    deviceBusyError:
+      "Camera or microphone is occupied by another application (Zoom, Teams, Google Meet, or another browser tab). Please close them and click Retry.",
+    devicePermissionDenied:
+      "Browser was denied camera or microphone permission. Please allow access via the address bar lock icon and click Retry.",
+    deviceNotFound:
+      "No camera or microphone device found on your computer. Please check your hardware.",
+    deviceOverconstrained:
+      "The requested camera constraints are not supported by your hardware.",
+    cameraBusyFallback:
+      "Camera is busy or in use by another app/tab. The meeting room connected with Microphone only (voice mode).",
+    listenOnlyFallback:
+      "Camera and microphone are unavailable or blocked. You joined the meeting in listen-only mode.",
+    tryTurnOnCam: "Try enabling camera",
+    camOffStatus: "Camera is off",
+    retryConnection: "Retry connection",
+    camEnabledSuccess: "Camera enabled successfully.",
+    micEnabledSuccess: "Microphone enabled successfully.",
     status: {
       preparing: "Preparing room…",
       enablingDevices: "Starting camera / microphone…",
