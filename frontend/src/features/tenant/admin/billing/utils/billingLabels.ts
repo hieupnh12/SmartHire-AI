@@ -12,17 +12,18 @@ export function formatPlanDisplayName(
     .replace(/\s{2,}/g, " ")
     .trim();
 
-  switch (cleaned.toUpperCase()) {
-    case "STARTER":
-      return translate("tenantAdmin.billing.plans.starter");
-    case "PROFESSIONAL":
-      return translate("tenantAdmin.billing.plans.professional");
-    case "ENTERPRISE":
-    case "ENTERPRISE SCALE":
-      return translate("tenantAdmin.billing.plans.enterprise");
-    default:
-      return cleaned || raw;
+  const upper = raw.toUpperCase();
+  if (upper.includes("STARTER") || upper.includes("KHỞI ĐẦU") || upper.includes("スターター")) {
+    return translate("tenantAdmin.billing.plans.starter");
   }
+  if (upper.includes("PROFESSIONAL") || upper.includes("CHUYÊN NGHIỆP") || upper.includes("プロフェッショナル")) {
+    return translate("tenantAdmin.billing.plans.professional");
+  }
+  if (upper.includes("ENTERPRISE") || upper.includes("DOANH NGHIỆP") || upper.includes("エンタープライズ")) {
+    return translate("tenantAdmin.billing.plans.enterprise");
+  }
+
+  return cleaned || raw;
 }
 
 export function formatSubscriptionStatusLabel(

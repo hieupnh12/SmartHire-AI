@@ -1358,5 +1358,17 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
       connectedGuest: "Đã vào phòng — đang kết nối video với mọi người.",
       deviceError: "Lỗi thiết bị",
     },
+    startRecord: "Ghi hình",
+    stopRecord: "Dừng ghi",
+    recordingActive: "REC · Đang ghi",
+    recordingModalTitle: "Hoàn tất ghi hình SmartHire Room",
+    recordingModalDesc:
+      "Bản ghi hình buổi phỏng vấn đã được ghi lại. Bạn có thể tải về máy hoặc lưu trực tiếp vào hồ sơ phỏng vấn.",
+    downloadLocal: "Tải về máy (.webm)",
+    saveToInterview: "Lưu vào hồ sơ phỏng vấn",
+    saving: "Đang lưu...",
+    saveSuccess: "Đã lưu bản ghi SmartHire Room thành công vào hồ sơ phỏng vấn!",
+    recordPermissionError:
+      "Không thể bắt đầu ghi hình. Vui lòng cho phép quyền chia sẻ màn hình hoặc tab có âm thanh.",
   },
 } as const;

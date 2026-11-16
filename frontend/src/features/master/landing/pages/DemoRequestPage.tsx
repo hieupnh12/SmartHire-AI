@@ -90,7 +90,7 @@ function JobTitleCombobox({
   return (
     <div ref={containerRef} className="relative">
       <div
-        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 transition-colors cursor-text ${
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 transition-colors cursor-text ${
           open
             ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
@@ -111,7 +111,7 @@ function JobTitleCombobox({
             setOpen(true);
           }}
           placeholder={t("master.landing.demoPage.jobTitlePlaceholder")}
-          className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm text-slate-900 placeholder:text-slate-400"
+          className="flex-1 bg-transparent border-none outline-none text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400"
         />
         <ChevronDown
           className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${
@@ -194,13 +194,13 @@ function CustomDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm transition-colors ${
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs transition-colors ${
           open
             ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
         }`}
       >
-        <span className={`flex-1 text-left truncate ${selected ? "text-slate-900" : "text-slate-400"}`}>
+        <span className={`flex-1 text-left truncate text-xs ${selected ? "text-slate-900" : "text-slate-400"}`}>
           {selected ? selected.label : resolvedPlaceholder}
         </span>
         <ChevronDown
@@ -442,11 +442,11 @@ export function DemoRequestPage() {
               </div>
             )}
 
-            <form onSubmit={handleDemoSubmit} className="space-y-3">
+            <form onSubmit={handleDemoSubmit} className="space-y-4 sm:space-y-5">
               {/* Row 1: Company Name + Company Size */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.companyLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -457,12 +457,12 @@ export function DemoRequestPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, companyName: e.target.value })
                     }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.companySizeLabel")}
                   </label>
                   <CustomDropdown
@@ -475,9 +475,9 @@ export function DemoRequestPage() {
               </div>
 
               {/* Row 2: Contact Name + Job Title */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.contactNameLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -491,12 +491,12 @@ export function DemoRequestPage() {
                         contactName: e.target.value,
                       })
                     }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.jobTitleLabel")} <span className="text-red-500">*</span>
                   </label>
                   <JobTitleCombobox
@@ -509,9 +509,9 @@ export function DemoRequestPage() {
               </div>
 
               {/* Row 3: Email + Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.workEmailLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -522,12 +522,12 @@ export function DemoRequestPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, workEmail: e.target.value })
                     }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                     {t("master.landing.demoPage.phoneLabel")} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -541,14 +541,14 @@ export function DemoRequestPage() {
                         phoneNumber: e.target.value,
                       })
                     }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
 
               {/* Row 4: Notes */}
               <div>
-                <label className="block text-xs font-semibold text-slate-800 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                   {t("master.landing.demoPage.notesLabel")}
                 </label>
                 <input
@@ -558,7 +558,7 @@ export function DemoRequestPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, notes: e.target.value })
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder:text-xs placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                 />
               </div>
 
@@ -566,7 +566,7 @@ export function DemoRequestPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full mt-1.5 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
+                className="w-full mt-3 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
               >
                 {isSubmitting ? (
                   <>

@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Chuẩn hoá tên gói cước (bỏ hậu tố tiếng Anh) 2026-11-14 | Master V40 (`V40__clean_subscription_plan_names.sql`) chuẩn hóa tên các gói cước mặc định trên `subscription_plans` và snapshot `tenant_subscriptions` (loại bỏ `(Starter)`, `(Professional)`, `(Enterprise Scale)`), giao diện đa ngôn ngữ (EN, VI, JA) xử lý động qua tầng i18n |
 | Nhật ký hệ thống Tenant thay thế audit log 2026-11-13 | Master V39 (`V39__tenant_system_logs.sql`) xóa `platform_audit_logs`, tạo `tenant_system_logs` (entity `TenantSystemLog`, 4 index) phục vụ System/Application Logs theo ngữ cảnh Tenant (`tenant_code`, `trace_id` SLF4J MDC, `category`, `endpoint`, `status_code`, `stack_trace`) |
 | Đa ngôn ngữ nội dung đánh giá AI 2026-11-13 | Tenant V61 (`V61__ai_localized_contents.sql`) tạo `ai_localized_contents` (entity `AiLocalizedContent`, UNIQUE `uk_ai_loc_content`, 1 index tra cứu `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + Tenant DB) cho nhận xét AI đa ngôn ngữ |
 | Lưu cấu hình báo giá trên Lead 2026-11-12 | Master V38 (`V38__consultation_proposed_tenant_slug.sql`) thêm `proposed_code` (`VARCHAR(64)`), `proposed_subdomain` (`VARCHAR(128)`), `quoted_plan_id` (`BIGINT`) nullable vào `consultation_requests` (entity `ConsultationRequest`) để giữ lại mã doanh nghiệp, subdomain và gói báo giá đã chỉnh sửa khi quay lại deal wizard. Không thêm bảng/entity/FK/UNIQUE/index |
@@ -1411,6 +1412,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
 | V38 | `V38__consultation_proposed_tenant_slug.sql` | Thêm `proposed_code`, `proposed_subdomain`, `quoted_plan_id` (nullable) vào `consultation_requests` để lưu mã doanh nghiệp/subdomain đã chỉnh sửa khi báo giá và quay lại wizard |
 | V39 | `V39__tenant_system_logs.sql` | Xóa `platform_audit_logs`, tạo bảng `tenant_system_logs` (entity `TenantSystemLog`, 4 index) lưu nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) gắn ngữ cảnh `tenant_code`, `trace_id` (MDC) |
+| V40 | `V40__clean_subscription_plan_names.sql` | Chuẩn hoá tên gói cước mặc định trên `subscription_plans` và `tenant_subscriptions` (loại bỏ hậu tố tiếng Anh `(Starter)`, `(Professional)`, `(Enterprise Scale)`), đồng bộ hóa với hệ thống i18n đa ngôn ngữ (EN, VI, JA) |
 
 ### 10.3 Lịch sử migration — Tenant
 

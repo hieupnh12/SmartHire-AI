@@ -322,7 +322,7 @@ export function SubscriptionPage() {
                   </p>
                 )}
                 <p className="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]">
-                  {sub.description || "Gói dịch vụ SaaS Multi-Tenant đang áp dụng cho toàn bộ thành viên trong workspace."}
+                  {sub.description || "Gói dịch vụ đang áp dụng cho toàn bộ thành viên trong workspace."}
                 </p>
               </div>
 

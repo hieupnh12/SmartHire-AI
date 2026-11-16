@@ -1,24 +1,33 @@
 import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Inbox, Settings } from "lucide-react";
-import { PillNav } from "@/components/ux/PillNav";
 import { useT } from "@/i18n";
 import { NotificationInbox } from "@/features/tenant/candidate/notifications/components/NotificationInbox";
 import { NotificationSettings } from "@/features/tenant/candidate/notifications/components/NotificationSettings";
 import { recruiterNotificationCategories } from "@/features/tenant/candidate/notifications/constants/notificationCategories";
-
-const tabs = [
-  { key: "inbox", labelKey: "recruiter.ops.notifications.tabInbox", icon: Inbox },
-  { key: "settings", labelKey: "recruiter.ops.notifications.tabSettings", icon: Settings },
-] as const;
+import {
+  NotificationSubNav,
+  type NotificationTab,
+} from "../components/NotificationSubNav";
 
 export function NotificationsPage() {
   const t = useT();
   const { id } = useParams<{ id?: string }>();
   const jobId = id ? Number(id) : undefined;
   const [params, setParams] = useSearchParams();
-  const active = params.get("tab") === "settings" ? "settings" : "inbox";
+  const activeTab: NotificationTab =
+    params.get("tab") === "settings" ? "settings" : "inbox";
   const [tabDirection, setTabDirection] = useState<"left" | "right">("right");
+
+  const handleTabChange = (nextTab: NotificationTab) => {
+    const nextParams = new URLSearchParams(params);
+    if (nextTab === "inbox") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", nextTab);
+    }
+    setParams(nextParams, { replace: true });
+  };
+
   const localizedCategories = useMemo(
     () =>
       recruiterNotificationCategories.map((category) => ({
@@ -31,26 +40,21 @@ export function NotificationsPage() {
 
   return (
     <section
-      className="space-y-6 text-[var(--color-on-surface)]"
+      className="flex flex-col gap-3.5 text-[var(--color-on-surface)]"
       aria-label={t("recruiter.ops.notifications.eyebrowAll")}
     >
-      <div className="flex items-center">
-        <PillNav
-          items={tabs.map((item) => ({ id: item.key, label: t(item.labelKey), icon: item.icon }))}
-          activeId={active}
-          ariaLabel={t("recruiter.ops.notifications.tablistAria")}
-          onSelect={(key) => setParams(key === "settings" ? { tab: key } : {}, { replace: true })}
-          onDirectionChange={setTabDirection}
-          variant="cradle"
-          dockGroup="notifications"
-        />
-      </div>
+      <NotificationSubNav
+        jobId={jobId}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onDirectionChange={setTabDirection}
+      />
       <div
-        key={active}
+        key={activeTab}
         role="tabpanel"
         className={tabDirection === "left" ? "animate-nav-panel-left" : "animate-nav-panel-right"}
       >
-        {active === "settings" ? (
+        {activeTab === "settings" ? (
           <NotificationSettings
             categories={localizedCategories}
             noteText={t("recruiter.ops.notifications.settingsNote")}

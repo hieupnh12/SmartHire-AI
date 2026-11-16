@@ -10,6 +10,7 @@ import { PlanFeatureList } from "../components/PlanFeatureList";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
 import { formatNumber, useLocale, useT } from "@/i18n";
+import { formatPlanDisplayName } from "@/features/tenant/admin/billing/utils/billingLabels";
 
 export function PricingPage() {
   const t = useT();
@@ -208,7 +209,7 @@ export function PricingPage() {
             plans.map((plan, index) => {
               const isHighlighted = index === 1;
               const isEnterprise = plan.code === "ENTERPRISE";
-              const cleanName = plan.name.replace(/\s*\(.*?\)\s*/g, "");
+              const cleanName = formatPlanDisplayName(plan.name, t);
 
               return (
                 <div
@@ -331,13 +332,13 @@ export function PricingPage() {
                     {t("master.landing.pricing.matrix.colFeature")}
                   </th>
                   <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">
-                    {plans[0]?.name?.replace(/\s*\(.*?\)\s*/g, "") || t("master.landing.pricing.matrix.fallbackStarter")}
+                    {formatPlanDisplayName(plans[0]?.name, t) || t("master.landing.pricing.matrix.fallbackStarter")}
                   </th>
                   <th className="py-4 px-5 font-semibold text-blue-700 bg-blue-50/50 text-center w-1/5">
-                    {plans[1]?.name?.replace(/\s*\(.*?\)\s*/g, "") || t("master.landing.pricing.matrix.fallbackPro")}
+                    {formatPlanDisplayName(plans[1]?.name, t) || t("master.landing.pricing.matrix.fallbackPro")}
                   </th>
                   <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">
-                    {plans[2]?.name?.replace(/\s*\(.*?\)\s*/g, "") || t("master.landing.pricing.matrix.fallbackEnterprise")}
+                    {formatPlanDisplayName(plans[2]?.name, t) || t("master.landing.pricing.matrix.fallbackEnterprise")}
                   </th>
                 </tr>
               </thead>

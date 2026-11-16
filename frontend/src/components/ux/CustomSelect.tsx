@@ -128,7 +128,7 @@ export function CustomSelect<T extends string = string>({
           "flex w-full min-h-10 items-center justify-between gap-2.5 rounded-xl border bg-white px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all focus-visible:outline-none",
           open
             ? "border-blue-500 text-slate-900 ring-3 ring-blue-100"
-            : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/40",
+            : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50/40",
           disabled && "cursor-not-allowed bg-slate-50 opacity-60",
           className,
         )}
@@ -138,7 +138,7 @@ export function CustomSelect<T extends string = string>({
           {selected?.dotClassName && (
             <span className={cn("size-2 shrink-0 rounded-full", selected.dotClassName)} />
           )}
-          <span className={cn("truncate text-left", selected ? "text-slate-700" : "text-slate-400")}>
+          <span className={cn("truncate text-left", selected ? "text-slate-600" : "text-slate-400")}>
             {selected ? selected.label : placeholder}
           </span>
           {selected && typeof selected.count === "number" && (
@@ -190,7 +190,7 @@ export function CustomSelect<T extends string = string>({
                       "flex w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-left text-xs transition-colors",
                       isSelected
                         ? "bg-blue-50 font-semibold text-blue-700"
-                        : "font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                        : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                     )}
                   >
                     <span className="flex min-w-0 flex-1 items-center gap-2">

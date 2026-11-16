@@ -1331,5 +1331,17 @@ export const candidateAssessJa = {
       connectedGuest: "入室しました — 参加者とビデオ接続中。",
       deviceError: "デバイスエラー",
     },
+    startRecord: "録画開始",
+    stopRecord: "録画停止",
+    recordingActive: "REC · 録画中",
+    recordingModalTitle: "SmartHire Room 録画完了",
+    recordingModalDesc:
+      "面接の録画が完了しました。PCにダウンロードするか、面接記録に直接保存できます。",
+    downloadLocal: "PCに保存 (.webm)",
+    saveToInterview: "面接記録に保存",
+    saving: "保存中...",
+    saveSuccess: "SmartHire Room の録画を面接記録に保存しました！",
+    recordPermissionError:
+      "録画を開始できませんでした。画面またはタブの共有権限を許可してください。",
   },
 } as const;

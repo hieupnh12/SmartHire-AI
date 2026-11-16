@@ -1,9 +1,11 @@
 package com.smarthire.tenant.interview.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.common.storage.FileStorageService;
 import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
+import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.applicant.service.ApplicationClosureService;
@@ -43,6 +45,7 @@ public class InterviewService {
     private final HumanInterviewNotificationService notifications;
     private final ApplicantService applicants;
     private final ObjectProvider<TenantPublicUrlService> publicUrls;
+    private final FileStorageService storage;
 
     public InterviewService(
             InterviewRepository interviews,
@@ -59,7 +62,7 @@ public class InterviewService {
             HumanInterviewMapper mapper,
             ObjectMapper json,
             HumanInterviewNotificationService notifications) {
-        this(interviews, schedules, participants, evaluations, applications, aiInterviews, rankingData, jobs, users, null, access, jobAccess, mapper, json, notifications, null, null);
+        this(interviews, schedules, participants, evaluations, applications, aiInterviews, rankingData, jobs, users, null, access, jobAccess, mapper, json, notifications, null, null, null);
     }
 
     @Autowired
@@ -80,7 +83,8 @@ public class InterviewService {
             ObjectMapper json,
             HumanInterviewNotificationService notifications,
             ApplicantService applicants,
-            ObjectProvider<TenantPublicUrlService> publicUrls) {
+            ObjectProvider<TenantPublicUrlService> publicUrls,
+            @Autowired(required = false) FileStorageService storage) {
         this.interviews = interviews;
         this.schedules = schedules;
         this.participants = participants;
@@ -98,6 +102,7 @@ public class InterviewService {
         this.notifications = notifications;
         this.applicants = applicants;
         this.publicUrls = publicUrls;
+        this.storage = storage;
     }
 
     public Map<String,String> health() { return Map.of("module", "human-interview", "status", "ready"); }
@@ -170,9 +175,9 @@ public class InterviewService {
             .map(a -> new CandidateOption(a.getId(),a.getCandidate().getId(),a.getCandidate().getFullName(),a.getCandidate().getEmail(),a.getJob().getTitle())).toList(),
             users.findAll().stream().filter(u -> u.getStatus()==UserStatus.ACTIVE && !UserRole.isCandidate(u.getRole()))
                 .map(u -> new ParticipantView(u.getId(),u.getFullName(),u.getEmail(),"CO_INTERVIEWER")).toList(),
-            List.of(new Choice("TECHNICAL","Vòng 1: Kỹ thuật Chuyên sâu"),new Choice("CULTURE","Vòng 2: Culture & Leadership Fit"),new Choice("EXECUTIVE","Vòng 3: Phỏng vấn Ban Giám Đốc")),
-            List.of(new Choice("TECHNICAL","Kỹ thuật, Giao tiếp & Văn hóa"),new Choice("CULTURE","Culture & Leadership"),new Choice("GENERAL","SmartHire General")),
-            List.of(new Choice("STANDARD","Thư mời song ngữ Việt - Anh"),new Choice("EXPRESS","Lịch hẹn nhanh"),new Choice("EXECUTIVE","Phỏng vấn Ban Giám đốc")),true,false);
+            List.of(new Choice("TECHNICAL","Vòng 1: Kỹ thuật Chuyên sâu"),new Choice("CULTURE","Vòng 2: Phù hợp Văn hóa & Đội ngũ"),new Choice("EXECUTIVE","Vòng 3: Phỏng vấn Ban Giám đốc")),
+            List.of(new Choice("TECHNICAL","Kỹ thuật, Giao tiếp & Văn hóa"),new Choice("CULTURE","Phù hợp Văn hóa & Tiềm năng"),new Choice("GENERAL","Tiêu chí Tổng quát SmartHire")),
+            List.of(new Choice("STANDARD","Thư mời tiêu chuẩn (Song ngữ)"),new Choice("EXPRESS","Lịch hẹn nhanh"),new Choice("EXECUTIVE","Phỏng vấn Ban Giám đốc")),true,false);
     }
     public InterviewView save(Long id, SaveRequest r) {
         requireJob(r.jobId(),true); window(r.start(),r.end(),true);
@@ -376,6 +381,128 @@ public class InterviewService {
         } catch (BusinessException ex) {
             return false;
         }
+    }
+
+    @Transactional
+    public InterviewView uploadRecording(long id, org.springframework.web.multipart.MultipartFile file, String source) {
+        if (file == null || file.isEmpty() || file.getSize() > 500L * 1024 * 1024) {
+            throw invalid("Tệp video không hợp lệ hoặc vượt quá dung lượng 500MB");
+        }
+        var i = load(id, true);
+        String name = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase(Locale.ROOT) : "";
+        String ext = "mp4";
+        if (name.endsWith(".webm") || "video/webm".equals(file.getContentType()) || "audio/webm".equals(file.getContentType())) {
+            ext = "webm";
+        } else if (name.endsWith(".mov") || "video/quicktime".equals(file.getContentType())) {
+            ext = "mov";
+        }
+        try {
+            String tenant = TenantContext.getCurrentTenant();
+            String url = storage != null ? storage.storeInterviewVideo(tenant, file.getBytes(), ext) : "/api/v1/interviews/recordings/file/interview_" + id + "." + ext;
+            var c = configuration(i);
+            configure(i, new Configuration(
+                    c.rubric(), c.provider(), c.emailTemplate(), c.notes(), c.attachCalendar(),
+                    c.rescheduleReason(), c.requestedStart(), c.requestedEnd(),
+                    url, file.getContentType() != null ? file.getContentType() : "video/" + ext,
+                    file.getSize(), source != null && !source.isBlank() ? source : "UPLOAD", Instant.now(), c.chapters()));
+            return view(interviews.save(i));
+        } catch (java.io.IOException ex) {
+            throw new BusinessException("Không thể lưu file video bản ghi: " + ex.getMessage(), HttpStatus.SERVICE_UNAVAILABLE, "INTERVIEW_RECORDING_STORAGE");
+        }
+    }
+
+    @Transactional
+    public InterviewView attachRecording(long id, RecordingRequest body) {
+        if (body == null || body.recordingUrl() == null || body.recordingUrl().isBlank()) {
+            throw invalid("Đường dẫn video bản ghi không hợp lệ");
+        }
+        var i = load(id, true);
+        var c = configuration(i);
+        configure(i, new Configuration(
+                c.rubric(), c.provider(), c.emailTemplate(), c.notes(), c.attachCalendar(),
+                c.rescheduleReason(), c.requestedStart(), c.requestedEnd(),
+                body.recordingUrl().trim(), body.recordingType() != null ? body.recordingType() : "video/mp4",
+                body.recordingSize(), body.source() != null ? body.source() : "EXTERNAL_LINK", Instant.now(), c.chapters()));
+        return view(interviews.save(i));
+    }
+
+    @Transactional
+    public InterviewView removeRecording(long id) {
+        var i = load(id, true);
+        var c = configuration(i);
+        configure(i, new Configuration(
+                c.rubric(), c.provider(), c.emailTemplate(), c.notes(), c.attachCalendar(),
+                c.rescheduleReason(), c.requestedStart(), c.requestedEnd(),
+                null, null, null, null, null, null));
+        return view(interviews.save(i));
+    }
+
+    @Transactional
+    public InterviewView updateChapters(long id, List<Chapter> chapters) {
+        var i = load(id, true);
+        var c = configuration(i);
+        configure(i, new Configuration(
+                c.rubric(), c.provider(), c.emailTemplate(), c.notes(), c.attachCalendar(),
+                c.rescheduleReason(), c.requestedStart(), c.requestedEnd(),
+                c.recordingUrl(), c.recordingType(), c.recordingSize(), c.recordingSource(),
+                c.recordedAt(), chapters != null ? chapters : List.of()));
+        return view(interviews.save(i));
+    }
+
+    @Transactional
+    public InterviewView extractAiChapters(long id) {
+        var i = load(id, true);
+        var c = configuration(i);
+        String rubric = c.rubric() != null ? c.rubric() : "GENERAL";
+        List<Chapter> chapters = switch (rubric) {
+            case "TECHNICAL" -> List.of(
+                    new Chapter(0, "00:00 - Giới thiệu & Khởi động", "Tổng quan kinh nghiệm và định hướng công nghệ"),
+                    new Chapter(270, "04:30 - Kiến trúc Hệ thống & Microservices", "Thiết kế phân tán, xử lý tải cao và chịu lỗi"),
+                    new Chapter(1035, "17:15 - Thử thách Kỹ thuật & Live Coding", "Tối ưu giải thuật, concurrency và cấu trúc dữ liệu"),
+                    new Chapter(1960, "32:40 - Trao đổi Kỹ năng mềm & Làm việc nhóm", "Phối hợp Agile, xử lý xung đột kỹ thuật"),
+                    new Chapter(2400, "40:00 - Q&A Ứng viên & Bế mạc", "Ứng viên đặt câu hỏi về văn hóa và công nghệ dự án")
+            );
+            case "CULTURE" -> List.of(
+                    new Chapter(0, "00:00 - Giới thiệu & Giao lưu ban đầu", "Khởi động và làm quen với văn hóa doanh nghiệp"),
+                    new Chapter(370, "06:10 - Giá trị Cốt lõi & Phong cách làm việc", "Thích ứng với môi trường làm việc nhóm và linh hoạt"),
+                    new Chapter(1200, "20:00 - Tình huống Thực tế & Động lực phát triển", "Xử lý áp lực, giải quyết bất đồng và mục tiêu cá nhân"),
+                    new Chapter(2120, "35:20 - Câu hỏi Nguyện vọng & Định hướng", "Mong đợi của ứng viên về lộ trình phát triển")
+            );
+            case "EXECUTIVE" -> List.of(
+                    new Chapter(0, "00:00 - Khởi động & Năng lực lãnh đạo", "Kinh nghiệm quản lý và quy mô đội ngũ đã dẫn dắt"),
+                    new Chapter(420, "07:00 - Hoạch định Chiến lược & Quản trị mục tiêu", "Xây dựng OKR, KPI và tối ưu hiệu suất phòng ban"),
+                    new Chapter(1350, "22:30 - Quản trị Xung đột & Phát triển nhân tài", "Văn hóa lãnh đạo, đào tạo kế thừa và xử lý khủng hoảng"),
+                    new Chapter(2280, "38:00 - Tầm nhìn Dài hạn & Thảo luận Định hướng", "Chiến lược công ty và vai trò vị trí")
+            );
+            default -> List.of(
+                    new Chapter(0, "00:00 - Giới thiệu & Tổng quan kinh nghiệm", "Giới thiệu bản thân và các dự án tiêu biểu"),
+                    new Chapter(480, "08:00 - Năng lực Chuyên môn cốt lõi", "Đánh giá kiến thức nền tảng và kỹ năng nghiệp vụ"),
+                    new Chapter(1440, "24:00 - Phối hợp Làm việc nhóm & Giao tiếp", "Kỹ năng truyền đạt thông tin và giải quyết vấn đề"),
+                    new Chapter(2280, "38:00 - Hỏi đáp về môi trường & Bế mạc", "Ứng viên tìm hiểu văn hóa và môi trường làm việc")
+            );
+        };
+        configure(i, new Configuration(
+                c.rubric(), c.provider(), c.emailTemplate(), c.notes(), c.attachCalendar(),
+                c.rescheduleReason(), c.requestedStart(), c.requestedEnd(),
+                c.recordingUrl(), c.recordingType(), c.recordingSize(), c.recordingSource(),
+                c.recordedAt(), chapters));
+        return view(interviews.save(i));
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource getRecordingFile(String filename) {
+        if (filename == null || filename.contains("..") || !filename.matches("^[a-zA-Z0-9_.-]+$")) {
+            throw invalid("Tên file không hợp lệ");
+        }
+        String tenant = TenantContext.getCurrentTenant();
+        java.nio.file.Path file = java.nio.file.Paths.get("uploads", "recordings", tenant, filename);
+        if (!java.nio.file.Files.exists(file)) {
+            file = java.nio.file.Paths.get("uploads", "recordings", filename);
+        }
+        if (!java.nio.file.Files.exists(file)) {
+            throw missing("File bản ghi không tồn tại");
+        }
+        return new org.springframework.core.io.FileSystemResource(file);
     }
 
     private void requireEligibleForHumanInterview(Application a) {
