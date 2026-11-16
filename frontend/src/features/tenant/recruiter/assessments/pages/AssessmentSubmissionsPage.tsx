@@ -1,8 +1,9 @@
 import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Rows3,
   Search,
+  ShieldAlert,
   SlidersHorizontal,
   Users,
   X,
@@ -24,8 +26,11 @@ import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { formatDate as fmtLocaleDate, formatDateTime as fmtLocaleDateTime, formatTime as fmtLocaleTime, useLocale, useT, type Locale, type TranslateFn } from "@/i18n";
+import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
+import { isDemoAssessmentTitle } from "@/lib/assessmentTitle";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 
 type StatusTab = "ALL" | "IN_PROGRESS" | "DONE" | "EXPIRED";
@@ -297,6 +302,40 @@ export function AssessmentSubmissionsPage() {
     setPage(1);
   };
 
+  const approveMutation = useMutation({
+    mutationFn: (subId: number) => assessmentApi.approveProctor(subId),
+    onSuccess: () => {
+      toast.success("Đã phê duyệt góc máy cho ứng viên!");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Không thể phê duyệt góc máy."));
+    },
+  });
+
+  const terminateMutation = useMutation({
+    mutationFn: ({ subId, reason }: { subId: number; reason: string }) =>
+      assessmentApi.terminateByProctor(subId, reason),
+    onSuccess: () => {
+      toast.success("Đã dừng bài thi của ứng viên vi phạm.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Không thể dừng bài thi."));
+    },
+  });
+
+  const handleApproveProctor = (id: number) => {
+    approveMutation.mutate(id);
+  };
+
+  const handleTerminateProctor = (id: number) => {
+    const reason = window.prompt("Nhập lý do dừng bài thi (VD: Ứng viên sử dụng tài liệu ngoài góc quay):");
+    if (reason && reason.trim()) {
+      terminateMutation.mutate({ subId: id, reason: reason.trim() });
+    }
+  };
+
   const handleTabChange = (newTab: StatusTab) => {
     setTab(newTab);
     const nextParams = new URLSearchParams(params);
@@ -494,6 +533,8 @@ export function AssessmentSubmissionsPage() {
                       density={density}
                       onPrefetch={() => prefetchSubmission(row.id)}
                       onReview={() => navigate(`/recruiter/jobs/${job.id}/assessments/submissions/${row.id}`)}
+                      onApproveProctor={handleApproveProctor}
+                      onTerminateProctor={handleTerminateProctor}
                     />
                   ))}
                 </tbody>
@@ -685,12 +726,16 @@ function SubmissionRow({
   density,
   onPrefetch,
   onReview,
+  onApproveProctor,
+  onTerminateProctor,
 }: {
   row: SubmissionSummary;
   attemptInfo?: { attempt: number; totalAttempts: number };
   density: "compact" | "normal";
   onPrefetch?: () => void;
   onReview: () => void;
+  onApproveProctor?: (id: number) => void;
+  onTerminateProctor?: (id: number) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -744,15 +789,22 @@ function SubmissionRow({
       {/* 2. Assessment Name & Attempt / Retry Badge */}
       <td className={cn("px-4", padY)}>
         <div className="flex flex-col min-w-0">
-          <span
-            className={cn(
-              "truncate font-medium text-slate-900 dark:text-slate-100",
-              density === "compact" ? "text-xs" : "text-sm",
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={cn(
+                "truncate font-medium text-slate-900 dark:text-slate-100",
+                density === "compact" ? "text-xs" : "text-sm",
+              )}
+              title={row.testTitle}
+            >
+              {row.testTitle}
+            </span>
+            {isDemoAssessmentTitle(row.testTitle) && (
+              <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">
+                Thi thử
+              </span>
             )}
-            title={row.testTitle}
-          >
-            {row.testTitle}
-          </span>
+          </div>
           <div className={cn("flex items-center gap-1.5", density === "compact" ? "text-[10px]" : "mt-0.5 text-[11px]")}>
             <span className="font-mono text-slate-400 dark:text-slate-500">ASM-{row.testId}</span>
             <span className="text-slate-300 dark:text-slate-600">•</span>
@@ -769,7 +821,22 @@ function SubmissionRow({
 
       {/* 3. Status Badge */}
       <td className={cn("whitespace-nowrap px-4", padY)}>
-        <StatusBadge status={row.status} />
+        <div className="flex flex-col gap-1 items-start">
+          <StatusBadge status={row.status} />
+          {row.proctorCandidateReady && !row.proctorApproved && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold border border-amber-300 animate-pulse">
+              Chờ duyệt Meet
+            </span>
+          )}
+          {row.proctorTerminatedReason && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-[10px] font-bold border border-rose-300"
+              title={row.proctorTerminatedReason}
+            >
+              Đình chỉ gian lận
+            </span>
+          )}
+        </div>
       </td>
 
       {/* 4. Combined Time Column (Bắt đầu - Nộp bài / Thời lượng) */}
@@ -904,6 +971,27 @@ function SubmissionRow({
           padY,
         )}
       >
+        {/* Quick Proctor Approval / Emergency Action Buttons */}
+        {row.proctorCandidateReady && !row.proctorApproved && (
+          <button
+            type="button"
+            onClick={() => onApproveProctor?.(row.id)}
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer mr-1.5"
+            title="Xác nhận góc máy đạt chuẩn và cho phép ứng viên bắt đầu"
+          >
+            <CheckCircle2 className="size-3.5" /> Duyệt Meet
+          </button>
+        )}
+        {inProgress && (
+          <button
+            type="button"
+            onClick={() => onTerminateProctor?.(row.id)}
+            className="inline-flex items-center gap-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1.5 text-xs font-medium hover:bg-rose-100 active:scale-95 transition-all cursor-pointer mr-1.5"
+            title="Dừng bài thi khẩn cấp nếu phát hiện gian lận"
+          >
+            <ShieldAlert className="size-3.5 text-rose-600" /> Dừng thi
+          </button>
+        )}
         {isPendingGrading ? (
           density === "compact" ? (
             <button

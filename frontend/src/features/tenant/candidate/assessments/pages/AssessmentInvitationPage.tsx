@@ -58,6 +58,13 @@ export function AssessmentInvitationPage() {
     queryKey: queryKeys.assessments.available(resolvedApplicationId),
     queryFn: () => assessmentApi.available(resolvedApplicationId),
     enabled: resolvedApplicationId > 0 && Number.isSafeInteger(testId) && testId > 0,
+    refetchInterval: (query) => {
+      const currentTest = query.state.data?.find((item) => item.id === testId);
+      if (currentTest?.strictProctorEnabled && currentTest?.proctorCandidateReady && !currentTest?.proctorApproved) {
+        return 3000;
+      }
+      return false;
+    },
   });
 
   const application = eligible.find((a) => a.id === resolvedApplicationId) ?? null;
@@ -167,6 +174,7 @@ export function AssessmentInvitationPage() {
             allowRetake={allowRetake}
             onContinue={onContinue}
             onProctorReady={onProctorReady}
+            onRefreshTest={() => void available.refetch()}
             applications={eligible}
             onSelectApplication={(id) => {
               setAcceptRules(false);

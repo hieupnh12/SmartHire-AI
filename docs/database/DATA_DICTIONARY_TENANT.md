@@ -781,6 +781,8 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 | `objective_duration_minutes` | INT | | Có | NULL | V53: hạn riêng phần trắc nghiệm (phút từ started_at); service kiểm tra nhỏ hơn tổng thời lượng |
 | `coding_test_weight_percent` | INT | | Không | 90 | V55: tỉ lệ điểm coding từ hidden tests (0–100); phần còn lại là AI |
+| `strict_proctor_enabled` | BOOLEAN | | Không | FALSE | V63: Bật/tắt chế độ giám sát nâng cao yêu cầu ứng viên kết nối Meet qua điện thoại và HR phê duyệt trước khi làm bài |
+| `proctor_meet_url` | VARCHAR(512) | | Có | NULL | V63: Đường dẫn phòng Google Meet giám sát mặc định cho đề thi |
 
 **Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`, V43 `fk_tests_assigned_application`, `uk_tests_assigned_application`.
 
@@ -849,6 +851,12 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 | `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `objective_completed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm chốt phần Quiz (MCQ/multi/essay); không được sửa câu Quiz sau mốc này; mở phần CODING |
+| `proctor_approved` | BOOLEAN | | Không | FALSE | V63: Đã được Giám sát viên phê duyệt góc máy qua Meet (ở chế độ thường tự động = TRUE khi tạo/bắt đầu) |
+| `proctor_approved_at` | TIMESTAMP | | Có | NULL | V63: Thời điểm Giám sát viên bấm duyệt |
+| `proctor_candidate_ready` | BOOLEAN | | Không | FALSE | V63: Ứng viên đã quét mã QR tham gia phòng Meet và báo đã sẵn sàng |
+| `proctor_meet_url` | VARCHAR(512) | | Có | NULL | V63: Đường dẫn phòng Google Meet riêng gắn với lượt làm bài |
+| `proctor_violations_count` | INT | | Không | 0 | V63: Số lần ứng viên vi phạm rời tab / thoát toàn màn hình |
+| `proctor_terminated_reason` | VARCHAR(255) | | Có | NULL | V63: Lý do Giám sát viên dừng bài thi khẩn cấp nếu phát hiện gian lận |
 
 **Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate` (`candidates.id`), `fk_submissions_application`
 

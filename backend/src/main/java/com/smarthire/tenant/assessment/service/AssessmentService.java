@@ -112,6 +112,8 @@ public class AssessmentService {
         test.setPassingScore(request.passingScore());
         if (request.codingTestWeightPercent() != null) test.setCodingTestWeightPercent(request.codingTestWeightPercent());
         if (request.autoGradingEnabled() != null) test.setAutoGradingEnabled(request.autoGradingEnabled());
+        if (request.strictProctorEnabled() != null) test.setStrictProctorEnabled(request.strictProctorEnabled());
+        test.setProctorMeetUrl(request.proctorMeetUrl() == null || request.proctorMeetUrl().isBlank() ? null : request.proctorMeetUrl().trim());
     }
 
     public Map<String, String> health() {

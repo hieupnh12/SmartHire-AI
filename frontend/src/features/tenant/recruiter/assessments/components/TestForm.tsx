@@ -36,6 +36,8 @@ function createTestFormSchema(t: TranslateFn) {
       .int()
       .min(0, t("recruiter.assessments.detail.testForm.min0"))
       .max(100, t("recruiter.assessments.detail.testForm.max100")),
+    strictProctorEnabled: z.boolean().default(false),
+    proctorMeetUrl: z.string().max(512).optional(),
   });
 }
 type Form = z.infer<ReturnType<typeof createTestFormSchema>>;
@@ -51,13 +53,24 @@ export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
       description: test?.description ?? "", durationMinutes: test?.durationMinutes ?? 30,
       objectiveDurationMinutes: String(test?.objectiveDurationMinutes ?? ""),
       passingScore: test?.passingScore == null ? "" : String(test.passingScore),
-      codingTestWeightPercent: test?.codingTestWeightPercent ?? 90 },
+      codingTestWeightPercent: test?.codingTestWeightPercent ?? 90,
+      strictProctorEnabled: test?.strictProctorEnabled ?? false,
+      proctorMeetUrl: test?.proctorMeetUrl ?? "" },
   });
   const codingWeight = watch("codingTestWeightPercent");
+  const strictProctorWatch = watch("strictProctorEnabled");
   useEffect(() => { onDirty(isDirty); }, [isDirty, onDirty]);
   return <form className="space-y-4" onSubmit={handleSubmit(async values => {
     try {
-      await onSave({ ...values, objectiveDurationMinutes: values.objectiveDurationMinutes ? Number(values.objectiveDurationMinutes) : null, description: values.description || null, passingScore: values.passingScore === "" ? null : Number(values.passingScore), codingTestWeightPercent: values.codingTestWeightPercent });
+      await onSave({
+        ...values,
+        objectiveDurationMinutes: values.objectiveDurationMinutes ? Number(values.objectiveDurationMinutes) : null,
+        description: values.description || null,
+        passingScore: values.passingScore === "" ? null : Number(values.passingScore),
+        codingTestWeightPercent: values.codingTestWeightPercent,
+        strictProctorEnabled: values.strictProctorEnabled,
+        proctorMeetUrl: values.proctorMeetUrl?.trim() || null,
+      });
       reset(values);
     } catch { /* Keep input values; the page displays the mutation error. */ }
   })} noValidate>
@@ -75,6 +88,40 @@ export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
         <FieldError message={errors.codingTestWeightPercent?.message} />
         <span className="mt-1 block text-xs text-[var(--color-on-surface-variant)]">{t("recruiter.assessments.detail.testForm.codingWeightHint", { aiPercent: 100 - (Number.isFinite(codingWeight) ? codingWeight : 90) })}</span>
       </label>
+
+      {/* Strict Live Proctoring Configuration (Hybrid Anti-Cheat Model) */}
+      <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4 space-y-3">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1 size-4 rounded accent-[var(--color-primary)]"
+            {...register("strictProctorEnabled")}
+          />
+          <div>
+            <span className="block text-sm font-semibold text-slate-900">
+              Yêu cầu Giám sát viên duyệt qua Meet (Strict Live Proctor)
+            </span>
+            <span className="block text-xs text-[var(--color-on-surface-variant)] mt-0.5 leading-relaxed">
+              Khi bật, ứng viên phải quét mã QR tham gia phòng Meet bằng điện thoại phụ (góc 45° quay 2 bàn tay và màn hình). Giám sát viên phải kiểm tra và bấm Phê duyệt thì ứng viên mới được kích hoạt đề thi.
+            </span>
+          </div>
+        </label>
+        {strictProctorWatch && (
+          <label className="block space-y-1 text-sm pt-2 border-t border-[var(--color-border-default)]">
+            <span className="text-xs font-medium text-slate-700">Link Google Meet giám sát (Tùy chọn)</span>
+            <input
+              type="url"
+              placeholder="https://meet.google.com/abc-defg-hij (để trống sẽ dùng phòng họp tự động của SmartHire)"
+              className={input}
+              {...register("proctorMeetUrl")}
+            />
+            <span className="block text-[11px] text-[var(--color-on-surface-variant)]">
+              Đường dẫn này sẽ hiển thị dưới dạng mã QR cho ứng viên quét bằng điện thoại khi chuẩn bị vào thi.
+            </span>
+          </label>
+        )}
+      </div>
+
       <Button type="submit" disabled={busy || (!!test && !isDirty)}><Save className="size-4" aria-hidden="true" />{busy ? t("recruiter.assessments.common.actions.saving") : test ? t("recruiter.assessments.common.actions.saveChanges") : t("recruiter.assessments.detail.testForm.createDraftBtn")}</Button>
     </fieldset>
   </form>;

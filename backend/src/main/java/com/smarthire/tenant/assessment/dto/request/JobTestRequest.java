@@ -25,11 +25,16 @@ public record JobTestRequest(
         @Schema(description = "Coding score share from hidden tests (0–100). AI review gets the remainder. Default 90.")
         Integer codingTestWeightPercent,
         @Schema(description = "When true, AI/sandbox grades are automatically approved and emailed to candidate without manual review.")
-        Boolean autoGradingEnabled) {
+        Boolean autoGradingEnabled,
+        @Schema(description = "When true, candidate must connect phone to Google Meet and get staff approval before starting.")
+        Boolean strictProctorEnabled,
+        @Size(max = 512)
+        @Schema(description = "Optional Google Meet URL for proctoring.")
+        String proctorMeetUrl) {
     public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore) {
-        this(jobId, title, description, duration, passingScore, null, null, false);
+        this(jobId, title, description, duration, passingScore, null, null, false, false, null);
     }
     public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore, Integer objectiveDurationMinutes) {
-        this(jobId, title, description, duration, passingScore, objectiveDurationMinutes, null, false);
+        this(jobId, title, description, duration, passingScore, objectiveDurationMinutes, null, false, false, null);
     }
 }

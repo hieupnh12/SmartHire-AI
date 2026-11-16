@@ -41,6 +41,7 @@ type Props = {
   onProctorReady: (session: ProctorSession) => void | Promise<void>;
   onSelectApplication?: (applicationId: number) => void;
   applications?: ApplicationSummary[];
+  onRefreshTest?: () => void;
 };
 
 export function AssessmentInvitationView({
@@ -56,12 +57,15 @@ export function AssessmentInvitationView({
   onProctorReady,
   applications,
   onSelectApplication,
+  onRefreshTest,
 }: Props) {
   const t = useT();
   const done =
     test.submissionStatus === "GRADED" ||
+    test.submissionStatus === "COMPLETED" ||
     test.submissionStatus === "EXPIRED" ||
-    test.submissionStatus === "SUBMITTED";
+    test.submissionStatus === "SUBMITTED" ||
+    test.submissionStatus === "FAILED";
   const inProgress = test.submissionStatus === "IN_PROGRESS";
   /** Rules + device check always happen here (start, continue, demo retake) — never again on /take. */
   const needsGate = !done || (done && allowRetake);
@@ -214,18 +218,16 @@ export function AssessmentInvitationView({
 
               <label
                 htmlFor="accept-rules"
-                className={`flex shrink-0 cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-colors ${
-                  acceptRules
-                    ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
-                    : "border-[var(--color-primary)]/45 bg-white shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-primary)_12%,transparent)] hover:border-[var(--color-primary)]"
-                }`}
+                className={`flex shrink-0 cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-colors ${acceptRules
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
+                  : "border-[var(--color-primary)]/45 bg-white shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-primary)_12%,transparent)] hover:border-[var(--color-primary)]"
+                  }`}
               >
                 <span
-                  className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border-2 ${
-                    acceptRules
-                      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-                      : "border-[var(--color-primary)] bg-white"
-                  }`}
+                  className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border-2 ${acceptRules
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
+                    : "border-[var(--color-primary)] bg-white"
+                    }`}
                   aria-hidden="true"
                 >
                   {acceptRules ? <Check className="size-4" strokeWidth={3} /> : null}
@@ -253,7 +255,14 @@ export function AssessmentInvitationView({
               <div className="min-h-0 flex-1 overflow-hidden">
                 {acceptRules ? (
                   <div className="h-full min-h-0 overflow-y-auto">
-                    <AssessmentProctorGate busy={starting} label={gateLabel} onReady={onProctorReady} />
+                    <AssessmentProctorGate
+                      busy={starting}
+                      label={gateLabel}
+                      test={test}
+                      applicationId={application.id}
+                      onReady={onProctorReady}
+                      onRefreshTest={onRefreshTest}
+                    />
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">

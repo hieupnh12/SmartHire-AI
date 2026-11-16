@@ -178,7 +178,7 @@ export const candidateAssessVi = {
   },
   result: {
     eyebrow: "Kết quả bài kiểm tra",
-    demoBadge: "Demo UI",
+    demoBadge: "Thi thử · Không tính điểm",
     summaryEyebrow: "Tổng hợp",
     scoreHeading: "Điểm số",
     evaluationHeading: "Đánh giá",
@@ -193,7 +193,7 @@ export const candidateAssessVi = {
     quizQuestions: "Trắc nghiệm",
     codingQuestions: "Lập trình",
     demoDisclaimer:
-      "Bài demo giao diện — điểm không ảnh hưởng vòng tuyển dụng.",
+      "Bài thi thử làm quen giao diện — điểm hoàn toàn không ảnh hưởng đến kết quả tuyển dụng.",
     aiEvaluationHeading: "Đánh giá từ Trợ lý AI",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "Câu {order} · Bài thi lập trình",
@@ -371,7 +371,7 @@ export const candidateAssessVi = {
     eyebrow: "Vòng đánh giá kỹ thuật",
     title: "Bài đánh giá",
     subtitle:
-      "Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Đề mẫu [Demo UI] dùng để xem giao diện và có thể làm lại nhiều lần, không tính vào kết quả hồ sơ.",
+      "Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Bạn có thể tham gia Bài thi thử để làm quen giao diện, kiểm tra camera/micro trước khi làm bài thi chính thức.",
     metricInvitations: "Lời mời",
     metricReady: "Cần thực hiện",
     metricCompleted: "Đã hoàn tất",
@@ -382,6 +382,17 @@ export const candidateAssessVi = {
     emptyTitle: "Chưa có đề được nhà tuyển dụng giao",
     emptyDesc:
       "Đề chính thức sẽ xuất hiện khi hồ sơ ứng tuyển của bạn vượt qua vòng lọc CV.",
+    practiceBadge: "Thi thử · Không tính điểm",
+    practiceTitle: "Phòng thi thử & Làm quen giao diện",
+    practiceDesc:
+      "Làm quen giao diện thi trắc nghiệm & IDE lập trình, kiểm tra góc máy camera và micro trước khi bước vào bài thi chính thức. Bạn có thể làm lại nhiều lần mà không ảnh hưởng đến hồ sơ ứng tuyển.",
+    practiceUnlimited: "Làm lại không giới hạn",
+    practiceSkills: "Trắc nghiệm + Tự luận + Lập trình",
+    practiceStart: "Vào thi thử",
+    officialSectionTitle: "Bài thi chính thức",
+    officialEmptyTitle: "Chưa có bài thi chính thức",
+    officialEmptyDesc:
+      "Nhà tuyển dụng chưa giao bài thi kỹ thuật chính thức nào cho hồ sơ của bạn. Khi có bài thi mới, bạn sẽ nhận được thông báo tại đây. Bạn có thể làm bài thi thử ở trên để làm quen trước với hệ thống.",
     cardEyebrow: "Lời mời Assessment",
     durationLabel: "Thời lượng",
     passingScoreLabel: "Ngưỡng đạt",

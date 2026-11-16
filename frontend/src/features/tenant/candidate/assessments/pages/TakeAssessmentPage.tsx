@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Clock3, Expand, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock3, Expand, Send, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentMuted as muted } from "@/components/ux/assessmentUi";
@@ -175,6 +175,28 @@ function SubmissionRoom({ id }: { id: number }) {
           </div>
         )}
       </section>
+    );
+  }
+
+  if (submission?.status === "FAILED" && submission?.proctorTerminatedReason) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-slate-950 p-6 text-white">
+        <div className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-slate-900 p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-rose-500/20 text-rose-400">
+            <TriangleAlert className="size-8" />
+          </div>
+          <h1 className="text-xl font-bold text-rose-400">Bài thi đã bị đình chỉ</h1>
+          <p className="mt-2 text-sm text-slate-300">
+            Giám sát viên đã dừng bài thi do phát hiện hành vi vi phạm quy chế thi trực tuyến.
+          </p>
+          <div className="mt-4 rounded-xl bg-rose-950/60 p-3.5 text-left text-xs text-rose-200 border border-rose-800/40">
+            <span className="font-semibold text-rose-300">Lý do đình chỉ:</span> {submission.proctorTerminatedReason}
+          </div>
+          <Button variant="secondary" className="mt-6 w-full" onClick={() => navigate(back)}>
+            Quay lại trang ứng viên
+          </Button>
+        </div>
+      </main>
     );
   }
 

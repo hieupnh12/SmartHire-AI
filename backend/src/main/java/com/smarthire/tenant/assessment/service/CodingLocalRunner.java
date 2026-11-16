@@ -268,8 +268,7 @@ public class CodingLocalRunner {
 
     private boolean isDemoProblem(CodingProblem problem) {
         if (problem == null) return false;
-        if (problem.getTest() != null && problem.getTest().getTitle() != null
-                && problem.getTest().getTitle().contains("[Demo UI]")) {
+        if (problem.getTest() != null && AssessmentDemoSeedService.isDemoPaper(problem.getTest())) {
             return true;
         }
         String title = problem.getTitle() != null ? problem.getTitle().trim().toLowerCase() : "";

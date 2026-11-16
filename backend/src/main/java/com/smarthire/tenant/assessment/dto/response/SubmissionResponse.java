@@ -8,7 +8,16 @@ import java.util.List;
 public record SubmissionResponse(Long id, Long testId, Long applicationId, String title,
         TestSubmissionStatus status, Instant startedAt, Instant expiresAt, Instant submittedAt,
         Instant serverTime, long remainingSeconds, BigDecimal score, int totalPoints, Boolean passed,
-        List<CandidateQuestion> questions, List<SavedAnswer> answers, Instant objectiveCompletedAt, Instant objectiveExpiresAt) {
+        List<CandidateQuestion> questions, List<SavedAnswer> answers, Instant objectiveCompletedAt, Instant objectiveExpiresAt,
+        boolean proctorApproved, Instant proctorApprovedAt, boolean proctorCandidateReady, String proctorMeetUrl,
+        int proctorViolationsCount, String proctorTerminatedReason) {
+    public SubmissionResponse(Long id, Long testId, Long applicationId, String title,
+            TestSubmissionStatus status, Instant startedAt, Instant expiresAt, Instant submittedAt,
+            Instant serverTime, long remainingSeconds, BigDecimal score, int totalPoints, Boolean passed,
+            List<CandidateQuestion> questions, List<SavedAnswer> answers, Instant objectiveCompletedAt, Instant objectiveExpiresAt) {
+        this(id, testId, applicationId, title, status, startedAt, expiresAt, submittedAt, serverTime, remainingSeconds, score, totalPoints, passed,
+                questions, answers, objectiveCompletedAt, objectiveExpiresAt, true, null, false, null, 0, null);
+    }
     public record CandidateQuestion(Long id, String questionText, String questionType, int points,
             int questionOrder, List<CandidateOption> options, com.smarthire.tenant.assessment.dto.request.CodingRequest coding) {}
     public record CandidateOption(Long id, String optionText) {}
