@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  BookOpen,
   Bot,
   CalendarClock,
   CheckCircle2,
@@ -35,6 +36,7 @@ import { Button } from "@/components/ux/Button";
 import { Skeleton } from "@/components/ux/Skeleton";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
 import { formatNumber, t as globalT, useLocale, useT, type TranslateFn } from "@/i18n";
+import { getApiErrorMessage } from "@/lib/axios";
 import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
@@ -455,26 +457,113 @@ export function StageQuestionsSection({
   interview,
   stageGroups,
   editable,
-  planned,
+  planned: _planned,
   busy,
   generatePending,
   onGenerate,
   onChanged,
+  isApproved,
+  canApprove,
+  canUnapprove,
+  onApprove,
+  onUnapprove,
+  approvePending,
+  unapprovePending,
 }: {
   interview: AiInterview;
   stageGroups: StageGroup[];
   editable: boolean;
-  planned: boolean;
+  planned?: boolean;
   busy: boolean;
   generatePending: boolean;
   onGenerate: () => void;
   onChanged: () => void;
+  isApproved?: boolean;
+  canApprove?: boolean;
+  canUnapprove?: boolean;
+  onApprove?: () => Promise<void> | void;
+  onUnapprove?: () => Promise<void> | void;
+  approvePending?: boolean;
+  unapprovePending?: boolean;
 }) {
   const t = useT();
+  const locale = useLocale();
   const askConfirm = useUiStore((s) => s.askConfirm);
 
   return (
     <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-2xs">
+      {/* RAG & Question Approval Status Banner */}
+      {isApproved ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/60 dark:bg-emerald-950/40">
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+              <ShieldCheck className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                Bộ đề thi đã được phê duyệt & Vector Embedding đã nạp vào RAG
+              </p>
+              <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                Đề thi đã được khóa an toàn để bảo đảm tính nhất quán cho bài thi của ứng viên.
+                {interview.questionsApprovedAt && ` Duyệt lúc ${formatDateTime(interview.questionsApprovedAt, locale)}.`}
+              </p>
+            </div>
+          </div>
+          {canUnapprove && onUnapprove && (
+            <button
+              type="button"
+              disabled={busy || unapprovePending}
+              onClick={() => {
+                askConfirm({
+                  title: "Mở khóa đề phỏng vấn?",
+                  description: "Mở khóa đề thi để bạn có thể thêm, sửa, xóa hoặc sinh lại câu hỏi. Trong thời gian mở khóa, ứng viên sẽ tạm thời không thể bắt đầu làm bài.",
+                  confirmLabel: "Mở khóa đề thi",
+                  onConfirm: async () => { await onUnapprove(); },
+                });
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-800 shadow-2xs hover:bg-amber-50 transition-colors disabled:opacity-50 cursor-pointer dark:bg-slate-900 dark:border-amber-800 dark:text-amber-300"
+            >
+              <LockKeyhole className="size-3.5" />
+              <span>{unapprovePending ? "Đang mở…" : "Mở khóa đề thi"}</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/60 dark:bg-amber-950/40">
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+              <LockKeyhole className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                Bộ đề thi đang ở trạng thái Chờ duyệt (Bản nháp)
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+                Vui lòng kiểm tra các câu hỏi, đáp án định hướng và ý chính RAG bên dưới. Sau khi hoàn tất kiểm tra, bấm Phê duyệt đề để nạp RAG và cho phép ứng viên làm bài.
+              </p>
+            </div>
+          </div>
+          {canApprove && onApprove && (
+            <button
+              type="button"
+              disabled={busy || approvePending}
+              onClick={() => {
+                askConfirm({
+                  title: "Phê duyệt bộ câu hỏi phỏng vấn?",
+                  description: "Hệ thống sẽ khóa đề thi và nạp Vector Embedding của Key Points vào RAG. Ứng viên sẽ có thể bắt đầu làm bài.",
+                  confirmLabel: "Phê duyệt & Nạp RAG",
+                  onConfirm: async () => { await onApprove(); },
+                });
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <ShieldCheck className="size-4" />
+              <span>{approvePending ? "Đang nạp RAG…" : "Phê duyệt đề & Nạp RAG"}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div>
           <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">
@@ -484,7 +573,7 @@ export function StageQuestionsSection({
             {t("recruiter.interviews.ai.detail.questionsSection.subtitle")}
           </p>
         </div>
-        {editable && !interview.conversational && (interview.questions.length === 0 || interview.processBased) && (
+        {editable && (interview.questions.length === 0 || interview.processBased || interview.conversational) && (
           <button
             type="button"
             disabled={busy}
@@ -535,7 +624,7 @@ export function StageQuestionsSection({
         ))}
       </ol>
 
-      {editable && !busy && !planned && (
+      {editable && !busy && (
         <AddQuestionForm
           interviewId={interview.id}
           nextOrder={Math.max(-1, ...interview.questions.map((q) => q.questionOrder)) + 1}
@@ -816,6 +905,16 @@ function QuestionItem({
       onChanged();
     },
   });
+  const regenSingle = useMutation({
+    mutationFn: () => aiInterviewApi.regenerateQuestion(interviewId, question.id),
+    onSuccess: () => {
+      toast.success(`Đã sinh lại câu hỏi #${index + 1} bằng AI!`);
+      onChanged();
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err) || "Không thể sinh lại câu hỏi");
+    },
+  });
   const answer = question.answer;
   const planned = !!question.stageTitle;
   const mcq = !!question.options?.length;
@@ -905,12 +1004,67 @@ function QuestionItem({
                 {question.explanation}
               </p>
             )}
+
+            {/* AI Reference Answer */}
+            {question.referenceAnswer && (
+              <div className="mt-3 rounded-xl border border-blue-200/80 bg-blue-50/60 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/40">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0066FF] dark:text-blue-400">
+                  <BookOpen className="size-3.5" aria-hidden="true" />
+                  <span>Đáp án mẫu định hướng (AI Reference Answer):</span>
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap text-xs font-normal leading-relaxed text-slate-800 dark:text-slate-200">
+                  {question.referenceAnswer}
+                </p>
+              </div>
+            )}
+
+            {/* Keypoints Preview for RAG */}
+            {question.keyPoints && question.keyPoints.length > 0 && (
+              <div className="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                <div className="flex items-center justify-between text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    <span>Ý chính đối soát RAG ({question.keyPoints.length} tiêu chí đánh giá):</span>
+                  </div>
+                </div>
+                <ul className="mt-2 space-y-1.5 text-xs">
+                  {question.keyPoints.map((kp, i) => (
+                    <li key={i} className="flex items-start gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="flex-1 font-normal leading-relaxed">{kp.point}</span>
+                      {kp.target && (
+                        <span className="shrink-0 rounded-md bg-white border border-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">
+                          {kp.target}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           {editable && !(planned && mcq) && (
-            <div className="flex shrink-0 gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                className="grid size-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                disabled={regenSingle.isPending}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-blue-200/80 bg-blue-50/70 px-2.5 text-xs font-semibold text-[#0066FF] hover:bg-blue-100 hover:border-blue-300 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-all cursor-pointer disabled:opacity-50"
+                title="Sinh lại câu hỏi này bằng AI (dựa theo CV và các câu hỏi khác)"
+                onClick={() => {
+                  askConfirm({
+                    title: `Sinh lại câu hỏi #${index + 1} bằng AI?`,
+                    description: "AI sẽ tạo câu hỏi mới thay thế cho câu hỏi này, giữ mạch phỏng vấn liền mạch với các câu hỏi khác.",
+                    confirmLabel: "Sinh lại bằng AI",
+                    onConfirm: async () => { await regenSingle.mutateAsync(); },
+                  });
+                }}
+              >
+                <Sparkles className={cn("size-3.5", regenSingle.isPending && "animate-spin")} aria-hidden="true" />
+                <span>{regenSingle.isPending ? "Đang sinh…" : "Sinh lại bằng AI"}</span>
+              </button>
+              <button
+                type="button"
+                className="grid size-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
                 aria-label={t("recruiter.interviews.ai.detail.questionsSection.editAria")}
                 onClick={() => setEditing(true)}
               >

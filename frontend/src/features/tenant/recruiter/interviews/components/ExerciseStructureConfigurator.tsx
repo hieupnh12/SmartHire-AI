@@ -20,12 +20,14 @@ void BehavioralConfig;
 
 const EXERCISE_IDS: ExerciseId[] = ["conceptual", "scenario", "experience", "code", "behavioral", "communication"];
 
-export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }: {
-  jobSkills: string[];
+export function ExerciseStructureConfigurator({ jobSkills = [], processes = [], onChange }: {
+  jobSkills?: string[];
   processes: InterviewProcessConfig[];
   onChange: (processes: InterviewProcessConfig[]) => void;
 }) {
   const t = useT();
+  const safeJobSkills = Array.isArray(jobSkills) ? jobSkills : [];
+  const safeProcesses = Array.isArray(processes) ? processes : [];
   const [active, setActive] = useState<ExerciseId>("communication");
   const exercises = EXERCISE_IDS.map((id) => ({
     id,
@@ -37,7 +39,7 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
   const exercise = exercises[activeIndex] ?? exercises[exercises.length - 1];
 
   function updateProcess(next: InterviewProcessConfig) {
-    onChange(processes.map((process) => (process.key === next.key ? next : process)));
+    onChange(safeProcesses.map((process) => (process.key === next.key ? next : process)));
   }
 
   return (
@@ -110,9 +112,9 @@ export function ExerciseStructureConfigurator({ jobSkills, processes, onChange }
           </span>
         </header>
         <div className="space-y-4 p-4">
-          <ProcessConfigScope process={findProcess(processes, "COMMUNICATION")} onChange={updateProcess}>
+          <ProcessConfigScope process={findProcess(safeProcesses, "COMMUNICATION")} onChange={updateProcess}>
             <div className={active === "communication" ? undefined : "hidden"}>
-              <CommunicationConfig jobSkills={jobSkills} />
+              <CommunicationConfig jobSkills={safeJobSkills} />
             </div>
           </ProcessConfigScope>
         </div>
@@ -1878,7 +1880,7 @@ function BehavioralConfig({ jobSkills }: { jobSkills: string[] }) {
   );
 }
 
-function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
+function CommunicationConfig({ jobSkills = [] }: { jobSkills?: string[] }) {
   const t = useT();
   const [topic, setTopic] = useState("JOB_REQUIREMENTS");
   const [language, setLanguage] = useState("English");
@@ -1888,6 +1890,7 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
   const [adaptive, setAdaptive] = useState(true);
   const [audio, setAudio] = useState(true);
   const [signals, setSignals] = useState(true);
+  const safeSkills = Array.isArray(jobSkills) ? jobSkills : [];
 
   const languageLabelMap: Record<string, string> = {
     English: t("recruiter.interviews.ai.exercises.communication.langEnglish"),
@@ -1916,7 +1919,7 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
                 value: "JOB_REQUIREMENTS",
                 label: t("recruiter.interviews.ai.exercises.communication.topicJobRequirements"),
               },
-              ...jobSkills.map((skill) => ({ value: skill, label: skill })),
+              ...safeSkills.map((skill) => ({ value: skill, label: skill })),
             ]}
           />
           <ChoiceField
@@ -2020,7 +2023,7 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
       </Card>
       <ExampleShell
         title={t("recruiter.interviews.ai.exercises.communication.flowTitle")}
-        meta={`${languageLabelMap[language] ?? language} · ${jobSkills.join(", ") || t("recruiter.interviews.ai.exercises.communication.flowFallbackTopic")}`}
+        meta={`${languageLabelMap[language] ?? language} · ${safeSkills.join(", ") || t("recruiter.interviews.ai.exercises.communication.flowFallbackTopic")}`}
       >
         <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
           {t("recruiter.interviews.ai.exercises.communication.flowDesc")}
@@ -2051,8 +2054,9 @@ function CommunicationConfig({ jobSkills }: { jobSkills: string[] }) {
   );
 }
 
-function PracticalExperienceConfig({ jobSkills }: { jobSkills: string[] }) {
+function PracticalExperienceConfig({ jobSkills = [] }: { jobSkills?: string[] }) {
   const t = useT();
+  const safeSkills = Array.isArray(jobSkills) ? jobSkills : [];
   const [enabled, setEnabled] = useState(true);
   const [count, setCount] = useState(3);
   const [response, setResponse] = useState("speech");
@@ -2064,7 +2068,7 @@ function PracticalExperienceConfig({ jobSkills }: { jobSkills: string[] }) {
   const [challenges, setChallenges] = useState(true);
   const [result, setResult] = useState(true);
   const [verifyCv, setVerifyCv] = useState(true);
-  const domain = jobSkills.find((skill) => /kafka|redis|rabbit/i.test(skill)) ?? jobSkills[0] ?? "Kafka";
+  const domain = safeSkills.find((skill) => /kafka|redis|rabbit/i.test(skill)) ?? safeSkills[0] ?? "Kafka";
 
   return (
     <>
