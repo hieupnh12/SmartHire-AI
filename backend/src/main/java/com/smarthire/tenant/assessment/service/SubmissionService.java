@@ -77,8 +77,8 @@ public class SubmissionService {
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
         if (submission.getId() != null && submission.getStatus() != TestSubmissionStatus.NOT_STARTED) {
-            boolean finishedBefore = isFinished(submission.getStatus());
             expire(submission);
+            boolean finishedBefore = isFinished(submission.getStatus());
             if (!(isDemoPaper(test) && finishedBefore)) return response(submission);
             submission = new Submission();
         }
@@ -94,8 +94,45 @@ public class SubmissionService {
         submission.setTest(test);
         submission.setApplication(application);
         submission.setCandidate(candidate);
+        if (test.isStrictProctorEnabled()) {
+            if (!submission.isProctorApproved()) {
+                throw conflict("Giám sát viên chưa phê duyệt góc máy qua Meet cho bài thi này.", "ASSESSMENT_PROCTOR_NOT_APPROVED");
+            }
+        } else {
+            submission.setProctorApproved(true);
+        }
         submission.setStartedAt(Instant.now().truncatedTo(ChronoUnit.SECONDS));
         submission.setStatus(TestSubmissionStatus.IN_PROGRESS);
+        return response(submissions.save(submission));
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public SubmissionResponse prepare(long testId, StartSubmissionRequest request) {
+        Candidate candidate = candidate();
+        JobTest test = tests.findLockedById(testId).orElseThrow(this::notFound);
+        Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
+        if (!application.getCandidate().getId().equals(candidate.getId())
+                || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
+        if (!assignedTo(test, application) && !isDemoPaper(test)) throw notFound();
+        requirePlayable(application, test);
+        var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
+        Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
+        if (submission.getId() != null) {
+            expire(submission);
+            if (!isDemoPaper(test) || !isFinished(submission.getStatus())) {
+                return response(submission);
+            }
+            submission = new Submission();
+        }
+        if (test.getStatus() != TestStatus.PUBLISHED || test.getJob().getDeletedAt() != null) {
+            throw conflict("Test is not available", "TEST_UNAVAILABLE");
+        }
+        submission.setTest(test);
+        submission.setApplication(application);
+        submission.setCandidate(candidate);
+        submission.setStatus(TestSubmissionStatus.NOT_STARTED);
+        submission.setProctorApproved(!test.isStrictProctorEnabled());
+        submission.setProctorMeetUrl(test.getProctorMeetUrl());
         return response(submissions.save(submission));
     }
 
@@ -124,7 +161,10 @@ public class SubmissionService {
                     Submission latest = ids.isEmpty() ? null : submissions.findById(ids.getFirst()).orElse(null);
                     return new AvailableAssessmentResponse(test.getId(), test.getTitle(), test.getDescription(),
                             test.getDurationMinutes(), test.getPassingScore(), latest == null ? null : latest.getId(),
-                            latest == null ? null : latest.getStatus());
+                            latest == null ? null : latest.getStatus(),
+                            test.isStrictProctorEnabled(), test.getProctorMeetUrl(),
+                            latest == null ? null : latest.isProctorApproved(),
+                            latest == null ? null : latest.isProctorCandidateReady());
                 }).toList();
     }
 
@@ -201,7 +241,9 @@ public class SubmissionService {
         access.requireJob(job);
         Instant now = Instant.now();
         var totals = new java.util.HashMap<Long, Integer>();
-        return submissions.findByJobId(jobId).stream().map(submission -> {
+        return submissions.findByJobId(jobId).stream()
+                .filter(s -> !AssessmentDemoSeedService.isDemoPaper(s.getTest()))
+                .map(submission -> {
             JobTest test = submission.getTest();
             int totalPoints = totals.computeIfAbsent(test.getId(), id ->
                     questions.findByTest_IdOrderByQuestionOrderAscIdAsc(id).stream().mapToInt(Question::getPoints).sum());
@@ -219,7 +261,9 @@ public class SubmissionService {
             return new SubmissionSummaryResponse(submission.getId(), test.getId(), test.getTitle(),
                     submission.getApplication().getId(), candidate.getId(), candidate.getFullName(), candidate.getEmail(),
                     status, submission.getStartedAt(), expiresAt, overdue ? null : submission.getSubmittedAt(),
-                    remaining, score, totalPoints, threshold, passed);
+                    remaining, score, totalPoints, threshold, passed,
+                    submission.isProctorApproved(), submission.isProctorCandidateReady(),
+                    submission.getProctorTerminatedReason());
         }).toList();
     }
 
@@ -346,12 +390,17 @@ public class SubmissionService {
     }
 
     private static boolean isDemoPaper(JobTest test) {
-        return AssessmentDemoSeedService.DEMO_TITLE.equals(test.getTitle());
+        return AssessmentDemoSeedService.isDemoPaper(test);
     }
 
     private static boolean isFinished(TestSubmissionStatus status) {
+        if (status == null) return false;
         return status == TestSubmissionStatus.SUBMITTED
+                || status == TestSubmissionStatus.PENDING
+                || status == TestSubmissionStatus.GRADING
+                || status == TestSubmissionStatus.COMPLETED
                 || status == TestSubmissionStatus.GRADED
+                || status == TestSubmissionStatus.FAILED
                 || status == TestSubmissionStatus.EXPIRED;
     }
 
@@ -480,7 +529,10 @@ public class SubmissionService {
                 submission.getTest().getTitle(), submission.getStatus(), submission.getStartedAt(), expiresAt,
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
-                questionDtos, saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
+                questionDtos, saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission),
+                submission.isProctorApproved(), submission.getProctorApprovedAt(),
+                submission.isProctorCandidateReady(), submission.getProctorMeetUrl(),
+                submission.getProctorViolationsCount(), submission.getProctorTerminatedReason());
     }
 
     private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {
@@ -545,5 +597,67 @@ public class SubmissionService {
 
     private BusinessException invalid(String message) {
         return new BusinessException(message, HttpStatus.BAD_REQUEST, "INVALID_ANSWERS");
+    }
+
+    @Transactional
+    public SubmissionResponse signalProctorCandidateReady(long id) {
+        Submission submission = owned(id, candidate());
+        if (submission.getStatus() != TestSubmissionStatus.NOT_STARTED && submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) {
+            throw conflict("Lượt thi đã kết thúc", "SUBMISSION_CLOSED");
+        }
+        submission.setProctorCandidateReady(true);
+        return response(submissions.save(submission));
+    }
+
+    @Transactional
+    public SubmissionResponse approveProctorSetup(long id) {
+        requireStaff();
+        Submission submission = submissions.findById(id).orElseThrow(this::notFound);
+        if (isFinished(submission.getStatus())) {
+            throw conflict("Bài thi đã hoàn thành", "SUBMISSION_CLOSED");
+        }
+        submission.setProctorApproved(true);
+        submission.setProctorApprovedAt(Instant.now());
+        return response(submissions.save(submission));
+    }
+
+    @Transactional
+    public SubmissionResponse unapproveProctorSetup(long id) {
+        requireStaff();
+        Submission submission = submissions.findById(id).orElseThrow(this::notFound);
+        if (submission.getStartedAt() != null || isFinished(submission.getStatus())) {
+            throw conflict("Không thể hủy duyệt khi ứng viên đã bắt đầu bài thi", "SUBMISSION_ALREADY_STARTED");
+        }
+        submission.setProctorApproved(false);
+        submission.setProctorApprovedAt(null);
+        return response(submissions.save(submission));
+    }
+
+    @Transactional
+    public SubmissionResponse terminateByProctor(long id, String reason) {
+        requireStaff();
+        Submission submission = submissions.findById(id).orElseThrow(this::notFound);
+        if (isFinished(submission.getStatus())) {
+            throw conflict("Bài thi đã kết thúc", "SUBMISSION_CLOSED");
+        }
+        String cleanReason = (reason == null || reason.isBlank()) ? "Giám sát viên phát hiện gian lận trong quá trình làm bài." : reason.trim();
+        submission.setStatus(TestSubmissionStatus.FAILED);
+        submission.setSubmittedAt(Instant.now());
+        submission.setProctorTerminatedReason(cleanReason);
+        submission.setNotes((submission.getNotes() == null ? "" : submission.getNotes() + "\n") + "[PROCTOR_TERMINATED] " + cleanReason);
+        return response(submissions.save(submission));
+    }
+
+    @Transactional
+    public void recordProctorViolation(long id) {
+        Submission submission = owned(id, candidate());
+        if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS) {
+            submission.setProctorViolationsCount(submission.getProctorViolationsCount() + 1);
+            submissions.save(submission);
+        }
+    }
+
+    private void requireStaff() {
+        if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
     }
 }

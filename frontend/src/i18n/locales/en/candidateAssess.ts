@@ -177,7 +177,7 @@ export const candidateAssessEn = {
   },
   result: {
     eyebrow: "Assessment Result",
-    demoBadge: "Demo UI",
+    demoBadge: "Practice · Ungraded",
     summaryEyebrow: "Summary",
     scoreHeading: "Score",
     evaluationHeading: "Evaluation",
@@ -192,7 +192,7 @@ export const candidateAssessEn = {
     quizQuestions: "Quiz / Essay",
     codingQuestions: "Coding",
     demoDisclaimer:
-      "UI demo test — scores do not affect your recruitment process.",
+      "Practice assessment — score does not affect your job application.",
     aiEvaluationHeading: "AI Assistant Evaluation",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "Question {order} · Coding challenge",
@@ -370,7 +370,7 @@ export const candidateAssessEn = {
     eyebrow: "Technical Assessment Stage",
     title: "Assessments",
     subtitle:
-      "Each application receives a tailored assessment from the question bank. [Demo UI] tests let you explore the interface and can be retaken without affecting your application.",
+      "Each application receives a tailored assessment from the question bank. You can try the Practice Test to get familiar with the test interface and proctoring before your official exam.",
     metricInvitations: "Invitations",
     metricReady: "To complete",
     metricCompleted: "Completed",
@@ -381,6 +381,17 @@ export const candidateAssessEn = {
     emptyTitle: "No assessments assigned yet",
     emptyDesc:
       "Official assessments will appear once your application passes CV screening.",
+    practiceBadge: "Practice · Ungraded",
+    practiceTitle: "Practice Room & Familiarization",
+    practiceDesc:
+      "Get familiar with the quiz & coding IDE, test camera and microphone before the official assessment. You can retake as many times as you like without affecting your application.",
+    practiceUnlimited: "Unlimited retakes",
+    practiceSkills: "Quiz + Essay + Coding",
+    practiceStart: "Start Practice",
+    officialSectionTitle: "Official Assessments",
+    officialEmptyTitle: "No official assessment assigned yet",
+    officialEmptyDesc:
+      "Your recruiter has not assigned an official technical assessment yet. When assigned, it will appear here. You can try the practice test above in the meantime.",
     cardEyebrow: "Assessment Invitation",
     durationLabel: "Duration",
     passingScoreLabel: "Passing score",

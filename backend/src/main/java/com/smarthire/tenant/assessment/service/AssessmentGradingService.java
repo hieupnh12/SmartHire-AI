@@ -77,7 +77,7 @@ public class AssessmentGradingService {
                             .put("general_comment", "Chấm điểm tự động tạm thời chưa khả dụng. Vui lòng thử lại hoặc chấm thủ công."));
                 }
             }
-            boolean isDemo = submission.getTest().getTitle() != null && submission.getTest().getTitle().contains("[Demo UI]");
+            boolean isDemo = AssessmentDemoSeedService.isDemoPaper(submission.getTest());
             if (submission.getTest().isAutoGradingEnabled() || isDemo) {
                 for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
                     if (answer.getScore() == null && answer.getSuggestedScore() != null) {

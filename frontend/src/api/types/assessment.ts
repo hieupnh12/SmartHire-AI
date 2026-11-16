@@ -21,10 +21,14 @@ export type JobTest = {
   /** Hidden-test share of coding score (0–100). AI gets the remainder. */
   codingTestWeightPercent?: number;
   autoGradingEnabled?: boolean;
+  strictProctorEnabled?: boolean;
+  proctorMeetUrl?: string | null;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes"> & {
   codingTestWeightPercent?: number | null;
   autoGradingEnabled?: boolean;
+  strictProctorEnabled?: boolean;
+  proctorMeetUrl?: string | null;
 };
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {
@@ -63,6 +67,12 @@ export type Submission = {
   remainingSeconds: number; score: number | null; totalPoints: number; passed: boolean | null;
   objectiveCompletedAt?: string | null;
   objectiveExpiresAt?: string | null;
+  proctorApproved?: boolean;
+  proctorApprovedAt?: string | null;
+  proctorCandidateReady?: boolean;
+  proctorMeetUrl?: string | null;
+  proctorViolationsCount?: number;
+  proctorTerminatedReason?: string | null;
   questions: CandidateQuestion[]; answers: SavedAnswer[];
 };
 export type SubmissionSummary = {
@@ -70,10 +80,18 @@ export type SubmissionSummary = {
   candidateId: number; candidateName: string; candidateEmail: string; status: SubmissionStatus;
   startedAt: string | null; expiresAt: string | null; submittedAt: string | null; remainingSeconds: number;
   score: number | null; totalPoints: number; passingScore: number | null; passed: boolean | null;
+  proctorApproved?: boolean;
+  proctorCandidateReady?: boolean;
+  proctorTerminatedReason?: string | null;
 };
 export type SendAssessmentResult = { testId: number; applicationId: number; applicationStatus: string; emailSent: boolean };
 export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" | "durationMinutes" | "passingScore"> & {
-  submissionId: number | null; submissionStatus: SubmissionStatus | null;
+  submissionId: number | null;
+  submissionStatus: SubmissionStatus | null;
+  strictProctorEnabled?: boolean;
+  proctorMeetUrl?: string | null;
+  proctorApproved?: boolean | null;
+  proctorCandidateReady?: boolean | null;
 };
 
 export type EssayCategory =

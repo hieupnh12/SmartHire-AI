@@ -18,10 +18,11 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Ensures each job has one fixed published demo paper for UI / flow testing after CV pass. */
+/** Ensures each job has one fixed trial / practice paper for candidates to get familiar with the test interface. */
 @Service
 public class AssessmentDemoSeedService {
-    public static final String DEMO_TITLE = "[Demo UI] Bài kiểm tra kỹ thuật";
+    public static final String DEMO_TITLE = "[Thi thử] Bài kiểm tra mẫu làm quen giao diện";
+    public static final String LEGACY_DEMO_TITLE = "[Demo UI] Bài kiểm tra kỹ thuật";
 
     private final JobTestRepository tests;
     private final QuestionRepository questions;
@@ -38,12 +39,24 @@ public class AssessmentDemoSeedService {
         this.json = json;
     }
 
+    public static boolean isDemoPaper(JobTest test) {
+        if (test == null || test.getTitle() == null) return false;
+        String title = test.getTitle().trim();
+        return title.contains("[Demo UI]") || title.contains("[Thi thử]")
+                || DEMO_TITLE.equalsIgnoreCase(title) || LEGACY_DEMO_TITLE.equalsIgnoreCase(title);
+    }
+
     @Transactional
     public JobTest ensurePublishedDemo(Job job) {
         JobTest test = tests.findByJob_IdAndStatusOrderByIdDesc(job.getId(), TestStatus.PUBLISHED).stream()
-                .filter(t -> DEMO_TITLE.equals(t.getTitle()))
+                .filter(AssessmentDemoSeedService::isDemoPaper)
                 .findFirst()
                 .orElseGet(() -> createDemo(job));
+        if (LEGACY_DEMO_TITLE.equals(test.getTitle())) {
+            test.setTitle(DEMO_TITLE);
+            test.setDescription("Bài kiểm tra mẫu giúp bạn làm quen giao diện thi, kiểm tra thiết bị camera/micro và trải nghiệm trình viết code trước khi vào bài thi chính thức (Không ảnh hưởng kết quả tuyển dụng).");
+            test = tests.save(test);
+        }
         if (!test.isAutoGradingEnabled()) {
             test.setAutoGradingEnabled(true);
             test = tests.save(test);
@@ -77,7 +90,7 @@ public class AssessmentDemoSeedService {
         JobTest test = new JobTest();
         test.setJob(job);
         test.setTitle(DEMO_TITLE);
-        test.setDescription("Đề demo cố định để xem UI Quizizz → HackerRank và luồng dữ liệu sau lọc CV.");
+        test.setDescription("Bài kiểm tra mẫu giúp bạn làm quen giao diện thi, kiểm tra thiết bị camera/micro và trải nghiệm trình viết code trước khi vào bài thi chính thức (Không ảnh hưởng kết quả tuyển dụng).");
         test.setDurationMinutes(45);
         test.setObjectiveDurationMinutes(20);
         test.setPassingScore(new BigDecimal("50.00"));
