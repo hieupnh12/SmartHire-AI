@@ -1,9 +1,9 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   ArrowRight,
   Award,
-  BriefcaseBusiness,
   CircleAlert,
   ClipboardList,
   Clock3,
@@ -20,10 +20,9 @@ import {
 } from "lucide-react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
-import { jobApi } from "@/api/tenant/jobApi";
 import type { ApplicationStatus, ApplicationSummary } from "@/api/types/applicant";
 import { DetailDialog } from "@/components/ux/DetailDialog";
-import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 import { formatDate, useLocale, useT, type TranslateFn } from "@/i18n";
 import { sourceLabel } from "@/features/tenant/recruiter/applicants/components/applicantUi";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -246,7 +245,7 @@ export function PipelineBoard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const queryClient = useQueryClient();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     const value = Number(searchParams.get("applicationId"));
     return Number.isInteger(value) && value > 0 ? value : null;
@@ -268,7 +267,6 @@ export function PipelineBoard() {
     [pipelineColumns],
   );
 
-  const jobQuery = useQuery({ queryKey: queryKeys.jobs.detail(jobId ?? 0), queryFn: () => jobApi.get(jobId!), enabled: Boolean(jobId) });
   const applicationsQuery = useQuery({
     queryKey: [...queryKeys.applicants.byJob(jobId ?? 0), "pipeline"],
     queryFn: async () => {
@@ -317,40 +315,39 @@ export function PipelineBoard() {
 
   return (
     <section className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden py-3 text-[var(--color-on-surface)] sm:gap-4 sm:py-4">
-      <header className="flex w-full min-w-0 shrink-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-semibold text-blue-700">
-            <BriefcaseBusiness className="size-4 shrink-0" aria-hidden="true" />
-            {t("recruiter.ops.pipeline.workspaceEyebrow")}
-          </div>
-          <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-            {jobQuery.data?.data.title ? jobQuery.data.data.title : <Skeleton className="inline-block h-6 w-48" />}
-          </h1>
-          <p className="mt-1 text-xs text-slate-500">{t("recruiter.ops.pipeline.subtitle", { count: applications.length })}</p>
-        </div>
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="relative block w-full min-w-0 sm:max-w-[240px] sm:flex-1">
+      {/* Top action bar: Back button to applicants list + search filter */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <Link
+          to={`/recruiter/jobs/${jobId}/applicants`}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary shadow-2xs"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          {t("recruiter.ops.pipeline.listViewBtn")}
+        </Link>
+
+        <div className="flex items-center gap-2">
+          <label className="relative block w-full min-w-0 sm:w-64">
             <span className="sr-only">{t("recruiter.ops.pipeline.searchSr")}</span>
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("recruiter.ops.pipeline.searchPlaceholder")}
-              className="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/15"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
             />
           </label>
           {query && (
-            <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              <FilterX className="size-4" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <FilterX className="size-3.5" aria-hidden="true" />
               {t("recruiter.ops.pipeline.clearFilterBtn")}
             </button>
           )}
-          <Link to={`/recruiter/jobs/${jobId}/applicants?view=list`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
-            {t("recruiter.ops.pipeline.listViewBtn")}
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
         </div>
-      </header>
+      </div>
 
       {feedback && (
         <div

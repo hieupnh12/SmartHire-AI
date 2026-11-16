@@ -7,9 +7,15 @@ type LanguageSwitcherProps = {
   variant?: "default" | "sidebar" | "icon";
   menuSide?: "top" | "right" | "bottom";
   openOnHover?: boolean;
+  className?: string;
 };
 
-export function LanguageSwitcher({ variant = "default", menuSide = "bottom", openOnHover = false }: LanguageSwitcherProps) {
+export function LanguageSwitcher({
+  variant = "default",
+  menuSide = "bottom",
+  openOnHover = false,
+  className,
+}: LanguageSwitcherProps) {
   const t = useT();
   const locale = useI18nStore((s) => s.locale);
   const setLocale = useI18nStore((s) => s.setLocale);
@@ -97,6 +103,7 @@ export function LanguageSwitcher({ variant = "default", menuSide = "bottom", ope
           open
             ? "border-brand-primary bg-white text-brand-primary shadow-[0_0_0_3px_var(--color-primary-soft)]"
             : "border-[var(--color-border-default)] bg-white/75 text-[var(--color-on-surface-variant)] hover:border-brand-primary/40 hover:bg-[var(--container-blue)] hover:text-brand-primary",
+          className,
         )}
         aria-label={t("common.language")}
         aria-haspopup="menu"
