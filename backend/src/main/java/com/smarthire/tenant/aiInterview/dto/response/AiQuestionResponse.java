@@ -24,5 +24,9 @@ public record AiQuestionResponse(
         String hint,
         String questionRole,
         String responseMode,
-        String language) {
+        String language,
+        String referenceAnswer,
+        List<KeyPointDto> keyPoints) {
+
+    public record KeyPointDto(String point, String target) {}
 }

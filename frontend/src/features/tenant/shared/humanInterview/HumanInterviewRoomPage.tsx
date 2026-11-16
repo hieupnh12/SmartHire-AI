@@ -36,15 +36,77 @@ function formatDurationSeconds(sec: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function VideoTile({ stream, label, muted, mirror }: { stream: MediaStream | null; label: string; muted?: boolean; mirror?: boolean }) {
+function VideoTile({
+  stream,
+  label,
+  muted,
+  mirror,
+  camOff,
+}: {
+  stream: MediaStream | null;
+  label: string;
+  muted?: boolean;
+  mirror?: boolean;
+  camOff?: boolean;
+}) {
+  const t = useT();
   const ref = useRef<HTMLVideoElement>(null);
+  const [hasLiveVideo, setHasLiveVideo] = useState(false);
+
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;
+    const checkTracks = () => {
+      const videoTracks = stream?.getVideoTracks() || [];
+      const hasLive = videoTracks.some((tr) => tr.enabled && tr.readyState === "live");
+      setHasLiveVideo(hasLive);
+    };
+    checkTracks();
+    if (!stream) return;
+    const vTracks = stream.getVideoTracks();
+    vTracks.forEach((tr) => {
+      tr.addEventListener("mute", checkTracks);
+      tr.addEventListener("unmute", checkTracks);
+      tr.addEventListener("ended", checkTracks);
+    });
+    return () => {
+      vTracks.forEach((tr) => {
+        tr.removeEventListener("mute", checkTracks);
+        tr.removeEventListener("unmute", checkTracks);
+        tr.removeEventListener("ended", checkTracks);
+      });
+    };
   }, [stream]);
+
+  const isVideoHidden = camOff || !hasLiveVideo;
+  const initial = label.trim().charAt(0).toUpperCase() || "?";
+
   return (
-    <div className="relative min-h-0 overflow-hidden rounded-xl bg-slate-900 ring-1 ring-white/10">
-      <video ref={ref} autoPlay playsInline muted={muted} className={cn("h-full w-full object-cover", mirror && "scale-x-[-1]")} />
-      <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-medium">{label}</span>
+    <div className="relative min-h-0 overflow-hidden rounded-xl bg-slate-900 ring-1 ring-white/10 flex items-center justify-center">
+      <video
+        ref={ref}
+        autoPlay
+        playsInline
+        muted={muted}
+        className={cn(
+          "h-full w-full object-cover",
+          mirror && "scale-x-[-1]",
+          isVideoHidden && "opacity-0 absolute pointer-events-none",
+        )}
+      />
+      {isVideoHidden && (
+        <div className="flex flex-col items-center justify-center gap-2.5 p-4 text-center">
+          <div className="flex size-16 sm:size-20 items-center justify-center rounded-full bg-slate-800 border border-white/10 text-xl sm:text-2xl font-bold text-sky-400 shadow-inner">
+            {initial}
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-xs text-slate-400">
+            <VideoOff className="size-3.5 text-slate-500" />
+            <span>{t("candidate.assess.humanMeeting.camOffStatus")}</span>
+          </div>
+        </div>
+      )}
+      <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm z-10">
+        {label}
+      </span>
     </div>
   );
 }
@@ -197,9 +259,12 @@ export function HumanInterviewRoomPage() {
     refetchInterval: scorecardOpen ? 15_000 : false,
   });
 
-  const isExpired = interview.data
-    ? new Date(interview.data.end).getTime() < Date.now()
+  const isDoneOrCancelled = interview.data?.status === "DONE" || interview.data?.status === "CANCELLED";
+  // Grace period: allow 60 minutes after scheduled end time before locking room, unless already completed/cancelled
+  const isTimeExpired = interview.data
+    ? new Date(interview.data.end).getTime() + 60 * 60 * 1000 < Date.now()
     : false;
+  const isExpired = isDoneOrCancelled || isTimeExpired;
 
   const meeting = useSmartHireMeeting({
     interviewId,
@@ -343,6 +408,22 @@ export function HumanInterviewRoomPage() {
 
       <div className={cn("flex min-h-0 flex-1", scorecardOpen && !isCandidate ? "flex-col lg:flex-row" : "flex-col")}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {meeting.deviceWarning && !meeting.error && (
+            <div className="mx-3 mt-3 sm:mx-4 sm:mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-950/40 px-3.5 py-2.5 text-xs text-amber-200">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-amber-400">⚠️</span>
+                <span>{meeting.deviceWarning}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => meeting.toggleCam()}
+                className="shrink-0 rounded-lg bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-500/30 transition-colors"
+              >
+                {t("candidate.assess.humanMeeting.tryTurnOnCam")}
+              </button>
+            </div>
+          )}
+
           <div className="min-h-0 flex-1 p-3 sm:p-4">
             {engine === "jitsi" ? (
               jitsiSrc ? (
@@ -357,10 +438,35 @@ export function HumanInterviewRoomPage() {
                 <div className="grid h-full place-items-center text-sm text-slate-300">{t("candidate.assess.humanMeeting.openingJitsi")}</div>
               )
             ) : meeting.error ? (
-              <div className="grid h-full place-items-center text-center">
-                <div className="max-w-md space-y-2">
-                  <p className="font-semibold text-red-300">{t("candidate.assess.humanMeeting.connectionErrorTitle")}</p>
-                  <p className="text-sm text-slate-300">{meeting.error}</p>
+              <div className="grid h-full place-items-center p-6 text-center">
+                <div className="max-w-md space-y-4 rounded-2xl border border-red-500/20 bg-slate-900/90 p-6 shadow-2xl backdrop-blur">
+                  <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-red-500/10 text-red-400">
+                    <VideoOff className="size-7" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h2 className="text-base font-semibold text-red-200">
+                      {t("candidate.assess.humanMeeting.connectionErrorTitle")}
+                    </h2>
+                    <p className="text-sm leading-relaxed text-slate-300">
+                      {meeting.error}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <Button
+                      variant="primary"
+                      onClick={meeting.retry}
+                      className="bg-sky-600 hover:bg-sky-500 text-white"
+                    >
+                      {t("candidate.assess.humanMeeting.retryConnection")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigate(backTo)}
+                      className="border-white/10 bg-white/10 hover:bg-white/15 text-white"
+                    >
+                      {t("candidate.assess.humanMeeting.backButton")}
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -374,6 +480,7 @@ export function HumanInterviewRoomPage() {
                   }
                   muted
                   mirror
+                  camOff={!meeting.camOn}
                 />
                 {meeting.remotes.map((remote) => (
                   <VideoTile key={remote.peerId} stream={remote.stream} label={remote.name} />
@@ -382,7 +489,7 @@ export function HumanInterviewRoomPage() {
             )}
           </div>
 
-          {engine === "peerjs" && (
+          {engine === "peerjs" && !meeting.error && (
             <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-white/10 px-4 py-3">
               <button
                 type="button"

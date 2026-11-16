@@ -69,6 +69,24 @@ public class InterviewConversationService {
     private final InterviewConversationClient ai;
     private final ObjectMapper mapper;
     private final RedisService redis;
+    private AiQuestionRepository questions;
+    private InterviewRagService ragService;
+    private AiAnswerRepository answers;
+
+    @Autowired(required = false)
+    public void setQuestions(AiQuestionRepository questions) {
+        this.questions = questions;
+    }
+
+    @Autowired(required = false)
+    public void setRagService(InterviewRagService ragService) {
+        this.ragService = ragService;
+    }
+
+    @Autowired(required = false)
+    public void setAnswers(AiAnswerRepository answers) {
+        this.answers = answers;
+    }
 
     @Autowired
     public InterviewConversationService(AiInterviewRepository interviews, InterviewSessionRepository sessions,
@@ -90,11 +108,28 @@ public class InterviewConversationService {
         var settings = settings(interview);
         int topics = InterviewProcessSettings.questionCount(settings);
         int followUps = InterviewProcessSettings.followUpLimit(settings);
+
+        var paper = questions != null ? questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId()) : List.<AiQuestion>of();
+        int maxTurns = !paper.isEmpty() ? paper.size() : (InterviewPolicies.totalQuestionBudget(interview) ? topics : topics * (1 + Math.clamp(followUps, 0, 10)));
         var session = InterviewSession.builder().aiInterview(interview)
-                .maxTurns(InterviewPolicies.totalQuestionBudget(interview) ? topics : topics * (1 + Math.clamp(followUps, 0, 10))).build();
-        String rawGreeting = ai.dialogue(instruction(interview, session),
-                List.of(new InterviewConversationClient.Message("USER", context(interview).toString())), delta -> {});
-        String greeting = cleanDialogueText(rawGreeting);
+                .maxTurns(maxTurns).build();
+
+        String greeting;
+        if (!paper.isEmpty()) {
+            AiQuestion firstQ = paper.getFirst();
+            String candidateName = interview.getApplication() != null && interview.getApplication().getCandidate() != null
+                    ? interview.getApplication().getCandidate().getFullName() : "bạn";
+            String jobTitle = interview.getApplication() != null && interview.getApplication().getJob() != null
+                    ? interview.getApplication().getJob().getTitle() : "vị trí ứng tuyển";
+            greeting = "Xin chào " + candidateName + "! Chào mừng bạn đến với buổi phỏng vấn AI cho vị trí " + jobTitle + ".\n\n"
+                    + "Tôi là trợ lý phỏng vấn AI của SmartHire. Sau đây chúng ta sẽ bắt đầu với câu hỏi đầu tiên:\n\n"
+                    + firstQ.getQuestionText();
+        } else {
+            String rawGreeting = ai.dialogue(instruction(interview, session),
+                    List.of(new InterviewConversationClient.Message("USER", context(interview).toString())), delta -> {});
+            greeting = cleanDialogueText(rawGreeting);
+        }
+
         var now = Instant.now();
         var config = InterviewPolicies.config(interview);
         if (config.availableUntil() != null && !now.isBefore(config.availableUntil()))
@@ -135,20 +170,62 @@ public class InterviewConversationService {
         prompt.add(new InterviewConversationClient.Message("USER", context(interview).toString()));
         for (var message : history) prompt.add(new InterviewConversationClient.Message(message.getRole(), message.getContent()));
         prompt.add(new InterviewConversationClient.Message("USER", user.getContent()));
+
+        var paper = questions != null ? questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId()) : List.<AiQuestion>of();
         boolean isRepeat = isRepeatRequest(user.getContent());
         if (!isRepeat) {
-            session.setCandidateTurns(session.getCandidateTurns() + 1);
+            int currentTurn = session.getCandidateTurns();
+            // Record answer for current question in ai_answers
+            if (!paper.isEmpty() && currentTurn < paper.size() && answers != null) {
+                try {
+                    AiQuestion q = paper.get(currentTurn);
+                    AiAnswer ans = answers.findByAiQuestion_Id(q.getId())
+                            .orElse(AiAnswer.builder().aiQuestion(q).build());
+                    ans.setAnswerText(user.getContent());
+                    ans.setAnsweredAt(Instant.now());
+                    answers.save(ans);
+                } catch (Exception ignored) {}
+            }
+            session.setCandidateTurns(currentTurn + 1);
         }
-        String instructionText = instruction(interview, session);
-        if (isRepeat) {
-            instructionText += switch (language(interview)) {
-                case "Vietnamese" -> " [CHÚ Ý: Ứng viên yêu cầu nhắc lại câu hỏi do chưa nghe rõ. Hãy lịch sự xác nhận ('Vâng, tôi xin nhắc lại câu hỏi: ...') và nhắc lại chính xác câu hỏi trước đó. TUYỆT ĐỐI không chuyển sang câu hỏi mới và không trừ điểm.]";
-                case "Japanese" -> " [注意：候補者が質問の聞き直しを求めています。丁寧に応答し、前回の質問を繰り返してください。新しい質問に進まないでください。]";
-                default -> " [NOTE: The candidate asked to repeat the question because they did not hear clearly. Politely repeat the previous question. Do NOT move to a new question.]";
-            };
+
+        String reply;
+        if (!paper.isEmpty()) {
+            if (isRepeat) {
+                int qIdx = Math.min(Math.max(0, session.getCandidateTurns() - 1), paper.size() - 1);
+                reply = "Vâng, tôi xin nhắc lại câu hỏi:\n\n" + paper.get(qIdx).getQuestionText();
+                if (onDelta != null) onDelta.accept(reply);
+            } else if (session.getCandidateTurns() >= paper.size()) {
+                reply = "Cảm ơn bạn đã hoàn thành tất cả các câu hỏi của buổi phỏng vấn hôm nay. Bạn có thể nhấn nút 'Nộp bài & Kết thúc' để hệ thống tiến hành đánh giá kết quả. Chúc bạn một ngày tốt lành!";
+                if (onDelta != null) onDelta.accept(reply);
+            } else {
+                AiQuestion nextQ = paper.get(session.getCandidateTurns());
+                int questionNum = session.getCandidateTurns() + 1;
+                String transition = switch (language(interview)) {
+                    case "Vietnamese" -> switch (session.getCandidateTurns() % 3) {
+                        case 1 -> "Cảm ơn câu trả lời của bạn. Chúng ta cùng tiếp tục với câu hỏi số " + questionNum + " nhé:";
+                        case 2 -> "Cảm ơn bạn đã chia sẻ. Sau đây là câu hỏi tiếp theo:";
+                        default -> "Ghi nhận câu trả lời của bạn. Chúng ta tiếp tục với câu hỏi sau:";
+                    };
+                    case "Japanese" -> "ご回答ありがとうございます。それでは次の質問に移ります：";
+                    default -> "Thank you for your answer. Let's move on to question " + questionNum + ":";
+                };
+                reply = transition + "\n\n" + nextQ.getQuestionText();
+                if (onDelta != null) onDelta.accept(reply);
+            }
+        } else {
+            String instructionText = instruction(interview, session);
+            if (isRepeat) {
+                instructionText += switch (language(interview)) {
+                    case "Vietnamese" -> " [CHÚ Ý: Ứng viên yêu cầu nhắc lại câu hỏi do chưa nghe rõ. Hãy lịch sự xác nhận ('Vâng, tôi xin nhắc lại câu hỏi: ...') và nhắc lại chính xác câu hỏi trước đó. TUYỆT ĐỐI không chuyển sang câu hỏi mới và không trừ điểm.]";
+                    case "Japanese" -> " [注意：候補者が質問の聞き直しを求めています。丁寧に応答し、前回の質問を繰り返してください。新しい質問に進まないでください。]";
+                    default -> " [NOTE: The candidate asked to repeat the question because they did not hear clearly. Politely repeat the previous question. Do NOT move to a new question.]";
+                };
+            }
+            String rawReply = ai.dialogue(instructionText, prompt, onDelta);
+            reply = cleanDialogueText(rawReply);
         }
-        String rawReply = ai.dialogue(instructionText, prompt, onDelta);
-        String reply = cleanDialogueText(rawReply);
+
         messages.save(user);
         messages.save(InterviewMessage.builder().session(session).sequenceNo(nextSequence + 1).role("ASSISTANT").content(reply).build());
         return response(session);
@@ -202,7 +279,35 @@ public class InterviewConversationService {
             total = total.add(score.multiply(BigDecimal.valueOf(criterionWeights.get(key))));
         }
         BigDecimal score = total.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        report.put("overallScore", score); report.putObject("competencies").put("COMMUNICATION", score);
+        BigDecimal llmScore = score;
+        BigDecimal finalScore = llmScore;
+        report.put("llmScore", llmScore);
+
+        if (ragService != null && questions != null) {
+            try {
+                var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+                if (!paper.isEmpty()) {
+                    var ragSummary = ragService.evaluateInterviewConversation(interview, history, paper, InterviewRagService.DEFAULT_SIMILARITY_THRESHOLD);
+                    if (ragSummary.totalKeyPoints() > 0) {
+                        BigDecimal ragScore = BigDecimal.valueOf(ragSummary.overallSemanticMatchPercentage());
+                        // Hybrid: 40% Vector/RAG Semantic Match + 60% LLM Evaluation Score
+                        finalScore = BigDecimal.valueOf(0.40).multiply(ragScore)
+                                .add(BigDecimal.valueOf(0.60).multiply(llmScore))
+                                .setScale(2, RoundingMode.HALF_UP);
+                        report.put("ragScore", ragScore);
+                        var ragNode = report.putObject("ragSemanticEvaluation");
+                        ragNode.put("semanticMatchPercentage", ragSummary.overallSemanticMatchPercentage());
+                        ragNode.put("threshold", ragSummary.thresholdUsed());
+                        ragNode.put("totalKeyPoints", ragSummary.totalKeyPoints());
+                        ragNode.put("matchedKeyPoints", ragSummary.totalMatchedKeyPoints());
+                        ragNode.set("details", mapper.valueToTree(ragSummary.results()));
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        report.put("overallScore", finalScore); report.putObject("competencies").put("COMMUNICATION", finalScore);
         report.putObject("weights").put("COMMUNICATION", 100); report.putObject("skills");
         report.put("summary", hasAnswer ? requiredText(output, "summary") : "No candidate answer was submitted.");
         report.put("strengths", hasAnswer ? requiredText(output, "strengths") : "No evidence.");
@@ -212,7 +317,7 @@ public class InterviewConversationService {
         }
         interview.setReportJson(report.toString());
         session.setEndedAt(interview.getCompletedAt());
-        return score;
+        return finalScore;
     }
 
     @Transactional(readOnly = true)
@@ -224,7 +329,7 @@ public class InterviewConversationService {
 
     @Transactional(readOnly = true)
     public byte[] speech(long id, long messageId) {
-        var interview = accessible(id, false); requireCandidate(interview); requireActive(interview); requireVoice(interview);
+        var interview = accessible(id, false); requireVoice(interview);
         var message = messages.findById(messageId).filter(value -> value.getSession().getAiInterview().getId().equals(id)
                 && "ASSISTANT".equals(value.getRole())).orElseThrow(() -> missing("Message not found"));
 
@@ -311,6 +416,15 @@ public class InterviewConversationService {
         result.set("jobContext", InterviewPolicies.tree(interview.getContextSnapshotJson()));
         result.set("configuration", mapper.valueToTree(InterviewPolicies.config(interview)));
         result.set("assessment", assessment(interview));
+        if (questions != null) {
+            var approvedList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+            if (!approvedList.isEmpty()) {
+                var arr = result.putArray("approvedQuestions");
+                for (var q : approvedList) {
+                    arr.addObject().put("question", q.getQuestionText()).put("rubric", q.getRubricJson());
+                }
+            }
+        }
         return result;
     }
     private ObjectNode assessment(AiInterview interview) {

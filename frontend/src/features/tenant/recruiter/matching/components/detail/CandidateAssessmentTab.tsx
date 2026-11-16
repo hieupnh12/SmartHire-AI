@@ -201,6 +201,7 @@ export function CandidateAssessmentTab({
     queryKey: ["assessments", "available-by-app", applicationId],
     queryFn: () => assessmentApi.available(applicationId),
     enabled: !preview && !submissionId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const effectiveSubmissionId =
@@ -212,12 +213,14 @@ export function CandidateAssessmentTab({
     queryKey: ["assessments", "grading-detail", effectiveSubmissionId],
     queryFn: () => (effectiveSubmissionId ? assessmentApi.gradingDetail(effectiveSubmissionId) : null),
     enabled: !preview && !!effectiveSubmissionId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const resultQuery = useQuery({
     queryKey: ["assessments", "result", effectiveSubmissionId],
     queryFn: () => (effectiveSubmissionId ? assessmentApi.result(effectiveSubmissionId) : null),
     enabled: !preview && !!effectiveSubmissionId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const detail: SubmissionGradingDetail | null = preview

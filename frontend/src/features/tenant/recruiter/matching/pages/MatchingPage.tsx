@@ -634,8 +634,7 @@ export function RankingPage() {
   const state = useRankingStore();
   const { id } = useParams<{ id: string }>();
   const token = useAuthStore((store) => store.accessToken);
-  const sessionKey = useMemo(() => crypto.randomUUID(), [token]);
-  const tenantKey = `${getTenantIdFromWindow() ?? ""}:${sessionKey}`;
+  const tenantKey = getTenantIdFromWindow() ?? "";
   const client = useQueryClient();
   const jobId = Number(id);
   const validJobId = Number.isInteger(jobId) && jobId > 0;
@@ -657,8 +656,9 @@ export function RankingPage() {
     queryFn: () => matchingApi.rankings(jobId, rankingQuery),
     enabled: validJobId && jobId !== PREVIEW_JOB_ID && !!token,
     placeholderData: keepPreviousForScope(jobId, 2),
+    staleTime: 5 * 60 * 1000,
     refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const previewRows = previewRanking.rows.filter((row) => !terminal.has(row.status));
   const previewBoard: RankingPageType = {
