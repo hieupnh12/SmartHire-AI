@@ -122,7 +122,7 @@ export function SaasLandingPage() {
             </Link>
           </div>
 
-          {/* Android App Download Badge with QR Modal */}
+          {/* App Download Badge with QR Modal (Android & iOS) */}
           <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
             <span>Dành cho Ứng viên:</span>
             <button
@@ -131,7 +131,7 @@ export function SaasLandingPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all active:scale-95 shadow-2xs group cursor-pointer"
             >
               <QrCode className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
-              <span>Quét QR / Tải ứng dụng SmartHire Android (.APK)</span>
+              <span>Quét QR / Tải ứng dụng SmartHire (Android & iOS)</span>
             </button>
           </div>
 
