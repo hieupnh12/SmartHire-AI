@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, ArrowUpRight, Smartphone } from "lucide-react";
+import { Mail, ArrowUpRight, QrCode } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
+import { AppDownloadModal } from "./AppDownloadQrModal";
 
 export function LandingFooter() {
   const t = useT();
   const { openWorkspaceModal } = useLandingModal();
+  const [appModalOpen, setAppModalOpen] = useState(false);
   const navLinks = [
     { label: t("master.landingChrome.nav.solutions"), to: "/solutions" },
     { label: t("master.landingChrome.nav.preview"), to: "/preview" },
@@ -77,24 +80,14 @@ export function LandingFooter() {
                 </button>
               </li>
               <li>
-                <a
-                  href="/smarthire.apk"
-                  download="SmartHire.apk"
-                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium"
+                <button
+                  type="button"
+                  onClick={() => setAppModalOpen(true)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium text-left"
                 >
-                  <Smartphone className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                  <span>Tải SmartHire App</span>
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/smarthire.apk"
-                  download="SmartHire.apk"
-                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium"
-                >
-                  <Smartphone className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                  <span>Tải SmartHire App (Android .apk)</span>
-                </a>
+                  <QrCode className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span>Quét QR / Tải SmartHire App (.apk)</span>
+                </button>
               </li>
               <li>
                 <a
@@ -128,6 +121,9 @@ export function LandingFooter() {
           </div>
         </div>
       </div>
+
+      {/* App Download Modal */}
+      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </footer>
   );
 }
