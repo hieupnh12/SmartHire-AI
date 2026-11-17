@@ -13,6 +13,7 @@ import { QrCodeView } from "@/components/shared/QrCodeView";
 import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
+import { AppDownloadModal } from "@/features/tenant/candidate/shared/components/AppDownloadModal";
 
 interface JobDetailAppQrCardProps {
   jobId: string | number;
@@ -37,6 +38,7 @@ export function JobDetailAppQrCard({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedTenantId, setCopiedTenantId] = useState(false);
   const [qrMode, setQrMode] = useState<"app" | "web">("app");
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
 
   const resolvedTenantId = tenantId || getTenantIdFromWindow() || "acme";
 
@@ -234,6 +236,24 @@ export function JobDetailAppQrCard({
           )}
         </button>
       </div>
+
+      {/* App Download Prompt */}
+      <div className="mt-2.5 pt-2 border-t border-slate-100 text-center">
+        <button
+          type="button"
+          onClick={() => setDownloadModalOpen(true)}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+        >
+          <Smartphone className="size-3 text-emerald-600" />
+          <span>Chưa cài app? Tải SmartHire APK / iOS tại đây</span>
+        </button>
+      </div>
+
+      <AppDownloadModal
+        isOpen={downloadModalOpen}
+        onClose={() => setDownloadModalOpen(false)}
+        tenantName={tenantName}
+      />
     </section>
   );
 }

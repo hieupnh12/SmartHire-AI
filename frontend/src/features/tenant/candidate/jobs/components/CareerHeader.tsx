@@ -30,7 +30,7 @@ import {
   type CvStyleKey,
 } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 import { Skeleton } from "@/components/ux/Skeleton";
-import { MobileAppHeaderButton, MobileAppSyncModal } from "@/features/tenant/candidate/shared/components/MobileAppQrModal";
+import { AppDownloadHeaderButton, AppDownloadModal } from "@/features/tenant/candidate/shared/components/AppDownloadModal";
 import { useLocalizedLanding } from "@/features/tenant/candidate/jobs/utils/landingLocalization";
 
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
@@ -299,7 +299,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
 
         <div className="ml-auto flex items-center gap-2">
           <LanguageSwitcher variant="icon" />
-          <MobileAppHeaderButton
+          <AppDownloadHeaderButton
             tenantName={tenantName}
             tenantCode={tenantCode}
             logoUrl={logoUrl}
@@ -470,11 +470,11 @@ function MobileMenu({ menus, loggedIn, tenantName, tenantCode, onNavigate }: { m
         </div>
         {(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}{item.requiresAuth && !loggedIn && <LoginBadge />}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">{t("common.login")}</Link>}
       </nav>
-      <MobileAppSyncModal
+      <AppDownloadModal
         isOpen={appModalOpen}
         onClose={() => setAppModalOpen(false)}
-        tenantCode={tenantCode}
         tenantName={tenantName}
+        tenantCode={tenantCode}
       />
     </>
   );

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Laptop,
 } from "lucide-react";
+import { toast } from "@/stores/toastStore";
 
 export const APK_DOWNLOAD_URL = "https://smarthire.top/smarthire.apk";
 export const LOCAL_APK_PATH = "/smarthire.apk";
@@ -31,17 +32,30 @@ function getQrCodeUrl(targetUrl: string, size = 350) {
 }
 
 // ----------------------------------------------------------------------
-// HEADER POPOVER BUTTON (Placed in top navigation bar)
+// HEADER BUTTON WITH HOVER/CLICK POPOVER (For CareerHeader)
 // ----------------------------------------------------------------------
 
-interface AppDownloadHeaderButtonProps {
+export interface AppDownloadHeaderButtonProps {
+  tenantName?: string;
+  tenantCode?: string;
+  logoUrl?: string | null;
+  primaryColor?: string;
   className?: string;
+  onOpenDetailedModal?: () => void;
 }
 
-export function AppDownloadHeaderButton({ className = "" }: AppDownloadHeaderButtonProps) {
+export function AppDownloadHeaderButton({
+  tenantName = "SmartHire",
+  tenantCode = "acme",
+  logoUrl,
+  primaryColor = "#059669",
+  className = "",
+  onOpenDetailedModal,
+}: AppDownloadHeaderButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [platform, setPlatform] = useState<AppPlatform>("android");
   const [copied, setCopied] = useState(false);
+  const [showFullModal, setShowFullModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -67,7 +81,17 @@ export function AppDownloadHeaderButton({ className = "" }: AppDownloadHeaderBut
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(currentDownloadUrl);
       setCopied(true);
+      toast.success("Đã sao chép liên kết tải ứng dụng!");
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleOpenModal = () => {
+    setIsOpen(false);
+    if (onOpenDetailedModal) {
+      onOpenDetailedModal();
+    } else {
+      setShowFullModal(true);
     }
   };
 
@@ -86,166 +110,211 @@ export function AppDownloadHeaderButton({ className = "" }: AppDownloadHeaderBut
   }, [isOpen]);
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative inline-block ${className}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Trigger Button in Header */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        aria-expanded={isOpen}
-        aria-haspopup="dialog"
-        title="Quét mã QR tải ứng dụng SmartHire (Android & iOS)"
-        className={`flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[13.5px] font-semibold shadow-2xs transition-all active:scale-95 ${
-          isOpen
-            ? "border-emerald-300 bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500/20"
-            : "border-emerald-200 bg-emerald-50/80 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
-        }`}
+    <>
+      <div
+        ref={containerRef}
+        className={`relative inline-block ${className}`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
-        <QrCode className="w-4 h-4 text-emerald-600" />
-        <span>Tải App</span>
-      </button>
-
-      {/* Popover Card (anchored under button) */}
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-label="Tải ứng dụng SmartHire"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[330px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)] transition-all animate-in fade-in zoom-in-95 duration-150"
+        {/* Trigger Button in Header */}
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          title="Tải ứng dụng SmartHire Mobile (Android & iOS)"
+          className={`flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 sm:px-3 text-[13px] font-semibold shadow-2xs transition-all active:scale-95 ${
+            isOpen
+              ? "border-emerald-300 bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500/20"
+              : "border-emerald-200 bg-emerald-50/80 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
+          }`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div
-                className={`grid size-9 shrink-0 place-items-center rounded-xl text-white font-bold text-sm shadow-xs transition-colors ${
-                  platform === "android" ? "bg-emerald-600" : "bg-slate-900"
+          <QrCode className="size-4 text-emerald-600" />
+          <span className="hidden sm:inline">Tải App</span>
+        </button>
+
+        {/* Popover Card (anchored under button) */}
+        {isOpen && (
+          <div
+            role="dialog"
+            aria-label="Tải ứng dụng SmartHire Mobile"
+            className="absolute right-0 top-[calc(100%+8px)] z-50 w-[330px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)] transition-all animate-in fade-in zoom-in-95 duration-150 text-slate-800"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`grid size-9 shrink-0 place-items-center rounded-xl font-bold text-sm shadow-xs transition-colors ${
+                    logoUrl
+                      ? "bg-white border border-slate-200"
+                      : platform === "android"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-900 text-white"
+                  }`}
+                  style={!logoUrl && primaryColor && platform === "android" ? { backgroundColor: primaryColor } : undefined}
+                >
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="" className="size-full object-contain rounded-xl p-1" />
+                  ) : platform === "android" ? (
+                    <Smartphone className="size-4.5" />
+                  ) : (
+                    <Apple className="size-4.5" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="min-w-0 text-[14px] font-bold text-slate-900 leading-snug truncate">
+                      SmartHire App
+                    </h3>
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9.5px] font-bold text-emerald-800 shrink-0">
+                      {tenantName || tenantCode}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium text-emerald-600 block truncate">
+                    {platform === "android" ? "Bản phát hành Android (.APK)" : "Bản phát hành Apple iOS (.IPA)"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Đóng"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Platform Segmented Tabs */}
+            <div className="mt-3 grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200/70 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setPlatform("android")}
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all ${
+                  platform === "android"
+                    ? "bg-white text-emerald-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                {platform === "android" ? (
-                  <Smartphone className="size-4.5" />
-                ) : (
-                  <Apple className="size-4.5" />
-                )}
-              </div>
-              <div>
-                <h3 className="min-w-0 text-[14.5px] font-bold text-slate-900 leading-snug">
-                  SmartHire Mobile App
-                </h3>
-                <span className="text-[11px] font-medium text-emerald-600">
-                  {platform === "android" ? "Bản phát hành Android (.APK)" : "Bản phát hành Apple iOS (.IPA)"}
+                <Smartphone className="size-3.5" />
+                <span>Android (.APK)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlatform("ios")}
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all ${
+                  platform === "ios"
+                    ? "bg-white text-slate-900 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Apple className="size-3.5" />
+                <span>iOS (iPhone)</span>
+              </button>
+            </div>
+
+            {/* QR Code Presentation */}
+            <div className="my-3 flex flex-col items-center justify-center">
+              <div className="relative rounded-2xl bg-slate-50 p-2.5 border border-slate-200/80 shadow-inner flex flex-col items-center">
+                <img
+                  key={platform}
+                  src={platform === "android" ? QR_IMAGE_PATH : getQrCodeUrl(IOS_DOWNLOAD_URL, 350)}
+                  alt={`QR Code Tải SmartHire ${platform === "android" ? "Android" : "iOS"}`}
+                  className="w-36 h-36 rounded-xl object-contain bg-white p-1"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getQrCodeUrl(currentDownloadUrl, 350);
+                  }}
+                />
+                <span className="mt-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Quét mã để tải về điện thoại
                 </span>
               </div>
+              <p className="mt-2 text-center text-[11.5px] text-slate-500 leading-snug">
+                {platform === "android"
+                  ? "Mở camera hoặc Zalo trên điện thoại Android để quét tải file APK."
+                  : "Mở Camera trên iPhone / iPad để quét liên kết tải file IPA."}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-              aria-label="Đóng"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
 
-          {/* Platform Segmented Tabs */}
-          <div className="mt-3.5 grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200/70 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setPlatform("android")}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all ${
-                platform === "android"
-                  ? "bg-white text-emerald-700 shadow-xs font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Smartphone className="size-3.5" />
-              <span>Android (.APK)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlatform("ios")}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all ${
-                platform === "ios"
-                  ? "bg-white text-slate-900 shadow-xs font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Apple className="size-3.5" />
-              <span>iOS (iPhone)</span>
-            </button>
-          </div>
+            {/* Direct Download Buttons */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <a
+                href={currentLocalPath}
+                download={currentFileName}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-xs transition-all active:scale-95 ${
+                  platform === "android"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-slate-900 hover:bg-slate-800"
+                }`}
+              >
+                <Download className="size-3.5" />
+                <span>
+                  {platform === "android" ? "Tải trực tiếp file APK (72MB)" : "Tải file IPA (.ipa)"}
+                </span>
+              </a>
 
-          {/* QR Code Presentation */}
-          <div className="my-3 flex flex-col items-center justify-center">
-            <div className="relative rounded-2xl bg-slate-50 p-2.5 border border-slate-200/80 shadow-inner flex flex-col items-center">
-              <img
-                key={platform}
-                src={platform === "android" ? QR_IMAGE_PATH : getQrCodeUrl(IOS_DOWNLOAD_URL, 350)}
-                alt={`QR Code Tải SmartHire ${platform === "android" ? "Android" : "iOS"}`}
-                className="w-40 h-40 rounded-xl object-contain bg-white p-1"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = getQrCodeUrl(currentDownloadUrl, 350);
-                }}
-              />
-              <span className="mt-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                Quét mã để tải về điện thoại
-              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                  <span>{copied ? "Đã sao chép!" : "Sao chép link"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenModal}
+                  className="flex items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                  title="Xem hướng dẫn cài đặt chi tiết"
+                >
+                  <ExternalLink className="size-3.5" />
+                  <span>Hướng dẫn</span>
+                </button>
+              </div>
             </div>
-            <p className="mt-2 text-center text-xs text-slate-500 leading-relaxed">
-              {platform === "android"
-                ? "Mở camera hoặc Zalo trên điện thoại Android để quét tải file APK."
-                : "Mở Camera trên iPhone / iPad để quét liên kết tải file IPA."}
-            </p>
           </div>
+        )}
+      </div>
 
-          {/* Direct Download Buttons */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <a
-              href={currentLocalPath}
-              download={currentFileName}
-              className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 ${
-                platform === "android"
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-slate-900 hover:bg-slate-800"
-              }`}
-            >
-              <Download className="size-4" />
-              <span>
-                {platform === "android" ? "Tải trực tiếp file APK (72MB)" : "Tải file IPA (.ipa)"}
-              </span>
-            </a>
-
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-            >
-              {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-              <span>{copied ? "Đã sao chép link tải!" : "Sao chép đường dẫn tải"}</span>
-            </button>
-          </div>
-        </div>
+      {showFullModal && (
+        <AppDownloadModal
+          isOpen={showFullModal}
+          onClose={() => setShowFullModal(false)}
+          initialPlatform={platform}
+          tenantName={tenantName}
+          tenantCode={tenantCode}
+          logoUrl={logoUrl}
+          primaryColor={primaryColor}
+        />
       )}
-    </div>
+    </>
   );
 }
 
 // ----------------------------------------------------------------------
-// FULL MODAL DIALOG (Opens from Hero banner, Footer, or Mobile Menu)
+// FULL MODAL DIALOG (Opens from Header, Footer, Job QR, Profile, or Mobile Menu)
 // ----------------------------------------------------------------------
 
-interface AppDownloadModalProps {
+export interface AppDownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPlatform?: AppPlatform;
+  tenantName?: string;
+  tenantCode?: string;
+  logoUrl?: string | null;
+  primaryColor?: string;
 }
 
 export function AppDownloadModal({
   isOpen,
   onClose,
   initialPlatform = "android",
+  tenantName = "SmartHire",
+  tenantCode,
+  logoUrl,
 }: AppDownloadModalProps) {
   const [platform, setPlatform] = useState<AppPlatform>(initialPlatform);
   const [copied, setCopied] = useState(false);
@@ -277,6 +346,7 @@ export function AppDownloadModal({
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(currentDownloadUrl);
       setCopied(true);
+      toast.success("Đã sao chép liên kết tải ứng dụng!");
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -290,7 +360,7 @@ export function AppDownloadModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150 sm:p-7"
+        className="relative w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150 sm:p-7 text-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -307,19 +377,25 @@ export function AppDownloadModal({
         <div className="flex items-center gap-3">
           <div
             className={`grid size-12 place-items-center rounded-2xl shadow-2xs transition-colors ${
-              platform === "android" ? "bg-emerald-50 text-emerald-600" : "bg-slate-900 text-white"
+              logoUrl
+                ? "bg-white border border-slate-200"
+                : platform === "android"
+                ? "bg-emerald-50 text-emerald-600"
+                : "bg-slate-900 text-white"
             }`}
           >
-            {platform === "android" ? (
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="size-full object-contain rounded-2xl p-1.5" />
+            ) : platform === "android" ? (
               <Smartphone className="size-6" />
             ) : (
               <Apple className="size-6" />
             )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Ứng dụng di động
+                Ứng dụng di động dành cho ứng viên
               </span>
               <span
                 className={`rounded px-2 py-0.5 text-[10px] font-bold ${
@@ -330,6 +406,11 @@ export function AppDownloadModal({
               >
                 {platform === "android" ? "Android (.APK)" : "Apple iOS (.IPA)"}
               </span>
+              {(tenantName || tenantCode) && (
+                <span className="rounded bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold">
+                  {tenantName || tenantCode}
+                </span>
+              )}
             </div>
             <h2 id="app-download-title" className="text-xl font-bold text-slate-900">
               Tải SmartHire Mobile App
@@ -378,13 +459,13 @@ export function AppDownloadModal({
               }}
             />
           </div>
-          <span className="mt-3 text-xs font-semibold text-slate-600 text-center">
+          <span className="mt-3 text-xs font-semibold text-slate-700 text-center">
             {platform === "android"
-              ? "Quét mã bằng Camera điện thoại hoặc Zalo để tải APK"
+              ? "Quét mã bằng Camera điện thoại hoặc Zalo để tải file APK"
               : "Quét mã bằng Camera iPhone để tải file IPA"}
           </span>
           <span className="text-[11px] text-slate-400 mt-0.5 break-all text-center">
-            Đường dẫn: {currentDownloadUrl.replace(/^https?:\/\//, "")}
+            Đường dẫn tải: {currentDownloadUrl.replace(/^https?:\/\//, "")}
           </span>
         </div>
 
