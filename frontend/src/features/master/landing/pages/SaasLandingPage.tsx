@@ -17,10 +17,11 @@ import {
   Check,
   DollarSign,
   ChevronRight,
-  Smartphone
+  QrCode
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
 import { PlanFeatureList } from "../components/PlanFeatureList";
+import { AppDownloadModal } from "../components/AppDownloadQrModal";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
@@ -31,6 +32,7 @@ export function SaasLandingPage() {
   const locale = useLocale();
   const navigate = useNavigate();
   const { openDemoModal, openWorkspaceModal } = useLandingModal();
+  const [appModalOpen, setAppModalOpen] = useState(false);
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
 
@@ -119,30 +121,17 @@ export function SaasLandingPage() {
             </Link>
           </div>
 
-          {/* Android App Download Badge for Candidates */}
+          {/* Android App Download Badge with QR Modal */}
           <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
             <span>Dành cho Ứng viên:</span>
-            <a
-              href="/smarthire.apk"
-              download="SmartHire.apk"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors active:scale-95 shadow-2xs"
+            <button
+              type="button"
+              onClick={() => setAppModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all active:scale-95 shadow-2xs group cursor-pointer"
             >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Tải ứng dụng</span>
-            </a>
-          </div>
-
-          {/* Android App Download Badge for Candidates */}
-          <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
-            <span>Dành cho Ứng viên:</span>
-            <a
-              href="/smarthire.apk"
-              download="SmartHire.apk"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors active:scale-95 shadow-2xs"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Tải ứng dụng SmartHire Android (.APK)</span>
-            </a>
+              <QrCode className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <span>Quét QR / Tải ứng dụng SmartHire Android (.APK)</span>
+            </button>
           </div>
 
           {/* LIVE PRODUCT PREVIEW MOCKUP WITH FLOATING CHIPS */}
@@ -846,6 +835,9 @@ export function SaasLandingPage() {
           </div>
         </div>
       </section>
+
+      {/* App Download Modal */}
+      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </>
   );
 }

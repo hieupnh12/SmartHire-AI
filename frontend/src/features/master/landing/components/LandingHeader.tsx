@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Building2, ArrowRight, Menu, X, PackageSearch, Smartphone } from "lucide-react";
+import { Building2, ArrowRight, Menu, X, PackageSearch, QrCode } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
+import { AppDownloadHeaderButton, AppDownloadModal } from "./AppDownloadQrModal";
 
 export function LandingHeader() {
   const t = useT();
   const { openWorkspaceModal, openOrderLookupModal } = useLandingModal();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [appModalOpen, setAppModalOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isScrolled, setIsScrolled] = useState(false);
   const lastScrollYRef = useRef(0);
@@ -179,17 +181,8 @@ export function LandingHeader() {
             </button>
           )}
 
-          {/* Mobile App Download Button */}
-          <a
-            href="/smarthire.apk"
-            download="SmartHire.apk"
-            className="hidden sm:inline-flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 min-[1400px]:px-3 text-[13.5px] font-semibold text-emerald-700 shadow-2xs transition-all hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 active:scale-95"
-            title="Tải ứng dụng Android (.APK)"
-            aria-label="Tải ứng dụng Android (.APK)"
-          >
-            <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>Tải App</span>
-          </a>
+          {/* Mobile App Download Button with Popover QR (same behavior as tenant se36) */}
+          <AppDownloadHeaderButton className="hidden sm:inline-block" />
 
           <button
             type="button"
@@ -261,15 +254,17 @@ export function LandingHeader() {
               </button>
             )}
 
-            <a
-              href="/smarthire.apk"
-              download="SmartHire.apk"
-              onClick={() => setMobileMenuOpen(false)}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setAppModalOpen(true);
+              }}
               className="w-full py-2.5 px-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100"
             >
-              <Smartphone className="w-4 h-4 text-emerald-600" />
-              <span>Tải Ứng Dụng Android (.APK)</span>
-            </a>
+              <QrCode className="w-4 h-4 text-emerald-600" />
+              <span>Quét QR / Tải App Android (.APK)</span>
+            </button>
 
             <button
               onClick={() => {
@@ -284,6 +279,9 @@ export function LandingHeader() {
           </div>
         </div>
       )}
+
+      {/* App Download QR Modal */}
+      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </header>
   );
 }
