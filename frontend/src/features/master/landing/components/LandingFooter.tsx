@@ -86,7 +86,7 @@ export function LandingFooter() {
                   className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium text-left"
                 >
                   <QrCode className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                  <span>Quét QR / Tải SmartHire App (.apk)</span>
+                  <span>Quét QR / Tải SmartHire App (Android & iOS)</span>
                 </button>
               </li>
               <li>

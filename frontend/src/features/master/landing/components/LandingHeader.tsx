@@ -263,7 +263,7 @@ export function LandingHeader() {
               className="w-full py-2.5 px-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100"
             >
               <QrCode className="w-4 h-4 text-emerald-600" />
-              <span>Quét QR / Tải App Android (.APK)</span>
+              <span>Quét QR / Tải App (Android & iOS)</span>
             </button>
 
             <button
