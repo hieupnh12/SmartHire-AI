@@ -33,18 +33,21 @@ public class CandidateNotificationService {
     private final NotificationPreferenceService preferences;
     private final ObjectMapper json;
     private final ObjectProvider<TenantPublicUrlService> publicUrls;
+    private final ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer;
 
     public CandidateNotificationService(
             NotificationRepository notifications,
             EmailOutboxRepository outbox,
             NotificationPreferenceService preferences,
             ObjectMapper json,
-            ObjectProvider<TenantPublicUrlService> publicUrls) {
+            ObjectProvider<TenantPublicUrlService> publicUrls,
+            ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer) {
         this.notifications = notifications;
         this.outbox = outbox;
         this.preferences = preferences;
         this.json = json;
         this.publicUrls = publicUrls;
+        this.emailRenderer = emailRenderer;
     }
 
     /**
@@ -185,6 +188,25 @@ public class CandidateNotificationService {
     }
 
     private String emailBody(String candidateName, String title, String body, String jobTitle, String path) {
+        var renderer = emailRenderer != null ? emailRenderer.getIfAvailable() : null;
+        if (renderer != null) {
+            String link = link(path);
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brand())
+                    .title(title + (jobTitle != null ? " - " + jobTitle : ""))
+                    .badgeText("Cập Nhật Ứng Tuyển")
+                    .badgeColor("blue")
+                    .headline(title)
+                    .recipientName(candidateName)
+                    .paragraphs(java.util.List.of(body))
+                    .details(jobTitle != null ? java.util.List.of(
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", jobTitle)) : null)
+                    .ctaLabel("Xem Chi Tiết Hồ Sơ")
+                    .ctaUrl(link)
+                    .build();
+            return renderer.renderOrFallback("tenant-general.html", model);
+        }
+
         var text = new StringBuilder();
         text.append("Chào ").append(StringUtils.hasText(candidateName) ? candidateName : "bạn").append(",\n\n");
         text.append(body).append("\n\n");

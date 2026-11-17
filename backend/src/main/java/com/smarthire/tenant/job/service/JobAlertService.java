@@ -46,6 +46,7 @@ public class JobAlertService {
     private final NotificationPreferenceService preferences;
     private final ObjectMapper json;
     private final ObjectProvider<TenantPublicUrlService> publicUrls;
+    private final ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer;
 
     public JobAlertService(
             CvAccess access,
@@ -55,6 +56,19 @@ public class JobAlertService {
             NotificationPreferenceService preferences,
             ObjectMapper json,
             ObjectProvider<TenantPublicUrlService> publicUrls) {
+        this(access, alerts, notifications, outbox, preferences, json, publicUrls, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JobAlertService(
+            CvAccess access,
+            JobAlertRepository alerts,
+            NotificationRepository notifications,
+            EmailOutboxRepository outbox,
+            NotificationPreferenceService preferences,
+            ObjectMapper json,
+            ObjectProvider<TenantPublicUrlService> publicUrls,
+            ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer) {
         this.access = access;
         this.alerts = alerts;
         this.notifications = notifications;
@@ -62,6 +76,7 @@ public class JobAlertService {
         this.preferences = preferences;
         this.json = json;
         this.publicUrls = publicUrls;
+        this.emailRenderer = emailRenderer;
     }
 
     @Transactional(readOnly = true)
@@ -272,6 +287,33 @@ public class JobAlertService {
     }
 
     private String buildEmailBody(Job job, String path) {
+        var renderer = emailRenderer != null ? emailRenderer.getIfAvailable() : null;
+        if (renderer != null) {
+            String link = link(path);
+            var details = new java.util.ArrayList<com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow>();
+            details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", job.getTitle()));
+            if (StringUtils.hasText(job.getDepartment())) {
+                details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Phòng ban", job.getDepartment()));
+            }
+            if (StringUtils.hasText(job.getLocation())) {
+                details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Địa điểm làm việc", job.getLocation()));
+            }
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brand())
+                    .title("Cơ hội việc làm mới: " + job.getTitle())
+                    .badgeText("Cơ Hội Việc Làm Mới")
+                    .badgeColor("blue")
+                    .headline("Vị Trí Mới Phù Hợp Với Bạn")
+                    .paragraphs(java.util.List.of(
+                            brand() + " vừa mở vị trí mới phù hợp với đăng ký thông báo tìm kiếm việc làm của bạn."))
+                    .details(details)
+                    .ctaLabel("Xem Chi Tiết & Ứng Tuyển")
+                    .ctaUrl(link)
+                    .securityNote("Bạn có thể quản lý hoặc hủy đăng ký nhận thông báo việc làm bất kỳ lúc nào trên trang tuyển dụng của công ty.")
+                    .build();
+            return renderer.renderOrFallback("tenant-general.html", model);
+        }
+
         var sb = new StringBuilder();
         sb.append("Xin chào,\n\n");
         sb.append(brand()).append(" vừa mở vị trí mới phù hợp với đăng ký thông báo của bạn:\n");

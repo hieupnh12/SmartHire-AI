@@ -535,6 +535,11 @@ public class AiInterviewEvaluationService {
         this.staffNotifications = staffNotifications;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.service.TenantPublicUrlService publicUrls;
+
     /** A failed attempt keeps the application open only while a retry is still allowed. */
     @Transactional
     public void closeExhaustedRetries() {
@@ -566,7 +571,30 @@ public class AiInterviewEvaluationService {
             activity.record(interview, "NOTIFICATION_SENT", type);
         }
         if (email && !preferences.emailOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
-            emails.save(EmailOutbox.builder().purpose("AI_INTERVIEW_RESULT").toEmail(app.getCandidate().getEmail()).subject(title).body(body).build());
+            String emailBody = body;
+            if (emailRenderer != null) {
+                String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                String portalUrl = publicUrls != null ? publicUrls.path(path) : null;
+                boolean passed = type.equals("AI_INTERVIEW_PASSED");
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(title + " — " + app.getJob().getTitle())
+                        .badgeText(passed ? "Đạt Vòng Phỏng Vấn AI" : "Kết Quả Phỏng Vấn AI")
+                        .badgeColor(passed ? "green" : "red")
+                        .headline("Kết Quả Phỏng Vấn AI (AI Interview)")
+                        .recipientName(app.getCandidate().getFullName())
+                        .paragraphs(java.util.List.of(
+                                "Bạn đã hoàn thành phiên phỏng vấn trí tuệ nhân tạo cho vị trí " + app.getJob().getTitle() + ".",
+                                body))
+                        .highlightBoxTitle("Điểm Đánh Giá")
+                        .highlightBoxValue(interview.getOverallScore() != null ? interview.getOverallScore() + "/100" : "Đã hoàn thành")
+                        .highlightBoxNote("Ngưỡng đạt yêu cầu: " + (interview.getPassingScoreSnapshot() != null ? interview.getPassingScoreSnapshot() + "/100" : "Theo tiêu chuẩn"))
+                        .ctaLabel("Xem Chi Tiết Đánh Giá")
+                        .ctaUrl(portalUrl)
+                        .build();
+                emailBody = emailRenderer.renderOrFallback("tenant-general.html", model);
+            }
+            emails.save(EmailOutbox.builder().purpose("AI_INTERVIEW_RESULT").toEmail(app.getCandidate().getEmail()).subject(title).body(emailBody).build());
             activity.record(interview, "EMAIL_QUEUED", "AI_INTERVIEW_RESULT");
         }
     }

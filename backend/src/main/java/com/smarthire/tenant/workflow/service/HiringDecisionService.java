@@ -46,6 +46,11 @@ public class HiringDecisionService {
     private final EmailOutboxRepository emails;
     private final NotificationPreferenceService preferences;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.service.TenantPublicUrlService publicUrls;
+
     public HiringDecisionService(ApplicationRepository applications, HiringDecisionRepository decisions,
             UserRepository users, ApplicantService applicants, CvAccess access, NotificationRepository notifications,
             EmailOutboxRepository emails, NotificationPreferenceService preferences) {
@@ -131,7 +136,30 @@ public class HiringDecisionService {
                     .payloadJson(payload("/applications/" + application.getId(), application.getId())).build());
         }
         if (!preferences.emailOff(candidate, NotificationCategory.APPLICATION)) {
-            emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(candidate.getEmail()).subject(title).body(body).build());
+            String emailBody = body;
+            if (emailRenderer != null) {
+                String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                String portalUrl = publicUrls != null ? publicUrls.path("/applications/" + application.getId()) : null;
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(title)
+                        .badgeText("Thư Mời Nhận Việc (Offer)")
+                        .badgeColor("green")
+                        .headline("Chúc Mừng Bạn Đã Nhận Được Thư Mời Nhận Việc!")
+                        .recipientName(candidate.getFullName())
+                        .paragraphs(java.util.List.of(
+                                "Chúng tôi vô cùng ấn tượng với năng lực và hành trình thể hiện của bạn qua các vòng tuyển dụng cho vị trí " + application.getJob().getTitle() + ".",
+                                "Ban Tuyển dụng trân trọng gửi tới bạn lời mời gia nhập đội ngũ. Vui lòng truy cập cổng thông tin ứng viên để xem chi tiết lời mời và phản hồi."))
+                        .details(java.util.List.of(
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", application.getJob().getTitle()),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Trạng thái", "Đã gửi Offer")))
+                        .ctaLabel("Xem Thư Mời Nhận Việc")
+                        .ctaUrl(portalUrl)
+                        .securityNote("Vui lòng phản hồi trước thời hạn quy định trong chi tiết thư mời.")
+                        .build();
+                emailBody = emailRenderer.renderOrFallback("tenant-general.html", model);
+            }
+            emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(candidate.getEmail()).subject(title).body(emailBody).build());
         }
     }
 
@@ -150,7 +178,30 @@ public class HiringDecisionService {
                         .title(title).body(body).payloadJson(payload(path, application.getId())).build());
             }
             if (!preferences.emailOff(user, NotificationCategory.APPLICATION)) {
-                emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(user.getEmail()).subject(title).body(body).build());
+                String emailBody = body;
+                if (emailRenderer != null) {
+                    String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                    String adminUrl = publicUrls != null ? publicUrls.path(path) : null;
+                    var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                            .brand(brand)
+                            .title(title)
+                            .badgeText(accepted ? "Offer Được Chấp Nhận" : "Offer Bị Từ Chối")
+                            .badgeColor(accepted ? "green" : "amber")
+                            .headline(title)
+                            .recipientName(user.getFullName())
+                            .paragraphs(java.util.List.of(
+                                    body,
+                                    "Vui lòng truy cập trang quản trị ứng viên để theo dõi tiến độ."))
+                            .details(java.util.List.of(
+                                    new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Ứng viên", application.getCandidate().getFullName()),
+                                    new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", application.getJob().getTitle()),
+                                    new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Trạng thái", accepted ? "ĐÃ TUYỂN (Hired)" : "TỪ CHỐI OFFER")))
+                            .ctaLabel("Quản Lý Ứng Viên")
+                            .ctaUrl(adminUrl)
+                            .build();
+                    emailBody = emailRenderer.renderOrFallback("tenant-staff-alert.html", model);
+                }
+                emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(user.getEmail()).subject(title).body(emailBody).build());
             }
         }
     }

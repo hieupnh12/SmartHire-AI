@@ -29,6 +29,11 @@ public class SubmissionGradingDetailService {
     private final CvAccess access;
     private final NotificationPreferenceService preferences;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.service.TenantPublicUrlService publicUrls;
+
     public SubmissionGradingDetailService(SubmissionRepository submissions, QuestionRepository questions,
             AnswerRepository answers, EmailOutboxRepository emails, ProctorEventRepository proctorEvents,
             AssessmentGradingService grading, SubmissionService submissionService, CvAccess access,
@@ -114,8 +119,10 @@ public class SubmissionGradingDetailService {
                 + "Bài: " + submission.getTest().getTitle() + "\nLượt làm: #" + id + "\nĐiểm: "
                 + submission.getScore().stripTrailingZeros().toPlainString() + "/" + total + "\nKết quả: " + result
                 + "\n\nĐăng nhập vào workspace và mở mục Bài kiểm tra để xem kết quả chính thức.";
+        String emailBody = buildResultHtmlOrFallback(submission, candidate, id, total, result, false, body);
         String reference = "assessment-result:" + id;
         var existing = emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc("ASSESSMENT_RESULT", reference)
+                .or(() -> emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc("ASSESSMENT_RESULT", candidate.getEmail(), subject, emailBody))
                 .or(() -> emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc("ASSESSMENT_RESULT", candidate.getEmail(), subject, body));
         if (existing.isPresent()) {
             var email = existing.get();
@@ -123,7 +130,7 @@ public class SubmissionGradingDetailService {
             if (email.getStatus() == NotificationStatus.FAILED || email.getStatus() == NotificationStatus.PENDING) {
                 // Refresh body/subject if score changed and re-queue failed or stuck pending rows.
                 email.setSubject(subject);
-                email.setBody(body);
+                email.setBody(emailBody);
                 email.setToEmail(candidate.getEmail());
                 if (email.getStatus() == NotificationStatus.FAILED) {
                     email.setAttempts(0);
@@ -133,7 +140,7 @@ public class SubmissionGradingDetailService {
             return new EmailReceipt(email.getId(), email.getStatus());
         }
         var email = emails.save(EmailOutbox.builder().purpose("ASSESSMENT_RESULT").referenceKey(reference)
-                .toEmail(candidate.getEmail()).subject(subject).body(body).build());
+                .toEmail(candidate.getEmail()).subject(subject).body(emailBody).build());
         return new EmailReceipt(email.getId(), email.getStatus());
     }
 
@@ -156,15 +163,49 @@ public class SubmissionGradingDetailService {
                     + "Bài: " + submission.getTest().getTitle() + "\nLượt làm: #" + id + "\nĐiểm: "
                     + submission.getScore().stripTrailingZeros().toPlainString() + "/" + total + "\nKết quả: " + result
                     + "\n\nĐăng nhập vào workspace và mở mục Bài kiểm tra để xem kết quả chính thức.";
+            String emailBody = buildResultHtmlOrFallback(submission, candidate, id, total, result, true, body);
             String reference = "assessment-result:" + id;
             var existing = emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc("ASSESSMENT_RESULT", reference);
             if (existing.isEmpty()) {
                 emails.save(EmailOutbox.builder().purpose("ASSESSMENT_RESULT").referenceKey(reference)
-                        .toEmail(candidate.getEmail()).subject(subject).body(body)
+                        .toEmail(candidate.getEmail()).subject(subject).body(emailBody)
                         .status(NotificationStatus.PENDING).attempts(0).build());
             }
         } catch (Exception ignored) {
             // Do not fail auto-grading flow on notification delivery issue
+        }
+    }
+
+    private String buildResultHtmlOrFallback(Submission submission, com.smarthire.domain.tenant.entity.Candidate candidate,
+                                             long id, int total, String result, boolean isAuto, String fallback) {
+        if (emailRenderer == null) return fallback;
+        try {
+            String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+            String portalUrl = publicUrls != null ? publicUrls.path("/candidate/assessments") : null;
+            boolean passed = "Đạt yêu cầu".equalsIgnoreCase(result);
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brand)
+                    .title("Kết quả bài đánh giá: " + submission.getTest().getTitle())
+                    .badgeText(passed ? "Đạt Yêu Cầu" : "Kết Quả Đánh Giá")
+                    .badgeColor(passed ? "green" : "blue")
+                    .headline("Kết Quả Bài Đánh Giá Chuyên Môn")
+                    .recipientName(candidate.getFullName())
+                    .paragraphs(java.util.List.of(
+                            "Bài đánh giá năng lực của bạn đã được " + (isAuto ? "chấm tự động" : "duyệt và hoàn tất") + " bởi hội đồng tuyển dụng.",
+                            "Dưới đây là tóm tắt kết quả chi tiết của lượt làm bài:"))
+                    .highlightBoxTitle("Điểm Số Đạt Được")
+                    .highlightBoxValue(submission.getScore().stripTrailingZeros().toPlainString() + " / " + total)
+                    .highlightBoxNote("Trạng thái: " + result)
+                    .details(java.util.List.of(
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Bài đánh giá", submission.getTest().getTitle()),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Mã lượt làm", "#" + id),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Kết quả", result)))
+                    .ctaLabel("Xem Chi Tiết Bài Làm")
+                    .ctaUrl(portalUrl)
+                    .build();
+            return emailRenderer.renderOrFallback("tenant-general.html", model);
+        } catch (Exception ex) {
+            return fallback;
         }
     }
 

@@ -32,6 +32,7 @@ public class AiInterviewInviteService {
     private final ApplicationRepository applications;
     private final TenantPublicUrlService publicUrls;
     private final NotificationPreferenceService preferences;
+    private final com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
 
     public AiInterviewInviteService(
             InviteMailSender mail,
@@ -39,11 +40,23 @@ public class AiInterviewInviteService {
             ApplicationRepository applications,
             TenantPublicUrlService publicUrls,
             NotificationPreferenceService preferences) {
+        this(mail, outbox, applications, publicUrls, preferences, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AiInterviewInviteService(
+            InviteMailSender mail,
+            EmailOutboxRepository outbox,
+            ApplicationRepository applications,
+            TenantPublicUrlService publicUrls,
+            NotificationPreferenceService preferences,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer) {
         this.mail = mail;
         this.outbox = outbox;
         this.applications = applications;
         this.publicUrls = publicUrls;
         this.preferences = preferences;
+        this.emailRenderer = emailRenderer;
     }
 
     @Transactional
@@ -120,16 +133,47 @@ public class AiInterviewInviteService {
                 publicUrls.path("/candidate/interviews"),
                 brand);
 
+        String startUrl = publicUrls.path("/candidate/interviews");
+        String htmlBody = null;
+        if (emailRenderer != null) {
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brand)
+                    .title(subject)
+                    .badgeText("Vòng Phỏng Vấn AI")
+                    .badgeColor("blue")
+                    .headline("Lời Mời Tham Gia Phỏng Vấn AI")
+                    .recipientName(candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName())
+                    .paragraphs(java.util.List.of(
+                            "Chúc mừng bạn! Hồ sơ ứng tuyển của bạn cho vị trí " + job.getTitle() + " đã " + reason + ".",
+                            "Vòng tuyển dụng tiếp theo là Phỏng vấn trí tuệ nhân tạo (AI Interview). Bạn có thể tham gia phỏng vấn trực tuyến mọi lúc, mọi nơi trong khoảng thời gian quy định."))
+                    .details(java.util.List.of(
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", job.getTitle()),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời gian bắt đầu", formatTime(config.availableFrom(), "Ngay khi câu hỏi sẵn sàng")),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Hạn chót hoàn thành", formatTime(config.availableUntil(), "Không giới hạn")),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời lượng dự kiến", policy.durationMinutes() + " phút"),
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Số lần thực hiện tối đa", policy.maxAttempts() + " lần")))
+                    .ctaLabel("Bắt Đầu Phỏng Vấn AI")
+                    .ctaUrl(startUrl)
+                    .securityNote("Vui lòng thực hiện phỏng vấn tại nơi yên tĩnh, trang bị micro và camera hoạt động tốt.")
+                    .build();
+            htmlBody = emailRenderer.renderHtml("tenant-invitation.html", model);
+        }
+
+        String emailBodyToPersist = htmlBody != null ? htmlBody : body;
+        String finalHtmlBody = htmlBody;
+
         String replyToEmail = resolveJobCreatorEmail(job);
         String replyToName = resolveJobCreatorName(job);
         boolean sent = InviteMailSender.withReplyTo(
                 replyToEmail,
                 replyToName,
-                () -> mail.send(candidate.getEmail(), subject, body));
+                () -> finalHtmlBody != null
+                        ? mail.send(candidate.getEmail(), subject, body, finalHtmlBody)
+                        : mail.send(candidate.getEmail(), subject, body));
         outbox.save(EmailOutbox.builder()
                 .toEmail(candidate.getEmail())
                 .subject(subject)
-                .body(body)
+                .body(emailBodyToPersist)
                 .status(sent ? NotificationStatus.SENT : NotificationStatus.FAILED)
                 .attempts(1)
                 .sentAt(sent ? Instant.now() : null)

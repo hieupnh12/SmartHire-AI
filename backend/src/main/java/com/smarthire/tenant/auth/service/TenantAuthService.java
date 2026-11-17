@@ -44,6 +44,7 @@ public class TenantAuthService {
     private final TenantRegistryService tenantRegistryService;
     private final RedisService redisService;
     private final InviteMailSender inviteMailSender;
+    private final com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
@@ -322,12 +323,34 @@ public class TenantAuthService {
 
             String brand = resolveBrandName(currentTenant);
             String subject = "[" + brand + "] Mã xác thực đặt lại mật khẩu";
-            String body = "Xin chào " + recipientName + ",\n\n"
+            String plainFallback = "Xin chào " + recipientName + ",\n\n"
                     + "Mã xác thực OTP để đặt lại mật khẩu của bạn là: " + otp + "\n"
                     + "Mã này có hiệu lực trong vòng 15 phút.\n\n"
                     + "Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.\n\n"
                     + "Trân trọng,\nĐội ngũ " + brand;
-            inviteMailSender.send(email, subject, body);
+
+            String htmlBody = null;
+            if (emailRenderer != null) {
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(subject)
+                        .recipientName(recipientName)
+                        .headline("Yêu Cầu Đặt Lại Mật Khẩu")
+                        .paragraphs(java.util.List.of(
+                                "Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản ứng tuyển/làm việc của bạn tại " + brand + ".",
+                                "Vui lòng nhập mã xác thực OTP bên dưới để tiếp tục quá trình thiết lập mật khẩu mới:"))
+                        .highlightBoxTitle("Mã Xác Thực (OTP)")
+                        .highlightBoxValue(otp)
+                        .highlightBoxNote("Mã OTP có hiệu lực trong 15 phút kể từ lúc nhận được thư.")
+                        .securityNote("Tuyệt đối không chia sẻ mã này cho bất kỳ ai. Nếu bạn không yêu cầu, vui lòng bỏ qua email này.")
+                        .build();
+                htmlBody = emailRenderer.renderHtml("tenant-otp.html", model);
+            }
+            if (htmlBody != null) {
+                inviteMailSender.send(email, subject, plainFallback, htmlBody);
+            } else {
+                inviteMailSender.send(email, subject, plainFallback);
+            }
         } else {
             log.info("Forgot password requested for non-existing or inactive email: {} in tenant: {}", email, currentTenant);
         }

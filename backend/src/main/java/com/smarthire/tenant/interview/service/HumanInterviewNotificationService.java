@@ -18,9 +18,12 @@ import org.springframework.util.StringUtils;
 public class HumanInterviewNotificationService {
     public static final String PURPOSE="HUMAN_INTERVIEW";
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record EmailContent(String text, String calendar, String replyToEmail, String replyToName) {
+    public record EmailContent(String text, String calendar, String replyToEmail, String replyToName, String html) {
+        public EmailContent(String text, String calendar, String replyToEmail, String replyToName) {
+            this(text, calendar, replyToEmail, replyToName, null);
+        }
         public EmailContent(String text, String calendar) {
-            this(text, calendar, null, null);
+            this(text, calendar, null, null, null);
         }
     }
     private final EmailOutboxRepository outbox;
@@ -93,6 +96,8 @@ public class HumanInterviewNotificationService {
     /** Optional in unit tests; sends staff events on web + Gmail. */
     @Autowired(required = false)
     private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
+    @Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
     private void enqueue(InterviewView r,Candidate candidate,String type,String title) {
         var recipients=new LinkedHashMap<Long,User>();
         for(var p:r.participants()) recipients.put(p.userId(),users.getReferenceById(p.userId()));
@@ -100,13 +105,44 @@ public class HumanInterviewNotificationService {
         String replyToEmail = replyUser != null ? replyUser.getEmail() : null;
         String replyToName = replyUser != null ? replyUser.getFullName() : null;
         var preview=preview(r);
+        String htmlContent = null;
+        if (emailRenderer != null) {
+            java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Bangkok"));
+            String timeStr = (r.start() != null ? dtf.format(r.start()) : "") + (r.end() != null ? " - " + dtf.format(r.end()) : "");
+            var details = new java.util.ArrayList<com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow>();
+            details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", r.jobTitle()));
+            details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Ứng viên", r.candidateName()));
+            details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời gian", timeStr + " (GMT+07)"));
+            if (StringUtils.hasText(r.meetingUrl())) {
+                details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Liên kết phỏng vấn", r.meetingUrl()));
+            }
+            if (StringUtils.hasText(r.location())) {
+                details.add(new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Địa điểm", r.location()));
+            }
+            boolean isCancel = "HUMAN_INTERVIEW_CANCELLED".equals(type);
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brandName())
+                    .title(title + " - " + r.jobTitle())
+                    .badgeText(isCancel ? "Lịch Phỏng Vấn Bị Hủy" : "Phỏng Vấn Trực Tiếp")
+                    .badgeColor(isCancel ? "red" : "blue")
+                    .headline(title)
+                    .paragraphs(java.util.List.of(preview.body()))
+                    .details(details)
+                    .ctaLabel("Xem Lịch Phỏng Vấn")
+                    .ctaUrl(r.meetingUrl())
+                    .securityNote("Vui lòng có mặt đúng giờ hoặc thông báo sớm nếu có thay đổi.")
+                    .build();
+            htmlContent = emailRenderer.renderHtml("tenant-interview-schedule.html", model);
+        }
+
         String body;
         try {
             body=json.writeValueAsString(new EmailContent(
                     title+"\n\n"+preview.body(),
                     r.configuration().attachCalendar()?HumanInterviewCalendar.export(List.of(r)):null,
                     replyToEmail,
-                    replyToName));
+                    replyToName,
+                    htmlContent));
         } catch(Exception ex) { throw new IllegalStateException("Cannot queue interview email",ex); }
         if (candidate != null) {
             String candidatePath="/interview-schedules";

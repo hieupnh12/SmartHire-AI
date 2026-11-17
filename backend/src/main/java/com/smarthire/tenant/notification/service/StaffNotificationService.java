@@ -39,6 +39,7 @@ public class StaffNotificationService {
     private final NotificationPreferenceService preferences;
     private final ObjectMapper json;
     private final ObjectProvider<TenantPublicUrlService> publicUrls;
+    private final ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer;
 
     public StaffNotificationService(
             JobAssignmentRepository assignments,
@@ -46,13 +47,15 @@ public class StaffNotificationService {
             EmailOutboxRepository outbox,
             NotificationPreferenceService preferences,
             ObjectMapper json,
-            ObjectProvider<TenantPublicUrlService> publicUrls) {
+            ObjectProvider<TenantPublicUrlService> publicUrls,
+            ObjectProvider<com.smarthire.tenant.notification.email.TenantEmailRenderer> emailRenderer) {
         this.assignments = assignments;
         this.notifications = notifications;
         this.outbox = outbox;
         this.preferences = preferences;
         this.json = json;
         this.publicUrls = publicUrls;
+        this.emailRenderer = emailRenderer;
     }
 
     /** Job owner, staff assigned with view access, and the application assignee (deduplicated, active staff only). */
@@ -129,6 +132,24 @@ public class StaffNotificationService {
     }
 
     private String emailBody(String title, String body, String jobTitle, String path) {
+        var renderer = emailRenderer != null ? emailRenderer.getIfAvailable() : null;
+        if (renderer != null) {
+            String link = link(path);
+            var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                    .brand(brand())
+                    .title(jobTitle == null ? title : title + " - " + jobTitle)
+                    .badgeText("Nội Bộ Ban Tuyển Dụng")
+                    .badgeColor("blue")
+                    .headline(title)
+                    .paragraphs(StringUtils.hasText(body) ? java.util.List.of(body) : null)
+                    .details(jobTitle != null ? java.util.List.of(
+                            new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", jobTitle)) : null)
+                    .ctaLabel("Mở Trang Quản Trị")
+                    .ctaUrl(link)
+                    .build();
+            return renderer.renderOrFallback("tenant-staff-alert.html", model);
+        }
+
         var text = new StringBuilder(title).append("\n\n");
         if (StringUtils.hasText(body)) text.append(body).append("\n\n");
         if (jobTitle != null) text.append("Vị trí / Position: ").append(jobTitle).append("\n");

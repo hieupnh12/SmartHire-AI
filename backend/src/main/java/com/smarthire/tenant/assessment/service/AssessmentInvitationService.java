@@ -59,6 +59,8 @@ public class AssessmentInvitationService {
     private CodingProblemRepository codingProblems;
     @org.springframework.beans.factory.annotation.Autowired
     private TestCaseRepository testCases;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
 
     public AssessmentInvitationService(JobTestRepository tests, ApplicationRepository applications,
             SubmissionRepository submissions,
@@ -295,18 +297,47 @@ public class AssessmentInvitationService {
                     body,
                     publicUrls.path(path),
                     brand);
+            String examUrl = publicUrls.path(path);
+            String htmlBody = null;
+            if (emailRenderer != null) {
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(subject)
+                        .badgeText("Vòng Đánh Giá Chuyên Môn")
+                        .badgeColor("blue")
+                        .headline("Lời Mời Tham Gia Làm Bài Assessment")
+                        .recipientName(candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName())
+                        .paragraphs(java.util.List.of(
+                                "Bạn đã nhận được lời mời làm bài kiểm tra đánh giá năng lực chuyên môn cho vị trí " + jobTitle + ".",
+                                body))
+                        .details(java.util.List.of(
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", jobTitle),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Bài kiểm tra", test.getTitle() != null ? test.getTitle() : "Bài đánh giá năng lực"),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời gian làm bài", test.getDurationMinutes() + " phút")))
+                        .ctaLabel("Bắt Đầu Làm Bài Ngay")
+                        .ctaUrl(examUrl)
+                        .securityNote("Bài kiểm tra có giám sát tự động. Vui lòng đảm bảo làm bài trung thực và hoàn thành trong thời gian quy định.")
+                        .build();
+                htmlBody = emailRenderer.renderHtml("tenant-invitation.html", model);
+            }
+
+            String bodyToPersist = htmlBody != null ? htmlBody : emailBody;
+            String finalHtml = htmlBody;
+
             User replyUser = resolveReplyUser(actor, test.getJob());
             String replyToEmail = replyUser != null ? replyUser.getEmail() : null;
             String replyToName = replyUser != null ? replyUser.getFullName() : null;
             emailSent = InviteMailSender.withReplyTo(
                     replyToEmail,
                     replyToName,
-                    () -> mail.send(candidate.getEmail(), subject, emailBody));
+                    () -> finalHtml != null
+                            ? mail.send(candidate.getEmail(), subject, emailBody, finalHtml)
+                            : mail.send(candidate.getEmail(), subject, emailBody));
             outbox.save(EmailOutbox.builder()
                     .purpose("ASSESSMENT_INVITATION")
                     .toEmail(candidate.getEmail())
                     .subject(subject)
-                    .body(emailBody)
+                    .body(bodyToPersist)
                     .status(emailSent ? NotificationStatus.SENT : NotificationStatus.FAILED)
                     .attempts(1)
                     .sentAt(emailSent ? Instant.now() : null)

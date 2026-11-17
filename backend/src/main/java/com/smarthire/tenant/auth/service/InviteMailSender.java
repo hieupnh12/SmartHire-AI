@@ -67,11 +67,27 @@ public class InviteMailSender {
                 to,
                 subject,
                 body,
+                null,
+                contextReplyTo != null ? contextReplyTo.email() : null,
+                contextReplyTo != null ? contextReplyTo.name() : null);
+    }
+
+    public boolean send(String to, String subject, String textBody, String htmlBody) {
+        ReplyTo contextReplyTo = REPLY_TO_CONTEXT.get();
+        return send(
+                to,
+                subject,
+                textBody,
+                htmlBody,
                 contextReplyTo != null ? contextReplyTo.email() : null,
                 contextReplyTo != null ? contextReplyTo.name() : null);
     }
 
     public boolean send(String to, String subject, String body, String replyToEmail, String replyToName) {
+        return send(to, subject, body, null, replyToEmail, replyToName);
+    }
+
+    public boolean send(String to, String subject, String textBody, String htmlBody, String replyToEmail, String replyToName) {
         JavaMailSender sender = mailSender != null ? mailSender.getIfAvailable() : null;
         if (sender == null || !StringUtils.hasText(from)) {
             return false;
@@ -80,7 +96,11 @@ public class InviteMailSender {
         try {
             MimeMessage mimeMessage = sender.createMimeMessage();
             if (mimeMessage != null) {
-                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, StandardCharsets.UTF_8.name());
+                boolean hasHtml = StringUtils.hasText(htmlBody);
+                boolean isBodyHtml = textBody != null && (textBody.contains("<html") || textBody.contains("<!DOCTYPE") || textBody.contains("<table"));
+                boolean isMultipart = hasHtml || isBodyHtml;
+                
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, isMultipart, StandardCharsets.UTF_8.name());
                 helper.setFrom(from.trim(), identity.fromName());
                 if (StringUtils.hasText(identity.replyToEmail())) {
                     if (StringUtils.hasText(identity.replyToName())) {
@@ -91,8 +111,15 @@ public class InviteMailSender {
                 }
                 helper.setTo(to);
                 helper.setSubject(subject);
-                boolean isHtml = body != null && (body.contains("<html") || body.contains("<!DOCTYPE") || body.contains("<table"));
-                helper.setText(body, isHtml);
+
+                if (hasHtml && StringUtils.hasText(textBody)) {
+                    helper.setText(textBody, htmlBody);
+                } else if (hasHtml) {
+                    helper.setText(htmlBody, true);
+                } else {
+                    helper.setText(textBody != null ? textBody : "", isBodyHtml);
+                }
+
                 sender.send(mimeMessage);
                 return true;
             }
@@ -104,7 +131,7 @@ public class InviteMailSender {
             }
             message.setTo(to);
             message.setSubject(subject);
-            message.setText(body);
+            message.setText(textBody);
             sender.send(message);
             return true;
         } catch (Exception ex) {

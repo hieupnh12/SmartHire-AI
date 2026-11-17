@@ -41,6 +41,10 @@ public class AssessmentGenerationService {
     private RecruitmentStageRepository stages;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AssessmentGradingService grading;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.service.TenantPublicUrlService publicUrls;
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
@@ -145,9 +149,31 @@ public class AssessmentGenerationService {
         }
         if (application.getCandidate().getEmail() != null && !application.getCandidate().getEmail().isBlank()
                 && !preferences.emailOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
+            String subject = title + " — " + test.getJob().getTitle();
+            String link = publicUrls != null ? publicUrls.path(path) : null;
+            String htmlBody = null;
+            if (emailRenderer != null) {
+                String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(subject)
+                        .badgeText("Vòng Đánh Giá Chuyên Môn")
+                        .badgeColor("blue")
+                        .headline("Bài Đánh Giá Năng Lực Đã Sẵn Sàng")
+                        .recipientName(application.getCandidate().getFullName())
+                        .paragraphs(java.util.List.of(body))
+                        .details(java.util.List.of(
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", test.getJob().getTitle()),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Tên bài đánh giá", test.getTitle()),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời gian làm bài", test.getDurationMinutes() + " phút")))
+                        .ctaLabel("Làm Bài Assessment")
+                        .ctaUrl(link)
+                        .build();
+                htmlBody = emailRenderer.renderHtml("tenant-invitation.html", model);
+            }
             outbox.save(EmailOutbox.builder().purpose("ASSESSMENT_INVITATION")
-                    .toEmail(application.getCandidate().getEmail()).subject(title + " — " + test.getJob().getTitle())
-                    .body(body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá.")
+                    .toEmail(application.getCandidate().getEmail()).subject(subject)
+                    .body(htmlBody != null ? htmlBody : (body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá."))
                     .status(NotificationStatus.PENDING).attempts(0).build());
         }
         return mapper.response(test);
@@ -195,9 +221,31 @@ public class AssessmentGenerationService {
         }
         if (application.getCandidate().getEmail() != null && !application.getCandidate().getEmail().isBlank()
                 && !preferences.emailOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
+            String subject = title + " — " + test.getJob().getTitle();
+            String link = publicUrls != null ? publicUrls.path(path) : null;
+            String htmlBody = null;
+            if (emailRenderer != null) {
+                String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(subject)
+                        .badgeText("Vòng Đánh Giá Chuyên Môn")
+                        .badgeColor("blue")
+                        .headline("Bài Đánh Giá Năng Lực Đã Sẵn Sàng")
+                        .recipientName(application.getCandidate().getFullName())
+                        .paragraphs(java.util.List.of(body))
+                        .details(java.util.List.of(
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Vị trí tuyển dụng", test.getJob().getTitle()),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Tên bài đánh giá", test.getTitle()),
+                                new com.smarthire.tenant.notification.email.TenantEmailModel.DetailRow("Thời gian làm bài", test.getDurationMinutes() + " phút")))
+                        .ctaLabel("Làm Bài Assessment")
+                        .ctaUrl(link)
+                        .build();
+                htmlBody = emailRenderer.renderHtml("tenant-invitation.html", model);
+            }
             outbox.save(EmailOutbox.builder().purpose("ASSESSMENT_INVITATION")
-                    .toEmail(application.getCandidate().getEmail()).subject(title + " — " + test.getJob().getTitle())
-                    .body(body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá.")
+                    .toEmail(application.getCandidate().getEmail()).subject(subject)
+                    .body(htmlBody != null ? htmlBody : (body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá."))
                     .status(NotificationStatus.PENDING).attempts(0).build());
         }
         return true;

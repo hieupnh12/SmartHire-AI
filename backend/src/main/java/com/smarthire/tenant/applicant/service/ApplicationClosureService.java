@@ -51,6 +51,11 @@ public class ApplicationClosureService {
     private final int staleDays;
     private final int cvRetentionDays;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.email.TenantEmailRenderer emailRenderer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.service.TenantPublicUrlService publicUrls;
+
     public ApplicationClosureService(
             ApplicationRepository applications,
             ApplicationStatusHistoryRepository history,
@@ -172,7 +177,25 @@ public class ApplicationClosureService {
                     .build());
         }
         if (!preferences.emailOff(candidate, NotificationCategory.APPLICATION)) {
-            emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(candidate.getEmail()).subject(title).body(body).build());
+            String emailBody = body;
+            if (emailRenderer != null) {
+                String brand = com.smarthire.multitenancy.service.TenantPublicUrlService.brandOrDefault(publicUrls);
+                var model = com.smarthire.tenant.notification.email.TenantEmailModel.builder()
+                        .brand(brand)
+                        .title(title)
+                        .badgeText("Kết Quả Tuyển Dụng")
+                        .badgeColor("amber")
+                        .headline("Thông Báo Về Hồ Sơ Ứng Tuyển")
+                        .recipientName(candidate.getFullName())
+                        .paragraphs(java.util.List.of(
+                                "Cảm ơn bạn đã dành thời gian và sự quan tâm đến cơ hội nghề nghiệp tại " + brand + " cho vị trí " + application.getJob().getTitle() + ".",
+                                "Sau khi xem xét kỹ lưỡng hồ sơ và các vòng đánh giá, chúng tôi rất tiếc phải thông báo hiện tại hồ sơ của bạn chưa phù hợp nhất với tiêu chí của vị trí này.",
+                                (reason != null && !reason.isBlank() ? "Ghi chú từ hội đồng: " + reason.trim() : "Thông tin hồ sơ của bạn sẽ được lưu trữ trong hệ thống nhân tài để chúng tôi chủ động liên hệ khi có vị trí phù hợp hơn trong tương lai.")))
+                        .securityNote("Chúc bạn luôn gặt hái nhiều thành công trên con đường phát triển sự nghiệp.")
+                        .build();
+                emailBody = emailRenderer.renderOrFallback("tenant-general.html", model);
+            }
+            emails.save(EmailOutbox.builder().purpose(EMAIL_PURPOSE).toEmail(candidate.getEmail()).subject(title).body(emailBody).build());
         }
     }
 }

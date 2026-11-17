@@ -73,7 +73,12 @@ public class HumanInterviewEmailService {
                     helper.setReplyTo(identity.replyToEmail());
                 }
             }
-            helper.setTo(e.getToEmail());helper.setSubject(e.getSubject());helper.setText(content.text());
+            helper.setTo(e.getToEmail());helper.setSubject(e.getSubject());
+            if (StringUtils.hasText(content.html())) {
+                helper.setText(content.text(), content.html());
+            } else {
+                helper.setText(content.text());
+            }
             if(content.calendar()!=null) helper.addAttachment("interview.ics",new ByteArrayResource(content.calendar().getBytes(StandardCharsets.UTF_8)),"text/calendar");
             mail.send(message);e.setStatus(NotificationStatus.SENT);e.setSentAt(Instant.now());
         } catch(Exception ex) {
