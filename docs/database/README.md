@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Giám sát trực tiếp & Chống gian lận Bài đánh giá 2026-11-16 | Tenant V63 (`V63__assessment_strict_proctoring.sql`): Thêm `strict_proctor_enabled`, `proctor_meet_url` trên `tests` (entity `JobTest`) và `proctor_approved`, `proctor_approved_at`, `proctor_candidate_ready`, `proctor_meet_url`, `proctor_violations_count`, `proctor_terminated_reason` trên `submissions` (entity `Submission`) phục vụ mô hình giám sát Hybrid (AI Auto-Proctor & Strict Live Proctor qua Meet có HR duyệt) |
 | Chuẩn hoá tên gói cước (bỏ hậu tố tiếng Anh) 2026-11-14 | Master V40 (`V40__clean_subscription_plan_names.sql`) chuẩn hóa tên các gói cước mặc định trên `subscription_plans` và snapshot `tenant_subscriptions` (loại bỏ `(Starter)`, `(Professional)`, `(Enterprise Scale)`), giao diện đa ngôn ngữ (EN, VI, JA) xử lý động qua tầng i18n |
 | AI Interview RAG & Vector Evaluation 2026-11-12 | Master V41 (`V41__enable_pgvector_and_vector_store.sql`): kích hoạt extension `vector` và bảng `vector_store`. Tenant V62 (`V62__ai_interview_rag_evaluation.sql`) tạo bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`, 2 FK tới `ai_interviews` và `ai_questions`, 1 index `idx_rag_audit_interview`) lưu vết đánh giá ngữ nghĩa và độ tương đồng Cosine vector RAG |
 | Nhật ký hệ thống Tenant thay thế audit log 2026-11-13 | Master V39 (`V39__tenant_system_logs.sql`) xóa `platform_audit_logs`, tạo `tenant_system_logs` (entity `TenantSystemLog`, 4 index) phục vụ System/Application Logs theo ngữ cảnh Tenant (`tenant_code`, `trace_id` SLF4J MDC, `category`, `endpoint`, `status_code`, `stack_trace`) |
@@ -1481,6 +1482,7 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V60 | `V60__saved_jobs_and_job_alerts.sql` | Tạo `saved_jobs` (`SavedJob`, 2 FK CASCADE, UNIQUE `(candidate_id, job_id)`, 2 index), `job_alerts` (`JobAlert`, 1 FK CASCADE, 2 index), và index `idx_rec_subject_target` trên `recommendations` |
 | V61 | `V61__ai_localized_contents.sql` | Tạo `ai_localized_contents` (`AiLocalizedContent`, UNIQUE `(entity_type, entity_id, content_hash, locale)`, index `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + DB) cho nội dung đánh giá AI |
 | V62 | `V62__ai_interview_rag_evaluation.sql` | Bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`): lưu vết đánh giá ngữ nghĩa RAG, độ tương đồng vector, ngưỡng áp dụng và danh sách key points |
+| V63 | `V63__assessment_strict_proctoring.sql` | Giám sát nâng cao bài đánh giá: Thêm cấu hình `strict_proctor_enabled` và `proctor_meet_url` trên `tests`, trạng thái `proctor_approved`, `proctor_candidate_ready`, `proctor_violations_count`, `proctor_terminated_reason` trên `submissions` |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

@@ -65,6 +65,8 @@ public class AssessmentMapper {
                 test.getCodingTestWeightPercent(),
                 test.getAssignedApplication() != null ? test.getAssignedApplication().getId() : null,
                 test.getOrigin() == null ? TestOrigin.AUTHORED : test.getOrigin(),
-                test.isAutoGradingEnabled());
+                test.isAutoGradingEnabled(),
+                test.isStrictProctorEnabled(),
+                test.getProctorMeetUrl());
     }
 }

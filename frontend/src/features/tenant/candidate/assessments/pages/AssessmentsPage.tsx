@@ -3,11 +3,16 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
+  CheckCircle2,
   ClipboardCheck,
   Clock3,
   FileSearch,
+  FlaskConical,
+  Play,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
+  Sparkles,
   Trophy,
 } from "lucide-react";
 import type { AvailableAssessment, SubmissionStatus } from "@/api/types/assessment";
@@ -67,15 +72,25 @@ export function AssessmentsPage() {
     return filterAppId > 0 ? rows.filter((row) => row.application.id === filterAppId) : rows;
   }, [eligible, testQueries, filterAppId]);
 
+  const officialInvitations = useMemo(
+    () => invitations.filter((item) => !isDemoAssessmentTitle(item.test.title)),
+    [invitations],
+  );
+  const practiceInvitations = useMemo(
+    () => invitations.filter((item) => isDemoAssessmentTitle(item.test.title)),
+    [invitations],
+  );
+  const practiceItem = practiceInvitations[0] ?? null;
+
   const testsLoading = eligible.length > 0 && testQueries.some((q) => q.isPending);
   const testsError = testQueries.find((q) => q.isError)?.error ?? null;
 
-  const ready = invitations.filter((item) => {
+  const ready = officialInvitations.filter((item) => {
     const status = item.test.submissionStatus;
     return !status || status === "NOT_STARTED" || status === "IN_PROGRESS";
   }).length;
-  const completed = invitations.filter((item) =>
-    ["SUBMITTED", "GRADED", "EXPIRED"].includes(item.test.submissionStatus ?? ""),
+  const completed = officialInvitations.filter((item) =>
+    ["SUBMITTED", "COMPLETED", "GRADED", "FAILED", "EXPIRED"].includes(item.test.submissionStatus ?? ""),
   ).length;
 
   const openInvitation = (invitation: Invitation) => {
@@ -87,7 +102,9 @@ export function AssessmentsPage() {
     const { test } = invitation;
     const done =
       test.submissionStatus === "SUBMITTED" ||
+      test.submissionStatus === "COMPLETED" ||
       test.submissionStatus === "GRADED" ||
+      test.submissionStatus === "FAILED" ||
       test.submissionStatus === "EXPIRED";
     const demo = isDemoAssessmentTitle(test.title);
     // Result only: open take. Start / continue always goes through invite (rules + device check).
@@ -114,7 +131,7 @@ export function AssessmentsPage() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Metric value={invitations.length} label={t("candidate.assess.assessmentsList.metricInvitations")} />
+            <Metric value={officialInvitations.length} label={t("candidate.assess.assessmentsList.metricInvitations")} />
             <Metric value={ready} label={t("candidate.assess.assessmentsList.metricReady")} />
             <Metric value={completed} label={t("candidate.assess.assessmentsList.metricCompleted")} />
           </div>
@@ -159,27 +176,120 @@ export function AssessmentsPage() {
         </LoadingState>
       )}
 
-      {!applications.isPending && !testsLoading && invitations.length === 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
-          <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
-          <div>
-            <p className="font-semibold">{t("candidate.assess.assessmentsList.emptyTitle")}</p>
-            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              {t("candidate.assess.assessmentsList.emptyDesc")}
-            </p>
-          </div>
-        </div>
-      )}
+      {!applications.isPending && !testsLoading && (
+        <div className="space-y-6">
+          {practiceItem && (
+            <section
+              aria-labelledby="practice-assessment-title"
+              className="relative overflow-hidden rounded-3xl border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.7),white_65%)] p-5 shadow-[var(--shadow-card)] transition-[box-shadow,border-color] hover:border-sky-300 sm:p-6"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-4">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-sky-600 text-white shadow-sm">
+                    <Sparkles className="size-6" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800">
+                        <FlaskConical className="size-3.5" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.practiceBadge")}
+                      </span>
+                      {practiceItem.test.submissionStatus && (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                          {getAssessmentStatusLabel(practiceItem.test.submissionStatus, t)}
+                        </span>
+                      )}
+                    </div>
+                    <h2 id="practice-assessment-title" className="mt-1 text-lg font-bold text-slate-900 sm:text-xl">
+                      {shortAssessmentTitle(practiceItem.application.jobTitle, practiceItem.test.title)}
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+                      {t("candidate.assess.assessmentsList.practiceDesc")}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        <Clock3 className="size-4 text-sky-600" aria-hidden="true" />
+                        {t("candidate.assess.common.minutes", { count: practiceItem.test.durationMinutes })}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="size-4 text-emerald-600" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.practiceSkills")}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <RotateCcw className="size-4 text-indigo-600" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.practiceUnlimited")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white shadow-sm"
+                    onClick={() => openAction(practiceItem)}
+                  >
+                    {practiceItem.test.submissionStatus === "IN_PROGRESS" ? (
+                      <>
+                        <ArrowRight className="size-4 mr-1.5" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.actionContinue")}
+                      </>
+                    ) : practiceItem.test.submissionStatus &&
+                      ["SUBMITTED", "COMPLETED", "GRADED", "FAILED", "EXPIRED"].includes(
+                        practiceItem.test.submissionStatus,
+                      ) ? (
+                      <>
+                        <RotateCcw className="size-4 mr-1.5" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.actionRetake")}
+                      </>
+                    ) : (
+                      <>
+                        <Play className="size-4 mr-1.5" aria-hidden="true" />
+                        {t("candidate.assess.assessmentsList.practiceStart")}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          )}
 
-      {invitations.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {invitations.map((invitation) => (
-            <AssessmentCard
-              key={`${invitation.application.id}-${invitation.test.id}`}
-              invitation={invitation}
-              onAction={() => openAction(invitation)}
-            />
-          ))}
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight sm:text-xl">
+                <ClipboardCheck className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
+                {t("candidate.assess.assessmentsList.officialSectionTitle")}
+                <span className="rounded-full bg-[var(--color-surface-container)] px-2.5 py-0.5 text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                  {officialInvitations.length}
+                </span>
+              </h2>
+            </div>
+
+            {officialInvitations.length === 0 ? (
+              <div className="flex items-start gap-4 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
+                <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]">
+                  <ClipboardCheck className="size-6 text-[var(--color-primary)]" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[var(--color-on-surface)]">
+                    {t("candidate.assess.assessmentsList.officialEmptyTitle")}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--color-on-surface-variant)]">
+                    {t("candidate.assess.assessmentsList.officialEmptyDesc")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {officialInvitations.map((invitation) => (
+                  <AssessmentCard
+                    key={`${invitation.application.id}-${invitation.test.id}`}
+                    invitation={invitation}
+                    onAction={() => openAction(invitation)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </section>
@@ -309,7 +419,13 @@ function Fact({
 
 function actionLabel(status: SubmissionStatus | "NOT_STARTED", demo: boolean, t: TranslateFn) {
   if (status === "IN_PROGRESS") return t("candidate.assess.assessmentsList.actionContinue");
-  if (status === "SUBMITTED" || status === "GRADED" || status === "EXPIRED") {
+  if (
+    status === "SUBMITTED" ||
+    status === "COMPLETED" ||
+    status === "GRADED" ||
+    status === "FAILED" ||
+    status === "EXPIRED"
+  ) {
     return demo
       ? t("candidate.assess.assessmentsList.actionRetake")
       : t("candidate.assess.assessmentsList.actionViewResult");

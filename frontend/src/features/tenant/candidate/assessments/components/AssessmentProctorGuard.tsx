@@ -199,10 +199,12 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
     const paste = (event: ClipboardEvent) => block(event, t("candidate.assess.proctorGuard.violations.pasteAttempt"), "PASTE_ATTEMPT");
     const keydown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      const isCmdOrCtrl = event.ctrlKey || event.metaKey;
       const blocked =
         event.key === "F12" ||
-        (event.ctrlKey && ["c", "v", "a", "p", "u"].includes(key)) ||
-        (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
+        (isCmdOrCtrl && ["c", "v", "a", "p", "u"].includes(key)) ||
+        (isCmdOrCtrl && event.shiftKey && ["i", "j", "c"].includes(key)) ||
+        (isCmdOrCtrl && event.altKey && ["i", "j", "c"].includes(key));
       if (blocked) block(event, t("candidate.assess.proctorGuard.violations.blockedShortcut", { key: event.key }), "BLOCKED_SHORTCUT");
     };
     document.addEventListener("fullscreenchange", fullscreen);

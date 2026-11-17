@@ -72,6 +72,15 @@ public class JobTest {
     @Column(name = "auto_grading_enabled", nullable = false)
     boolean autoGradingEnabled = false;
 
+    /** When true, candidate must connect phone to Google Meet and get staff approval before starting. */
+    @Builder.Default
+    @Column(name = "strict_proctor_enabled", nullable = false)
+    boolean strictProctorEnabled = false;
+
+    /** Google Meet or conference URL for secondary device monitoring. */
+    @Column(name = "proctor_meet_url", length = 512)
+    String proctorMeetUrl;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

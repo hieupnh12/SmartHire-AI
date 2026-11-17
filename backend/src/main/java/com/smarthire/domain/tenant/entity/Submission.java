@@ -65,6 +65,27 @@ public class Submission {
     String notes;
 
     @Builder.Default
+    @Column(name = "proctor_approved", nullable = false)
+    boolean proctorApproved = false;
+
+    @Column(name = "proctor_approved_at")
+    Instant proctorApprovedAt;
+
+    @Builder.Default
+    @Column(name = "proctor_candidate_ready", nullable = false)
+    boolean proctorCandidateReady = false;
+
+    @Column(name = "proctor_meet_url", length = 512)
+    String proctorMeetUrl;
+
+    @Builder.Default
+    @Column(name = "proctor_violations_count", nullable = false)
+    int proctorViolationsCount = 0;
+
+    @Column(name = "proctor_terminated_reason")
+    String proctorTerminatedReason;
+
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     TestSubmissionStatus status = TestSubmissionStatus.NOT_STARTED;

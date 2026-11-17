@@ -67,6 +67,46 @@ public class SubmissionController {
     public ApiResponse<com.fasterxml.jackson.databind.JsonNode> custom(@PathVariable long id, @PathVariable long questionId,
             @Valid @RequestBody SubmissionService.CustomRun body) { return ApiResponse.ok(service.runCustom(id, questionId, body)); }
 
+    @PostMapping("/assessments/{testId}/prepare_submission")
+    @Operation(summary = "Prepare assessment submission (creates NOT_STARTED submission if not exists)")
+    public ApiResponse<SubmissionResponse> prepare(@PathVariable long testId, @Valid @RequestBody StartSubmissionRequest body) {
+        return ApiResponse.ok(service.prepare(testId, body));
+    }
+
+    @PostMapping("/submissions/{id}/proctor/ready")
+    @Operation(summary = "Candidate signals ready with phone camera in Google Meet (candidate only)")
+    public ApiResponse<SubmissionResponse> proctorReady(@PathVariable long id) {
+        return ApiResponse.ok(service.signalProctorCandidateReady(id));
+    }
+
+    @PostMapping("/submissions/{id}/proctor/approve")
+    @Operation(summary = "Approve secondary camera angle and readiness for the exam (staff only)")
+    public ApiResponse<SubmissionResponse> approveProctor(@PathVariable long id) {
+        return ApiResponse.ok(service.approveProctorSetup(id));
+    }
+
+    @PostMapping("/submissions/{id}/proctor/unapprove")
+    @Operation(summary = "Reset proctor approval for the exam (staff only)")
+    public ApiResponse<SubmissionResponse> unapproveProctor(@PathVariable long id) {
+        return ApiResponse.ok(service.unapproveProctorSetup(id));
+    }
+
+    @PostMapping("/submissions/{id}/proctor/terminate")
+    @Operation(summary = "Terminate active submission immediately for cheating violation (staff only)")
+    public ApiResponse<SubmissionResponse> terminateByProctor(
+            @PathVariable long id,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ApiResponse.ok(service.terminateByProctor(id, reason));
+    }
+
+    @PostMapping("/submissions/{id}/proctor/violation")
+    @Operation(summary = "Increment proctor violation counter (candidate only)")
+    public ApiResponse<Void> recordViolation(@PathVariable long id) {
+        service.recordProctorViolation(id);
+        return ApiResponse.ok(null);
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     private com.smarthire.tenant.assessment.service.AssessmentProctorService proctor;
 

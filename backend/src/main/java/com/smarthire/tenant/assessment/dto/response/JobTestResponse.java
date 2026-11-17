@@ -21,5 +21,7 @@ public record JobTestResponse(
         int codingTestWeightPercent,
         Long assignedApplicationId,
         TestOrigin origin,
-        boolean autoGradingEnabled) {
+        boolean autoGradingEnabled,
+        boolean strictProctorEnabled,
+        String proctorMeetUrl) {
 }

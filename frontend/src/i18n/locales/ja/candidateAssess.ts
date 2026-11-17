@@ -172,7 +172,7 @@ export const candidateAssessJa = {
   },
   result: {
     eyebrow: "アセスメント結果",
-    demoBadge: "デモUI",
+    demoBadge: "体験・採点対象外",
     summaryEyebrow: "サマリー",
     scoreHeading: "スコア",
     evaluationHeading: "評価",
@@ -186,7 +186,7 @@ export const candidateAssessJa = {
     totalQuestions: "合計",
     quizQuestions: "選択・記述",
     codingQuestions: "コーディング",
-    demoDisclaimer: "UIデモ試験のため、スコアは採用選考には影響しません。",
+    demoDisclaimer: "操作体験・練習用の試験のため、スコアは採用選考には影響しません。",
     aiEvaluationHeading: "AIアシスタント評価",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "第{order}問 · コーディング課題",
@@ -360,7 +360,7 @@ export const candidateAssessJa = {
     eyebrow: "技術アセスメント選考",
     title: "アセスメント",
     subtitle:
-      "応募ごとに問題バンクから個別の試験が割り当てられます。[Demo UI] テストは操作確認用で、応募結果に影響せず何度でもやり直せます。",
+      "応募ごとに問題バンクから個別の試験が割り当てられます。本番前に体験テストで操作感やカメラ/マイクの動作を確認できます。",
     metricInvitations: "招待数",
     metricReady: "未完了",
     metricCompleted: "完了済み",
@@ -371,6 +371,17 @@ export const candidateAssessJa = {
     emptyTitle: "割り当てられたアセスメントはまだありません",
     emptyDesc:
       "書類選考（CVスクリーニング）を通過すると、本番のアセスメントがここに表示されます。",
+    practiceBadge: "体験・採点対象外",
+    practiceTitle: "体験ルーム（操作確認用）",
+    practiceDesc:
+      "選択式問題やコーディングIDEの操作感、カメラやマイクの動作を事前に確認できます。何度でもやり直すことができ、選考結果には影響しません。",
+    practiceUnlimited: "回数無制限で再挑戦可能",
+    practiceSkills: "選択式 ＋ 記述式 ＋ コーディング",
+    practiceStart: "体験テストを開始",
+    officialSectionTitle: "本番アセスメント",
+    officialEmptyTitle: "本番のアセスメントはまだありません",
+    officialEmptyDesc:
+      "現在、採用担当者から割り当てられた本番試験はありません。試験が届くまでの間、上記の体験テストで操作感を確認しておくと安心です。",
     cardEyebrow: "アセスメント招待",
     durationLabel: "試験時間",
     passingScoreLabel: "合格基準",

@@ -118,7 +118,8 @@ public class AssessmentInvitationService {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
         var latest = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
-        if (!AssessmentDemoSeedService.DEMO_TITLE.equals(test.getTitle())
+        boolean isDemo = AssessmentDemoSeedService.isDemoPaper(test);
+        if (!isDemo
                 && !latest.isEmpty() && submissions.findById(latest.getFirst())
                 .map(s -> COMPLETED.contains(s.getStatus())).orElse(false)) {
             throw conflict("Candidate already completed this assessment", "ASSESSMENT_ALREADY_COMPLETED");
