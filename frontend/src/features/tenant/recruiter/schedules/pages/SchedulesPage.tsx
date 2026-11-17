@@ -15,6 +15,7 @@ import {
   Copy,
   Sparkles,
   ExternalLink,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { formatDate, formatTime, useLocale, useT } from "@/i18n";
@@ -27,6 +28,7 @@ import {
   getInterviewRoundShortLabel,
   getInterviewStatusLabel,
   roundMeta,
+  statusMeta,
   type CalendarInterview,
   type InterviewRound,
   type InterviewStatus,
@@ -183,70 +185,72 @@ export function SchedulesPage() {
 
   return (
     <section className="space-y-4 text-[var(--color-on-surface)]">
-      <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--color-border-default)] bg-white p-2.5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-1.5">
-          <Button variant="secondary" size="sm" aria-label={t("recruiter.ops.schedules.page.prevMonthAria")} onClick={() => shiftMonth(-1)} className="h-8 w-8 p-0">
+      <div className="flex flex-col gap-3 rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" aria-label={t("recruiter.ops.schedules.page.prevMonthAria")} onClick={() => shiftMonth(-1)} className="h-9 w-9 rounded-lg p-0">
             <ChevronLeft className="size-4" aria-hidden="true" />
           </Button>
-          <span className="min-w-36 text-center text-sm font-bold capitalize text-[var(--color-on-surface)]">
+          <span className="min-w-40 text-center text-base font-bold capitalize text-[var(--color-on-surface)]">
             {formatDate(month, { month: "long", year: "numeric" }, locale)}
           </span>
-          <Button variant="secondary" size="sm" aria-label={t("recruiter.ops.schedules.page.nextMonthAria")} onClick={() => shiftMonth(1)} className="h-8 w-8 p-0">
+          <Button variant="secondary" size="sm" aria-label={t("recruiter.ops.schedules.page.nextMonthAria")} onClick={() => shiftMonth(1)} className="h-9 w-9 rounded-lg p-0">
             <ChevronRight className="size-4" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={goToday} className="h-8 px-2 text-xs font-semibold text-brand-primary">
+          <Button variant="ghost" size="sm" onClick={goToday} className="h-9 px-3 text-xs font-semibold text-brand-primary hover:bg-[var(--color-primary-soft)]">
             {t("recruiter.ops.schedules.page.todayBtn")}
           </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[170px] flex-1 sm:w-48">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" />
+          <div className="relative min-w-[180px] flex-1 sm:w-52">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" />
             <input
               type="search"
               placeholder={t("recruiter.ops.schedules.page.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] py-1.5 pl-8 pr-2.5 text-xs outline-none focus:border-brand-primary focus:bg-white"
+              className="h-9 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/15"
             />
           </div>
-          <select
-            aria-label={t("recruiter.ops.schedules.page.filterJobAria")}
-            value={jobFilter}
-            onChange={(e) => setJobFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-            className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium outline-none focus:border-brand-primary"
-          >
-            {!scopedJobId && <option value="ALL">{t("recruiter.ops.schedules.page.allJobs")}</option>}
-            {availableJobs.map((j) => (
-              <option key={j.id} value={j.id}>{j.title}</option>
-            ))}
-          </select>
+          {!scopedJobId && (
+            <select
+              aria-label={t("recruiter.ops.schedules.page.filterJobAria")}
+              value={jobFilter}
+              onChange={(e) => setJobFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+              className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
+            >
+              <option value="ALL">{t("recruiter.ops.schedules.page.allJobs")}</option>
+              {availableJobs.map((j) => (
+                <option key={j.id} value={j.id}>{j.title}</option>
+              ))}
+            </select>
+          )}
           <select
             aria-label={t("recruiter.ops.schedules.page.filterRoundAria")}
             value={roundFilter}
             onChange={(e) => setRoundFilter(e.target.value as InterviewRound | "ALL")}
-            className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium outline-none focus:border-brand-primary"
+            className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
           >
             <option value="ALL">{t("recruiter.ops.schedules.page.allRounds")}</option>
-            <option value="TECHNICAL">{t("recruiter.ops.schedules.roundShort.TECHNICAL")}</option>
-            <option value="CULTURE">{t("recruiter.ops.schedules.roundShort.CULTURE")}</option>
-            <option value="EXECUTIVE">{t("recruiter.ops.schedules.roundShort.EXECUTIVE")}</option>
+            <option value="TECHNICAL">{t("recruiter.ops.schedules.roundLabels.TECHNICAL")}</option>
+            <option value="CULTURE">{t("recruiter.ops.schedules.roundLabels.CULTURE")}</option>
+            <option value="EXECUTIVE">{t("recruiter.ops.schedules.roundLabels.EXECUTIVE")}</option>
           </select>
           <select
             aria-label={t("recruiter.ops.schedules.page.filterModeAria")}
             value={modeFilter}
             onChange={(e) => setModeFilter(e.target.value as InterviewMode | "ALL")}
-            className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium outline-none focus:border-brand-primary"
+            className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
           >
             <option value="ALL">{t("recruiter.ops.schedules.page.allModes")}</option>
-            <option value="ONLINE">{t("recruiter.ops.schedules.page.modeOnlineShort")}</option>
-            <option value="OFFLINE">{t("recruiter.ops.schedules.page.modeOfflineShort")}</option>
+            <option value="ONLINE">{t("recruiter.ops.schedules.modeLabels.ONLINE")}</option>
+            <option value="OFFLINE">{t("recruiter.ops.schedules.modeLabels.OFFLINE")}</option>
           </select>
           <select
             aria-label={t("recruiter.ops.schedules.page.filterStatusAria")}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as InterviewStatus | "ALL")}
-            className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium outline-none focus:border-brand-primary"
+            className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
           >
             <option value="ALL">{t("recruiter.ops.schedules.page.allStatuses")}</option>
             <option value="CONFIRMED">{t("recruiter.ops.schedules.statusLabels.CONFIRMED")}</option>
@@ -254,47 +258,55 @@ export function SchedulesPage() {
             <option value="DONE">{t("recruiter.ops.schedules.statusLabels.DONE")}</option>
             <option value="CANCELLED">{t("recruiter.ops.schedules.statusLabels.CANCELLED")}</option>
           </select>
-          <Button size="sm" onClick={openSchedule} className="h-8 gap-1 text-xs">
-            <CalendarPlus className="size-3.5" />
+          <Button size="sm" onClick={openSchedule} className="h-9 gap-1.5 px-3.5 text-xs font-semibold">
+            <CalendarPlus className="size-4" />
             {t("recruiter.ops.schedules.page.scheduleBtn")}
           </Button>
         </div>
       </div>
 
-      <p className="px-1 text-[11px] text-[var(--color-on-surface-variant)]">
-        {t("recruiter.ops.schedules.page.syncNotePrefix")}{" "}
-        <strong className="font-semibold text-[var(--color-on-surface)]">{t("recruiter.ops.schedules.page.syncNoteHighlight")}</strong>{" "}
-        {t("recruiter.ops.schedules.page.syncNoteSuffix")}
-        {scheduleJobId ? (
-          <>
-            {" "}
-            {t("recruiter.ops.schedules.page.manageDetailPrefix")}{" "}
-            <Link to={`/recruiter/jobs/${scheduleJobId}/interviews`} className="font-semibold text-brand-primary hover:underline">
-              {t("recruiter.ops.schedules.page.manageDetailLink")}
-            </Link>
-            {t("recruiter.ops.schedules.page.manageDetailSuffix")}
-          </>
-        ) : null}
-      </p>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--color-on-surface-variant)]">
-        <span className="font-medium text-[var(--color-on-surface)]">{t("recruiter.ops.schedules.page.legendRounds")}</span>
-        {(["TECHNICAL", "CULTURE", "EXECUTIVE"] as const).map((roundKey) => (
-          <span key={roundKey} className="flex items-center gap-1">
-            <span className={cn("size-2 rounded-full", roundMeta[roundKey].dot)} aria-hidden="true" />
-            {getInterviewRoundShortLabel(roundKey, t)}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-white px-3.5 py-2.5 text-xs shadow-2xs">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <span className="font-semibold text-slate-800">
+            {t("recruiter.ops.schedules.page.legendStatus")}
           </span>
-        ))}
-        <span className="flex items-center gap-1">
-          <span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
-          {t("recruiter.ops.schedules.statusLabels.PENDING")}
-        </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
+            {t("recruiter.ops.schedules.statusLabels.CONFIRMED")}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
+            {t("recruiter.ops.schedules.statusLabels.PENDING")}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="size-2 rounded-full bg-slate-400" aria-hidden="true" />
+            {t("recruiter.ops.schedules.statusLabels.DONE")}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="size-2 rounded-full bg-rose-400" aria-hidden="true" />
+            {t("recruiter.ops.schedules.statusLabels.CANCELLED")}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-slate-600 border-t sm:border-t-0 sm:border-l border-slate-200 pt-1.5 sm:pt-0 sm:pl-4">
+          <span className="font-semibold text-slate-800">
+            {t("recruiter.ops.schedules.page.legendMode")}
+          </span>
+          <span className="inline-flex items-center gap-1 font-medium text-sky-700">
+            <Video className="size-3.5 text-sky-600" aria-hidden="true" />
+            {t("recruiter.ops.schedules.modeLabels.ONLINE")}
+          </span>
+          <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+            <MapPin className="size-3.5 text-emerald-600" aria-hidden="true" />
+            {t("recruiter.ops.schedules.modeLabels.OFFLINE")}
+          </span>
+        </div>
       </div>
 
       {loadError && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {getApiErrorMessage(loadError)}
-          <Button variant="secondary" size="sm" className="ml-3 h-7 text-xs" onClick={() => invalidate()}>
+          <Button variant="secondary" size="sm" className="ml-3 h-8 text-xs" onClick={() => invalidate()}>
             {t("recruiter.ops.common.retry")}
           </Button>
         </div>
@@ -316,14 +328,14 @@ export function SchedulesPage() {
           />
         </div>
 
-        <aside className="flex flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white">
-          <div className="flex items-center border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/50 p-1">
+        <aside className="flex flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white shadow-2xs">
+          <div className="flex items-center border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/60 p-1">
             <button
               type="button"
               onClick={() => setSidebarTab("DAY")}
               className={cn(
-                "flex-1 rounded-lg py-1.5 text-center text-xs font-semibold transition-colors",
-                sidebarTab === "DAY" ? "bg-white text-brand-primary shadow-xs" : "text-[var(--color-on-surface-variant)]",
+                "flex-1 rounded-lg py-2 text-center text-xs font-semibold transition-colors",
+                sidebarTab === "DAY" ? "bg-white text-brand-primary shadow-xs" : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
               )}
             >
               {t("recruiter.ops.schedules.page.tabDay", {
@@ -335,11 +347,11 @@ export function SchedulesPage() {
               type="button"
               onClick={() => setSidebarTab("UPCOMING")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors",
-                sidebarTab === "UPCOMING" ? "bg-white text-brand-primary shadow-xs" : "text-[var(--color-on-surface-variant)]",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
+                sidebarTab === "UPCOMING" ? "bg-white text-brand-primary shadow-xs" : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
               )}
             >
-              <Sparkles className="size-3 text-brand-primary" />
+              <Sparkles className="size-3.5 text-brand-primary" />
               {t("recruiter.ops.schedules.page.tabUpcoming", { count: upcomingInterviews.length })}
             </button>
           </div>
@@ -352,17 +364,17 @@ export function SchedulesPage() {
             )}
             {!loading && sidebarTab === "DAY" && dayInterviews.length === 0 && (
               <div className="px-4 py-12 text-center">
-                <CalendarDays className="mx-auto size-7 text-[var(--color-outline)]" aria-hidden="true" />
-                <p className="mt-2 text-xs font-semibold text-[var(--color-on-surface)]">
+                <CalendarDays className="mx-auto size-8 text-[var(--color-outline)]" aria-hidden="true" />
+                <p className="mt-2 text-sm font-semibold text-[var(--color-on-surface)]">
                   {t("recruiter.ops.schedules.page.emptyDayTitle", {
                     date: formatDate(selected, { day: "numeric", month: "numeric" }, locale),
                   })}
                 </p>
-                <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">
+                <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
                   {t("recruiter.ops.schedules.page.emptyDayHint")}
                 </p>
-                <Button variant="secondary" size="sm" onClick={openSchedule} className="mt-3 h-7 gap-1 text-xs">
-                  <CalendarPlus className="size-3" />
+                <Button variant="secondary" size="sm" onClick={openSchedule} className="mt-3.5 h-8 gap-1.5 px-3 text-xs font-semibold">
+                  <CalendarPlus className="size-3.5" />
                   {t("recruiter.ops.schedules.page.scheduleThisDayBtn")}
                 </Button>
               </div>
@@ -381,69 +393,87 @@ export function SchedulesPage() {
                     <li
                       key={item.id}
                       className={cn(
-                        "p-3.5 transition-colors hover:bg-[var(--color-surface-alt)]/50",
+                        "p-4 transition-colors hover:bg-[var(--color-surface-alt)]/50",
                         item.status === "DONE" && "bg-emerald-50/20",
                         item.status === "CANCELLED" && "bg-slate-50/50 opacity-60",
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-bold text-brand-primary">
+                          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-brand-primary">
                             {initials}
                           </span>
                           <div className="min-w-0">
-                            <h4 className="truncate text-xs font-bold">{item.candidateName}</h4>
-                            <p className="truncate text-[11px] text-[var(--color-on-surface-variant)]">{item.jobTitle}</p>
+                            <h4 className="truncate text-sm font-semibold text-slate-900">{item.candidateName}</h4>
+                            <p className="truncate text-xs text-slate-500">{item.jobTitle}</p>
                           </div>
                         </div>
                         <span
                           className={cn(
-                            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                            item.status === "CONFIRMED" && "bg-emerald-50 text-emerald-700",
-                            item.status === "PENDING" && "bg-amber-50 text-amber-700",
-                            item.status === "DONE" && "bg-slate-100 text-slate-600",
-                            item.status === "CANCELLED" && "bg-red-50 text-red-600 line-through",
+                            "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium border",
+                            item.status === "CONFIRMED" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            item.status === "PENDING" && "bg-amber-50 text-amber-700 border-amber-200",
+                            item.status === "DONE" && "bg-slate-100 text-slate-600 border-slate-200",
+                            item.status === "CANCELLED" && "bg-red-50 text-red-600 line-through border-red-200",
                           )}
                         >
                           {getInterviewStatusLabel(item.status, t)}
                         </span>
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-on-surface-variant)]">
-                        <span className="flex items-center gap-1 font-medium text-[var(--color-on-surface)]">
-                          <Clock className="size-3 text-brand-primary" />
+                      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-600">
+                        <span className="flex items-center gap-1 font-semibold text-slate-800">
+                          <Clock className="size-3.5 text-brand-primary" />
                           {startTime} – {endTime}
                         </span>
-                        <span className="flex items-center gap-1">
-                          {item.mode === "ONLINE" ? <Video className="size-3 text-sky-600" /> : <MapPin className="size-3 text-emerald-600" />}
-                          <span className="max-w-[150px] truncate">{item.locationOrLink || "—"}</span>
+                        <span className="flex items-center gap-1 font-medium">
+                          {item.mode === "ONLINE" ? (
+                            <>
+                              <Video className="size-3.5 text-sky-600" />
+                              <span className="text-sky-700">Online</span>
+                            </>
+                          ) : (
+                            <>
+                              <MapPin className="size-3.5 text-emerald-600" />
+                              <span className="text-emerald-700">Offline</span>
+                            </>
+                          )}
+                          {item.locationOrLink && (
+                            <span className="max-w-[140px] truncate text-slate-400 font-normal">({item.locationOrLink})</span>
+                          )}
                         </span>
-                        <span className={cn("rounded px-1.5 text-[10px] font-medium", meta?.chip)}>
+                        <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium border", meta?.chip)}>
                           {getInterviewRoundShortLabel(item.round, t)}
                         </span>
                       </div>
-                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      {item.interviewerName && item.interviewerName !== "—" && (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                          <Users className="size-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">Hội đồng: {item.interviewerName}</span>
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         {item.mode === "ONLINE" && !isItemExpired && (item.locationOrLink.includes("/meet/human/") || item.locationOrLink.startsWith("http")) && (
-                            <>
+                          <>
                             {item.locationOrLink.includes("/meet/human/") ? (
-                              <Link to={`/meet/human/${item.id}`} className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">
-                                <Video className="size-3" /> {t("recruiter.ops.schedules.page.joinMeetingBtn")}
+                              <Link to={`/meet/human/${item.id}`} className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white hover:bg-brand-primary-hover shadow-2xs">
+                                <Video className="size-3.5" /> {t("recruiter.ops.schedules.page.joinMeetingBtn")}
                               </Link>
                             ) : (
-                              <a href={item.locationOrLink} target="_blank" rel="noreferrer" className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">
-                                <Video className="size-3" /> {t("recruiter.ops.schedules.page.joinMeetingBtn")}
+                              <a href={item.locationOrLink} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white hover:bg-brand-primary-hover shadow-2xs">
+                                <Video className="size-3.5" /> {t("recruiter.ops.schedules.page.joinMeetingBtn")}
                               </a>
                             )}
-                            <button type="button" onClick={() => handleCopyLink(item.locationOrLink.includes("/meet/human/") ? `${window.location.origin}/meet/human/${item.id}` : item.locationOrLink)} className="inline-flex h-6 items-center gap-0.5 rounded border border-[var(--color-border-default)] px-1.5 text-[11px] hover:bg-[var(--color-surface-alt)]">
-                              <Copy className="size-2.5" /> {t("recruiter.ops.common.copyLink")}
+                            <button type="button" onClick={() => handleCopyLink(item.locationOrLink.includes("/meet/human/") ? `${window.location.origin}/meet/human/${item.id}` : item.locationOrLink)} className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-2 text-xs font-medium text-slate-700 hover:bg-[var(--color-surface-alt)]">
+                              <Copy className="size-3" /> {t("recruiter.ops.common.copyLink")}
                             </button>
-                            </>
-                          )}
+                          </>
+                        )}
                         {item.jobId && (
                           <Link
                             to={`/recruiter/jobs/${item.jobId}/interviews`}
-                            className="inline-flex h-6 items-center gap-0.5 rounded border border-[var(--color-border-default)] px-1.5 text-[11px] hover:bg-[var(--color-surface-alt)]"
+                            className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-2 text-xs font-medium text-slate-700 hover:bg-[var(--color-surface-alt)]"
                           >
-                            <ExternalLink className="size-2.5" /> {t("recruiter.ops.common.details")}
+                            <ExternalLink className="size-3" /> {t("recruiter.ops.common.details")}
                           </Link>
                         )}
                         {item.status !== "DONE" && item.status !== "CANCELLED" && (
@@ -451,9 +481,9 @@ export function SchedulesPage() {
                             type="button"
                             disabled={busy}
                             onClick={() => complete.mutate(item.id)}
-                            className="inline-flex h-6 items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                            className="inline-flex h-7 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                           >
-                            <CheckCircle2 className="size-2.5" /> {t("recruiter.ops.schedules.page.markDoneBtn")}
+                            <CheckCircle2 className="size-3" /> {t("recruiter.ops.schedules.page.markDoneBtn")}
                           </button>
                         )}
                         {item.status !== "CANCELLED" && (
@@ -461,9 +491,9 @@ export function SchedulesPage() {
                             type="button"
                             disabled={busy}
                             onClick={() => cancel.mutate(item.id)}
-                            className="inline-flex h-6 items-center gap-0.5 rounded px-1.5 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            <XCircle className="size-2.5" /> {t("recruiter.ops.common.cancel")}
+                            <XCircle className="size-3" /> {t("recruiter.ops.common.cancel")}
                           </button>
                         )}
                       </div>
@@ -490,20 +520,24 @@ export function SchedulesPage() {
                         setMonth(new Date(new Date(item.startsAt).getFullYear(), new Date(item.startsAt).getMonth(), 1));
                         setSidebarTab("DAY");
                       }}
-                      className="flex cursor-pointer items-center justify-between gap-2 p-3 transition-colors hover:bg-[var(--color-surface-alt)]/50"
+                      className="flex cursor-pointer items-center justify-between gap-3 p-3.5 transition-colors hover:bg-[var(--color-surface-alt)]/50"
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-xs font-semibold">{item.candidateName}</span>
-                          <span className={cn("rounded px-1 text-[10px] font-medium", roundMeta[item.round]?.chip)}>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("size-2 shrink-0 rounded-full", statusMeta[item.status]?.dot)} aria-hidden="true" />
+                          <span className="truncate text-sm font-semibold text-slate-900">{item.candidateName}</span>
+                          <span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium border", roundMeta[item.round]?.chip)}>
                             {getInterviewRoundShortLabel(item.round, t)}
                           </span>
                         </div>
-                        <p className="truncate text-[11px] text-[var(--color-on-surface-variant)]">{item.jobTitle}</p>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                          {item.mode === "ONLINE" ? <Video className="size-3 text-sky-600" /> : <MapPin className="size-3 text-emerald-600" />}
+                          <span className="truncate">{item.jobTitle}</span>
+                        </div>
                       </div>
-                      <div className="shrink-0 text-right text-[11px]">
-                        <span className="block font-semibold text-brand-primary">{timeStr}</span>
-                        <span className="text-[10px] text-[var(--color-outline)]">{dateStr}</span>
+                      <div className="shrink-0 text-right">
+                        <span className="block text-xs font-bold text-brand-primary">{timeStr}</span>
+                        <span className="text-xs text-slate-500">{dateStr}</span>
                       </div>
                     </li>
                   );

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Building2, ArrowRight, Menu, X, PackageSearch } from "lucide-react";
+import { Building2, ArrowRight, Menu, X, PackageSearch, QrCode } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
+import { AppDownloadHeaderButton, AppDownloadModal } from "./AppDownloadQrModal";
 
 export function LandingHeader() {
   const t = useT();
   const { openWorkspaceModal, openOrderLookupModal } = useLandingModal();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [appModalOpen, setAppModalOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isScrolled, setIsScrolled] = useState(false);
   const lastScrollYRef = useRef(0);
@@ -179,6 +181,9 @@ export function LandingHeader() {
             </button>
           )}
 
+          {/* Mobile App Download Button with Popover QR (same behavior as tenant se36) */}
+          <AppDownloadHeaderButton className="hidden sm:inline-block" />
+
           <button
             type="button"
             onClick={openWorkspaceModal}
@@ -250,6 +255,18 @@ export function LandingHeader() {
             )}
 
             <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setAppModalOpen(true);
+              }}
+              className="w-full py-2.5 px-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100"
+            >
+              <QrCode className="w-4 h-4 text-emerald-600" />
+              <span>Quét QR / Tải App (Android & iOS)</span>
+            </button>
+
+            <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 openWorkspaceModal();
@@ -262,6 +279,9 @@ export function LandingHeader() {
           </div>
         </div>
       )}
+
+      {/* App Download QR Modal */}
+      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </header>
   );
 }

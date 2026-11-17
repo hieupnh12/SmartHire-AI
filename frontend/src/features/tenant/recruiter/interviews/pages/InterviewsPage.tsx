@@ -13,8 +13,6 @@ import { SkeletonCard } from "@/components/ux/Skeleton";
 import { keepPreviousForScope } from "@/components/ux/TableRefresh";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { HumanInterviewWorkspace, type InterviewAction } from "../components/HumanInterviewWorkspace";
-import { HumanInterviewScheduleDialog } from "../components/HumanInterviewScheduleDialog";
-import { HumanInterviewScorecardPanel } from "../components/HumanInterviewScorecardPanel";
 import { downloadInterview } from "../components/humanInterviewUi";
 import "../styles/human-interview-reference.css";
 
@@ -41,7 +39,6 @@ export function InterviewsPage() {
     return d;
   });
   const [selected, setSelected] = useState<number[]>([]);
-  const [editor, setEditor] = useState<HumanInterview | "new" | null>(null);
   const [detail, setDetail] = useState<{
     action: "scorecard" | "preview" | "cancel" | "shift" | "profile";
     row?: HumanInterview;
@@ -66,7 +63,6 @@ export function InterviewsPage() {
     refetchInterval: 15_000,
   });
   const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(numericJobId), refetchInterval: 15_000 });
-  const options = useQuery({ queryKey: ["human-interviews", "options", job.id], queryFn: () => api.options(numericJobId) });
   const end = new Date(week);
   end.setDate(end.getDate() + 7);
   const calendar = useQuery({
@@ -92,7 +88,6 @@ export function InterviewsPage() {
     void client.invalidateQueries({ queryKey: ["human-interviews"] });
     setSelected([]);
   }, [client]);
-  const closeEditor = useCallback(() => setEditor(null), []);
 
   const mutation = useMutation({
     mutationFn: (operation: () => Promise<unknown>) => operation(),
@@ -115,7 +110,8 @@ export function InterviewsPage() {
 
   const profile = (applicationId: number) => setDetail({ action: "profile", applicationId });
   const action = (next: InterviewAction, row: HumanInterview) => {
-    if (next === "edit") setEditor(row);
+    if (next === "edit") navigate(`/recruiter/jobs/${job.id}/interviews/${row.id}/edit`);
+    else if (next === "scorecard") navigate(`/recruiter/jobs/${job.id}/interviews/${row.id}/evaluation`);
     else if (next === "profile") profile(row.applicationId);
     else if (next === "remind" || next === "complete") run(() => api[next](row.id));
     else setDetail({ action: next, row });
@@ -156,9 +152,9 @@ export function InterviewsPage() {
 
   return (
     <>
-      {[list, summary, options, calendar].some((q) => q.isError) && (
+      {[list, summary, calendar].some((q) => q.isError) && (
         <p role="alert" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {getApiErrorMessage(list.error ?? summary.error ?? options.error ?? calendar.error)}{" "}
+          {getApiErrorMessage(list.error ?? summary.error ?? calendar.error)}{" "}
           <button type="button" className="font-semibold underline" onClick={refresh}>
             {t("recruiter.interviews.human.page.retry")}
           </button>
@@ -198,8 +194,7 @@ export function InterviewsPage() {
           setFilters((f) => ({ ...f, size, page: 0 }));
           setSelected([]);
         }}
-        onNew={() => setEditor("new")}
-        onAi={() => navigate(`/recruiter/jobs/${job.id}/ai-interviews`)}
+        onNew={() => navigate(`/recruiter/jobs/${job.id}/interviews/new`)}
         onExport={(format) => void exportFile(format)}
         onBulk={(kind) => (kind === "RESCHEDULE" ? setDetail({ action: "shift" }) : run(() => api.bulk(selected, "REMIND")))}
         onRemindPending={() =>
@@ -210,28 +205,6 @@ export function InterviewsPage() {
         }
         onAction={action}
       />
-      {editor && options.data && (
-        <HumanInterviewScheduleDialog
-          key={editor === "new" ? "new" : editor.id}
-          jobId={Number(job.id)}
-          options={options.data}
-          existing={editor === "new" ? undefined : editor}
-          variant={editor === "new" ? "modal" : "drawer"}
-          onClose={closeEditor}
-          onSaved={(draft) => {
-            closeEditor();
-            refresh();
-            toast.success(
-              draft
-                ? t("recruiter.interviews.human.page.savedDraftToast")
-                : t("recruiter.interviews.human.page.savedSentToast"),
-            );
-          }}
-          onProfile={profile}
-          onAiReport={() => navigate(`/recruiter/jobs/${job.id}/cvs`)}
-        />
-      )}
-      {editor && !options.data && <SkeletonCard className="h-44" />}
       <DetailDialog
         open={!!detail}
         title={
@@ -333,13 +306,6 @@ export function InterviewsPage() {
               {t("recruiter.interviews.human.page.applyShiftBtn", { count: selected.length })}
             </button>
           </>
-        )}
-        {detail?.action === "scorecard" && detail.row && (
-          <HumanInterviewScorecardPanel
-            interview={detail.row}
-            pending={mutation.isPending}
-            onSubmit={(values) => run(() => api.evaluate(detail.row!.id, values))}
-          />
         )}
       </DetailDialog>
     </>

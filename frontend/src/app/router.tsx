@@ -12,6 +12,7 @@ import { PricingPage } from "@/features/master/landing/pages/PricingPage";
 import { DemoRequestPage } from "@/features/master/landing/pages/DemoRequestPage";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { FeatureRoute } from "@/app/guards/FeatureRoute";
+import { RecruiterJobScopedFallbackRoute } from "@/features/tenant/recruiter/components/RecruiterJobScopedFallbackRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
@@ -219,38 +220,42 @@ export function AppRouter() {
           <Route element={<FeatureRoute feature="JOBS" />}>
             <Route path="jobs" element={<Navigate to="/recruiter" replace />} />
             <Route path="jobs/new" element={<JobFormPage />} />
+            <Route path="jobs/create" element={<Navigate to="/recruiter/jobs/new" replace />} />
             <Route path="jobs/:id" element={<JobDetailPage />} />
             <Route path="jobs/:id/edit" element={<JobFormPage />} />
           </Route>
           <Route element={<FeatureRoute feature="APPLICANTS" />}>
             <Route path="jobs/:id/applicants" element={<ApplicantsPage />} />
             <Route path="jobs/:id/applicants/:applicationId" element={<ApplicantDetailPage />} />
-            <Route path="applicants" element={<Navigate to="/recruiter" replace />} />
+            <Route path="applicants" element={<RecruiterJobScopedFallbackRoute subpath="applicants" />} />
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
             <Route path="jobs/:id/cvs" element={<CvScreeningPage />} />
             <Route path="jobs/:id/cvs/:cvId" element={<CvDetailPage />} />
-            <Route path="cvs" element={<Navigate to="/recruiter" replace />} />
+            <Route path="cvs" element={<RecruiterJobScopedFallbackRoute subpath="cvs" />} />
+            <Route path="cv-screening" element={<RecruiterJobScopedFallbackRoute subpath="cvs" />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
             <Route path="jobs/:id/rank" element={<RankingPage />} />
             <Route path="jobs/:id/rank/:applicationId" element={<RankingCandidateDetailPage />} />
-            <Route path="rank" element={<Navigate to="/recruiter" replace />} />
-            <Route path="matching" element={<Navigate to="/recruiter" replace />} />
+            <Route path="rank" element={<RecruiterJobScopedFallbackRoute subpath="rank" />} />
+            <Route path="ranking" element={<RecruiterJobScopedFallbackRoute subpath="rank" />} />
+            <Route path="matching" element={<RecruiterJobScopedFallbackRoute subpath="rank" />} />
           </Route>
           <Route element={<FeatureRoute feature="PIPELINE" />}>
             <Route path="jobs/:id/pipeline" element={<PipelinePage />} />
-            <Route path="pipeline" element={<Navigate to="/recruiter" replace />} />
+            <Route path="pipeline" element={<RecruiterJobScopedFallbackRoute subpath="pipeline" />} />
           </Route>
           <Route element={<FeatureRoute feature="ANALYTICS" />}>
             <Route path="jobs/:id/analytics" element={<RecruiterAnalyticsPage />} />
-            <Route path="analytics" element={<Navigate to="/recruiter" replace />} />
+            <Route path="analytics" element={<RecruiterJobScopedFallbackRoute subpath="analytics" />} />
           </Route>
           {/* The general bank is a local UI preview; job assessments retain their feature guard. */}
           <Route path="question-bank" element={<GeneralQuestionBankPage />} />
           <Route path="question-bank/new" element={<GeneralQuestionEditorPage />} />
           <Route path="question-bank/:questionId/edit" element={<GeneralQuestionEditorPage />} />
           <Route path="question-bank/ai-generator" element={<AiQuestionGeneratorPage />} />
+          <Route path="questions" element={<Navigate to="/recruiter/question-bank" replace />} />
           <Route path="assessments/question-bank" element={<Navigate to="/recruiter/question-bank" replace />} />
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
@@ -258,8 +263,8 @@ export function AppRouter() {
             <Route path="jobs/:id/assessments/submissions" element={<JobRecruitmentWorkspace><AssessmentSubmissionsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/submissions/:submissionId" element={<JobRecruitmentWorkspace><AssessmentSubmissionDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
-            <Route path="assessments" element={<Navigate to="/recruiter" replace />} />
-            <Route path="assessments/new" element={<Navigate to="/recruiter" replace />} />
+            <Route path="assessments" element={<RecruiterJobScopedFallbackRoute subpath="assessments" />} />
+            <Route path="assessments/new" element={<RecruiterJobScopedFallbackRoute subpath="assessments/new" />} />
             <Route path="jobs/:id/assessments/question-bank" element={<JobRecruitmentWorkspace><QuestionBankPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/ai-generator" element={<JobRecruitmentWorkspace><AiQuestionGeneratorPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/excel-template" element={<JobRecruitmentWorkspace><ExcelQuestionTemplatePage /></JobRecruitmentWorkspace>} />
@@ -270,11 +275,11 @@ export function AppRouter() {
           <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>
             <Route path="jobs/:id/ai-interviews" element={<JobRecruitmentWorkspace><RecruiterAiInterviewsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/ai-interviews/:interviewId" element={<JobRecruitmentWorkspace><RecruiterAiInterviewDetailPage /></JobRecruitmentWorkspace>} />
-            <Route path="ai-interviews" element={<Navigate to="/recruiter" replace />} />
+            <Route path="ai-interviews" element={<RecruiterJobScopedFallbackRoute subpath="ai-interviews" />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
             <Route path="jobs/:id/interviews" element={<JobRecruitmentWorkspace><RecruiterInterviewsPage /></JobRecruitmentWorkspace>} />
-            <Route path="interviews" element={<Navigate to="/recruiter" replace />} />
+            <Route path="interviews" element={<RecruiterJobScopedFallbackRoute subpath="interviews" />} />
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>
             <Route path="jobs/:id/schedules" element={<RecruiterSchedulesPage />} />
@@ -318,7 +323,8 @@ export function AppRouter() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tenants/create" element={<B2bDealWizardPage />} />
           <Route path="deals" element={<B2bDealWizardPage />} />
-          <Route path="analytics" element={<MasterAnalyticsPage />} />
+          <Route path="analytics" element={<Navigate to="/admin/analytics/overview" replace />} />
+          <Route path="analytics/:tab" element={<MasterAnalyticsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />
           <Route path="tenants/:section" element={<TenantManagementPage />} />
@@ -329,13 +335,14 @@ export function AppRouter() {
           <Route path="subscriptions/create" element={<CreateSubscriptionPlanPage />} />
           <Route path="subscriptions/:section" element={<BillingPage />} />
           <Route path="system/logs" element={<AuditLogsPage />} />
-          <Route path="system/ai-usage" element={<AiManagementPage />} />
+          <Route path="system/ai-usage" element={<Navigate to="/admin/analytics/ai" replace />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
           <Route path="system/ai-config" element={<AiManagementPage />} />
-          <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
-          <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
-          <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
-          <Route path="account/notifications" element={<MasterAccountPage activeTab="account-notifications" />} />
+          <Route path="account" element={<MasterAccountPage />} />
+          <Route path="account/profile" element={<Navigate to="/admin/account?tab=profile" replace />} />
+          <Route path="account/security" element={<Navigate to="/admin/account?tab=security" replace />} />
+          <Route path="account/accessibility" element={<Navigate to="/admin/account?tab=accessibility" replace />} />
+          <Route path="account/notifications" element={<Navigate to="/admin/account?tab=notifications" replace />} />
         </Route>
       </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />

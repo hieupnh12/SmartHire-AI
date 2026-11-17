@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { LogOut, KeyRound } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { LogOut, KeyRound, CircleUserRound, ShieldCheck, Eye, Bell, LucideIcon } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
 import { ChangePasswordModal } from "@/features/master/account/components/ChangePasswordModal";
 import { useT } from "@/i18n";
+import { cn } from "@/lib/utils";
+
+export type AccountTab = "profile" | "security" | "accessibility" | "notifications";
 
 interface AccountPageProps {
-  activeTab: string;
+  activeTab?: string;
 }
 
-export function AccountPage({ activeTab }: AccountPageProps) {
+export function AccountPage({ activeTab: propTab }: AccountPageProps = {}) {
   const t = useT();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const askConfirm = useUiStore((state) => state.askConfirm);
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("master_reduced_motion") === "true");
   const [emailNotifications, setEmailNotifications] = useState(() => localStorage.getItem("master_email_notifications") === "true");
@@ -24,6 +28,21 @@ export function AccountPage({ activeTab }: AccountPageProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const resolveTab = (tab?: string | null): AccountTab => {
+    if (!tab) return "profile";
+    const cleaned = tab.replace("account-", "");
+    if (cleaned === "security") return "security";
+    if (cleaned === "accessibility") return "accessibility";
+    if (cleaned === "notifications") return "notifications";
+    return "profile";
+  };
+
+  const currentTab = resolveTab(searchParams.get("tab") || propTab);
+
+  const handleTabChange = (tab: AccountTab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
 
   useEffect(() => {
     localStorage.setItem("master_reduced_motion", String(reducedMotion));
@@ -77,14 +96,45 @@ export function AccountPage({ activeTab }: AccountPageProps) {
     }
   };
 
+  const tabs: { id: AccountTab; label: string; icon: LucideIcon }[] = [
+    { id: "profile", label: t("master.ops.account.profile.title"), icon: CircleUserRound },
+    { id: "security", label: t("master.ops.account.security.title"), icon: ShieldCheck },
+    { id: "accessibility", label: t("master.ops.account.accessibility.title"), icon: Eye },
+    { id: "notifications", label: t("master.ops.account.notifications.title"), icon: Bell },
+  ];
+
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in">
-      {activeTab === "account-profile" && (
+    <div className="mx-auto max-w-5xl space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">{t("master.ops.account.pageTitle")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("master.ops.account.pageSubtitle")}</p>
+      </div>
+
+      <nav className="flex flex-wrap items-center gap-1 border-b border-slate-200 pb-px" aria-label={t("master.ops.account.pageTitle")}>
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => handleTabChange(id)}
+            aria-current={currentTab === id ? "page" : undefined}
+            className={cn(
+              "flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors",
+              currentTab === id
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            )}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {currentTab === "profile" && (
         <section aria-labelledby="account-profile-title">
-          <h2 id="account-profile-title" className="mb-5 text-2xl font-bold text-slate-950">{t("master.ops.account.profile.title")}</h2>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
             <div className="flex items-center gap-5 border-b border-slate-200 p-6">
-              <span className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-2xl font-bold text-white">W</span>
+              <span className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-2xl font-bold text-white shadow-xs">W</span>
               <div>
                 <p className="text-lg font-semibold text-slate-950">{t("master.ops.account.roleBadge")}</p>
                 <p className="mt-1 text-sm text-slate-500">{t("master.ops.account.profile.platformAdminDesc")}</p>
@@ -96,7 +146,7 @@ export function AccountPage({ activeTab }: AccountPageProps) {
               [t("master.ops.account.profile.fieldStatus"), t("master.ops.account.profile.fieldStatusValue")]
             ].map(([label, value]) => (
               <div key={label} className="grid gap-1 border-b border-slate-200 px-6 py-5 last:border-b-0 sm:grid-cols-[12rem_1fr]">
-                <span className="text-sm font-semibold">{label}</span>
+                <span className="text-sm font-semibold text-slate-800">{label}</span>
                 <span className="text-sm text-slate-600">{value}</span>
               </div>
             ))}
@@ -104,10 +154,9 @@ export function AccountPage({ activeTab }: AccountPageProps) {
         </section>
       )}
 
-      {activeTab === "account-security" && (
+      {currentTab === "security" && (
         <section aria-labelledby="account-security-title">
-          <h2 id="account-security-title" className="mb-5 text-2xl font-bold text-slate-950">{t("master.ops.account.security.title")}</h2>
-          <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
             <div className="rounded-2xl bg-emerald-50 p-5">
               <p className="font-semibold text-emerald-900">{t("master.ops.account.security.sessionActiveTitle")}</p>
               <p className="mt-1 text-sm text-emerald-700">{t("master.ops.account.security.sessionActiveDesc")}</p>
@@ -119,9 +168,9 @@ export function AccountPage({ activeTab }: AccountPageProps) {
                   setPasswordError(null);
                   setShowPasswordModal(true);
                 }}
-                className="flex min-h-12 items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100/70"
+                className="flex min-h-11 items-center gap-2.5 rounded-xl border border-blue-200 bg-blue-50/60 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100/70"
               >
-                <KeyRound className="size-5" />
+                <KeyRound className="size-4" />
                 {t("master.ops.account.security.changePasswordBtn")}
               </button>
               <button
@@ -134,9 +183,9 @@ export function AccountPage({ activeTab }: AccountPageProps) {
                     onConfirm: handleLogout,
                   })
                 }
-                className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
+                className="flex min-h-11 items-center gap-2.5 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
               >
-                <LogOut className="size-5" />
+                <LogOut className="size-4" />
                 {t("master.ops.account.security.logoutBtn")}
               </button>
             </div>
@@ -144,13 +193,12 @@ export function AccountPage({ activeTab }: AccountPageProps) {
         </section>
       )}
 
-      {activeTab === "account-accessibility" && (
+      {currentTab === "accessibility" && (
         <section aria-labelledby="account-accessibility-title">
-          <h2 id="account-accessibility-title" className="mb-5 text-2xl font-bold text-slate-950">{t("master.ops.account.accessibility.title")}</h2>
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 hover:bg-slate-50">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 transition-colors hover:bg-slate-50">
               <span>
-                <span className="block font-semibold">{t("master.ops.account.accessibility.reducedMotionTitle")}</span>
+                <span className="block font-semibold text-slate-900">{t("master.ops.account.accessibility.reducedMotionTitle")}</span>
                 <span className="mt-1 block text-sm text-slate-500">{t("master.ops.account.accessibility.reducedMotionDesc")}</span>
               </span>
               <input
@@ -164,13 +212,12 @@ export function AccountPage({ activeTab }: AccountPageProps) {
         </section>
       )}
 
-      {activeTab === "account-notifications" && (
+      {currentTab === "notifications" && (
         <section aria-labelledby="account-notifications-title">
-          <h2 id="account-notifications-title" className="mb-5 text-2xl font-bold text-slate-950">{t("master.ops.account.notifications.title")}</h2>
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 hover:bg-slate-50">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 transition-colors hover:bg-slate-50">
               <span>
-                <span className="block font-semibold">{t("master.ops.account.notifications.emailNotifTitle")}</span>
+                <span className="block font-semibold text-slate-900">{t("master.ops.account.notifications.emailNotifTitle")}</span>
                 <span className="mt-1 block text-sm text-slate-500">{t("master.ops.account.notifications.emailNotifDesc")}</span>
               </span>
               <input

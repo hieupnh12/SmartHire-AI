@@ -1,9 +1,10 @@
 import { t } from "@/i18n";
 
-const DEMO_MARKER = "[Demo UI]";
+const DEMO_MARKERS = ["[Demo UI]", "[Thi thử]"];
 
 export function isDemoAssessmentTitle(title?: string | null): boolean {
-  return (title ?? "").includes(DEMO_MARKER);
+  if (!title) return false;
+  return DEMO_MARKERS.some((marker) => title.includes(marker));
 }
 
 /**

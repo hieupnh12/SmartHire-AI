@@ -1,6 +1,6 @@
-﻿import { api } from "@/lib/axios";
+import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { Availability, Evaluation, HumanInterview, InterviewFilters, InterviewOptions, InterviewPage, InterviewSummary, SaveInterview } from "../types/humanInterview";
+import type { Availability, Evaluation, HumanInterview, InterviewFilters, InterviewOptions, InterviewPage, InterviewSummary, SaveInterview, VideoChapter } from "../types/humanInterview";
 export const humanInterviewApi = {
   list: (params: InterviewFilters) => api.get<ApiResponse<InterviewPage>>("/interviews", { params }).then(r => r.data.data),
   summary: (jobId: number) => api.get<ApiResponse<InterviewSummary>>("/interviews/summary", { params: { jobId, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }).then(r => r.data.data),
@@ -20,4 +20,20 @@ export const humanInterviewApi = {
   mine: () => api.get<ApiResponse<HumanInterview[]>>("/interviews/mine").then(r => r.data.data),
   confirm: (id: number) => api.post(`/interviews/${id}/confirm`),
   requestChange: (id: number, body: { start: string; end: string; reason: string }) => api.post(`/interviews/${id}/reschedule-request`, body),
+  uploadRecording: (id: number, file: File | Blob, source: string = "UPLOAD") => {
+    const formData = new FormData();
+    formData.append("file", file, file instanceof File ? file.name : `recording_${id}.webm`);
+    formData.append("source", source);
+    return api.post<ApiResponse<HumanInterview>>(`/interviews/${id}/recording`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then(r => r.data.data);
+  },
+  attachRecordingLink: (id: number, body: { recordingUrl: string; recordingType?: string; source?: string }) =>
+    api.post<ApiResponse<HumanInterview>>(`/interviews/${id}/recording-link`, body).then(r => r.data.data),
+  removeRecording: (id: number) =>
+    api.delete<ApiResponse<HumanInterview>>(`/interviews/${id}/recording`).then(r => r.data.data),
+  updateChapters: (id: number, chapters: VideoChapter[]) =>
+    api.post<ApiResponse<HumanInterview>>(`/interviews/${id}/chapters`, chapters).then(r => r.data.data),
+  extractAiChapters: (id: number) =>
+    api.post<ApiResponse<HumanInterview>>(`/interviews/${id}/chapters/ai-extract`).then(r => r.data.data),
 };

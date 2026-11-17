@@ -10,6 +10,9 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Giám sát trực tiếp & Chống gian lận Bài đánh giá 2026-11-16 | Tenant V63 (`V63__assessment_strict_proctoring.sql`): Thêm `strict_proctor_enabled`, `proctor_meet_url` trên `tests` (entity `JobTest`) và `proctor_approved`, `proctor_approved_at`, `proctor_candidate_ready`, `proctor_meet_url`, `proctor_violations_count`, `proctor_terminated_reason` trên `submissions` (entity `Submission`) phục vụ mô hình giám sát Hybrid (AI Auto-Proctor & Strict Live Proctor qua Meet có HR duyệt) |
+| Chuẩn hoá tên gói cước (bỏ hậu tố tiếng Anh) 2026-11-14 | Master V40 (`V40__clean_subscription_plan_names.sql`) chuẩn hóa tên các gói cước mặc định trên `subscription_plans` và snapshot `tenant_subscriptions` (loại bỏ `(Starter)`, `(Professional)`, `(Enterprise Scale)`), giao diện đa ngôn ngữ (EN, VI, JA) xử lý động qua tầng i18n |
+| AI Interview RAG & Vector Evaluation 2026-11-12 | Master V41 (`V41__enable_pgvector_and_vector_store.sql`): kích hoạt extension `vector` và bảng `vector_store`. Tenant V62 (`V62__ai_interview_rag_evaluation.sql`) tạo bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`, 2 FK tới `ai_interviews` và `ai_questions`, 1 index `idx_rag_audit_interview`) lưu vết đánh giá ngữ nghĩa và độ tương đồng Cosine vector RAG |
 | Nhật ký hệ thống Tenant thay thế audit log 2026-11-13 | Master V39 (`V39__tenant_system_logs.sql`) xóa `platform_audit_logs`, tạo `tenant_system_logs` (entity `TenantSystemLog`, 4 index) phục vụ System/Application Logs theo ngữ cảnh Tenant (`tenant_code`, `trace_id` SLF4J MDC, `category`, `endpoint`, `status_code`, `stack_trace`) |
 | Đa ngôn ngữ nội dung đánh giá AI 2026-11-13 | Tenant V61 (`V61__ai_localized_contents.sql`) tạo `ai_localized_contents` (entity `AiLocalizedContent`, UNIQUE `uk_ai_loc_content`, 1 index tra cứu `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + Tenant DB) cho nhận xét AI đa ngôn ngữ |
 | Lưu cấu hình báo giá trên Lead 2026-11-12 | Master V38 (`V38__consultation_proposed_tenant_slug.sql`) thêm `proposed_code` (`VARCHAR(64)`), `proposed_subdomain` (`VARCHAR(128)`), `quoted_plan_id` (`BIGINT`) nullable vào `consultation_requests` (entity `ConsultationRequest`) để giữ lại mã doanh nghiệp, subdomain và gói báo giá đã chỉnh sửa khi quay lại deal wizard. Không thêm bảng/entity/FK/UNIQUE/index |
@@ -51,13 +54,13 @@
 | Phân tích GitHub khi sàng CV 2026-10-21 | Tenant V54 tạo `github_analyses` (entity `GithubAnalysis`, 2 FK CASCADE, UNIQUE `(cv_id, job_id)`) và `github_repo_caches` (entity `GithubRepoCache`, không FK, UNIQUE repo+commit+fingerprint+strategy). Không lưu source code. Điểm GitHub tách khỏi `match_scores` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V61 | 74 bảng (73 sau V60 + `ai_localized_contents`); không tính Flyway history |
-| Entity JPA tenant | 69 class `@Entity` theo checkout hiện tại; V61 bổ sung `AiLocalizedContent` |
-| Khoá ngoại tenant | 96 (93 trước V60 + `fk_saved_jobs_candidate`, `fk_saved_jobs_job`, `fk_job_alerts_candidate` đều `ON DELETE CASCADE`) |
+| Bảng tenant sau V62 | 75 bảng (74 sau V61 + `ai_interview_rag_audits`); không tính Flyway history |
+| Entity JPA tenant | 70 class `@Entity` theo checkout hiện tại; V62 bổ sung `AiInterviewRagAudit` |
+| Khoá ngoại tenant | 98 (96 trước V62 + `fk_rag_audit_interview`, `fk_rag_audit_question` đều `ON DELETE CASCADE`) |
 | Ràng buộc UNIQUE tenant | V61 thêm `uk_ai_loc_content`. V60 thêm `uk_saved_jobs_candidate_job`. V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 91 (37 master + 54 tenant); V9 redesign nằm ngoài pipeline |
+| Số file migration trong repo | 97 (40 master + 57 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V61` (`ai_localized_contents`), Master `V38` (`consultation_requests`), Tenant `V60` (`saved_jobs`, `job_alerts`, `idx_rec_subject_target`), Master `V37` (`contracts`, `master_consent_logs`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
+| Cập nhật lần cuối | Tenant `V62` (`ai_interview_rag_audits`), Master `V40` (`vector_store`), Tenant `V61` (`ai_localized_contents`), Master `V39` (`tenant_system_logs`), Master `V38` (`consultation_requests`), Tenant `V60` (`saved_jobs`, `job_alerts`), Master `V37` (`contracts`, `master_consent_logs`), `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -276,6 +279,8 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 66 | `CompanyLocationDepartment` | `company_location_departments` | Job & Skill | Có |
 | 67 | `SavedJob` | `saved_jobs` | Job & Skill | Có |
 | 68 | `JobAlert` | `job_alerts` | Job & Skill | Có |
+| 69 | `AiLocalizedContent` | `ai_localized_contents` | Progressive AI Localization | Có |
+| 70 | `AiInterviewRagAudit` | `ai_interview_rag_audits` | AI Interview RAG & Vector | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -1411,6 +1416,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V37 | `V37__unify_da_nang_legal_entity_and_tpbank.sql` | Cập nhật `DEFAULT` 7 cột pháp nhân Bên A trên `contracts` theo cụm Đà Nẵng (`0110888999`, FPT Đà Nẵng, `0988.888.888`, `support@smarthire.top`) và tài khoản TPBank (`07744348801`, Chi nhánh Đà Nẵng) |
 | V38 | `V38__consultation_proposed_tenant_slug.sql` | Thêm `proposed_code`, `proposed_subdomain`, `quoted_plan_id` (nullable) vào `consultation_requests` để lưu mã doanh nghiệp/subdomain đã chỉnh sửa khi báo giá và quay lại wizard |
 | V39 | `V39__tenant_system_logs.sql` | Xóa `platform_audit_logs`, tạo bảng `tenant_system_logs` (entity `TenantSystemLog`, 4 index) lưu nhật ký hệ thống & lỗi ứng dụng (System/Application Logs) gắn ngữ cảnh `tenant_code`, `trace_id` (MDC) |
+| V40 | `V40__clean_subscription_plan_names.sql` | Chuẩn hoá tên gói cước mặc định trên `subscription_plans` và `tenant_subscriptions` (loại bỏ hậu tố tiếng Anh `(Starter)`, `(Professional)`, `(Enterprise Scale)`), đồng bộ hóa với hệ thống i18n đa ngôn ngữ (EN, VI, JA) |
+| V41 | `V41__enable_pgvector_and_vector_store.sql` | Kích hoạt extension `vector` (nếu có) và tạo bảng `vector_store` cho AI Interview RAG |
 
 ### 10.3 Lịch sử migration — Tenant
 
@@ -1474,6 +1481,8 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V59 | `V59__test_auto_grading.sql` | Thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (`JobTest.autoGradingEnabled`). Không thêm bảng/FK/UNIQUE |
 | V60 | `V60__saved_jobs_and_job_alerts.sql` | Tạo `saved_jobs` (`SavedJob`, 2 FK CASCADE, UNIQUE `(candidate_id, job_id)`, 2 index), `job_alerts` (`JobAlert`, 1 FK CASCADE, 2 index), và index `idx_rec_subject_target` trên `recommendations` |
 | V61 | `V61__ai_localized_contents.sql` | Tạo `ai_localized_contents` (`AiLocalizedContent`, UNIQUE `(entity_type, entity_id, content_hash, locale)`, index `idx_ai_loc_lookup`) phục vụ Progressive Auto-Localization và cache 2 tầng (Redis + DB) cho nội dung đánh giá AI |
+| V62 | `V62__ai_interview_rag_evaluation.sql` | Bảng `ai_interview_rag_audits` (entity `AiInterviewRagAudit`): lưu vết đánh giá ngữ nghĩa RAG, độ tương đồng vector, ngưỡng áp dụng và danh sách key points |
+| V63 | `V63__assessment_strict_proctoring.sql` | Giám sát nâng cao bài đánh giá: Thêm cấu hình `strict_proctor_enabled` và `proctor_meet_url` trên `tests`, trạng thái `proctor_approved`, `proctor_candidate_ready`, `proctor_violations_count`, `proctor_terminated_reason` trên `submissions` |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

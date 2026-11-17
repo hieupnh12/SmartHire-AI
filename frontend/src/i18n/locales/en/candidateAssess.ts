@@ -177,7 +177,7 @@ export const candidateAssessEn = {
   },
   result: {
     eyebrow: "Assessment Result",
-    demoBadge: "Demo UI",
+    demoBadge: "Practice · Ungraded",
     summaryEyebrow: "Summary",
     scoreHeading: "Score",
     evaluationHeading: "Evaluation",
@@ -192,7 +192,7 @@ export const candidateAssessEn = {
     quizQuestions: "Quiz / Essay",
     codingQuestions: "Coding",
     demoDisclaimer:
-      "UI demo test — scores do not affect your recruitment process.",
+      "Practice assessment — score does not affect your job application.",
     aiEvaluationHeading: "AI Assistant Evaluation",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "Question {order} · Coding challenge",
@@ -370,7 +370,7 @@ export const candidateAssessEn = {
     eyebrow: "Technical Assessment Stage",
     title: "Assessments",
     subtitle:
-      "Each application receives a tailored assessment from the question bank. [Demo UI] tests let you explore the interface and can be retaken without affecting your application.",
+      "Each application receives a tailored assessment from the question bank. You can try the Practice Test to get familiar with the test interface and proctoring before your official exam.",
     metricInvitations: "Invitations",
     metricReady: "To complete",
     metricCompleted: "Completed",
@@ -381,6 +381,17 @@ export const candidateAssessEn = {
     emptyTitle: "No assessments assigned yet",
     emptyDesc:
       "Official assessments will appear once your application passes CV screening.",
+    practiceBadge: "Practice · Ungraded",
+    practiceTitle: "Practice Room & Familiarization",
+    practiceDesc:
+      "Get familiar with the quiz & coding IDE, test camera and microphone before the official assessment. You can retake as many times as you like without affecting your application.",
+    practiceUnlimited: "Unlimited retakes",
+    practiceSkills: "Quiz + Essay + Coding",
+    practiceStart: "Start Practice",
+    officialSectionTitle: "Official Assessments",
+    officialEmptyTitle: "No official assessment assigned yet",
+    officialEmptyDesc:
+      "Your recruiter has not assigned an official technical assessment yet. When assigned, it will appear here. You can try the practice test above in the meantime.",
     cardEyebrow: "Assessment Invitation",
     durationLabel: "Duration",
     passingScoreLabel: "Passing score",
@@ -1350,6 +1361,23 @@ All 3/3 public test cases PASSED successfully!`,
     participantFallback: "Participant",
     devicePermissionError:
       "Cannot access camera/microphone. Please allow browser permissions.",
+    deviceBusyError:
+      "Camera or microphone is occupied by another application (Zoom, Teams, Google Meet, or another browser tab). Please close them and click Retry.",
+    devicePermissionDenied:
+      "Browser was denied camera or microphone permission. Please allow access via the address bar lock icon and click Retry.",
+    deviceNotFound:
+      "No camera or microphone device found on your computer. Please check your hardware.",
+    deviceOverconstrained:
+      "The requested camera constraints are not supported by your hardware.",
+    cameraBusyFallback:
+      "Camera is busy or in use by another app/tab. The meeting room connected with Microphone only (voice mode).",
+    listenOnlyFallback:
+      "Camera and microphone are unavailable or blocked. You joined the meeting in listen-only mode.",
+    tryTurnOnCam: "Try enabling camera",
+    camOffStatus: "Camera is off",
+    retryConnection: "Retry connection",
+    camEnabledSuccess: "Camera enabled successfully.",
+    micEnabledSuccess: "Microphone enabled successfully.",
     status: {
       preparing: "Preparing room…",
       enablingDevices: "Starting camera / microphone…",
@@ -1358,5 +1386,17 @@ All 3/3 public test cases PASSED successfully!`,
       connectedGuest: "Joined room — connecting video with everyone.",
       deviceError: "Device error",
     },
+    startRecord: "Record",
+    stopRecord: "Stop Recording",
+    recordingActive: "REC · Recording",
+    recordingModalTitle: "SmartHire Room Recording Completed",
+    recordingModalDesc:
+      "The meeting recording has been captured. You can download it locally or save it directly to the interview session.",
+    downloadLocal: "Download (.webm)",
+    saveToInterview: "Save to Interview",
+    saving: "Saving...",
+    saveSuccess: "SmartHire Room recording saved successfully to interview session!",
+    recordPermissionError:
+      "Could not start recording. Please allow screen or tab audio sharing permissions.",
   },
 } as const;

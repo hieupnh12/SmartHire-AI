@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "@/api/tenant/authApi";
+import { landingApi } from "@/api/tenant/landingApi";
 import { useAuthStore } from "../stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useT, type TranslateFn } from "@/i18n";
@@ -14,7 +15,7 @@ import { getTenantIdFromWindow, buildTenantUrl } from "@/lib/tenant";
 import { recruiterHomePath, isAllowedRecruiterPath } from "@/features/tenant/recruiter/permissions";
 import { workspaceOf } from "@/features/tenant/auth/workspace";
 import type { RoleWorkspace } from "@/types/api";
-import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
+import { getLandingThemeStyle, getTenantTheme } from "@/lib/tenantTheme";
 import {
   Mail,
   Lock,
@@ -60,6 +61,43 @@ export function LoginPage() {
 
   const rawTenantCode = getTenantIdFromWindow() || "acme";
   const theme = getTenantTheme(rawTenantCode);
+
+  const THEME_CACHE_KEY = `smarthire_theme_${rawTenantCode}`;
+  const cachedTheme = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(THEME_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [THEME_CACHE_KEY]);
+
+  const publicLanding = useQuery({
+    queryKey: ["public-landing", rawTenantCode],
+    queryFn: () => landingApi.getPublicLanding(),
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const customLanding = publicLanding.data?.data;
+
+  useEffect(() => {
+    if (customLanding?.theme) {
+      try {
+        localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(customLanding.theme));
+      } catch {
+        // ignore
+      }
+    }
+  }, [customLanding?.theme, THEME_CACHE_KEY]);
+
+  const primaryColor = customLanding?.theme?.primaryColor || cachedTheme?.primaryColor || theme.primary;
+  const dynamicThemeStyle = useMemo(
+    () => getLandingThemeStyle(theme, customLanding ?? (cachedTheme ? { theme: cachedTheme } : undefined)),
+    [theme, customLanding, cachedTheme],
+  );
+  const logoUrl = customLanding?.header?.logoImageUrl?.trim() || null;
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const showLogo = !!logoUrl && failedLogoUrl !== logoUrl;
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -156,7 +194,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="tenant-workspace-theme min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
+    <div className="tenant-workspace-theme min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col justify-between" style={dynamicThemeStyle}>
       {/* Background Glows */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-[var(--color-primary-soft)] rounded-full blur-3xl" />
@@ -169,8 +207,22 @@ export function LoginPage() {
 
           {/* Title */}
           <div className="flex flex-col items-center text-center mb-8">
-            <div className={`w-12 h-12 rounded-[14px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-bold text-xl mb-4`}>
-              {theme.code.charAt(0).toUpperCase()}
+            <div
+              className={`w-12 h-12 rounded-[14px] overflow-hidden text-white flex items-center justify-center shadow-md font-bold text-xl mb-4 ${
+                showLogo ? "border border-slate-200 bg-white p-1" : ""
+              }`}
+              style={showLogo ? undefined : { backgroundColor: primaryColor }}
+            >
+              {showLogo ? (
+                <img
+                  src={logoUrl!}
+                  alt=""
+                  className="size-full object-contain"
+                  onError={() => setFailedLogoUrl(logoUrl)}
+                />
+              ) : (
+                theme.code.charAt(0).toUpperCase()
+              )}
             </div>
             <h1 className="text-2xl font-bold font-display text-[#1e293b]">
               {t("auth.login.workspaceTitle")}
@@ -249,7 +301,8 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md shadow-[#3b82f6]/20 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50`}
+              className="w-full py-3.5 rounded-[10px] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+              style={{ backgroundColor: primaryColor }}
             >
               {mutation.isPending ? (
                 <span>{t("auth.login.signingInDots")}</span>

@@ -178,7 +178,7 @@ export const candidateAssessVi = {
   },
   result: {
     eyebrow: "Kết quả bài kiểm tra",
-    demoBadge: "Demo UI",
+    demoBadge: "Thi thử · Không tính điểm",
     summaryEyebrow: "Tổng hợp",
     scoreHeading: "Điểm số",
     evaluationHeading: "Đánh giá",
@@ -193,7 +193,7 @@ export const candidateAssessVi = {
     quizQuestions: "Trắc nghiệm",
     codingQuestions: "Lập trình",
     demoDisclaimer:
-      "Bài demo giao diện — điểm không ảnh hưởng vòng tuyển dụng.",
+      "Bài thi thử làm quen giao diện — điểm hoàn toàn không ảnh hưởng đến kết quả tuyển dụng.",
     aiEvaluationHeading: "Đánh giá từ Trợ lý AI",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "Câu {order} · Bài thi lập trình",
@@ -371,7 +371,7 @@ export const candidateAssessVi = {
     eyebrow: "Vòng đánh giá kỹ thuật",
     title: "Bài đánh giá",
     subtitle:
-      "Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Đề mẫu [Demo UI] dùng để xem giao diện và có thể làm lại nhiều lần, không tính vào kết quả hồ sơ.",
+      "Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Bạn có thể tham gia Bài thi thử để làm quen giao diện, kiểm tra camera/micro trước khi làm bài thi chính thức.",
     metricInvitations: "Lời mời",
     metricReady: "Cần thực hiện",
     metricCompleted: "Đã hoàn tất",
@@ -382,6 +382,17 @@ export const candidateAssessVi = {
     emptyTitle: "Chưa có đề được nhà tuyển dụng giao",
     emptyDesc:
       "Đề chính thức sẽ xuất hiện khi hồ sơ ứng tuyển của bạn vượt qua vòng lọc CV.",
+    practiceBadge: "Thi thử · Không tính điểm",
+    practiceTitle: "Phòng thi thử & Làm quen giao diện",
+    practiceDesc:
+      "Làm quen giao diện thi trắc nghiệm & IDE lập trình, kiểm tra góc máy camera và micro trước khi bước vào bài thi chính thức. Bạn có thể làm lại nhiều lần mà không ảnh hưởng đến hồ sơ ứng tuyển.",
+    practiceUnlimited: "Làm lại không giới hạn",
+    practiceSkills: "Trắc nghiệm + Tự luận + Lập trình",
+    practiceStart: "Vào thi thử",
+    officialSectionTitle: "Bài thi chính thức",
+    officialEmptyTitle: "Chưa có bài thi chính thức",
+    officialEmptyDesc:
+      "Nhà tuyển dụng chưa giao bài thi kỹ thuật chính thức nào cho hồ sơ của bạn. Khi có bài thi mới, bạn sẽ nhận được thông báo tại đây. Bạn có thể làm bài thi thử ở trên để làm quen trước với hệ thống.",
     cardEyebrow: "Lời mời Assessment",
     durationLabel: "Thời lượng",
     passingScoreLabel: "Ngưỡng đạt",
@@ -921,7 +932,7 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
       creatingRetry: "Đang tạo lượt mới…",
       retryInterview: "Làm lại AI Interview",
       failedNoRetry:
-        "Bạn chưa đạt ngưỡng điểm và đã sử dụng hết số lượt làm bài phỏng vấn cho vị trí này.",
+        "Bạn chưa đạt ngưỡng điểm yêu cầu cho bài phỏng vấn này. Kết quả đã được chuyển tới nhà tuyển dụng để xem xét.",
       unansweredZeroPoints: "Chưa trả lời (0 điểm)",
       submittedExplanation: "Giải thích: {text}",
     },
@@ -1350,6 +1361,23 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
     participantFallback: "Thành viên",
     devicePermissionError:
       "Không mở được camera/micro. Hãy cho phép quyền trình duyệt.",
+    deviceBusyError:
+      "Thiết bị Camera hoặc Micro đang bị ứng dụng khác (Zoom, Teams, Google Meet hoặc một tab trình duyệt khác) chiếm giữ. Vui lòng đóng bớt các ứng dụng/tab đó rồi bấm Thử lại.",
+    devicePermissionDenied:
+      "Trình duyệt chưa được cấp quyền truy cập Camera hoặc Microphone. Vui lòng bấm vào biểu tượng ổ khóa cạnh thanh địa chỉ URL để Cấp quyền (Allow), sau đó bấm Thử lại.",
+    deviceNotFound:
+      "Không tìm thấy thiết bị Camera hoặc Microphone trên máy tính của bạn. Vui lòng kiểm tra lại thiết bị kết nối.",
+    deviceOverconstrained:
+      "Phần cứng camera hiện tại không hỗ trợ thông số kỹ thuật yêu cầu.",
+    cameraBusyFallback:
+      "Camera đang bận hoặc bị ứng dụng/tab khác chiếm giữ. Phòng họp đã tự động kết nối bằng Micro (chế độ chỉ nghe/nói).",
+    listenOnlyFallback:
+      "Không tìm thấy hoặc bị chặn quyền Camera & Micro. Phòng họp đã kết nối ở chế độ Chỉ nghe/theo dõi.",
+    tryTurnOnCam: "Thử bật lại Camera",
+    camOffStatus: "Camera đang tắt",
+    retryConnection: "Thử lại kết nối",
+    camEnabledSuccess: "Đã bật Camera thành công.",
+    micEnabledSuccess: "Đã bật Micro thành công.",
     status: {
       preparing: "Đang chuẩn bị phòng…",
       enablingDevices: "Đang bật camera / micro…",
@@ -1358,5 +1386,17 @@ Tất cả 3/3 test cases công khai đã VƯỢT QUA thành công!`,
       connectedGuest: "Đã vào phòng — đang kết nối video với mọi người.",
       deviceError: "Lỗi thiết bị",
     },
+    startRecord: "Ghi hình",
+    stopRecord: "Dừng ghi",
+    recordingActive: "REC · Đang ghi",
+    recordingModalTitle: "Hoàn tất ghi hình SmartHire Room",
+    recordingModalDesc:
+      "Bản ghi hình buổi phỏng vấn đã được ghi lại. Bạn có thể tải về máy hoặc lưu trực tiếp vào hồ sơ phỏng vấn.",
+    downloadLocal: "Tải về máy (.webm)",
+    saveToInterview: "Lưu vào hồ sơ phỏng vấn",
+    saving: "Đang lưu...",
+    saveSuccess: "Đã lưu bản ghi SmartHire Room thành công vào hồ sơ phỏng vấn!",
+    recordPermissionError:
+      "Không thể bắt đầu ghi hình. Vui lòng cho phép quyền chia sẻ màn hình hoặc tab có âm thanh.",
   },
 } as const;

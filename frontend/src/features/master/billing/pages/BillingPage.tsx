@@ -5,8 +5,6 @@ import { BillingWorkspace, type BillingView } from "../components/BillingWorkspa
 import {
   useTenants,
   useSubscriptions,
-  useRevenueAnalytics,
-  useInvoices,
   useTenantSubscriptionInstances,
   masterQueryKeys,
 } from "@/api/master/queries";
@@ -17,7 +15,7 @@ import { X, Copy, GitBranch } from "lucide-react";
 
 function currentView(pathname: string): BillingView {
   const value = pathname.split("/")[3];
-  return value === "plans" || value === "allocations" || value === "invoices" ? value : "overview";
+  return value === "allocations" ? "allocations" : "plans";
 }
 
 export function BillingPage() {
@@ -27,8 +25,6 @@ export function BillingPage() {
   const queryClient = useQueryClient();
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
-  const { data: revenue } = useRevenueAnalytics();
-  const { data: invoices = [] } = useInvoices();
   const { data: tenantSubscriptions = [] } = useTenantSubscriptionInstances();
   const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
 
@@ -142,13 +138,9 @@ export function BillingPage() {
       <BillingWorkspace
         plans={plans}
         tenants={tenants}
-        invoices={invoices}
-        revenue={revenue ?? null}
         tenantSubscriptions={tenantSubscriptions}
         view={currentView(location.pathname)}
         onViewChange={(view) => navigate(`/admin/subscriptions/${view}`)}
-        monthlyRevenue={revenue?.mrr ?? 0}
-        activeTenants={revenue?.activeTenants ?? tenants.filter((tenant) => !tenant.deleted && tenant.status === "ACTIVE").length}
         onCreatePlan={() => handleCreateOrEditPlan()}
         onEditPlan={(plan) => handleCreateOrEditPlan(plan)}
         onTogglePlanStatus={togglePlan}

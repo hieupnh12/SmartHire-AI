@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
 import { TenantManagementHub, type TenantHubTab } from "../components/TenantManagementHub";
+import { RetryProvisioningModal } from "../components/RetryProvisioningModal";
 import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
@@ -9,9 +11,7 @@ import { useT } from "@/i18n";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
-  return value === "overview" || value === "create" || value === "provisioning"
-    ? value
-    : "directory";
+  return value === "provisioning" ? "provisioning" : "directory";
 }
 
 export function TenantManagementPage() {
@@ -21,18 +21,28 @@ export function TenantManagementPage() {
   const queryClient = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
   const { data: tenants = [] } = useTenants();
+  const [retryTenant, setRetryTenant] = useState<TenantInfo | null>(null);
   const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
 
   const toggleStatus = async (tenant: TenantInfo) => {
     if (tenant.status === "FAILED" || tenant.status === "PROVISIONING") {
-      navigate(`/onboard?retry=${tenant.id}`);
+      setRetryTenant(tenant);
       return;
     }
     const status = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     const updated = await masterAdminApi.updateTenantStatus(tenant.id, status);
     setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
     triggerNotification(t("master.ops.tenants.toasts.statusUpdated", { code: tenant.code, status }));
+  };
+
+  const handleRetrySuccess = (updatedData: any) => {
+    queryClient.invalidateQueries({ queryKey: masterQueryKeys.tenants() });
+    if (updatedData?.id) {
+      setTenants((items: TenantInfo[]) =>
+        items.map((item) => (item.id === updatedData.id ? { ...item, ...updatedData } : item))
+      );
+    }
   };
 
   const softDeleteTenant = (tenant: TenantInfo) => {
@@ -64,18 +74,23 @@ export function TenantManagementPage() {
   };
 
   return (
-    <TenantManagementHub
-      activeTab={currentTab(location.pathname)}
-      onTabChange={(tab) => navigate(`/admin/tenants/${tab}`)}
-      tenants={tenants}
-      onTenantCreated={(tenant) => setTenants((items: TenantInfo[]) => [{
-        ...tenant,
-        environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
-      }, ...items])}
-      onToggleStatus={toggleStatus}
-      onSoftDeleteTenant={softDeleteTenant}
-      onRestoreTenant={restoreTenant}
-      onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
-    />
+    <>
+      <TenantManagementHub
+        activeTab={currentTab(location.pathname)}
+        onTabChange={(tab) => navigate(`/admin/tenants/${tab}`)}
+        tenants={tenants}
+        onToggleStatus={toggleStatus}
+        onSoftDeleteTenant={softDeleteTenant}
+        onRestoreTenant={restoreTenant}
+        onRetryProvisioning={(tenant) => setRetryTenant(tenant)}
+      />
+      {retryTenant && (
+        <RetryProvisioningModal
+          tenant={retryTenant}
+          onClose={() => setRetryTenant(null)}
+          onSuccess={handleRetrySuccess}
+        />
+      )}
+    </>
   );
 }

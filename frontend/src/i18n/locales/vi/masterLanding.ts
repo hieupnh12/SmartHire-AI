@@ -648,13 +648,13 @@ export const masterLandingVi = {
   demoPage: {
     backHome: "Trang chủ",
     demoTitle: "Đăng Ký Trải Nghiệm Demo 1:1",
-    quoteTitle: "Tư Vấn Báo Giá & Hợp Đồng",
+    quoteTitle: "Tư Vấn Báo Giá",
     demoSubtitle:
       "Chuyên viên giải pháp sẽ liên hệ trong 2h để chuẩn bị nội dung demo phù hợp.",
     quoteSubtitle:
-      "Đội ngũ chuyên trách Enterprise sẽ liên hệ chi tiết bảng giá và thỏa thuận SLA.",
+      "Đội ngũ chuyên trách sẽ liên hệ chi tiết bảng giá.",
     demoTab: "Đặt Lịch Demo 1:1",
-    quoteTab: "Báo Giá & Hợp Đồng Enterprise",
+    quoteTab: "Báo Giá",
     defaultNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
     invalidData: "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.",
     backendError:
@@ -672,7 +672,7 @@ export const masterLandingVi = {
     jobTitlePlaceholder: "Chọn hoặc nhập chức vụ...",
     useCustomJobTitle: 'Sử dụng "{title}"',
     workEmailLabel: "Email Liên Hệ",
-    workEmailPlaceholder: "name@company.com hoặc name@gmail.com",
+    workEmailPlaceholder: "name@gmail.com",
     phoneLabel: "Số Điện Thoại Liên Hệ",
     phonePlaceholder: "0912 345 678",
     notesLabel: "Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)",
@@ -680,7 +680,7 @@ export const masterLandingVi = {
       "Ví dụ: Tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT...",
     submitting: "Đang gửi thông tin...",
     submitDemo: "Gửi Yêu Cầu Đặt Lịch Demo",
-    submitQuote: "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng",
+    submitQuote: "Gửi Yêu Cầu Báo Giá",
     receivedTitle: "Đã Tiếp Nhận Thông Tin!",
     receivedDescBefore: "Cảm ơn Quý doanh nghiệp",
     receivedDescMiddle:

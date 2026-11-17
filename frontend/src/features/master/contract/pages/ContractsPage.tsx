@@ -15,6 +15,16 @@ import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { formatDate, formatNumber, useLocale, useT } from "@/i18n";
 
+const cleanAmountInWords = (words?: string | null): string => {
+  if (!words) return "";
+  return words
+    .replace(/\s*\(?đã bao gồm thuế GTGT\)?/gi, "")
+    .replace(/\s*\(?đã bao gồm VAT\)?/gi, "")
+    .replace(/\s*\(?bao gồm thuế GTGT\)?/gi, "")
+    .replace(/\s*\(?bao gồm VAT\)?/gi, "")
+    .trim();
+};
+
 /* ─────────────────────────────────────────────
    Reusable CustomDropdown
 ───────────────────────────────────────────── */
@@ -250,19 +260,19 @@ export function ContractsPage() {
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: t("master.commerce.contractsPage.kpiTotalTitle"),   value: contracts.length,                            unit: t("master.commerce.contractsPage.kpiTotalUnit"),   icon: <FileSignature className="w-4 h-4 text-slate-400" />, sub: t("master.commerce.contractsPage.kpiTotalSub") },
-          { label: t("master.commerce.contractsPage.kpiSignedTitle"),  value: signedCount,                                 unit: t("master.commerce.contractsPage.kpiSignedUnit"),  icon: <FileCheck2 className="w-4 h-4 text-emerald-500" />,  sub: t("master.commerce.contractsPage.kpiSignedSub") },
-          { label: t("master.commerce.contractsPage.kpiPendingTitle"), value: pendingCount,                                unit: t("master.commerce.contractsPage.kpiPendingUnit"), icon: <Clock className="w-4 h-4 text-amber-500" />,         sub: t("master.commerce.contractsPage.kpiPendingSub") },
-          { label: t("master.commerce.contractsPage.kpiValueTitle"),   value: formatNumber(totalValue, undefined, locale), unit: t("master.commerce.common.vnd"),                 icon: <TrendingUp className="w-4 h-4 text-indigo-500" />,   sub: t("master.commerce.contractsPage.kpiValueSub") },
+          { label: t("master.commerce.contractsPage.kpiTotalTitle"),   value: contracts.length,                            unit: undefined,                         icon: <FileSignature className="w-4 h-4 text-slate-400" />, sub: t("master.commerce.contractsPage.kpiTotalSub") },
+          { label: t("master.commerce.contractsPage.kpiSignedTitle"),  value: signedCount,                                 unit: undefined,                         icon: <FileCheck2 className="w-4 h-4 text-emerald-500" />,  sub: t("master.commerce.contractsPage.kpiSignedSub") },
+          { label: t("master.commerce.contractsPage.kpiPendingTitle"), value: pendingCount,                                unit: undefined,                         icon: <Clock className="w-4 h-4 text-amber-500" />,         sub: t("master.commerce.contractsPage.kpiPendingSub") },
+          { label: t("master.commerce.contractsPage.kpiValueTitle"),   value: formatNumber(totalValue, undefined, locale), unit: t("master.commerce.common.vnd"), icon: <TrendingUp className="w-4 h-4 text-indigo-500" />,   sub: t("master.commerce.contractsPage.kpiValueSub") },
         ].map((card, i) => (
           <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-600">{card.label}</span>
               {card.icon}
             </div>
-            <div className="text-xl xl:text-2xl font-bold tracking-tight text-slate-600">
-              {card.value}{" "}
-              <span className="text-xs font-medium text-slate-500">{card.unit}</span>
+            <div className="text-xl xl:text-2xl font-bold tracking-tight text-slate-700">
+              {card.value}
+              {card.unit ? <span className="text-xs font-medium text-slate-500 ml-1">{card.unit}</span> : null}
             </div>
             <p className="text-xs text-slate-500 mt-1">{card.sub}</p>
           </div>
@@ -335,14 +345,14 @@ export function ContractsPage() {
                           side="top"
                           content={
                             <span className="block space-y-0.5">
-                              <span className="block font-mono font-semibold text-white">{c.contractNumber}</span>
+                              <span className="block font-semibold text-white">{c.contractNumber}</span>
                               <span className="block text-slate-300">
                                 {formatDate(c.createdAt, undefined, locale)}
                               </span>
                             </span>
                           }
                         >
-                          <span className="min-w-0 flex-1 truncate font-mono font-bold text-indigo-600 text-[12px] cursor-default">
+                          <span className="min-w-0 flex-1 truncate font-semibold text-indigo-600 text-[12px] tracking-wide cursor-default">
                             {c.contractNumber}
                           </span>
                         </Tooltip>
@@ -357,12 +367,12 @@ export function ContractsPage() {
                             <span className="block space-y-0.5">
                               <span className="block font-semibold text-white">{customerName}</span>
                               {c.partyBTaxCode && (
-                                <span className="block font-mono text-slate-300">
+                                <span className="block text-slate-300">
                                   {t("master.commerce.contractsPage.taxCodePrefix", { taxCode: c.partyBTaxCode })}
                                 </span>
                               )}
                               {c.tenantSubdomain && (
-                                <span className="block font-mono text-sky-300">{c.tenantSubdomain}.smarthire.top</span>
+                                <span className="block text-sky-300">{c.tenantSubdomain}.smarthire.top</span>
                               )}
                             </span>
                           }
@@ -395,17 +405,17 @@ export function ContractsPage() {
                       <td className="px-3.5 py-3 whitespace-nowrap">
                         <Tooltip
                           side="top"
-                          disabled={!c.amountInWords}
+                          disabled={!cleanAmountInWords(c.amountInWords)}
                           content={
                             <span className="block space-y-0.5">
-                              <span className="block font-mono font-semibold text-white">{formattedAmount}</span>
-                              {c.amountInWords && (
-                                <span className="block text-slate-300">{c.amountInWords}</span>
+                              <span className="block font-semibold text-white">{formattedAmount}</span>
+                              {cleanAmountInWords(c.amountInWords) && (
+                                <span className="block text-slate-300">{cleanAmountInWords(c.amountInWords)}</span>
                               )}
                             </span>
                           }
                         >
-                          <span className="font-bold text-slate-600 font-mono cursor-default">
+                          <span className="font-semibold text-emerald-600 cursor-default">
                             {formattedAmount}
                           </span>
                         </Tooltip>
@@ -418,7 +428,7 @@ export function ContractsPage() {
                             className="flex w-full min-w-0"
                             side="top"
                             content={
-                              <span className="block space-y-0.5 font-mono">
+                              <span className="block space-y-0.5">
                                 <span className="block font-semibold text-white">{c.startDate}</span>
                                 <span className="block text-slate-300">
                                   {t("master.commerce.contractsPage.periodTo", { endDate: c.endDate })}
@@ -426,7 +436,7 @@ export function ContractsPage() {
                               </span>
                             }
                           >
-                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-600 cursor-default">
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-600 cursor-default">
                               {c.startDate} – {c.endDate}
                             </span>
                           </Tooltip>
@@ -444,7 +454,7 @@ export function ContractsPage() {
                             <span className="block space-y-0.5">
                               <span className="block font-semibold text-white">Dropbox Sign</span>
                               {signerLabel && <span className="block text-slate-200">{signerLabel}</span>}
-                              {signerEmail && <span className="block font-mono text-sky-300">{signerEmail}</span>}
+                              {signerEmail && <span className="block text-slate-200">{signerEmail}</span>}
                             </span>
                           }
                         >
@@ -552,8 +562,8 @@ export function ContractsPage() {
           </table>
         </div>
 
-        {/* Pagination & Footer */}
-        {filtered.length > 0 && (
+        {/* Pagination & Footer (chỉ hiển thị khi có tối thiểu 10 dòng) */}
+        {filtered.length >= 10 && (
           <div className="px-5 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
             <span className="text-[11px] text-slate-500">
               {t("master.commerce.contractsPage.paginationBefore")}{" "}

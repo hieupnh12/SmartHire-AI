@@ -29,8 +29,7 @@ export function RankingCandidateDetailPage() {
   const isPreview = jobId === PREVIEW_JOB_ID;
 
   const token = useAuthStore((store) => store.accessToken);
-  const sessionKey = useMemo(() => crypto.randomUUID(), [token]);
-  const tenantKey = `${getTenantIdFromWindow() ?? ""}:${sessionKey}`;
+  const tenantKey = getTenantIdFromWindow() ?? "";
 
   const locationState = location.state as { row?: RankingRow; jobTitle?: string } | undefined;
 
@@ -40,12 +39,14 @@ export function RankingCandidateDetailPage() {
     queryKey: ["jobs", jobId],
     queryFn: () => jobApi.get(jobId),
     enabled: validJobId && !isPreview && !!token && !locationState?.jobTitle,
+    staleTime: 5 * 60 * 1000,
   });
 
   const detailQuery = useQuery({
     queryKey: ["ranking-detail", tenantKey, applicationId],
     queryFn: () => matchingApi.detail(applicationId),
     enabled: validApplicationId && !isPreview && !!token,
+    staleTime: 5 * 60 * 1000,
   });
 
   const previewRow = previewBoard
@@ -59,7 +60,11 @@ export function RankingCandidateDetailPage() {
   const row = previewRow || detailQuery.data?.data || locationState?.row;
 
   const handleBack = () => {
-    navigate(`/recruiter/jobs/${jobId}/rank`);
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(`/recruiter/jobs/${jobId}/rank`);
+    }
   };
 
   if (!token && !isPreview) {

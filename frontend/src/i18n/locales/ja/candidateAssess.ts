@@ -172,7 +172,7 @@ export const candidateAssessJa = {
   },
   result: {
     eyebrow: "アセスメント結果",
-    demoBadge: "デモUI",
+    demoBadge: "体験・採点対象外",
     summaryEyebrow: "サマリー",
     scoreHeading: "スコア",
     evaluationHeading: "評価",
@@ -186,7 +186,7 @@ export const candidateAssessJa = {
     totalQuestions: "合計",
     quizQuestions: "選択・記述",
     codingQuestions: "コーディング",
-    demoDisclaimer: "UIデモ試験のため、スコアは採用選考には影響しません。",
+    demoDisclaimer: "操作体験・練習用の試験のため、スコアは採用選考には影響しません。",
     aiEvaluationHeading: "AIアシスタント評価",
     aiEngineBadge: "Hybrid AI Engine",
     questionMetaCoding: "第{order}問 · コーディング課題",
@@ -360,7 +360,7 @@ export const candidateAssessJa = {
     eyebrow: "技術アセスメント選考",
     title: "アセスメント",
     subtitle:
-      "応募ごとに問題バンクから個別の試験が割り当てられます。[Demo UI] テストは操作確認用で、応募結果に影響せず何度でもやり直せます。",
+      "応募ごとに問題バンクから個別の試験が割り当てられます。本番前に体験テストで操作感やカメラ/マイクの動作を確認できます。",
     metricInvitations: "招待数",
     metricReady: "未完了",
     metricCompleted: "完了済み",
@@ -371,6 +371,17 @@ export const candidateAssessJa = {
     emptyTitle: "割り当てられたアセスメントはまだありません",
     emptyDesc:
       "書類選考（CVスクリーニング）を通過すると、本番のアセスメントがここに表示されます。",
+    practiceBadge: "体験・採点対象外",
+    practiceTitle: "体験ルーム（操作確認用）",
+    practiceDesc:
+      "選択式問題やコーディングIDEの操作感、カメラやマイクの動作を事前に確認できます。何度でもやり直すことができ、選考結果には影響しません。",
+    practiceUnlimited: "回数無制限で再挑戦可能",
+    practiceSkills: "選択式 ＋ 記述式 ＋ コーディング",
+    practiceStart: "体験テストを開始",
+    officialSectionTitle: "本番アセスメント",
+    officialEmptyTitle: "本番のアセスメントはまだありません",
+    officialEmptyDesc:
+      "現在、採用担当者から割り当てられた本番試験はありません。試験が届くまでの間、上記の体験テストで操作感を確認しておくと安心です。",
     cardEyebrow: "アセスメント招待",
     durationLabel: "試験時間",
     passingScoreLabel: "合格基準",
@@ -1323,6 +1334,23 @@ export const candidateAssessJa = {
     participantFallback: "参加者",
     devicePermissionError:
       "カメラ／マイクを開けませんでした。ブラウザの権限を許可してください。",
+    deviceBusyError:
+      "カメラまたはマイクが他のアプリ（Zoom、Teams、Meet、または別のタブ）で使用中です。アプリを閉じて再試行してください。",
+    devicePermissionDenied:
+      "カメラまたはマイクのアクセスが拒否されました。アドレスバーの鍵アイコンからアクセスを許可して再試行してください。",
+    deviceNotFound:
+      "カメラまたはマイクが見つかりませんでした。接続を確認してください。",
+    deviceOverconstrained:
+      "カメラのハードウェアが要求された仕様をサポートしていません。",
+    cameraBusyFallback:
+      "カメラが他のアプリまたはタブで使用中のため、マイクのみの音声モードで自動接続しました。",
+    listenOnlyFallback:
+      "カメラとマイクが利用できないかブロックされています。リッスン専用モードで参加しました。",
+    tryTurnOnCam: "カメラを再試行",
+    camOffStatus: "カメラオフ",
+    retryConnection: "再試行",
+    camEnabledSuccess: "カメラを正常にオンにしました。",
+    micEnabledSuccess: "マイクを正常にオンにしました。",
     status: {
       preparing: "会議室を準備中…",
       enablingDevices: "カメラ／マイクを起動中…",
@@ -1331,5 +1359,17 @@ export const candidateAssessJa = {
       connectedGuest: "入室しました — 参加者とビデオ接続中。",
       deviceError: "デバイスエラー",
     },
+    startRecord: "録画開始",
+    stopRecord: "録画停止",
+    recordingActive: "REC · 録画中",
+    recordingModalTitle: "SmartHire Room 録画完了",
+    recordingModalDesc:
+      "面接の録画が完了しました。PCにダウンロードするか、面接記録に直接保存できます。",
+    downloadLocal: "PCに保存 (.webm)",
+    saveToInterview: "面接記録に保存",
+    saving: "保存中...",
+    saveSuccess: "SmartHire Room の録画を面接記録に保存しました！",
+    recordPermissionError:
+      "録画を開始できませんでした。画面またはタブの共有権限を許可してください。",
   },
 } as const;

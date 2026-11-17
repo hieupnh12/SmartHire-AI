@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -34,19 +34,48 @@ export function CandidateLoginPage() {
   const location = useLocation();
   const redirectUrl = resumePathFrom(location.state);
   const loginRequired = redirectUrl !== "/";
-  const theme = getTenantTheme(getTenantIdFromWindow() || "acme");
+  const rawTenantCode = getTenantIdFromWindow() || "acme";
+  const theme = getTenantTheme(rawTenantCode);
   const [redirecting, setRedirecting] = useState(false);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+
+  const THEME_CACHE_KEY = `smarthire_theme_${rawTenantCode}`;
+  const cachedTheme = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(THEME_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [THEME_CACHE_KEY]);
+
   const publicLanding = useQuery({
-    queryKey: ["public-landing", theme.code],
-    queryFn: landingApi.getPublicLanding,
+    queryKey: ["public-landing", rawTenantCode],
+    queryFn: () => landingApi.getPublicLanding(),
     staleTime: 0,
     refetchOnMount: "always",
   });
   const customLanding = publicLanding.data?.data;
-  const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
-  const primaryHover = customLanding?.theme?.primaryHover || customLanding?.theme?.primaryColor || theme.primaryHover;
+
+  // Persist latest tenant theme so subsequent visits never flash stale fallback color
+  useEffect(() => {
+    if (customLanding?.theme) {
+      try {
+        localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(customLanding.theme));
+      } catch {
+        // LocalStorage quota or disabled, ignore
+      }
+    }
+  }, [customLanding?.theme, THEME_CACHE_KEY]);
+
+  const primaryColor = customLanding?.theme?.primaryColor || cachedTheme?.primaryColor || theme.primary;
+  const primaryHover =
+    customLanding?.theme?.primaryHover ||
+    customLanding?.theme?.primaryColor ||
+    cachedTheme?.primaryHover ||
+    cachedTheme?.primaryColor ||
+    theme.primaryHover;
   const slogan = customLanding?.header?.slogan?.trim() || t("auth.candidateLogin.talentPortal");
   const copyrightText = customLanding?.footer?.copyrightText?.trim() || t("auth.candidateLogin.footerNote", { name: theme.name });
   const shellRadius = ({
@@ -54,10 +83,10 @@ export function CandidateLoginPage() {
     "rounded-lg": "12px",
     "rounded-2xl": "16px",
     "rounded-3xl": "24px",
-  } as Record<string, string>)[customLanding?.theme?.borderRadius ?? ""] ?? "24px";
+  } as Record<string, string>)[customLanding?.theme?.borderRadius ?? cachedTheme?.borderRadius ?? ""] ?? "24px";
   const dynamicThemeStyle = useMemo(
-    () => getLandingThemeStyle(theme, customLanding),
-    [theme, customLanding],
+    () => getLandingThemeStyle(theme, customLanding ?? (cachedTheme ? { theme: cachedTheme } : undefined)),
+    [theme, customLanding, cachedTheme],
   );
   const logoUrl = customLanding?.header.logoImageUrl?.trim() || null;
   const showLogo = !!logoUrl && failedLogoUrl !== logoUrl;
