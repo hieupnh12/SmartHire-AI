@@ -28,6 +28,7 @@ import { formatSalaryText } from "@/lib/formatSalary";
 import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadline";
 import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { JobDetailAppQrCard } from "@/features/tenant/candidate/jobs/components/JobDetailAppQrCard";
+import { AppDownloadModal } from "@/features/tenant/candidate/shared/components/AppDownloadModal";
 import { useLocalizedLanding } from "@/features/tenant/candidate/jobs/utils/landingLocalization";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
@@ -76,6 +77,7 @@ import {
   Check,
   Bookmark,
   BookmarkCheck,
+  QrCode,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -490,6 +492,7 @@ export function TenantCareerPage() {
   const [jobView, setJobView] = useState<"featured" | "recommended">("featured");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [showApplyModal, setShowApplyModal] = useState<PublicJob | null>(null);
+  const [appModalOpen, setAppModalOpen] = useState(false);
 
   // Apply Form State
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -961,6 +964,19 @@ export function TenantCareerPage() {
                     </div>
                   </form>
                 )}
+
+                {/* Mobile App Download Badge for Candidates */}
+                <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-xs text-white/85">
+                  <span>Ứng tuyển &amp; Phỏng vấn AI trên di động:</span>
+                  <button
+                    type="button"
+                    onClick={() => setAppModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-1 font-semibold text-white shadow-2xs backdrop-blur-xs transition-all hover:bg-white/20 active:scale-95 cursor-pointer"
+                  >
+                    <QrCode className="size-3.5 text-emerald-300" />
+                    <span>Quét QR / Tải SmartHire App (Android &amp; iOS)</span>
+                  </button>
+                </div>
 
                 <div className="grid gap-4 lg:grid-cols-[330px_minmax(0,1fr)]">
                   <aside className="career-category-card overflow-hidden rounded-2xl border border-white/45 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]" aria-labelledby="career-category-title">
@@ -1451,7 +1467,22 @@ export function TenantCareerPage() {
 
             <nav aria-label={t("candidate.core.career.footer.navAria")}>
               <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-white">{t("candidate.core.career.footer.exploreHeading")}</h2>
-              <ul className="space-y-3 text-white/65"><li><Link to="/jobs" className="hover:text-white">{t("candidate.core.career.footer.linkOpenJobs")}</Link></li><li><a href="#about" className="hover:text-white">{t("candidate.core.career.footer.linkAbout")}</a></li><li><a href="#hiring-process" className="hover:text-white">{t("candidate.core.career.footer.linkProcess")}</a></li><li><a href="#faq" className="hover:text-white">{t("candidate.core.career.footer.linkFaq")}</a></li></ul>
+              <ul className="space-y-3 text-white/65">
+                <li><Link to="/jobs" className="hover:text-white">{t("candidate.core.career.footer.linkOpenJobs")}</Link></li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setAppModalOpen(true)}
+                    className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors font-medium text-left"
+                  >
+                    <QrCode className="size-3.5 text-emerald-400" />
+                    <span>Tải SmartHire App (Android &amp; iOS)</span>
+                  </button>
+                </li>
+                <li><a href="#about" className="hover:text-white">{t("candidate.core.career.footer.linkAbout")}</a></li>
+                <li><a href="#hiring-process" className="hover:text-white">{t("candidate.core.career.footer.linkProcess")}</a></li>
+                <li><a href="#faq" className="hover:text-white">{t("candidate.core.career.footer.linkFaq")}</a></li>
+              </ul>
             </nav>
 
             <div className="space-y-3 text-white/65">
@@ -1516,6 +1547,13 @@ export function TenantCareerPage() {
           </div>
         </div>
       </footer>
+
+      {/* Candidate Mobile App Download Modal */}
+      <AppDownloadModal
+        isOpen={appModalOpen}
+        onClose={() => setAppModalOpen(false)}
+        tenantName={theme.name}
+      />
     </div>
   );
 }

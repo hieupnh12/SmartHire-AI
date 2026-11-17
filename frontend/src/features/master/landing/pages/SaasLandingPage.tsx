@@ -16,12 +16,10 @@ import {
   Activity,
   Check,
   DollarSign,
-  ChevronRight,
-  QrCode
+  ChevronRight
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
 import { PlanFeatureList } from "../components/PlanFeatureList";
-import { AppDownloadModal } from "../components/AppDownloadQrModal";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 import { SkeletonCard } from "@/components/ux/Skeleton";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
@@ -33,7 +31,6 @@ export function SaasLandingPage() {
   const locale = useLocale();
   const navigate = useNavigate();
   const { openDemoModal, openWorkspaceModal } = useLandingModal();
-  const [appModalOpen, setAppModalOpen] = useState(false);
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
 
@@ -120,19 +117,6 @@ export function SaasLandingPage() {
             >
               {t("master.landing.saas.hero.secondaryCta")}
             </Link>
-          </div>
-
-          {/* App Download Badge with QR Modal (Android & iOS) */}
-          <div data-reveal="fade-up" style={{ transitionDelay: "200ms" }} className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 mb-16">
-            <span>Dành cho Ứng viên:</span>
-            <button
-              type="button"
-              onClick={() => setAppModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all active:scale-95 shadow-2xs group cursor-pointer"
-            >
-              <QrCode className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
-              <span>Quét QR / Tải ứng dụng SmartHire (Android & iOS)</span>
-            </button>
           </div>
 
           {/* LIVE PRODUCT PREVIEW MOCKUP WITH FLOATING CHIPS */}
@@ -836,9 +820,6 @@ export function SaasLandingPage() {
           </div>
         </div>
       </section>
-
-      {/* App Download Modal */}
-      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </>
   );
 }
