@@ -779,7 +779,7 @@ export const recruiterAssessmentsEn = {
     noTemplatesHintLink: "Question Bank",
     noTemplatesHintSuffix:
       ", then publish it. Only unassigned published Standard tests appear here. AI-generated tests cannot be reused.",
-    templatesAllowedHint: "Can only assign to candidates in AI Interview or Assessment stage.",
+    templatesAllowedHint: "Can only assign to candidates who passed AI Interview and are in the Assessment stage.",
     loadingApplicants: "Loading candidates...",
     noApplicantsTitle: "No matching candidates",
     noApplicantsEmpty: "No candidates have applied for this job yet.",
@@ -793,7 +793,7 @@ export const recruiterAssessmentsEn = {
     assignedTestFallback: "Custom assessment assigned",
     unassignedBadge: "Unassigned",
     needManualTemplateTooltip: "Requires an unassigned published Standard test",
-    stageNotAllowedTooltip: "Only available for applicants in AI Interview or Assessment stage",
+    stageNotAllowedTooltip: "Only available after passing AI Interview (Assessment stage)",
     sendTemplateTooltip: "Send «{title}» to this candidate",
     sendTemplateBtn: "Assign this test",
     bankInsufficientTooltip: "Question Bank lacks enough questions for auto-generation",

@@ -45,6 +45,8 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
   });
 
   const isAssigned = selected?.assignedApplicationId === detail.id;
+  const aiInterviewPassed = detail.rounds?.aiInterview?.passed === true;
+  const canSend = detail.status === "ASSESSMENT" && aiInterviewPassed;
 
   return (
     <div className="space-y-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4">
@@ -105,7 +107,8 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
           <button
             className={`${button} inline-flex items-center gap-1.5`}
             type="button"
-            disabled={assignAndSend.isPending}
+            disabled={assignAndSend.isPending || !canSend}
+            title={!canSend ? t("recruiter.assessments.assigner.stageNotAllowedTooltip") : undefined}
             onClick={() => assignAndSend.mutate(selected.id)}
           >
             {assignAndSend.isPending ? (

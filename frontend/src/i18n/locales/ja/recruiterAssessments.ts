@@ -777,7 +777,7 @@ export const recruiterAssessmentsJa = {
     noTemplatesHintLink: "問題バンク",
     noTemplatesHintSuffix:
       " でテストを作成して公開してください。未配布の公開済み通常テストのみここに表示されます（AIテストは選択不可）。",
-    templatesAllowedHint: "AI面接または技術試験ステージの応募者にのみ配布できます。",
+    templatesAllowedHint: "AI面接に合格し、技術試験ステージに進んだ応募者にのみ配布できます。",
     loadingApplicants: "応募者一覧を読み込み中...",
     noApplicantsTitle: "該当する応募者がいません",
     noApplicantsEmpty: "この求人への応募者はまだいません。",
@@ -791,7 +791,7 @@ export const recruiterAssessmentsJa = {
     assignedTestFallback: "専用テスト配布済み",
     unassignedBadge: "未配布",
     needManualTemplateTooltip: "未配布の公開済み通常テストが必要です",
-    stageNotAllowedTooltip: "AI面接または技術試験ステージの応募者のみ対象です",
+    stageNotAllowedTooltip: "AI面接に合格し、技術試験ステージにいる応募者のみ対象です",
     sendTemplateTooltip: "「{title}」をこの応募者に送信",
     sendTemplateBtn: "このテストを配布",
     bankInsufficientTooltip: "自動生成に必要な問題数が問題バンクに不足しています",
