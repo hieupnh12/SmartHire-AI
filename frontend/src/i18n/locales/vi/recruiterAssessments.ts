@@ -779,7 +779,7 @@ export const recruiterAssessmentsVi = {
     noTemplatesHintLink: "Ngân hàng câu hỏi",
     noTemplatesHintSuffix:
       ", rồi xuất bản. Đề Thường đã xuất bản và chưa giao cho ai mới hiện ở đây. Đề AI từ Tạo tự động không chọn được.",
-    templatesAllowedHint: "Chỉ giao được cho hồ sơ đang ở vòng Phỏng vấn AI hoặc Assessment.",
+    templatesAllowedHint: "Chỉ giao được cho hồ sơ đã vượt qua Phỏng vấn AI và đang ở vòng Assessment.",
     loadingApplicants: "Đang tải danh sách ứng viên...",
     noApplicantsTitle: "Không tìm thấy ứng viên phù hợp",
     noApplicantsEmpty: "Vị trí tuyển dụng này hiện chưa có ứng viên nộp hồ sơ.",
@@ -793,7 +793,7 @@ export const recruiterAssessmentsVi = {
     assignedTestFallback: "Đã có bài thi riêng",
     unassignedBadge: "Chưa giao bài",
     needManualTemplateTooltip: "Cần một đề Thường đã xuất bản và chưa giao cho ai",
-    stageNotAllowedTooltip: "Chỉ giao được khi hồ sơ đang ở vòng Phỏng vấn AI hoặc Assessment",
+    stageNotAllowedTooltip: "Chỉ giao được khi ứng viên đã đạt Phỏng vấn AI và đang ở vòng Assessment",
     sendTemplateTooltip: "Gửi «{title}» cho ứng viên này",
     sendTemplateBtn: "Giao đề này",
     bankInsufficientTooltip: "Ngân hàng câu hỏi chưa đủ để tạo đề tự động",

@@ -500,7 +500,7 @@ function RankingFilterToolbar({
         >
           <option value="ACTIVE">{t("recruiter.screening.ranking.filters.statusActive")}</option>
           <option value="ALL">{t("recruiter.screening.ranking.filters.statusAll")}</option>
-          {["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED", "WITHDRAWN"].map((status) => (
+          {["NEW", "IN_REVIEW", "INTERVIEW", "ASSESSMENT", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED", "WITHDRAWN"].map((status) => (
             <option key={status} value={status}>
               {getRankingLabel(status, t)}
             </option>

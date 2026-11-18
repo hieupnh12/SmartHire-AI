@@ -398,11 +398,31 @@ public class ApplicantService {
             throw new BusinessException("Application is in a terminal state", HttpStatus.CONFLICT,
                     "APPLICATION_BAD_STATUS");
         }
+        if (next == ApplicationStatus.INTERVIEW && application.getCvScreeningStatus() != CvScreeningStatus.PASSED) {
+            throw new BusinessException("Ứng viên phải vượt qua vòng lọc CV trước khi chuyển sang Phỏng vấn AI",
+                    HttpStatus.CONFLICT, "CV_SCREENING_NOT_PASSED");
+        }
+        if (next == ApplicationStatus.ASSESSMENT) {
+            if (application.getCvScreeningStatus() != CvScreeningStatus.PASSED) {
+                throw new BusinessException("Ứng viên phải vượt qua vòng lọc CV trước khi chuyển sang Assessment",
+                        HttpStatus.CONFLICT, "CV_SCREENING_NOT_PASSED");
+            }
+            if (aiInterviews != null && !HumanInterviewGate.aiInterviewPassed(aiInterviews, application.getId())) {
+                throw new BusinessException("Ứng viên phải vượt qua vòng Phỏng vấn AI trước khi chuyển sang Assessment",
+                        HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_PASSED");
+            }
+        }
         if (next == ApplicationStatus.REJECTED) {
             application.setRejectReason(blankToNull(note));
         }
         ApplicationStatus oldStatus = application.getStatus();
         record(application, next, note);
+        if (next == ApplicationStatus.INTERVIEW) {
+            attachInterviewStage(application);
+            inviteAiInterview(application);
+        } else if (next == ApplicationStatus.ASSESSMENT) {
+            attachAssessmentStage(application);
+        }
         if (ApplicationClosureService.closed(next)) {
             closures.onClosed(application, "Nhà tuyển dụng đã quyết định không tiếp tục với hồ sơ này.");
         } else if (candidateNotifications != null) {
@@ -493,7 +513,7 @@ public class ApplicantService {
             ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.FAILED, ApplicationStatus.WITHDRAWN);
 
     /**
-     * After CV screening. AUTO: pass → assessment; fail → REJECTED. MANUAL: the
+     * After CV screening. AUTO: pass → AI interview; fail → REJECTED. MANUAL: the
      * score is only a
      * recommendation; the recruiter decides via {@link #decideCvScreening}.
      */
@@ -525,13 +545,16 @@ public class ApplicantService {
         application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
                 : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
         if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
+            if (passed && current == ApplicationStatus.INTERVIEW && InterviewPolicies.enabled(application.getJob())) {
+                inviteAiInterview(application);
+            }
             gateScreening.recalculate(application);
             return;
         }
         if (passed) {
-            record(application, ApplicationStatus.ASSESSMENT, "CV passed screening; opened the assessment round", null);
-            attachAssessmentStage(application);
-            inviteAssessmentAndAiInterview(application);
+            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview", null);
+            attachInterviewStage(application);
+            inviteAiInterview(application);
             if (candidateNotifications != null) {
                 candidateNotifications.notifyCvPassed(application, "Hồ sơ đạt tiêu chuẩn sơ loại CV");
             }
@@ -542,7 +565,7 @@ public class ApplicantService {
     }
 
     /**
-     * Recruiter decision on the CV round: pass → assessment + AI invite; fail →
+     * Recruiter decision on the CV round: pass → AI interview (with invite); fail →
      * REJECTED.
      */
     @Transactional
@@ -557,9 +580,9 @@ public class ApplicantService {
         }
         if (passed) {
             application.setCvScreeningStatus(CvScreeningStatus.PASSED);
-            record(application, ApplicationStatus.ASSESSMENT, noteOr(note, "Recruiter passed CV screening"));
-            attachAssessmentStage(application);
-            inviteAssessmentAndAiInterview(application);
+            record(application, ApplicationStatus.INTERVIEW, noteOr(note, "Recruiter passed CV screening"));
+            attachInterviewStage(application);
+            inviteAiInterview(application);
             if (candidateNotifications != null) {
                 candidateNotifications.notifyCvPassed(application, note);
             }
@@ -572,12 +595,9 @@ public class ApplicantService {
     }
 
     /**
-     * AI Interview is invited alongside the assessment round while that module is
-     * still being fixed.
-     * The candidate paper itself is generated from the question bank for this
-     * application only.
+     * Invites the candidate to AI Interview after CV screening passes.
      */
-    private void inviteAssessmentAndAiInterview(Application application) {
+    private void inviteAiInterview(Application application) {
         if (!InterviewPolicies.enabled(application.getJob()))
             return;
         try {
@@ -601,8 +621,7 @@ public class ApplicantService {
             return;
         if (rankingRecompute != null)
             rankingRecompute.request(application.getJob().getId());
-        if (application.getStatus() != ApplicationStatus.ASSESSMENT
-                && application.getStatus() != ApplicationStatus.INTERVIEW) {
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
             gateScreening.recalculate(application);
             return;
         }
@@ -614,7 +633,6 @@ public class ApplicantService {
         boolean passed = latest.getScore().compareTo(paper.getPassingScore()) >= 0;
         if (passed) {
             if (!HumanInterviewGate.aiInterviewPassed(aiInterviews, applicationId)) {
-                // Assessment đạt nhưng AI Interview chưa — giữ vòng hiện tại, chưa mở lời mời Human Interview.
                 return;
             }
             if (!HumanInterviewGate.cvPassed(application)) {
@@ -644,6 +662,14 @@ public class ApplicantService {
         if (!latest.getStatus().isFinished() && latest.getStatus() != TestSubmissionStatus.EXPIRED)
             return null;
         return latest;
+    }
+
+    private void attachInterviewStage(Application application) {
+        stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
+                .filter(stage -> "INTERVIEW".equalsIgnoreCase(stage.getStageCode())
+                        || "Interview".equalsIgnoreCase(stage.getName()))
+                .findFirst()
+                .ifPresent(application::setStage);
     }
 
     private void attachAssessmentStage(Application application) {

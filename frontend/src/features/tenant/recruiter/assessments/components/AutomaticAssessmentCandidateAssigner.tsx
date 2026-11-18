@@ -24,7 +24,7 @@ import { toast } from "@/stores/toastStore";
 import type { JobTest } from "@/api/types/assessment";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 
-const MANUAL_STATUSES = new Set(["INTERVIEW", "ASSESSMENT"]);
+const ELIGIBLE_ASSESSMENT_STATUSES = new Set(["ASSESSMENT"]);
 const APPLICATION_STAGE_KEYS = new Set([
   "NEW",
   "IN_REVIEW",
@@ -127,14 +127,15 @@ export function AutomaticAssessmentCandidateAssigner() {
     );
   }, [applications, search]);
 
-  // Các ứng viên chưa có bài thi (có thể chọn)
+  const canReceiveTemplate = (status: string) => ELIGIBLE_ASSESSMENT_STATUSES.has(status);
+
+  // Các ứng viên đã vượt qua Phỏng vấn AI (đang ở vòng Assessment) và chưa có bài thi
   const selectableApplications = useMemo(() => {
-    return filteredApplications.filter((app) => !assignedAppIds.has(app.id));
+    return filteredApplications.filter((app) => !assignedAppIds.has(app.id) && canReceiveTemplate(app.status));
   }, [filteredApplications, assignedAppIds]);
 
-  const canReceiveTemplate = (status: string) => MANUAL_STATUSES.has(status);
   const selectedTemplateTargets = selectableApplications.filter(
-    (app) => selectedIds.includes(app.id) && canReceiveTemplate(app.status),
+    (app) => selectedIds.includes(app.id),
   );
 
   const allSelectableSelected =
@@ -409,7 +410,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            disabled={hasTest || assignMutation.isPending || sendTemplateMutation.isPending}
+                            disabled={hasTest || !canReceiveTemplate(app.status) || assignMutation.isPending || sendTemplateMutation.isPending}
                             onChange={() => toggleSelectOne(app.id)}
                             className="size-4 rounded accent-[var(--color-primary)] disabled:opacity-30"
                             aria-label={t("recruiter.assessments.assigner.selectApplicantAria", { name: app.candidateName })}
@@ -473,11 +474,19 @@ export function AutomaticAssessmentCandidateAssigner() {
                               </button>
                               <button
                                 type="button"
-                                disabled={assignMutation.isPending || sendTemplateMutation.isPending || !!status?.bankError || !config}
+                                disabled={
+                                  assignMutation.isPending
+                                  || sendTemplateMutation.isPending
+                                  || !!status?.bankError
+                                  || !config
+                                  || !canReceiveTemplate(app.status)
+                                }
                                 title={
-                                  status?.bankError
-                                    ? t("recruiter.assessments.assigner.bankInsufficientTooltip")
-                                    : t("recruiter.assessments.assigner.autoGenerateTooltip")
+                                  !canReceiveTemplate(app.status)
+                                    ? t("recruiter.assessments.assigner.stageNotAllowedTooltip")
+                                    : status?.bankError
+                                      ? t("recruiter.assessments.assigner.bankInsufficientTooltip")
+                                      : t("recruiter.assessments.assigner.autoGenerateTooltip")
                                 }
                                 onClick={() => assignMutation.mutate([app.id])}
                                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-primary)]/25 bg-[var(--color-primary-soft)] px-2.5 py-1 text-[12px] font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-40 cursor-pointer"

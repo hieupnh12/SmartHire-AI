@@ -28,6 +28,7 @@ public class AssessmentGenerationService {
     private final QuestionRepository questions;
     private final OptionRepository options;
     private final ApplicationRepository applications;
+    private final AiInterviewRepository aiInterviews;
     private final NotificationRepository notifications;
     private final EmailOutboxRepository outbox;
     private final CvAccess access;
@@ -44,10 +45,10 @@ public class AssessmentGenerationService {
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
-            NotificationRepository notifications, EmailOutboxRepository outbox,
+            AiInterviewRepository aiInterviews, NotificationRepository notifications, EmailOutboxRepository outbox,
             CvAccess access, AssessmentMapper mapper, ObjectMapper json, NotificationPreferenceService preferences) {
         this.jobs = jobs; this.tests = tests; this.skills = skills; this.questions = questions; this.options = options;
-        this.applications = applications; this.notifications = notifications;
+        this.applications = applications; this.aiInterviews = aiInterviews; this.notifications = notifications;
         this.outbox = outbox; this.access = access; this.mapper = mapper; this.json = json; this.preferences = preferences;
     }
 
@@ -111,6 +112,19 @@ public class AssessmentGenerationService {
         if (application.getJob().getId() != jobId) {
             throw invalid("Hồ sơ ứng viên không thuộc vị trí này");
         }
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || com.smarthire.tenant.applicant.service.ApplicationClosureService.closed(application.getStatus())) {
+            throw new BusinessException("Hồ sơ không đủ điều kiện để giao bài Assessment", HttpStatus.CONFLICT, "APPLICATION_NOT_ELIGIBLE");
+        }
+        if (application.getCvScreeningStatus() != CvScreeningStatus.PASSED) {
+            throw new BusinessException("Ứng viên phải vượt qua vòng lọc CV trước khi giao bài Assessment", HttpStatus.CONFLICT, "CV_SCREENING_NOT_PASSED");
+        }
+        if (!aiInterviews.existsByApplication_IdAndStatus(applicationId, AiInterviewStatus.PASSED)) {
+            throw new BusinessException("Ứng viên phải vượt qua vòng Phỏng vấn AI trước khi giao bài Assessment", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_PASSED");
+        }
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT && application.getStatus() != ApplicationStatus.INTERVIEW) {
+            throw new BusinessException("Hồ sơ chưa ở vòng Assessment", HttpStatus.CONFLICT, "APPLICATION_NOT_ELIGIBLE");
+        }
         if (tests.existsByAssignedApplication_Id(applicationId)) {
             throw invalid("Ứng viên này đã có bài đánh giá riêng");
         }
@@ -133,7 +147,7 @@ public class AssessmentGenerationService {
             }
             applications.save(application);
         }
-        String path = "/candidate/assessments?applicationId=" + applicationId;
+        String path = "/assessments?applicationId=" + applicationId;
         String title = "Bài Assessment đã sẵn sàng";
         String body = "Bạn đã được giao bài đánh giá năng lực cho vị trí " + test.getJob().getTitle()
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
@@ -157,7 +171,9 @@ public class AssessmentGenerationService {
     public List<Long> eligibleApplications(long jobId) {
         return applications.findByJob_IdOrderByIdDesc(jobId).stream()
                 .filter(a -> a.getStatus() == ApplicationStatus.ASSESSMENT && a.getArchivedAt() == null && a.getWithdrawnAt() == null)
-                .map(Application::getId).toList();
+                .map(Application::getId)
+                .filter(id -> aiInterviews.existsByApplication_IdAndStatus(id, AiInterviewStatus.PASSED))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -181,11 +197,12 @@ public class AssessmentGenerationService {
                 || application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null || tests.existsByAssignedApplication_Id(id)) return false;
         var config = readConfig(application.getJob());
-        if (config == null || !config.autoAssign()) return false;
+        if (config == null || !config.autoAssign()
+                || !aiInterviews.existsByApplication_IdAndStatus(id, AiInterviewStatus.PASSED)) return false;
         JobTest test = create(application.getJob(), config, application, application.getJob().getCreatedBy());
-        String path = "/candidate/assessments?applicationId=" + id;
+        String path = "/assessments?applicationId=" + id;
         String title = "Bài Assessment đã sẵn sàng";
-        String body = "Bạn đã vượt qua vòng lọc CV cho vị trí " + test.getJob().getTitle()
+        String body = "Bạn đã vượt qua AI Interview cho vị trí " + test.getJob().getTitle()
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
                 + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
         if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {

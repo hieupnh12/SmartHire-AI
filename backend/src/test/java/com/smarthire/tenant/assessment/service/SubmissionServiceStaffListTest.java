@@ -31,7 +31,7 @@ class SubmissionServiceStaffListTest {
                 mock(org.springframework.beans.factory.ObjectProvider.class);
         service = new SubmissionService(mock(JobTestRepository.class), mock(ApplicationRepository.class), submissions,
                 questions, mock(OptionRepository.class), mock(AnswerRepository.class), mock(CodingProblemRepository.class),
-                access, mock(AssessmentMapper.class), jobs, applicants);
+                access, mock(AssessmentMapper.class), mock(AiInterviewRepository.class), jobs, applicants);
         job = new Job();
         job.setId(1L);
         test = new JobTest();

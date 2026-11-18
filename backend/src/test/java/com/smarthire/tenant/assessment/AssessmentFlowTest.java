@@ -116,7 +116,11 @@ class AssessmentFlowTest {
             em.persist(job);
             Application application = new Application();
             application.setJob(job); application.setCandidate(candidate); application.setStatus(ApplicationStatus.ASSESSMENT);
-            em.persist(application); em.flush();
+            application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+            em.persist(application);
+            AiInterview passedInterview = AiInterview.builder().application(application).status(AiInterviewStatus.PASSED).build();
+            em.persist(passedInterview);
+            em.flush();
             jobId = job.getId(); applicationId = application.getId(); candidateId = candidate.getId();
         });
         login(recruiterEmail, "RECRUITER");
@@ -204,7 +208,10 @@ class AssessmentFlowTest {
         assertThat(submissions.available(applicationId)).extracting(AvailableAssessmentResponse::id).contains(testId);
         long otherApplication = tx.execute(status -> {
             var other = em.createQuery("select c from Candidate c where c.email = :email", Candidate.class).setParameter("email", otherEmail).getSingleResult();
-            Application app = new Application(); app.setJob(em.find(Job.class, jobId)); app.setCandidate(other); app.setStatus(ApplicationStatus.ASSESSMENT); em.persist(app);
+            Application app = new Application(); app.setJob(em.find(Job.class, jobId)); app.setCandidate(other); app.setStatus(ApplicationStatus.ASSESSMENT);
+            app.setCvScreeningStatus(CvScreeningStatus.PASSED);
+            em.persist(app);
+            em.persist(AiInterview.builder().application(app).status(AiInterviewStatus.PASSED).build());
             em.flush(); return app.getId();
         });
         login(otherEmail, "CANDIDATE");
@@ -483,6 +490,40 @@ class AssessmentFlowTest {
         login(candidateEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(applicationId)))
                 .hasMessageContaining("not eligible");
+    }
+
+    @Test
+    void assessmentGenerationAndAccessRequirePassedAiInterview() {
+        var config = generationConfig(true);
+        generation.saveConfig(jobId, config);
+        long unpassedApp = tx.execute(status -> {
+            var other = em.createQuery("select c from Candidate c where c.email = :email", Candidate.class)
+                    .setParameter("email", otherEmail).getSingleResult();
+            Application app = new Application();
+            app.setJob(em.find(Job.class, jobId));
+            app.setCandidate(other);
+            app.setStatus(ApplicationStatus.ASSESSMENT);
+            app.setCvScreeningStatus(CvScreeningStatus.PASSED);
+            em.persist(app);
+            em.flush();
+            return app.getId();
+        });
+        assertThat(generation.pending()).doesNotContain(unpassedApp);
+        assertThat(generation.generateForApplication(unpassedApp)).isFalse();
+        assertThatThrownBy(() -> generation.generateForApplicationExplicit(jobId, unpassedApp))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_PASSED"));
+
+        long testId = draft();
+        questions.create(testId, question("One", 5, 0));
+        questions.publish(testId);
+        tx.executeWithoutResult(status -> em.find(JobTest.class, testId)
+                .setAssignedApplication(em.find(Application.class, unpassedApp)));
+        login(otherEmail, "CANDIDATE");
+        assertThat(submissions.available(unpassedApp)).isEmpty();
+        assertThatThrownBy(() -> submissions.prepare(testId, new StartSubmissionRequest(unpassedApp)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_PASSED"));
+        assertThatThrownBy(() -> submissions.start(testId, new StartSubmissionRequest(unpassedApp)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_PASSED"));
     }
 
     @Test

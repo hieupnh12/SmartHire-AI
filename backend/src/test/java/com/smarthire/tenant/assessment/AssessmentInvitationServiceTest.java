@@ -1,6 +1,7 @@
 package com.smarthire.tenant.assessment;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.enums.TestStatus;
@@ -33,6 +34,7 @@ class AssessmentInvitationServiceTest {
     @Mock JobTestRepository tests;
     @Mock ApplicationRepository applications;
     @Mock SubmissionRepository submissions;
+    @Mock AiInterviewRepository aiInterviews;
     @Mock ApplicationStatusHistoryRepository history;
     @Mock RecruitmentStageRepository stages;
     @Mock NotificationRepository notifications;
@@ -104,6 +106,7 @@ class AssessmentInvitationServiceTest {
 
     @Test void inviteFixedDemoAfterCvPassSeedsAndNotifies() {
         application.setStatus(ApplicationStatus.ASSESSMENT);
+        when(aiInterviews.existsByApplication_IdAndStatus(7L, AiInterviewStatus.PASSED)).thenReturn(true);
         when(demoSeed.ensurePublishedDemo(application.getJob())).thenReturn(test);
         when(publicUrls.path(anyString())).thenAnswer(call -> "https://acme.example" + call.getArgument(0));
         when(mail.send(eq("candidate@example.test"), anyString(), anyString())).thenReturn(true);
@@ -116,6 +119,22 @@ class AssessmentInvitationServiceTest {
         verify(demoSeed).ensurePublishedDemo(application.getJob());
         verify(notifications).save(any());
         verifyNoInteractions(history);
+    }
+
+    @Test void rejectsWhenAiInterviewNotPassed() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(aiInterviews.existsByApplication_IdAndStatus(7L, AiInterviewStatus.PASSED)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.send(5L, new SendAssessmentRequest(7L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("AI_INTERVIEW_NOT_PASSED");
+        assertThatThrownBy(() -> service.assignToApplication(5L, 7L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("AI_INTERVIEW_NOT_PASSED");
+        verifyNoInteractions(notifications, outbox, history, mail);
     }
 
     @Test void resendInAssessmentKeepsStatusWithoutHistory() {
@@ -159,5 +178,6 @@ class AssessmentInvitationServiceTest {
 
     private void eligible() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(aiInterviews.existsByApplication_IdAndStatus(7L, AiInterviewStatus.PASSED)).thenReturn(true);
     }
 }

@@ -43,12 +43,14 @@ Status ứng viên: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW (AI), HUMAN_INTERVIEW 
 
 WF-01
 
-## Tích hợp AI Interview (2026-09-27, cập nhật 2026-10-20)
+## Tích hợp AI Interview & Thứ tự vòng tuyển dụng (2026-09-27, cập nhật 2026-11-18)
 
-- Sau lọc CV đậu, đơn vào `ASSESSMENT` và hệ thống mời Assessment + AI Interview song song (AI chỉ khi job bật). AI Interview được phép khi đơn ở `ASSESSMENT` hoặc `INTERVIEW`.
-- Chuyển sang `INTERVIEW` (thủ công hoặc sau assessment) vẫn có thể tạo/bổ sung lời mời AI nếu còn thiếu, không lặp lại nếu đã có phiên.
+- Quy chuẩn thứ tự tuần tự bắt buộc: **CV Screening (`NEW`/`IN_REVIEW`) → AI Interview (`INTERVIEW`) → Technical Assessment (`ASSESSMENT`) → Human Interview (`HUMAN_INTERVIEW`) → `OFFER` → `HIRED`**.
+- Sau khi lọc CV đậu (tự động hoặc recruiter quyết định), đơn chuyển sang `INTERVIEW` và hệ thống gửi lời mời AI Interview (nếu job bật AI). Chỉ hồ sơ đã đạt lọc CV (`cv_screening_status = PASSED`) và ở vòng `INTERVIEW` mới được làm AI Interview (`AiInterviewEligibility`).
+- Sau khi AI Interview đạt (`PASSED`), hệ thống tự động chuyển đơn sang `ASSESSMENT`, mở khóa vòng bài đánh giá (tự động giao đề nếu job bật `autoAssign`, hoặc recruiter giao thủ công). Mọi API giao đề/bắt đầu/xem đề Assessment đều chặn nếu ứng viên chưa đạt AI Interview (`409 AI_INTERVIEW_NOT_PASSED`).
+- Sau khi Assessment đạt ngưỡng, hệ thống chuyển đơn sang `HUMAN_INTERVIEW` (với điều kiện CV + AI Interview + Assessment đều đạt).
 - CV screening tự động ghi lịch sử với `changed_by = NULL` (system); không yêu cầu SecurityContext của người dùng trong RabbitMQ worker. TenantContext vẫn bắt buộc.
-- Thao tác chuyển vòng thủ công của recruiter sử dụng `POST /api/v1/applications/{id}/status`.
+- Thao tác chuyển vòng thủ công của recruiter sử dụng `POST /api/v1/applications/{id}/status` và vẫn tuân thủ điều kiện tiên quyết giữa các vòng (`CV_SCREENING_NOT_PASSED`, `AI_INTERVIEW_NOT_PASSED`).
 
 ## Trạng thái phỏng vấn trực tiếp (2026-10-07)
 
