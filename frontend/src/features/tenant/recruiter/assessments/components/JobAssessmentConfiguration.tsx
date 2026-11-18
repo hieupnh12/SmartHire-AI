@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, CheckCircle2, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Sparkles, Target, Zap } from "lucide-react";
+import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, CheckCircle2, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, ShieldCheck, Smartphone, Sparkles, Target, Video, Zap } from "lucide-react";
 import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration, RubricCriterionConfig } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -42,6 +42,8 @@ function createConfigSchema(t: TranslateFn) {
         .max(100, t("recruiter.assessments.config.validation.max100Passing")),
       autoAssign: z.boolean(),
       autoGradingEnabled: z.boolean().optional(),
+      strictProctorEnabled: z.boolean().optional(),
+      proctorMeetUrl: z.string().trim().max(512).nullable().optional(),
       sections: z
         .array(
           z.object({
@@ -81,6 +83,10 @@ function createConfigSchema(t: TranslateFn) {
         message: t("recruiter.assessments.config.validation.codingWeightsMustSum100"),
       },
     )
+    .refine((value) => !(value.autoAssign && value.strictProctorEnabled), {
+      path: ["strictProctorEnabled"],
+      message: t("recruiter.assessments.config.autoAssignProctorConflictValidation"),
+    })
     .refine(
       (value) => {
         if (value.essayCriteria && value.essayCriteria.length > 0) {
@@ -294,7 +300,10 @@ export function ConfigurationForm({
     defaultValues: initial
       ? {
           ...initial,
+          autoAssign: initial.strictProctorEnabled ? false : initial.autoAssign,
           autoGradingEnabled: initial.autoGradingEnabled ?? false,
+          strictProctorEnabled: initial.strictProctorEnabled ?? false,
+          proctorMeetUrl: initial.proctorMeetUrl ?? "",
           sections: initial.sections && initial.sections.length > 0
             ? initial.sections
             : [{ skill: jobSkills[0]?.name ?? "", questionType: "MCQ", difficulty: "Easy", count: 5, points: 2 }],
@@ -309,6 +318,8 @@ export function ConfigurationForm({
           passingPercent: 70,
           autoAssign: true,
           autoGradingEnabled: false,
+          strictProctorEnabled: false,
+          proctorMeetUrl: "",
           sections: [{ skill: jobSkills[0]?.name ?? "", questionType: "MCQ", difficulty: "Easy", count: 5, points: 2 }],
           codingTestWeightPercent: 80,
           codingAiWeightPercent: 20,
@@ -333,6 +344,7 @@ export function ConfigurationForm({
   const passingPercent = watch("passingPercent") ?? 70;
   const autoAssign = watch("autoAssign");
   const autoGradingEnabled = watch("autoGradingEnabled");
+  const strictProctorEnabled = watch("strictProctorEnabled");
   const minRequiredPoints = Math.ceil((total * (Number(passingPercent) || 0)) / 100);
 
   const handleReset = () => {
@@ -410,7 +422,8 @@ export function ConfigurationForm({
   const save = (generate: boolean) =>
     handleSubmit(
       (data) => {
-        mutation.mutate({ data, generate });
+        const normalized = data.strictProctorEnabled ? { ...data, autoAssign: false } : data;
+        mutation.mutate({ data: normalized, generate });
       },
       (invalid) => {
         const nextTab = invalid.sections ? "exercise" : "general";
@@ -752,39 +765,51 @@ export function ConfigurationForm({
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1">
-                <input
-                  type="checkbox"
-                  {...register("autoAssign")}
-                  disabled={mutation.isPending}
-                  className="size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
-                />
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[13px] font-bold text-[#101828] dark:text-white">
-                    {t("recruiter.assessments.config.autoAssignLabel")}
-                  </span>
-                  <Tooltip
-                    content={t("recruiter.assessments.config.autoAssignTooltip")}
-                    side="top"
-                  >
-                    <span className="inline-flex cursor-help items-center text-slate-400 hover:text-emerald-600 transition-colors">
-                      <HelpCircle className="size-3.5" aria-hidden="true" />
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className={cn("flex items-center gap-3.5 min-w-0 flex-1", strictProctorEnabled ? "cursor-not-allowed opacity-65" : "cursor-pointer")}>
+                  <input
+                    type="checkbox"
+                    {...register("autoAssign")}
+                    disabled={mutation.isPending || !!strictProctorEnabled}
+                    className="size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)] disabled:cursor-not-allowed"
+                  />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[13px] font-bold text-[#101828] dark:text-white">
+                      {t("recruiter.assessments.config.autoAssignLabel")}
                     </span>
-                  </Tooltip>
+                    <Tooltip
+                      content={t("recruiter.assessments.config.autoAssignTooltip")}
+                      side="top"
+                    >
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-emerald-600 transition-colors">
+                        <HelpCircle className="size-3.5" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                  </div>
+                </label>
+                <div>
+                  {strictProctorEnabled ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900">
+                      {t("recruiter.assessments.config.autoAssignLockedByProctorBadge")}
+                    </span>
+                  ) : autoAssign ? (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      {t("recruiter.assessments.config.autoAssignOn")}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                      {t("recruiter.assessments.config.autoAssignOff")}
+                    </span>
+                  )}
                 </div>
-              </label>
-              <div>
-                {autoAssign ? (
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    {t("recruiter.assessments.config.autoAssignOn")}
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                    {t("recruiter.assessments.config.autoAssignOff")}
-                  </span>
-                )}
               </div>
+              {strictProctorEnabled && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[12px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  <span>{t("recruiter.assessments.config.autoAssignLockedByProctorHint")}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -809,46 +834,152 @@ export function ConfigurationForm({
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-start gap-3.5 cursor-pointer min-w-0 flex-1">
-                <input
-                  type="checkbox"
-                  {...register("autoGradingEnabled")}
-                  disabled={mutation.isPending}
-                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
-                />
-                <div className="flex flex-col gap-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-[#101828] dark:text-white">
-                      {t("recruiter.assessments.config.autoGradingLabel")}
-                    </span>
-                    <Tooltip
-                      content={t("recruiter.assessments.config.autoGradingTooltip")}
-                      side="top"
-                    >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
-                        <HelpCircle className="size-3.5" aria-hidden="true" />
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-start gap-3.5 cursor-pointer min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    {...register("autoGradingEnabled")}
+                    disabled={mutation.isPending}
+                    className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
+                  />
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-bold text-[#101828] dark:text-white">
+                        {t("recruiter.assessments.config.autoGradingLabel")}
                       </span>
-                    </Tooltip>
+                      <Tooltip
+                        content={t("recruiter.assessments.config.autoGradingTooltip")}
+                        side="top"
+                      >
+                        <span className="inline-flex cursor-help items-center text-slate-400 hover:text-[var(--color-primary)] transition-colors">
+                          <HelpCircle className="size-3.5" aria-hidden="true" />
+                        </span>
+                      </Tooltip>
+                    </div>
+                    <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                      {autoGradingEnabled
+                        ? t("recruiter.assessments.config.autoGradingOnDesc")
+                        : t("recruiter.assessments.config.autoGradingOffDesc")}
+                    </p>
                   </div>
-                  <p className="text-[12px] text-slate-500 dark:text-slate-400">
-                    {autoGradingEnabled
-                      ? t("recruiter.assessments.config.autoGradingOnDesc")
-                      : t("recruiter.assessments.config.autoGradingOffDesc")}
-                  </p>
+                </label>
+                <div className="shrink-0 self-start sm:self-center">
+                  {autoGradingEnabled ? (
+                    <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
+                      {t("recruiter.assessments.config.autoGradingOnBadge")}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                      {t("recruiter.assessments.config.autoGradingOffBadge")}
+                    </span>
+                  )}
                 </div>
-              </label>
-              <div className="shrink-0 self-start sm:self-center">
-                {autoGradingEnabled ? (
-                  <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary-hover)] border border-[var(--color-primary)]/25">
-                    {t("recruiter.assessments.config.autoGradingOnBadge")}
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                    {t("recruiter.assessments.config.autoGradingOffBadge")}
-                  </span>
-                )}
               </div>
+              {autoGradingEnabled && strictProctorEnabled && (
+                <div className="flex items-start gap-2 rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3 py-2 text-[12px] leading-relaxed text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-200">
+                  <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                  <span>{t("recruiter.assessments.config.autoGradingProctorGuardNote")}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Khối 5: Giám sát chống gian lận trực tiếp (Strict Live Proctoring — QR / Meet / Zoom) */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+                <ShieldCheck className="size-4" aria-hidden="true" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-[#101828] dark:text-white">
+                  {t("recruiter.assessments.config.proctorSectionTitle")}
+                </h3>
+                <Tooltip
+                  content={t("recruiter.assessments.config.proctorSectionTooltip")}
+                  side="top"
+                >
+                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-indigo-600 transition-colors">
+                    <HelpCircle className="size-3.5" aria-hidden="true" />
+                  </span>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-start gap-3.5 cursor-pointer min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    {...register("strictProctorEnabled", {
+                      onChange: (event) => {
+                        if (event.target.checked && getValues("autoAssign")) {
+                          setValue("autoAssign", false, { shouldDirty: true, shouldValidate: true });
+                        }
+                      },
+                    })}
+                    disabled={mutation.isPending}
+                    className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]"
+                  />
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-bold text-[#101828] dark:text-white">
+                        {t("recruiter.assessments.config.strictProctorLabel")}
+                      </span>
+                      <Tooltip
+                        content={t("recruiter.assessments.config.strictProctorTooltip")}
+                        side="top"
+                      >
+                        <span className="inline-flex cursor-help items-center text-slate-400 hover:text-indigo-600 transition-colors">
+                          <HelpCircle className="size-3.5" aria-hidden="true" />
+                        </span>
+                      </Tooltip>
+                    </div>
+                    <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                      {strictProctorEnabled
+                        ? t("recruiter.assessments.config.strictProctorOnDesc")
+                        : t("recruiter.assessments.config.strictProctorOffDesc")}
+                    </p>
+                  </div>
+                </label>
+                <div className="shrink-0 self-start sm:self-center">
+                  {strictProctorEnabled ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-900">
+                      <Smartphone className="size-3" aria-hidden="true" />
+                      {t("recruiter.assessments.config.strictProctorOnBadge")}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                      {t("recruiter.assessments.config.strictProctorOffBadge")}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {strictProctorEnabled && (
+                <div className="space-y-2 border-t border-slate-200/80 pt-3.5 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#344054] dark:text-slate-200">
+                      <Video className="size-3.5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                      {t("recruiter.assessments.config.proctorMeetUrlLabel")}
+                    </label>
+                    <span className="text-[11px] font-medium text-slate-400">{t("recruiter.assessments.common.optional")}</span>
+                  </div>
+                  <input
+                    type="url"
+                    {...register("proctorMeetUrl")}
+                    disabled={mutation.isPending}
+                    placeholder={t("recruiter.assessments.config.proctorMeetUrlPlaceholder")}
+                    className={inputClass}
+                  />
+                  <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    {t("recruiter.assessments.config.proctorMeetUrlHint")}
+                  </p>
+                  {errors.proctorMeetUrl && (
+                    <span className="text-xs text-[var(--color-error)]">{errors.proctorMeetUrl.message}</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

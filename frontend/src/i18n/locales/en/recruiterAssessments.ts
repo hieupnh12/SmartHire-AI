@@ -646,6 +646,13 @@ export const recruiterAssessmentsEn = {
       "Automatically draws questions from the Question Bank according to your configured weights to generate a unique test for each candidate entering Assessment.",
     autoAssignOn: "Enabled",
     autoAssignOff: "Manual",
+    autoAssignLockedByProctorBadge: "Locked by Live Proctoring",
+    autoAssignLockedByProctorHint:
+      "Automatic assignment is disabled while Strict Live Proctoring is enabled because recruiters must schedule and assign assessments when a proctor is available in Meet to approve candidates.",
+    autoAssignProctorConflictValidation:
+      "Automatic assignment cannot be enabled together with Strict Live Proctoring.",
+    autoGradingProctorGuardNote:
+      "Anti-cheat safety active: Submissions with recorded proctoring violations or terminated by a proctor are automatically held for manual HR review instead of auto-publishing results.",
     gradingSectionTitle: "Grading & Result Publishing",
     gradingSectionTooltip:
       "Configure result release: automatically email candidates after grading or wait for recruiter approval.",
@@ -658,6 +665,23 @@ export const recruiterAssessmentsEn = {
       "Disabled: AI proposes scores first; recruiters review submissions, adjust if needed, and approve results.",
     autoGradingOnBadge: "Auto-publish",
     autoGradingOffBadge: "Manual review",
+    proctorSectionTitle: "Live Anti-Cheat Proctoring (Strict Live Proctoring)",
+    proctorSectionTooltip:
+      "Enable secondary 45° camera proctoring via QR code (Meet/Zoom/Jitsi) like AI Interview: proctors must approve the setup before candidates can start.",
+    strictProctorLabel: "Require QR scan & proctor approval before entering exam room",
+    strictProctorTooltip:
+      "When enabled, candidates must scan a QR code on a secondary phone to join the proctor room at a 45° angle (showing both hands, keyboard, and screen) and wait for HR to click Approve Meet.",
+    strictProctorOnDesc:
+      "Enabled: Candidates must scan the QR code to join the proctor room and get approved by a proctor in Submissions before starting. Applies to both auto-generated and template-assigned tests.",
+    strictProctorOffDesc:
+      "Disabled: Uses standard browser proctoring only (webcam, microphone, fullscreen, and tab-switch detection).",
+    strictProctorOnBadge: "Meet approval required",
+    strictProctorOffBadge: "Standard proctoring",
+    proctorMeetUrlLabel: "Proctor Room URL (Google Meet / Zoom / Jitsi)",
+    proctorMeetUrlPlaceholder:
+      "https://meet.google.com/abc-defg-hij or Zoom link (leave empty to auto-generate a SmartHire Jitsi room)",
+    proctorMeetUrlHint:
+      "This link renders as a QR code on the candidate waiting screen and appears as an Open Meet button on the recruiter Submissions view.",
     showingFilterPrefix: "Showing section: ",
     showAllThreeSections: "Show all 3 sections",
     showingAllThreeSections: "Showing all 3 exercise sections",

@@ -52,7 +52,10 @@ public class AssessmentProctorService {
             event.setPayloadJson(null);
         }
         events.save(event);
-        var risk = ProctorRisk.of(events.findBySubmission_IdOrderByCreatedAtAsc(submission.getId()));
+        var allEvents = events.findBySubmission_IdOrderByCreatedAtAsc(submission.getId());
+        submission.setProctorViolationsCount(Math.max(submission.getProctorViolationsCount() + 1, allEvents.size()));
+        submissions.save(submission);
+        var risk = ProctorRisk.of(allEvents);
         var report = reports.findBySubmission_Id(submission.getId()).orElseGet(() -> ProctorReport.builder().submission(submission).build());
         report.setRiskScore(risk.score());
         report.setSummaryJson(json.valueToTree(Map.of("level", risk.level(), "counts", risk.counts())).toString());

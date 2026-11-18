@@ -258,12 +258,15 @@ public class SubmissionService {
             BigDecimal threshold = test.getPassingScore();
             Boolean passed = threshold == null || score == null ? null : score.compareTo(threshold) >= 0;
             Candidate candidate = submission.getCandidate();
+            String meetUrl = submission.getProctorMeetUrl() != null && !submission.getProctorMeetUrl().isBlank()
+                    ? submission.getProctorMeetUrl()
+                    : test.getProctorMeetUrl();
             return new SubmissionSummaryResponse(submission.getId(), test.getId(), test.getTitle(),
                     submission.getApplication().getId(), candidate.getId(), candidate.getFullName(), candidate.getEmail(),
                     status, submission.getStartedAt(), expiresAt, overdue ? null : submission.getSubmittedAt(),
                     remaining, score, totalPoints, threshold, passed,
                     submission.isProctorApproved(), submission.isProctorCandidateReady(),
-                    submission.getProctorTerminatedReason());
+                    submission.getProctorTerminatedReason(), test.isStrictProctorEnabled(), meetUrl);
         }).toList();
     }
 
@@ -475,18 +478,21 @@ public class SubmissionService {
             saved.add(empty);
         }
         answers.saveAll(saved);
+        boolean flaggedForProctorReview = !isDemoPaper(submission.getTest())
+                && submission.getTest().isStrictProctorEnabled()
+                && submission.getProctorViolationsCount() > 0;
         if (events != null && needsReview) events.publishEvent(new AssessmentGradeEvent(submission.getId(),
                 com.smarthire.multitenancy.context.TenantContext.getCurrentTenant()));
         submission.setScore(needsReview ? null : total);
         submission.setSubmittedAt(expired ? deadline(submission) : Instant.now().truncatedTo(ChronoUnit.SECONDS));
         submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
-                : needsReview ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
+                : (needsReview || flaggedForProctorReview) ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
         submissions.save(submission);
         var applicantService = applicants.getIfAvailable();
-        if (applicantService != null) {
+        if (applicantService != null && !flaggedForProctorReview) {
             applicantService.settleAfterAssessment(submission.getApplication().getId());
         }
-        if (!needsReview && submission.getTest().isAutoGradingEnabled() && !expired && gradingDetailService != null) {
+        if (!needsReview && !flaggedForProctorReview && submission.getTest().isAutoGradingEnabled() && !expired && gradingDetailService != null) {
             var detailSvc = gradingDetailService.getIfAvailable();
             if (detailSvc != null) {
                 detailSvc.sendResultEmailSilently(submission.getId());
@@ -496,11 +502,14 @@ public class SubmissionService {
             var application = submission.getApplication();
             var job = application.getJob();
             String result = needsReview ? "Cần chấm phần tự luận/coding." : "Điểm tự động: " + total.stripTrailingZeros().toPlainString() + ".";
+            if (flaggedForProctorReview) {
+                result += " Phát hiện " + submission.getProctorViolationsCount() + " cảnh báo chống gian lận — cần HR hậu kiểm trước khi chốt kết quả.";
+            }
             staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.ASSESSMENT,
                     "STAFF_ASSESSMENT_SUBMITTED", expired ? "Bài đánh giá hết giờ" : "Ứng viên đã nộp bài đánh giá",
                     submission.getCandidate().getFullName() + (expired ? " hết thời gian làm bài " : " đã hoàn thành bài ")
                             + submission.getTest().getTitle() + " — vị trí " + job.getTitle() + ". " + result,
-                    "/recruiter/jobs/" + job.getId() + "/assessments");
+                    "/recruiter/jobs/" + job.getId() + "/assessments/submissions");
         }
     }
 
@@ -609,14 +618,29 @@ public class SubmissionService {
         if (submission.getStatus() != TestSubmissionStatus.NOT_STARTED && submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) {
             throw conflict("Lượt thi đã kết thúc", "SUBMISSION_CLOSED");
         }
+        boolean wasReady = submission.isProctorCandidateReady();
         submission.setProctorCandidateReady(true);
-        return response(submissions.save(submission));
+        Submission saved = submissions.save(submission);
+        if (!wasReady && staffNotifications != null && !isDemoPaper(saved.getTest())) {
+            var application = saved.getApplication();
+            var job = application.getJob();
+            staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.ASSESSMENT,
+                    "STAFF_PROCTOR_CANDIDATE_READY",
+                    "Ứng viên đang chờ duyệt góc máy Meet",
+                    saved.getCandidate().getFullName() + " đã kết nối điện thoại góc 45° cho bài \""
+                            + saved.getTest().getTitle() + "\" — vị trí " + job.getTitle()
+                            + ". Vui lòng mở phòng Meet kiểm tra và bấm Duyệt Meet để ứng viên vào thi.",
+                    "/recruiter/jobs/" + job.getId() + "/assessments/submissions");
+        }
+        return response(saved);
     }
 
     @Transactional
     public SubmissionResponse approveProctorSetup(long id) {
         requireStaff();
+        access.actor();
         Submission submission = submissions.findById(id).orElseThrow(this::notFound);
+        access.requireJob(submission.getTest().getJob());
         if (isFinished(submission.getStatus())) {
             throw conflict("Bài thi đã hoàn thành", "SUBMISSION_CLOSED");
         }
@@ -628,7 +652,9 @@ public class SubmissionService {
     @Transactional
     public SubmissionResponse unapproveProctorSetup(long id) {
         requireStaff();
+        access.actor();
         Submission submission = submissions.findById(id).orElseThrow(this::notFound);
+        access.requireJob(submission.getTest().getJob());
         if (submission.getStartedAt() != null || isFinished(submission.getStatus())) {
             throw conflict("Không thể hủy duyệt khi ứng viên đã bắt đầu bài thi", "SUBMISSION_ALREADY_STARTED");
         }
@@ -640,8 +666,11 @@ public class SubmissionService {
     @Transactional
     public SubmissionResponse terminateByProctor(long id, String reason) {
         requireStaff();
+        access.actor();
         Submission submission = submissions.findById(id).orElseThrow(this::notFound);
-        if (isFinished(submission.getStatus())) {
+        access.requireJob(submission.getTest().getJob());
+        if (isFinished(submission.getStatus())
+                || (submission.getProctorTerminatedReason() != null && !submission.getProctorTerminatedReason().isBlank())) {
             throw conflict("Bài thi đã kết thúc", "SUBMISSION_CLOSED");
         }
         String cleanReason = (reason == null || reason.isBlank()) ? "Giám sát viên phát hiện gian lận trong quá trình làm bài." : reason.trim();

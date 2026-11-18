@@ -1,5 +1,6 @@
 package com.smarthire.domain.tenant.repository;
 
+import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.Submission;
 import org.springframework.data.jpa.repository.JpaRepository;
 import jakarta.persistence.LockModeType;
@@ -27,4 +28,6 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     @Query("select s from Submission s join fetch s.test t join fetch s.application a join fetch a.job j where s.status = com.smarthire.domain.enums.TestSubmissionStatus.IN_PROGRESS and s.startedAt is not null")
     List<Submission> findInProgressWithTest();
+
+    boolean existsByTest_IdAndStatusNot(Long testId, TestSubmissionStatus status);
 }

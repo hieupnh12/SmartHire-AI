@@ -17,6 +17,8 @@ export type AssessmentConfiguration = {
   passingPercent: number;
   autoAssign: boolean;
   autoGradingEnabled?: boolean;
+  strictProctorEnabled?: boolean;
+  proctorMeetUrl?: string | null;
   sections: AssessmentSection[];
   codingTestWeightPercent?: number;
   codingAiWeightPercent?: number;
