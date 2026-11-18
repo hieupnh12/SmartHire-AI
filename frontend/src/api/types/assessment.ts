@@ -83,6 +83,8 @@ export type SubmissionSummary = {
   proctorApproved?: boolean;
   proctorCandidateReady?: boolean;
   proctorTerminatedReason?: string | null;
+  strictProctorEnabled?: boolean;
+  proctorMeetUrl?: string | null;
 };
 export type SendAssessmentResult = { testId: number; applicationId: number; applicationStatus: string; emailSent: boolean };
 export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" | "durationMinutes" | "passingScore"> & {

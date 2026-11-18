@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Users,
+  Video,
   X,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
@@ -740,8 +741,11 @@ function SubmissionRow({
   const t = useT();
   const locale = useLocale();
   const inProgress = row.status === "IN_PROGRESS";
-  const isPendingGrading = row.status === "SUBMITTED" || (row.status !== "IN_PROGRESS" && row.score == null);
-  const canReview = ["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status);
+  const isNotStarted = row.status === "NOT_STARTED";
+  const isProctorTerminated = Boolean(row.proctorTerminatedReason);
+  const isPendingGrading =
+    !isProctorTerminated && (row.status === "SUBMITTED" || (!inProgress && !isNotStarted && row.score == null));
+  const canReview = ["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status) || isProctorTerminated;
   const durationText = computeDuration(row.startedAt, row.submittedAt, t);
   const sameDay = isSameDay(row.startedAt, row.submittedAt);
 
@@ -972,6 +976,20 @@ function SubmissionRow({
         )}
       >
         {/* Quick Proctor Approval / Emergency Action Buttons */}
+        {(row.strictProctorEnabled || row.proctorCandidateReady) && (inProgress || (row.proctorCandidateReady && !row.proctorApproved)) && (
+          <a
+            href={
+              row.proctorMeetUrl ||
+              `https://meet.jit.si/smarthire-proctor-test-${row.testId}#config.prejoinPageEnabled=false&config.disableDeepLinking=true`
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-indigo-100 transition-all cursor-pointer mr-1.5"
+            title="Mở phòng Meet giám sát góc máy 45° của ứng viên"
+          >
+            <Video className="size-3.5" /> Mở Meet
+          </a>
+        )}
         {row.proctorCandidateReady && !row.proctorApproved && (
           <button
             type="button"
@@ -1033,6 +1051,8 @@ function SubmissionRow({
               {t("recruiter.assessments.submissions.viewSubmissionBtn")}
             </button>
           )
+        ) : isNotStarted ? (
+          <span className="text-xs text-slate-400 italic">{t("recruiter.assessments.submissions.status.NOT_STARTED")}</span>
         ) : (
           <span className="text-xs text-slate-400 italic">{t("recruiter.assessments.submissions.status.IN_PROGRESS")}</span>
         )}

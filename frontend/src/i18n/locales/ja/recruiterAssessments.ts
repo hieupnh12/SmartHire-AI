@@ -644,6 +644,13 @@ export const recruiterAssessmentsJa = {
       "応募者が技術試験ステージに移行すると、問題バンクから設定比率通りに問題を抽出し、専用のテストを自動生成して配布します。",
     autoAssignOn: "有効",
     autoAssignOff: "手動",
+    autoAssignLockedByProctorBadge: "監視モードにより無効",
+    autoAssignLockedByProctorHint:
+      "リアルタイム監視（Strict Live Proctoring）が有効な場合、監視員がMeetで待機できる時間帯に合わせて採用担当者が手動で配布する必要があるため、自動配布は自動的に無効になります。",
+    autoAssignProctorConflictValidation:
+      "自動配布とリアルタイム監視（Strict Live Proctoring）は同時に有効化できません。",
+    autoGradingProctorGuardNote:
+      "不正防止セーフガード有効: 不正検知アラートが発生した解答や監視員により中止された試験は自動確定されず、採用担当者の手動確認へ保留されます。",
     gradingSectionTitle: "採点・結果通知ルール (Grading & Delivery)",
     gradingSectionTooltip:
       "採点後の結果公開方式（AI採点後すぐ自動送信するか、採用担当者の承認を待つか）を設定します。",
@@ -656,6 +663,23 @@ export const recruiterAssessmentsJa = {
       "無効: AIが推奨スコアを提示し、採用担当者が内容確認・点数調整を行ってから承認します。",
     autoGradingOnBadge: "自動送信",
     autoGradingOffBadge: "手動承認",
+    proctorSectionTitle: "リアルタイム不正防止監視 (Strict Live Proctoring)",
+    proctorSectionTooltip:
+      "AI面接と同様にQRコード経由の45°サブカメラ監視（Meet/Zoom/Jitsi）を有効化し、監視員の承認後にのみ受験開始を許可します。",
+    strictProctorLabel: "QRコードスキャンと監視員の事前承認を必須にする",
+    strictProctorTooltip:
+      "有効にすると、応募者はスマートフォンでQRコードを読み取り45°角度（両手・キーボード・画面が映る位置）で会議室へ参加し、監視員が承認するまでテストを開始できません。",
+    strictProctorOnDesc:
+      "有効: 応募者はサブスマホでQRから監視室に参加し、監視員の承認後に受験開始できます（自動生成・テンプレート配布の両方に適用）。",
+    strictProctorOffDesc:
+      "無効: 通常のブラウザ監視（Webカメラ・マイク・フルスクリーン・タブ切替検知）のみ適用されます。",
+    strictProctorOnBadge: "監視員承認必須",
+    strictProctorOffBadge: "標準監視",
+    proctorMeetUrlLabel: "監視会議室リンク (Google Meet / Zoom / Jitsi)",
+    proctorMeetUrlPlaceholder:
+      "https://meet.google.com/abc-defg-hij または Zoom リンク（空欄時は SmartHire Jitsi 会議室を自動生成）",
+    proctorMeetUrlHint:
+      "応募者の待機画面にQRコードとして表示され、採用担当者の提出一覧からもワンクリックで開けます。",
     showingFilterPrefix: "表示中の形式: ",
     showAllThreeSections: "全3パートを表示",
     showingAllThreeSections: "全3パートを同時に表示中",

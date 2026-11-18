@@ -121,6 +121,36 @@ class AssessmentInvitationServiceTest {
         verifyNoInteractions(history);
     }
 
+    @Test void assignToApplicationInheritsStrictProctorAndNormalizesDemoTitle() {
+        test.setAssignedApplication(null);
+        test.setTitle(AssessmentDemoSeedService.DEMO_TITLE);
+        test.setStrictProctorEnabled(false);
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        var configJson = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode()
+                .put("strictProctorEnabled", true)
+                .put("proctorMeetUrl", "https://meet.google.com/proctor-room");
+        application.getJob().setAssessmentConfigJson(configJson);
+        eligible();
+        when(tests.findByAssignedApplication_Id(7L)).thenReturn(Optional.empty());
+        when(tests.save(any(JobTest.class))).thenAnswer(call -> {
+            JobTest saved = call.getArgument(0);
+            saved.setId(99L);
+            return saved;
+        });
+        when(publicUrls.path(anyString())).thenAnswer(call -> "https://acme.example" + call.getArgument(0));
+        when(mail.send(eq("candidate@example.test"), anyString(), anyString())).thenReturn(true);
+
+        var result = service.assignToApplication(5L, 7L);
+
+        assertThat(result.testId()).isEqualTo(99L);
+        var savedPaper = ArgumentCaptor.forClass(JobTest.class);
+        verify(tests).save(savedPaper.capture());
+        assertThat(savedPaper.getValue().isStrictProctorEnabled()).isTrue();
+        assertThat(savedPaper.getValue().getProctorMeetUrl()).isEqualTo("https://meet.google.com/proctor-room");
+        assertThat(AssessmentDemoSeedService.isDemoPaper(savedPaper.getValue())).isFalse();
+        assertThat(savedPaper.getValue().getTitle()).isEqualTo("Java Backend Developer");
+    }
+
     @Test void rejectsWhenAiInterviewNotPassed() {
         application.setStatus(ApplicationStatus.ASSESSMENT);
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
