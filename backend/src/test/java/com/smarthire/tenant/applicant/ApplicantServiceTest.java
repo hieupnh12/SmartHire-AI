@@ -160,7 +160,7 @@ class ApplicantServiceTest {
         job.setAiInterviewEnabled(true);
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         service.advanceFromCvScreening(cv, score);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
         verify(invitations).invite(4L, null);
         org.mockito.Mockito.verifyNoInteractions(access);
     }
@@ -456,7 +456,7 @@ class ApplicantServiceTest {
 
         service.advanceFromCvScreening(cv, score);
 
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
         verify(invitations).invite(4L, null);
         verify(gateScreening).recalculate(application);
     }
@@ -520,7 +520,7 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void recruiterPassInvitesAssessmentAndAiInterview() {
+    void recruiterPassMovesToInterviewAndInvitesAiInterview() {
         job.setScreeningMode(ScreeningMode.MANUAL);
         job.setAiInterviewEnabled(true);
         application.setStatus(ApplicationStatus.IN_REVIEW);
@@ -528,9 +528,36 @@ class ApplicantServiceTest {
 
         var detail = service.decideCvScreening(4L, true, null);
 
-        assertThat(detail.status()).isEqualTo("ASSESSMENT");
+        assertThat(detail.status()).isEqualTo("INTERVIEW");
         assertThat(detail.cvScreeningStatus()).isEqualTo("PASSED");
         verify(invitations).invite(4L, null);
+    }
+
+    @Test
+    void changeStatusToInterviewRequiresCvPassed() {
+        application.setStatus(ApplicationStatus.NEW);
+        application.setCvScreeningStatus(CvScreeningStatus.PENDING);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> service.changeStatus(4L, "INTERVIEW", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("CV_SCREENING_NOT_PASSED");
+        org.mockito.Mockito.verifyNoInteractions(history, invitations);
+    }
+
+    @Test
+    void changeStatusToAssessmentRequiresAiInterviewPassed() {
+        application.setStatus(ApplicationStatus.INTERVIEW);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(aiInterviews.existsByApplication_IdAndStatus(4L, AiInterviewStatus.PASSED)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.changeStatus(4L, "ASSESSMENT", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("AI_INTERVIEW_NOT_PASSED");
+        org.mockito.Mockito.verifyNoInteractions(history);
     }
 
     @Test

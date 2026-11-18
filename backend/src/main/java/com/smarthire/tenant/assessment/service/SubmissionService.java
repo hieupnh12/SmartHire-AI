@@ -1,6 +1,7 @@
 package com.smarthire.tenant.assessment.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
@@ -36,6 +37,7 @@ public class SubmissionService {
     private final CodingProblemRepository codingProblems;
     private final CvAccess access;
     private final AssessmentMapper mapper;
+    private final AiInterviewRepository aiInterviews;
     private final JobRepository jobs;
     private final org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
 
@@ -49,7 +51,7 @@ public class SubmissionService {
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
             CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper,
-            JobRepository jobs,
+            AiInterviewRepository aiInterviews, JobRepository jobs,
             org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants) {
         this.tests = tests;
         this.applications = applications;
@@ -60,6 +62,7 @@ public class SubmissionService {
         this.codingProblems = codingProblems;
         this.access = access;
         this.mapper = mapper;
+        this.aiInterviews = aiInterviews;
         this.jobs = jobs;
         this.applicants = applicants;
     }
@@ -141,14 +144,11 @@ public class SubmissionService {
         Candidate candidate = candidate();
         Application application = applications.findById(applicationId).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
-        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
-            application.setStatus(ApplicationStatus.ASSESSMENT);
-            applications.save(application);
-        }
         try {
             requireVisible(application);
         } catch (BusinessException ex) {
-            if ("APPLICATION_NOT_ELIGIBLE".equals(ex.getCode())) {
+            if ("APPLICATION_NOT_ELIGIBLE".equals(ex.getCode())
+                    || "AI_INTERVIEW_NOT_PASSED".equals(ex.getCode())) {
                 return java.util.List.of();
             }
             throw ex;
@@ -379,12 +379,12 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
-        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
-            application.setStatus(ApplicationStatus.ASSESSMENT);
-            applications.save(application);
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
         }
-        requireVisible(application);
-        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || application.getJob().getDeletedAt() != null
+                || application.getStatus() != ApplicationStatus.ASSESSMENT) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }
@@ -404,15 +404,19 @@ public class SubmissionService {
                 || status == TestSubmissionStatus.EXPIRED;
     }
 
-    /** Finished papers stay readable after the round moves on from ASSESSMENT. */
+    /** Finished papers stay readable after the round moves on from ASSESSMENT, but only after AI Interview passed. */
     private void requireVisible(Application application) {
-        boolean hasDedicatedTest = tests.existsByAssignedApplication_Id(application.getId());
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
+        }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
                 || (application.getStatus() != ApplicationStatus.ASSESSMENT
                 && application.getStatus() != ApplicationStatus.HUMAN_INTERVIEW
+                && application.getStatus() != ApplicationStatus.OFFER
+                && application.getStatus() != ApplicationStatus.HIRED
                 && application.getStatus() != ApplicationStatus.FAILED
-                && (!hasDedicatedTest || application.getStatus() != ApplicationStatus.INTERVIEW))) {
+                && application.getStatus() != ApplicationStatus.REJECTED)) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }

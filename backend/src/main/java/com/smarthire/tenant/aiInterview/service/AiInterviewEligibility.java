@@ -10,9 +10,8 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 
 public final class AiInterviewEligibility {
-    /** After CV pass, assessment and AI interview may run in parallel under ASSESSMENT. */
-    private static final Set<ApplicationStatus> OPEN_ROUND = EnumSet.of(
-            ApplicationStatus.ASSESSMENT, ApplicationStatus.INTERVIEW);
+    /** Only applications in INTERVIEW (after CV screening passed) may take AI Interview. */
+    private static final Set<ApplicationStatus> OPEN_ROUND = EnumSet.of(ApplicationStatus.INTERVIEW);
 
     private AiInterviewEligibility() {}
 

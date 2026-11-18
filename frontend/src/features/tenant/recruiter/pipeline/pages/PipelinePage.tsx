@@ -65,21 +65,21 @@ const PIPELINE_COLUMN_DEFS: Array<{ status: ApplicationStatus; theme: ColumnThem
     },
   },
   {
-    status: "ASSESSMENT",
-    theme: {
-      icon: <ClipboardList className={iconClass} aria-hidden="true" />,
-      headerIcon: "text-indigo-600",
-      card: "bg-indigo-50/70 border-indigo-200/80",
-      badge: "bg-indigo-100 text-indigo-800",
-    },
-  },
-  {
     status: "INTERVIEW",
     theme: {
       icon: <Mic className={iconClass} aria-hidden="true" />,
       headerIcon: "text-amber-600",
       card: "bg-amber-50/70 border-amber-200/80",
       badge: "bg-amber-100 text-amber-800",
+    },
+  },
+  {
+    status: "ASSESSMENT",
+    theme: {
+      icon: <ClipboardList className={iconClass} aria-hidden="true" />,
+      headerIcon: "text-indigo-600",
+      card: "bg-indigo-50/70 border-indigo-200/80",
+      badge: "bg-indigo-100 text-indigo-800",
     },
   },
   {

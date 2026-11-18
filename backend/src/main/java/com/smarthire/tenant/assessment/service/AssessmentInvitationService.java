@@ -1,6 +1,7 @@
 package com.smarthire.tenant.assessment.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
@@ -41,6 +42,7 @@ public class AssessmentInvitationService {
     private final JobTestRepository tests;
     private final ApplicationRepository applications;
     private final SubmissionRepository submissions;
+    private final AiInterviewRepository aiInterviews;
     private final ApplicationStatusHistoryRepository history;
     private final RecruitmentStageRepository stages;
     private final NotificationRepository notifications;
@@ -61,7 +63,7 @@ public class AssessmentInvitationService {
     private TestCaseRepository testCases;
 
     public AssessmentInvitationService(JobTestRepository tests, ApplicationRepository applications,
-            SubmissionRepository submissions,
+            SubmissionRepository submissions, AiInterviewRepository aiInterviews,
             ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository outbox, InviteMailSender mail,
             TenantPublicUrlService publicUrls, CvAccess access, NotificationPreferenceService preferences,
@@ -70,6 +72,7 @@ public class AssessmentInvitationService {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
+        this.aiInterviews = aiInterviews;
         this.history = history;
         this.stages = stages;
         this.notifications = notifications;
@@ -80,16 +83,19 @@ public class AssessmentInvitationService {
         this.demoSeed = demoSeed;
     }
 
-    /** System invite after CV pass: ensure fixed demo paper exists and notify the candidate. */
+    /** System invite after AI Interview pass: ensure fixed demo paper exists and notify the candidate. */
     @Transactional
     public SendAssessmentResponse inviteFixedDemoAfterCvPass(Application application) {
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || !SENDABLE.contains(application.getStatus())) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before sending assessment", "AI_INTERVIEW_NOT_PASSED");
+        }
         JobTest test = demoSeed.ensurePublishedDemo(application.getJob());
         return notifyCandidate(application, test, application.getJob().getCreatedBy(),
-                "Bạn đã vượt vòng lọc CV cho vị trí " + application.getJob().getTitle()
+                "Bạn đã vượt qua AI Interview cho vị trí " + application.getJob().getTitle()
                         + ". Bài \"" + test.getTitle() + "\" đã sẵn sàng. Thời gian làm bài "
                         + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
     }
@@ -116,6 +122,9 @@ public class AssessmentInvitationService {
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || !SENDABLE.contains(application.getStatus())) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
+        }
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before sending assessment", "AI_INTERVIEW_NOT_PASSED");
         }
         var latest = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         boolean isDemo = AssessmentDemoSeedService.isDemoPaper(test);
@@ -163,6 +172,9 @@ public class AssessmentInvitationService {
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || !SENDABLE.contains(application.getStatus())) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
+        }
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before sending assessment", "AI_INTERVIEW_NOT_PASSED");
         }
 
         // If this test is already assigned to this application, simply send/resend:

@@ -144,36 +144,24 @@ class AiInterviewEvaluationServiceTest {
 
 
 
-    @Test void passingScoreKeepsRoundUntilAssessmentAlsoPasses() {
-        when(rankingData.submissions(7L)).thenReturn(List.of());
+    @Test void passingScoreMovesApplicationToAssessmentRound() {
+        var assessmentStage = new RecruitmentStage();
+        assessmentStage.setStageCode("ASSESSMENT");
+        assessmentStage.setName("Assessment");
+        when(stages.findByJob_IdOrderBySortOrderAsc(13L)).thenReturn(List.of(assessmentStage));
         interview.setStatus(AiInterviewStatus.SCORING);
         interview.setPassingScoreSnapshot(new BigDecimal("70.00"));
 
         service.finish(interview, new BigDecimal("78.00"));
 
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.PASSED);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        assertThat(application.getStage()).isSameAs(assessmentStage);
         var row = ArgumentCaptor.forClass(ApplicationStatusHistory.class);
         verify(history).save(row.capture());
-        assertThat(row.getValue().getToStatus()).isEqualTo("INTERVIEW");
-        verify(activity, never()).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
-    }
-
-    @Test void passingScoreUnlocksHumanInterviewWhenAssessmentAlreadyPassed() {
-        var test = new JobTest();
-        test.setPassingScore(new BigDecimal("50"));
-        var submission = new Submission();
-        submission.setStatus(com.smarthire.domain.enums.TestSubmissionStatus.GRADED);
-        submission.setScore(new BigDecimal("80"));
-        submission.setTest(test);
-        when(rankingData.submissions(7L)).thenReturn(List.of(submission));
-        interview.setStatus(AiInterviewStatus.SCORING);
-        interview.setPassingScoreSnapshot(new BigDecimal("70.00"));
-
-        service.finish(interview, new BigDecimal("78.00"));
-
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
-        verify(activity).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
+        assertThat(row.getValue().getFromStatus()).isEqualTo("INTERVIEW");
+        assertThat(row.getValue().getToStatus()).isEqualTo("ASSESSMENT");
+        verify(activity).record(eq(interview), eq("ASSESSMENT_UNLOCKED"), anyString());
     }
 
     @Test void scoreBelowThresholdFailsApplication() {

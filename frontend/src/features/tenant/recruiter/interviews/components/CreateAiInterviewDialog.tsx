@@ -31,7 +31,7 @@ export function CreateAiInterviewDialog({ jobId, applicants, existingApplication
   const t = useT();
   const client = useQueryClient();
   const schema = useMemo(() => createSchema(t), [t]);
-  const eligible = applicants.filter((a) => !a.archived && a.status !== "REJECTED" && a.status !== "WITHDRAWN");
+  const eligible = applicants.filter((a) => !a.archived && a.status === "INTERVIEW");
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { applicationId: 0 },

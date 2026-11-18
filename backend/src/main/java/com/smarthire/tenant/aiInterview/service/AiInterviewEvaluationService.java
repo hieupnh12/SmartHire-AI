@@ -7,7 +7,6 @@ import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
-import com.smarthire.tenant.interview.service.HumanInterviewGate;
 import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -692,31 +691,26 @@ public class AiInterviewEvaluationService {
         var application = interview.getApplication();
         ApplicationStatus previous = application.getStatus();
         boolean retry = !passed && InterviewPolicies.canRetry(interview, java.time.Instant.now());
-        boolean unlockHuman = passed && HumanInterviewGate.cvPassed(application)
-                && (rankingData == null || HumanInterviewGate.assessmentPassed(rankingData.submissions(application.getId())));
-        ApplicationStatus next = unlockHuman ? ApplicationStatus.HUMAN_INTERVIEW
-                : passed ? (AiInterviewEligibility.openRound(previous) ? previous : ApplicationStatus.ASSESSMENT)
-                : retry ? (AiInterviewEligibility.openRound(previous) ? previous : ApplicationStatus.ASSESSMENT)
+        ApplicationStatus next = passed ? ApplicationStatus.ASSESSMENT
+                : retry ? ApplicationStatus.INTERVIEW
                 : ApplicationStatus.FAILED;
         var row = new ApplicationStatusHistory();
         row.setApplication(application); row.setFromStatus(previous.name()); row.setToStatus(next.name());
-        row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot()
-                + (passed && !unlockHuman ? "; waiting for Assessment pass before Human Interview" : ""));
+        row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
         history.save(row);
         application.setStatus(next);
         if (next == ApplicationStatus.FAILED) closures.onClosed(application, null);
-        if (unlockHuman) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
-                .filter(stage -> "HUMAN_INTERVIEW".equalsIgnoreCase(stage.getStageCode())
-                        || "Human Interview".equalsIgnoreCase(stage.getName()))
+        if (passed) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
+                .filter(stage -> "ASSESSMENT".equalsIgnoreCase(stage.getStageCode())
+                        || "Assessment".equalsIgnoreCase(stage.getName()))
                 .findFirst()
                 .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
-        if (unlockHuman) {
-            activity.record(interview, "HUMAN_INTERVIEW_UNLOCKED", "All prior rounds passed; human interview round opened");
+        if (passed) {
+            activity.record(interview, "ASSESSMENT_UNLOCKED", "AI Interview passed; assessment round opened");
         }
         String body = "Kết quả AI Interview cho vị trí " + application.getJob().getTitle() + ": " + score + "/100. "
-                + (unlockHuman ? "Bạn đã vượt qua các vòng đánh giá. Vòng phỏng vấn trực tiếp đã được mở."
-                        : passed ? "Bạn đã vượt qua AI Interview. Hoàn thành Assessment đạt yêu cầu để mở phỏng vấn trực tiếp."
+                + (passed ? "Bạn đã vượt qua AI Interview. Vòng Assessment đã được mở."
                         : retry ? "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Bạn còn lượt làm lại trước hạn."
                         : "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Hồ sơ kết thúc ở vòng AI Interview.");
         notify(interview, passed ? "AI_INTERVIEW_PASSED" : "AI_INTERVIEW_FAILED", "Kết quả AI Interview", body, true);
@@ -761,7 +755,7 @@ public class AiInterviewEvaluationService {
 
     private void notify(AiInterview interview, String type, String title, String body, boolean email) {
         var app = interview.getApplication();
-        String path = type.equals("AI_INTERVIEW_PASSED") ? "/candidate/assessments" : "/candidate/interviews/" + interview.getId();
+        String path = type.equals("AI_INTERVIEW_PASSED") ? "/assessments?applicationId=" + app.getId() : "/interviews/" + interview.getId();
         if (!preferences.webOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
             notifications.save(Notification.builder().candidate(app.getCandidate()).type(type).title(title).body(body)
                     .payloadJson("{\"path\":\"" + path + "\",\"applicationId\":" + app.getId() + "}").build());
