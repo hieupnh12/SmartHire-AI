@@ -832,6 +832,16 @@ function SubmissionRow({
               Chờ duyệt Meet
             </span>
           )}
+          {row.proctorApproved && !inProgress && !row.submittedAt && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold border border-emerald-300">
+              Đã duyệt Meet · Chờ vào thi
+            </span>
+          )}
+          {row.proctorApproved && inProgress && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 text-indigo-800 px-2 py-0.5 text-[10px] font-bold border border-indigo-300">
+              Đang giám sát Meet
+            </span>
+          )}
           {row.proctorTerminatedReason && (
             <span
               className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-[10px] font-bold border border-rose-300"
@@ -976,20 +986,22 @@ function SubmissionRow({
         )}
       >
         {/* Quick Proctor Approval / Emergency Action Buttons */}
-        {(row.strictProctorEnabled || row.proctorCandidateReady) && (inProgress || (row.proctorCandidateReady && !row.proctorApproved)) && (
-          <a
-            href={
-              row.proctorMeetUrl ||
-              `https://meet.jit.si/smarthire-proctor-test-${row.testId}#config.prejoinPageEnabled=false&config.disableDeepLinking=true`
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-indigo-100 transition-all cursor-pointer mr-1.5"
-            title="Mở phòng Meet giám sát góc máy 45° của ứng viên"
-          >
-            <Video className="size-3.5" /> Mở Meet
-          </a>
-        )}
+        {(row.strictProctorEnabled || row.proctorCandidateReady || row.proctorApproved) &&
+          !row.submittedAt &&
+          row.status !== "EXPIRED" && (
+            <a
+              href={
+                row.proctorMeetUrl ||
+                `https://meet.jit.si/smarthire-proctor-test-${row.testId}#config.prejoinPageEnabled=false&config.disableDeepLinking=true`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-indigo-100 transition-all cursor-pointer mr-1.5"
+              title="Mở phòng Meet giám sát góc máy 45° của ứng viên"
+            >
+              <Video className="size-3.5" /> Mở Meet
+            </a>
+          )}
         {row.proctorCandidateReady && !row.proctorApproved && (
           <button
             type="button"
