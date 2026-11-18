@@ -197,7 +197,7 @@ export function AssessmentInvitationView({
           </div>
         </section>
 
-        <aside className="flex min-h-0 flex-col justify-between gap-4 bg-[var(--color-surface-alt)]/40 p-4 sm:p-5">
+        <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto bg-[var(--color-surface-alt)]/40 p-4 sm:p-5 max-lg:overflow-visible">
           {needsGate ? (
             <div className="flex flex-col gap-4">
               <div className="shrink-0">
@@ -218,7 +218,7 @@ export function AssessmentInvitationView({
 
               <label
                 htmlFor="accept-rules"
-                className={`flex shrink-0 cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-colors ${acceptRules
+                className={`flex shrink-0 cursor-pointer items-start gap-3 rounded-2xl border-2 p-3.5 sm:p-4 transition-colors ${acceptRules
                   ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
                   : "border-[var(--color-primary)]/45 bg-white shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-primary)_12%,transparent)] hover:border-[var(--color-primary)]"
                   }`}
@@ -252,24 +252,20 @@ export function AssessmentInvitationView({
                 </span>
               </label>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {acceptRules ? (
-                  <div className="h-full min-h-0 overflow-y-auto">
-                    <AssessmentProctorGate
-                      busy={starting}
-                      label={gateLabel}
-                      test={test}
-                      applicationId={application.id}
-                      onReady={onProctorReady}
-                      onRefreshTest={onRefreshTest}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">
-                    {t("candidate.assess.invitation.gateLockedPlaceholder")}
-                  </div>
-                )}
-              </div>
+              {acceptRules ? (
+                <AssessmentProctorGate
+                  busy={starting}
+                  label={gateLabel}
+                  test={test}
+                  applicationId={application.id}
+                  onReady={onProctorReady}
+                  onRefreshTest={onRefreshTest}
+                />
+              ) : (
+                <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 py-8 text-center text-sm text-[var(--color-on-surface-variant)]">
+                  {t("candidate.assess.invitation.gateLockedPlaceholder")}
+                </div>
+              )}
 
               {done && allowRetake && test.submissionId && (
                 <Button variant="secondary" className="w-full shrink-0" disabled={starting} onClick={onContinue}>

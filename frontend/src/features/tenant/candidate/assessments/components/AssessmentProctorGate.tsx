@@ -180,7 +180,7 @@ export function AssessmentProctorGate({ busy, label, test, applicationId, onRead
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="size-28 shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1 flex items-center justify-center">
+            <div className="size-24 shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1 flex items-center justify-center">
               <img
                 src={qrCodeUrl}
                 alt="QR Code Meet"
@@ -222,9 +222,8 @@ export function AssessmentProctorGate({ busy, label, test, applicationId, onRead
             {!isCandidateReady ? (
               <Button
                 type="button"
-                variant="secondary"
                 size="sm"
-                className="w-full text-xs font-semibold"
+                className="w-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer"
                 disabled={signalingReady}
                 onClick={handleSignalReady}
               >
