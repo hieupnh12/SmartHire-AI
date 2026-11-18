@@ -1,16 +1,13 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, ArrowUpRight, QrCode } from "lucide-react";
+import { Mail, ArrowUpRight } from "lucide-react";
 import { SmartHireLogo } from "@/components/shared/SmartHireLogo";
 import { useT } from "@/i18n";
 import { useLandingModal } from "../context/LandingModalContext";
 import { LEGAL_POLICY_META } from "@/config/legalConfig";
-import { AppDownloadModal } from "./AppDownloadQrModal";
 
 export function LandingFooter() {
   const t = useT();
   const { openWorkspaceModal } = useLandingModal();
-  const [appModalOpen, setAppModalOpen] = useState(false);
   const navLinks = [
     { label: t("master.landingChrome.nav.solutions"), to: "/solutions" },
     { label: t("master.landingChrome.nav.preview"), to: "/preview" },
@@ -80,16 +77,6 @@ export function LandingFooter() {
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setAppModalOpen(true)}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 group font-medium text-left"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                  <span>Quét QR / Tải SmartHire App (Android & iOS)</span>
-                </button>
-              </li>
-              <li>
                 <a
                   href={`mailto:${LEGAL_POLICY_META.supportEmail}`}
                   className="text-xs text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1 group"
@@ -121,9 +108,6 @@ export function LandingFooter() {
           </div>
         </div>
       </div>
-
-      {/* App Download Modal */}
-      <AppDownloadModal isOpen={appModalOpen} onClose={() => setAppModalOpen(false)} />
     </footer>
   );
 }

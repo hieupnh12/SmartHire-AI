@@ -7,11 +7,13 @@ import {
   Check,
   ShieldCheck,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import { QrCodeView } from "@/components/shared/QrCodeView";
 import { useT } from "@/i18n";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { AppDownloadModal } from "./AppDownloadModal";
 
 interface MobileAppHeaderButtonProps {
   tenantName?: string;
@@ -186,6 +188,7 @@ export function MobileAppSyncModal({
   );
   const [countdown, setCountdown] = useState(300); // 5 minutes
   const [copiedCode, setCopiedCode] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -332,7 +335,16 @@ export function MobileAppSyncModal({
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
               1
             </span>
-            <span>{t("candidate.core.mobileApp.sync.step1")}</span>
+            <div>
+              <span>{t("candidate.core.mobileApp.sync.step1")}</span>
+              <button
+                type="button"
+                onClick={() => setDownloadOpen(true)}
+                className="ml-1.5 font-semibold text-emerald-600 hover:text-emerald-700 underline"
+              >
+                (Chưa cài? Tải app APK / iOS)
+              </button>
+            </div>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
@@ -363,6 +375,12 @@ export function MobileAppSyncModal({
           </button>
         </div>
       </div>
+
+      <AppDownloadModal
+        isOpen={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        tenantName={tenantName}
+      />
     </div>
   );
 }
@@ -388,6 +406,7 @@ export function MobileAppSyncCard({
 }: MobileAppSyncCardProps) {
   const t = useT();
   const [modalOpen, setModalOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const resolvedTenantId = tenantId || tenantCode || "acme";
 
   if (variant === "compact") {
@@ -415,14 +434,25 @@ export function MobileAppSyncCard({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <QrCode className="size-4" />
-            <span>{t("candidate.core.mobileApp.card.cta")}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDownloadOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all"
+              title="Tải tệp cài đặt APK hoặc iOS"
+            >
+              <Download className="size-3.5" />
+              <span>Tải App</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <QrCode className="size-4" />
+              <span>{t("candidate.core.mobileApp.card.cta")}</span>
+            </button>
+          </div>
         </div>
 
         <MobileAppSyncModal
@@ -430,6 +460,12 @@ export function MobileAppSyncCard({
           onClose={() => setModalOpen(false)}
           tenantCode={resolvedTenantId}
           tenantId={resolvedTenantId}
+          tenantName={tenantName}
+        />
+
+        <AppDownloadModal
+          isOpen={downloadOpen}
+          onClose={() => setDownloadOpen(false)}
           tenantName={tenantName}
         />
       </>
@@ -475,14 +511,24 @@ export function MobileAppSyncCard({
           </div>
 
           <div className="flex shrink-0 flex-col sm:items-end gap-2">
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all"
-            >
-              <QrCode className="size-4" />
-              <span>{t("candidate.core.mobileApp.card.cta")}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDownloadOpen(true)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 shadow-2xs hover:bg-emerald-100 active:scale-95 transition-all"
+              >
+                <Download className="size-4 text-emerald-600" />
+                <span>Tải file APK / iOS</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all"
+              >
+                <QrCode className="size-4" />
+                <span>{t("candidate.core.mobileApp.card.cta")}</span>
+              </button>
+            </div>
             <span className="text-[11px] text-slate-400">{t("candidate.core.mobileApp.card.platforms")}</span>
           </div>
         </div>
@@ -495,6 +541,15 @@ export function MobileAppSyncCard({
         tenantId={resolvedTenantId}
         tenantName={tenantName}
       />
+
+      <AppDownloadModal
+        isOpen={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        tenantName={tenantName}
+      />
     </>
   );
 }
+
+// Re-export for seamless imports
+export { AppDownloadHeaderButton, AppDownloadModal } from "./AppDownloadModal";

@@ -48,7 +48,7 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({com.smarthire.tenant.assessment.service.CodingJudge.class, AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class, AssessmentGradingService.class, SubmissionGradingDetailService.class})
+    @Import({com.smarthire.tenant.assessment.service.CodingJudge.class, com.smarthire.tenant.assessment.service.CodingLocalRunner.class, AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class, AssessmentGradingService.class, SubmissionGradingDetailService.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
         @Bean com.smarthire.tenant.aiInterview.ai.AiInterviewClient aiClient() { return org.mockito.Mockito.mock(com.smarthire.tenant.aiInterview.ai.AiInterviewClient.class); }
