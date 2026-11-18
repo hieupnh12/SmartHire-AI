@@ -42,6 +42,8 @@ public class AssessmentGenerationService {
     private RecruitmentStageRepository stages;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AssessmentGradingService grading;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SubmissionRepository submissions;
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
@@ -80,10 +82,21 @@ public class AssessmentGenerationService {
         // or reported via automation_status.
         job.setAssessmentConfigJson(json.valueToTree(config));
 
-        if (config.autoGradingEnabled() != null) {
+        if (config.autoGradingEnabled() != null || config.strictProctorEnabled() != null) {
             var jobTests = tests.findByJob_IdOrderByIdDesc(jobId);
+            String cleanMeetUrl = blankToNull(config.proctorMeetUrl());
             for (var t : jobTests) {
-                t.setAutoGradingEnabled(config.autoGradingEnabled());
+                if (config.autoGradingEnabled() != null) {
+                    t.setAutoGradingEnabled(config.autoGradingEnabled());
+                }
+                if (config.strictProctorEnabled() != null && !AssessmentDemoSeedService.isDemoPaper(t)) {
+                    boolean alreadyStarted = submissions != null
+                            && submissions.existsByTest_IdAndStatusNot(t.getId(), TestSubmissionStatus.NOT_STARTED);
+                    if (!alreadyStarted) {
+                        t.setStrictProctorEnabled(config.strictProctorEnabled());
+                        t.setProctorMeetUrl(cleanMeetUrl);
+                    }
+                }
             }
             tests.saveAll(jobTests);
 
@@ -151,7 +164,10 @@ public class AssessmentGenerationService {
         String title = "Bài Assessment đã sẵn sàng";
         String body = "Bạn đã được giao bài đánh giá năng lực cho vị trí " + test.getJob().getTitle()
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
-                + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
+                + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu."
+                + (test.isStrictProctorEnabled()
+                        ? " Lưu ý: Bài thi áp dụng Giám sát trực tiếp (Strict Live Proctoring) — bạn cần quét mã QR vào phòng Meet bằng điện thoại phụ góc 45° và chờ Giám sát viên duyệt trước khi bắt đầu."
+                        : "");
         if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
             notifications.save(Notification.builder().candidate(application.getCandidate()).type("ASSESSMENT_INVITATION")
                     .title(title).body(body).payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + applicationId
@@ -229,7 +245,10 @@ public class AssessmentGenerationService {
                 .durationMinutes(config.durationMinutes()).objectiveDurationMinutes(config.objectiveDurationMinutes())
                 .passingScore(BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(config.passingPercent()))
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
+                .codingTestWeightPercent(config.codingTestWeightPercent() != null ? config.codingTestWeightPercent() : 80)
                 .autoGradingEnabled(Boolean.TRUE.equals(config.autoGradingEnabled()))
+                .strictProctorEnabled(Boolean.TRUE.equals(config.strictProctorEnabled()))
+                .proctorMeetUrl(blankToNull(config.proctorMeetUrl()))
                 .origin(TestOrigin.GENERATED)
                 .status(application == null ? TestStatus.DRAFT : TestStatus.PUBLISHED).build();
         tests.save(test);
@@ -296,6 +315,10 @@ public class AssessmentGenerationService {
     }
 
     private void validate(Job job, AssessmentConfigRequest config) {
+        if (config.autoAssign() && Boolean.TRUE.equals(config.strictProctorEnabled())) {
+            throw invalid("Không thể bật đồng thời Tự động giao đề và Giám sát trực tiếp (Strict Live Proctoring). "
+                    + "Chế độ Giám sát trực tiếp yêu cầu nhà tuyển dụng chủ động giao đề theo khung giờ đã hẹn.");
+        }
         var names = skills.findByJob_IdOrderByIdAsc(job.getId()).stream().map(s -> s.getSkill().getName().trim().toLowerCase(Locale.ROOT)).toList();
         if (config.sections() == null || config.sections().isEmpty()
                 || config.sections().stream().mapToInt(AssessmentConfigRequest.Section::count).sum() > 100) {
@@ -328,6 +351,10 @@ public class AssessmentGenerationService {
         access.requireJob(job);
         if (job.getDeletedAt() != null) throw invalid("Job is unavailable");
         return job;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private BusinessException invalid(String message) {

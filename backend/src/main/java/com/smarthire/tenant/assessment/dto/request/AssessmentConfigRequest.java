@@ -15,14 +15,23 @@ public record AssessmentConfigRequest(
         @Min(0) @Max(100) Integer codingAiWeightPercent,
         List<@Valid RubricCriterionConfig> essayCriteria,
         @Size(max = 2000) String essayGradingGuide,
-        Boolean autoGradingEnabled) {
+        Boolean autoGradingEnabled,
+        Boolean strictProctorEnabled,
+        @Size(max = 512) String proctorMeetUrl) {
 
     public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections) {
-        this(duration, passingPercent, autoAssign, sections, null, 80, 20, null, null, false);
+        this(duration, passingPercent, autoAssign, sections, null, 80, 20, null, null, false, false, null);
     }
 
     public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections, Integer objectiveDurationMinutes) {
-        this(duration, passingPercent, autoAssign, sections, objectiveDurationMinutes, 80, 20, null, null, false);
+        this(duration, passingPercent, autoAssign, sections, objectiveDurationMinutes, 80, 20, null, null, false, false, null);
+    }
+
+    public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections,
+            Integer objectiveDurationMinutes, Integer codingTestWeightPercent, Integer codingAiWeightPercent,
+            List<RubricCriterionConfig> essayCriteria, String essayGradingGuide, Boolean autoGradingEnabled) {
+        this(duration, passingPercent, autoAssign, sections, objectiveDurationMinutes, codingTestWeightPercent,
+                codingAiWeightPercent, essayCriteria, essayGradingGuide, autoGradingEnabled, false, null);
     }
 
     public record Section(@NotBlank @Size(max = 128) String skill,

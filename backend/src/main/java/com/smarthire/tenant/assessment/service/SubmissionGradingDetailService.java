@@ -81,6 +81,9 @@ public class SubmissionGradingDetailService {
     @Transactional
     public SubmissionGradingDetailResponse update(long id, UpdateGradingRequest request) {
         var submission = completed(id);
+        if (AssessmentGradingService.isProctorTerminated(submission)) {
+            throw conflict("Bài thi đã bị đình chỉ do vi phạm chống gian lận", "SUBMISSION_PROCTOR_TERMINATED");
+        }
         var ids = new HashSet<Long>();
         for (var decision : request.decisions()) {
             if (!ids.add(decision.questionId())) throw new BusinessException("Duplicate question decisions", HttpStatus.BAD_REQUEST, "INVALID_GRADE");
@@ -95,6 +98,9 @@ public class SubmissionGradingDetailService {
     @Transactional
     public EmailReceipt sendResult(long id) {
         var submission = completed(id);
+        if (AssessmentGradingService.isProctorTerminated(submission)) {
+            throw conflict("Bài thi đã bị đình chỉ do vi phạm chống gian lận", "SUBMISSION_PROCTOR_TERMINATED");
+        }
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId());
         if (submission.getScore() == null || saved.stream().anyMatch(answer -> answer.getScore() == null

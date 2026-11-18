@@ -160,15 +160,25 @@ class AssessmentFlowTest {
         bank.create(List.of(new BankQuestionRequest(new QuestionRequest("Second source " + jobId, 1, 0,
                 "Easy", skill, null, List.of(new QuestionRequest.OptionRequest("Yes", true),
                 new QuestionRequest.OptionRequest("No", false)), QuestionType.MCQ), null)));
+        var conflicting = new AssessmentConfigRequest(17, 60, true, List.of(
+                new AssessmentConfigRequest.Section(skill, QuestionType.MCQ, "Easy", 2, 3)),
+                null, 80, 20, null, null, false, true, "https://meet.google.com/abc-defg-hij");
+        assertThatThrownBy(() -> generation.saveConfig(jobId, conflicting))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Strict Live Proctoring");
+
         var config = new AssessmentConfigRequest(17, 60, true, List.of(
-                new AssessmentConfigRequest.Section(skill, QuestionType.MCQ, "Easy", 2, 3)));
+                new AssessmentConfigRequest.Section(skill, QuestionType.MCQ, "Easy", 2, 3)),
+                null, 80, 20, null, null, false, false, null);
         generation.saveConfig(jobId, config);
         var draft = generation.generate(jobId);
         assertThat(generation.generateForApplication(applicationId)).isTrue();
         var assigned = tx.execute(status -> em.createQuery("select t from JobTest t where t.assignedApplication.id = :id", JobTest.class)
                 .setParameter("id", applicationId).getSingleResult());
         assertThat(draft.durationMinutes()).isEqualTo(17);
+        assertThat(draft.strictProctorEnabled()).isFalse();
         assertThat(assigned.getDurationMinutes()).isEqualTo(17);
+        assertThat(assigned.isStrictProctorEnabled()).isFalse();
         assertThat(draft.passingScore()).isEqualByComparingTo("3.60");
         assertThat(assigned.getPassingScore()).isEqualByComparingTo("3.60");
         var manualQuestions = questions.list(draft.id());
@@ -183,6 +193,14 @@ class AssessmentFlowTest {
         });
         assertThat(assignedQuestions).extracting(QuestionResponse::questionText)
                 .containsExactlyInAnyOrderElementsOf(manualQuestions.stream().map(QuestionResponse::questionText).toList());
+
+        var strictConfig = new AssessmentConfigRequest(17, 60, false, List.of(
+                new AssessmentConfigRequest.Section(skill, QuestionType.MCQ, "Easy", 2, 3)),
+                null, 80, 20, null, null, false, true, "https://meet.google.com/abc-defg-hij");
+        generation.saveConfig(jobId, strictConfig);
+        var strictDraft = generation.generate(jobId);
+        assertThat(strictDraft.strictProctorEnabled()).isTrue();
+        assertThat(strictDraft.proctorMeetUrl()).isEqualTo("https://meet.google.com/abc-defg-hij");
     }
 
     @Test

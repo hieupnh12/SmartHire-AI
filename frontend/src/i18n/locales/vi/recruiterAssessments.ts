@@ -646,6 +646,13 @@ export const recruiterAssessmentsVi = {
       "Hệ thống sẽ tự động bốc câu hỏi từ Ngân hàng câu hỏi theo đúng cơ cấu tỷ trọng đã cấu hình để sinh đề thi độc bản cho từng ứng viên ngay khi ứng viên chuyển sang giai đoạn Assessment.",
     autoAssignOn: "Đang bật",
     autoAssignOff: "Thủ công",
+    autoAssignLockedByProctorBadge: "Khóa do Giám sát trực tiếp",
+    autoAssignLockedByProctorHint:
+      "Tự động giao đề được tự động tắt khi bật Giám sát trực tiếp (Strict Live Proctoring) vì HR cần chủ động giao đề theo khung giờ đã hẹn để trực phòng Meet và duyệt góc máy cho ứng viên.",
+    autoAssignProctorConflictValidation:
+      "Không thể bật đồng thời Tự động giao đề và Giám sát trực tiếp (Strict Live Proctoring).",
+    autoGradingProctorGuardNote:
+      "Bảo vệ chống gian lận đang kích hoạt: Nếu ứng viên phát sinh cảnh báo vi phạm hoặc bị Giám sát viên đình chỉ thi, hệ thống sẽ giữ bài lại để HR hậu kiểm thay vì tự động duyệt điểm và gửi email.",
     gradingSectionTitle: "Quy tắc chấm đề & Giao kết quả (Grading & Delivery)",
     gradingSectionTooltip:
       "Cấu hình cơ chế công bố điểm: Tự động gửi kết quả cho ứng viên ngay sau khi chấm hoặc chờ Nhà tuyển dụng duyệt.",
@@ -658,6 +665,23 @@ export const recruiterAssessmentsVi = {
       "Đang tắt: AI chấm đề xuất trước, Nhà tuyển dụng có thể vào xem bài thi, điều chỉnh điểm và duyệt kết quả như hiện tại.",
     autoGradingOnBadge: "Tự động gửi điểm",
     autoGradingOffBadge: "Duyệt thủ công",
+    proctorSectionTitle: "Giám sát chống gian lận trực tiếp (Strict Live Proctoring)",
+    proctorSectionTooltip:
+      "Bật cơ chế giám sát camera góc 45° qua mã QR (Meet/Zoom/Jitsi) tương tự AI Interview: Giám sát viên phải duyệt góc quay thì ứng viên mới được vào phòng thi.",
+    strictProctorLabel: "Bắt buộc quét mã QR & Giám sát viên duyệt trước khi vào phòng thi",
+    strictProctorTooltip:
+      "Khi bật, ứng viên phải dùng điện thoại phụ quét mã QR tham gia phòng họp ở góc nghiêng 45° (thấy 2 bàn tay, bàn phím, màn hình) và chờ Giám sát viên bấm Duyệt Meet trong mục Theo dõi bài làm.",
+    strictProctorOnDesc:
+      "Đang bật: Ứng viên phải quét mã QR vào phòng giám sát bằng điện thoại phụ và được HR bấm Duyệt Meet mới có thể kích hoạt đề thi. Áp dụng cho cả đề tạo tự động và đề giao từ mẫu.",
+    strictProctorOffDesc:
+      "Đang tắt: Chỉ áp dụng giám sát tiêu chuẩn trên trình duyệt (camera, micro, chia sẻ toàn màn hình và chống chuyển tab).",
+    strictProctorOnBadge: "Bắt buộc duyệt Meet",
+    strictProctorOffBadge: "Giám sát tiêu chuẩn",
+    proctorMeetUrlLabel: "Link phòng giám sát (Google Meet / Zoom / Jitsi)",
+    proctorMeetUrlPlaceholder:
+      "https://meet.google.com/abc-defg-hij hoặc link Zoom (để trống sẽ tự tạo phòng SmartHire Jitsi)",
+    proctorMeetUrlHint:
+      "Đường dẫn này sẽ tự động tạo thành mã QR ở màn hình chờ của ứng viên và gắn vào nút Mở Meet ở màn hình Theo dõi bài làm của Giám sát viên.",
     showingFilterPrefix: "Đang hiển thị dạng: ",
     showAllThreeSections: "Hiển thị tất cả 3 phần",
     showingAllThreeSections: "Đang hiển thị đồng thời cả 3 phần bài tập",

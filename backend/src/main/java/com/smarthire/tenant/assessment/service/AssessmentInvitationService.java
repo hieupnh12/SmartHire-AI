@@ -150,7 +150,10 @@ public class AssessmentInvitationService {
 
         return notifyCandidate(application, test, actor,
                 "Nhà tuyển dụng mời bạn làm bài \"" + test.getTitle() + "\" cho vị trí " + application.getJob().getTitle()
-                        + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
+                        + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu."
+                        + (test.isStrictProctorEnabled()
+                                ? " Lưu ý: Bài thi áp dụng Giám sát trực tiếp (Strict Live Proctoring) — bạn cần quét mã QR vào phòng Meet bằng điện thoại phụ góc 45° và chờ Giám sát viên duyệt trước khi bắt đầu."
+                                : ""));
     }
 
     @Transactional
@@ -189,15 +192,33 @@ public class AssessmentInvitationService {
         }
 
         // Clone the published template test into a dedicated paper for this application:
+        var jobConfigNode = test.getJob() == null ? null : test.getJob().getAssessmentConfigJson();
+        boolean jobStrictProctor = jobConfigNode != null && jobConfigNode.path("strictProctorEnabled").asBoolean(false);
+        String jobMeetUrl = jobConfigNode != null && jobConfigNode.path("proctorMeetUrl").isTextual()
+                && !jobConfigNode.path("proctorMeetUrl").asText().isBlank()
+                ? jobConfigNode.path("proctorMeetUrl").asText().trim()
+                : null;
+        boolean strictProctor = test.isStrictProctorEnabled() || jobStrictProctor;
+        String meetUrl = test.getProctorMeetUrl() != null && !test.getProctorMeetUrl().isBlank()
+                ? test.getProctorMeetUrl().trim()
+                : jobMeetUrl;
+        String assignedTitle = AssessmentDemoSeedService.isDemoPaper(test)
+                ? AssessmentGenerationService.shortTitle(test.getJob().getTitle())
+                : test.getTitle();
+
         JobTest paper = JobTest.builder()
                 .job(test.getJob())
                 .assignedApplication(application)
                 .createdBy(actor)
-                .title(test.getTitle())
+                .title(assignedTitle)
                 .description(test.getDescription())
                 .durationMinutes(test.getDurationMinutes())
                 .objectiveDurationMinutes(test.getObjectiveDurationMinutes())
                 .passingScore(test.getPassingScore())
+                .codingTestWeightPercent(test.getCodingTestWeightPercent())
+                .autoGradingEnabled(test.isAutoGradingEnabled())
+                .strictProctorEnabled(strictProctor)
+                .proctorMeetUrl(meetUrl)
                 .origin(test.getOrigin())
                 .status(TestStatus.PUBLISHED)
                 .build();

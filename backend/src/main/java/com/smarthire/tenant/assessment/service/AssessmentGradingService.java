@@ -52,6 +52,10 @@ public class AssessmentGradingService {
         Submission submission = submissions.findLockedById(id).orElse(null);
         if (submission == null) return;
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) return;
+        if (isProctorTerminated(submission)) {
+            log.info("Submission {} was terminated by proctor. Skipping grading task for type {}.", id, type);
+            return;
+        }
         if (submission.getStatus().isFinished()) {
             log.info("Submission {} is already graded/completed. Skipping duplicate task for type {}.", id, type);
             return;
@@ -78,7 +82,14 @@ public class AssessmentGradingService {
                 }
             }
             boolean isDemo = AssessmentDemoSeedService.isDemoPaper(submission.getTest());
-            if (submission.getTest().isAutoGradingEnabled() || isDemo) {
+            if (!isDemo && requiresProctorReview(submission)) {
+                log.info("Submission {} has {} proctor violation(s) under strict proctoring; holding for HR manual review.",
+                        id, submission.getProctorViolationsCount());
+                if (submission.getStatus() == TestSubmissionStatus.GRADING) {
+                    submission.setStatus(TestSubmissionStatus.SUBMITTED);
+                    submissions.save(submission);
+                }
+            } else if (submission.getTest().isAutoGradingEnabled() || isDemo) {
                 for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
                     if (answer.getScore() == null && answer.getSuggestedScore() != null) {
                         answer.setScore(answer.getSuggestedScore());
@@ -101,6 +112,9 @@ public class AssessmentGradingService {
                         detailSvc.sendResultEmailSilently(submission.getId());
                     }
                 }
+            } else if (submission.getStatus() == TestSubmissionStatus.GRADING) {
+                submission.setStatus(TestSubmissionStatus.SUBMITTED);
+                submissions.save(submission);
             }
         } catch (Exception ex) {
             log.error("Fatal error during asynchronous grading for submission {} and type {}: {}", id, type, ex.getMessage(), ex);
@@ -363,6 +377,9 @@ public class AssessmentGradingService {
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) {
             return false;
         }
+        if (isProctorTerminated(submission)) {
+            return false;
+        }
         if (submission.getStatus().isFinished()) {
             return true;
         }
@@ -424,6 +441,9 @@ public class AssessmentGradingService {
         var jobSubmissions = submissions.findByJobId(jobId);
         int count = 0;
         for (var sub : jobSubmissions) {
+            if (isProctorTerminated(sub) || requiresProctorReview(sub)) {
+                continue;
+            }
             if (sub.getStatus() == TestSubmissionStatus.SUBMITTED || sub.getStatus() == TestSubmissionStatus.FAILED) {
                 if (autoGradeSubmission(sub.getId())) {
                     count++;
@@ -431,6 +451,20 @@ public class AssessmentGradingService {
             }
         }
         return count;
+    }
+
+    static boolean isProctorTerminated(Submission submission) {
+        return submission != null
+                && submission.getProctorTerminatedReason() != null
+                && !submission.getProctorTerminatedReason().isBlank();
+    }
+
+    static boolean requiresProctorReview(Submission submission) {
+        return submission != null
+                && submission.getTest() != null
+                && submission.getTest().isStrictProctorEnabled()
+                && !AssessmentDemoSeedService.isDemoPaper(submission.getTest())
+                && submission.getProctorViolationsCount() > 0;
     }
     private Submission staff(long id) {
         if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");

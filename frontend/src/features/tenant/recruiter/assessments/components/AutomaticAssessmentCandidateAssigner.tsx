@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -272,6 +273,12 @@ export function AutomaticAssessmentCandidateAssigner() {
                   points: Math.round((totalPoints * config.passingPercent) / 100),
                 })}
               </span>
+              {config.strictProctorEnabled && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700 border border-indigo-200/60 dark:bg-indigo-950 dark:text-indigo-300">
+                  <ShieldCheck className="size-3" aria-hidden="true" />
+                  {t("recruiter.assessments.config.strictProctorOnBadge")}
+                </span>
+              )}
             </div>
           ) : null}
         </div>
